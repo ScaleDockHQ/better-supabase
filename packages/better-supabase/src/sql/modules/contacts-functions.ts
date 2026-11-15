@@ -2,6 +2,13 @@ import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlScope } from "../scope.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
 import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
@@ -502,6 +509,104 @@ ${userGrant(`${fn(name)}(${ctx.idType}, text, text, uuid, text, uuid, integer, t
 `;
 }
 
+/**
+ * `page_companies` and `page_people` (ADR 1077): the organization's active
+ * parties as a keyset page, by name. They run as the caller, so row level
+ * security hides what the caller can't read, as on the table.
+ */
+function pageFunction(
+  ctx: BlockSqlContext,
+  names: PartyNames,
+  kind: Kind,
+): string {
+  const spec = SPEC[kind];
+  const { t, c, fn } = names;
+  const col = (logical: string): string => c(spec.table, logical);
+  const has = (logical: string): boolean => ctx.has(spec.table, logical);
+  const name = kind === "company" ? "page_companies" : "page_people";
+  const idKey = { expr: `x.${col("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const nameKeys = [
+    { expr: `lower(x.${col("name")})`, dir: "asc", type: "text" },
+    idKey,
+  ] as const;
+
+  const lifecycle = asText(ctx, spec.table, `x.${col("lifecycle")}`);
+  const second = kind === "company" ? "domain" : "email";
+
+  const roleMatch = (): string =>
+    `exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'role') = 'array' then v_filters -> 'role' else jsonb_build_array(v_filters ->> 'role') end) r where r = any (x.${col("roles")}))`;
+
+  const page = {
+    name,
+    from: t(spec.table),
+    alias: "x",
+    where: [
+      `x.${col("tenant")} = ${name}.tenant`,
+      `x.${col("archivedAt")} is null`,
+      filterAny("lifecycle", lifecycle),
+      has("owner") ? filterAny("ownerId", `x.${col("owner")}::text`) : "true",
+      has("roles")
+        ? `(not ${filterSet("role")} or ${roleMatch()})`
+        : `not ${filterSet("role")}`,
+      has("supplierStatus")
+        ? filterAny("supplierStatus", `x.${col("supplierStatus")}::text`)
+        : `not ${filterSet("supplierStatus")}`,
+      `(v_search is null or x.${col("name")} ilike v_search or x.${col(second)} ilike v_search)`,
+    ],
+    keys: nameKeys,
+    sorts: {
+      name: nameKeys,
+      createdAt: [
+        { expr: `x.${col("createdAt")}`, dir: "desc", type: "timestamptz" },
+        idKey,
+      ],
+      updatedAt: [
+        { expr: `x.${col("updatedAt")}`, dir: "desc", type: "timestamptz" },
+        idKey,
+      ],
+    },
+    facets: {
+      lifecycle,
+      ...(has("owner")
+        ? { ownerId: `coalesce(x.${col("owner")}::text, '')` }
+        : {}),
+      ...(has("supplierStatus")
+        ? { supplierStatus: `coalesce(x.${col("supplierStatus")}::text, '')` }
+        : {}),
+    },
+    rowJson: partyJson(ctx, kind, "x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("PARTY_INVALID", message, "22023"),
+  } as const;
+
+  return `
+-- The organization's active ${spec.table} as a keyset page, by name (ADR
+-- 1077). It runs as the caller. filters is { lifecycle, ownerId, role,
+-- supplierStatus (each a value or a list), search (name, ${second}), sort
+-- (name, createdAt, updatedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${fn(name)}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(${name}.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(page)}
+begin
+  ${listBody(page)}
+end;
+$$;
+${userGrant(`${fn(name)}(${ctx.idType}, jsonb)`)}
+`;
+}
+
 function getFunction(
   ctx: BlockSqlContext,
   names: PartyNames,
@@ -634,7 +739,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("remove_company_person")}(uuid, uuid)`)}
-${mergeFunction(ctx, names, "company")}${mergeFunction(ctx, names, "person")}${listFunction(ctx, names, "company")}${listFunction(ctx, names, "person")}${getFunction(ctx, names, "company")}${getFunction(ctx, names, "person")}
+${mergeFunction(ctx, names, "company")}${mergeFunction(ctx, names, "person")}${listFunction(ctx, names, "company")}${listFunction(ctx, names, "person")}${pageFunction(ctx, names, "company")}${pageFunction(ctx, names, "person")}${getFunction(ctx, names, "company")}${getFunction(ctx, names, "person")}
 -- The people of a company with their role, primary contact first.
 create or replace function ${fn("company_people_of")}(company uuid)
 returns jsonb

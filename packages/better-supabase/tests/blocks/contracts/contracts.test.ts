@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 4 findings. */
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -574,5 +575,23 @@ describe("contracts block", () => {
       validate(obligationInputSchema, { title: "Report", dueOn: "soon" })
         .issues,
     ).toBeDefined();
+  });
+});
+
+describe("contracts page", () => {
+  it("maps the rows of a page", async () => {
+    const t = fieldsTransport({
+      page_contracts: () => ({
+        items: [MINIMAL],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const page = await createContracts({ transport: t })
+      .page({ organizationId: "o" })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
   });
 });

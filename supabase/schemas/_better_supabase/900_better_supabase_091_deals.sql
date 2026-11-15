@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:a0ba96482c12b751427d8fc8d8ecea6944acc56ba459de48352b9d266aa1c9f2
+-- @bsb-hash sha256:9bdd17387583f09c3c87b0564d136eeac2a303334fa36b6a497011ba546e5d8c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1169,6 +1169,460 @@ $$;
 revoke execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
 
+-- The organization's open and closed deals as a keyset page, newest first
+-- (ADR 1077). It runs as the caller, so the deals the caller can't read stay
+-- out, as on the table. filters is { pipelineId, stageId, outcome, ownerId,
+-- motion, priority, forecast, currency, companyId (each a value or a list),
+-- search (name, identifier), sort (createdAt, closeOn, amount, name),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_deals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_deals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('outcome', 'stageId', 'ownerId', 'priority', 'motion', 'forecast') then
+      raise exception 'facet is one of outcome, stageId, ownerId, priority, motion, forecast' using errcode = '22023', hint = 'DEAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'outcome' then (x."outcome"::text)::text when 'stageId' then (x."stage_id"::text)::text when 'ownerId' then (x."owner_id"::text)::text when 'priority' then (x."priority"::text)::text when 'motion' then (x."motion"::text)::text when 'forecast' then (x."forecast_category"::text)::text end) as v
+      from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'closeOn', 'amount', 'name') then
+    raise exception 'sort is one of createdAt, closeOn, amount, name' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'closeOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."expected_close_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."expected_close_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."expected_close_on" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'closeOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."expected_close_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."expected_close_on" <= (v_after ->> 0)::date and ((x."expected_close_on" < (v_after ->> 0)::date) or (x."expected_close_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expected_close_on" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'amount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."amount")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."amount", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."amount" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'amount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."amount")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (x."amount" <= (v_after ->> 0)::bigint and ((x."amount" < (v_after ->> 0)::bigint) or (x."amount" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."amount" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."deals" x
+      where x."tenant_id" = page_deals.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id"::text = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::text[]))
+        and (not (v_filters -> 'stageId' is not null and jsonb_typeof(v_filters -> 'stageId') <> 'null' and not (jsonb_typeof(v_filters -> 'stageId') = 'array' and jsonb_array_length(v_filters -> 'stageId') = 0)) or x."stage_id"::text = any((case when jsonb_typeof(v_filters -> 'stageId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stageId')) else array[v_filters ->> 'stageId'] end)::text[]))
+        and (not (v_filters -> 'outcome' is not null and jsonb_typeof(v_filters -> 'outcome') <> 'null' and not (jsonb_typeof(v_filters -> 'outcome') = 'array' and jsonb_array_length(v_filters -> 'outcome') = 0)) or x."outcome"::text = any((case when jsonb_typeof(v_filters -> 'outcome') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'outcome')) else array[v_filters ->> 'outcome'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'motion' is not null and jsonb_typeof(v_filters -> 'motion') <> 'null' and not (jsonb_typeof(v_filters -> 'motion') = 'array' and jsonb_array_length(v_filters -> 'motion') = 0)) or x."motion"::text = any((case when jsonb_typeof(v_filters -> 'motion') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'motion')) else array[v_filters ->> 'motion'] end)::text[]))
+        and (not (v_filters -> 'priority' is not null and jsonb_typeof(v_filters -> 'priority') <> 'null' and not (jsonb_typeof(v_filters -> 'priority') = 'array' and jsonb_array_length(v_filters -> 'priority') = 0)) or x."priority"::text = any((case when jsonb_typeof(v_filters -> 'priority') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'priority')) else array[v_filters ->> 'priority'] end)::text[]))
+        and (not (v_filters -> 'forecast' is not null and jsonb_typeof(v_filters -> 'forecast') <> 'null' and not (jsonb_typeof(v_filters -> 'forecast') = 'array' and jsonb_array_length(v_filters -> 'forecast') = 0)) or x."forecast_category"::text = any((case when jsonb_typeof(v_filters -> 'forecast') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'forecast')) else array[v_filters ->> 'forecast'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'companyId' is not null and jsonb_typeof(v_filters -> 'companyId') <> 'null' and not (jsonb_typeof(v_filters -> 'companyId') = 'array' and jsonb_array_length(v_filters -> 'companyId') = 0)) or x."company_id"::text = any((case when jsonb_typeof(v_filters -> 'companyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'companyId')) else array[v_filters ->> 'companyId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."identifier" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_deals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_deals"(uuid, jsonb) to authenticated, service_role;
+
+-- One deal by id, or a not-found error when it is missing or the caller can't
+-- read it.
+create or replace function "better_supabase"."get_deal"(deal uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+begin
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text, 'amount', x."amount"::text, 'existing_amount', x."existing_amount"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text) || jsonb_build_object(
+      'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck."contact_type", 'id', ck."contact_id", 'role', ck."role", 'primary', ck."is_primary") order by ck."is_primary" desc, ck."contact_id") from "better_supabase"."deal_contacts" ck where ck."deal_id" = x."id"), '[]'::jsonb),
+      'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm."user_id", 'role', cm."role") order by cm."user_id") from "better_supabase"."deal_members" cm where cm."deal_id" = x."id"), '[]'::jsonb)) into v_row from "better_supabase"."deals" x where x."id" = get_deal.deal;
+  if v_row is null then
+    raise exception 'no deal you can read has this id' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
+  end if;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."get_deal"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_deal"(uuid) to authenticated, service_role;
+
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by
 -- the deal's probability (or its stage's). Runs as the caller, so it holds
@@ -1434,6 +1888,26 @@ set search_path = ''
 as $$ select "better_supabase"."list_deals_for_subject"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) from public, anon;
 grant execute on function "api"."list_deals_for_subject"(uuid, text, text, integer) to authenticated, service_role;
+
+create or replace function "api"."page_deals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_deals"($1, $2) $$;
+revoke execute on function "api"."page_deals"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_deals"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_deal"(deal uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_deal"($1) $$;
+revoke execute on function "api"."get_deal"(uuid) from public, anon;
+grant execute on function "api"."get_deal"(uuid) to authenticated, service_role;
 
 create or replace function "api"."deal_board"(pipeline uuid)
 returns jsonb

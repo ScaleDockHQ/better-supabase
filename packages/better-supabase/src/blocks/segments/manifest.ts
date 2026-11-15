@@ -3,6 +3,7 @@ import type { SegmentsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { segmentsEvents } from "./events.ts";
+import { segmentListSurface } from "./lists.ts";
 import { segmentsSqlOptions } from "./options.ts";
 import { segmentInputSchema } from "./schemas.ts";
 import { createSegments } from "./segments.ts";
@@ -22,6 +23,7 @@ export const segmentsBlock: BlockOf<
   category: "crm",
   entities: {
     segment: {
+      ...segmentListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

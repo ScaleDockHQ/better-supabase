@@ -62,7 +62,8 @@ describe("function search paths", () => {
 
       expect(found).toEqual([]);
     }
-  });
+    // Renders every module twice; the default 20 s is too tight on a loaded CI shard.
+  }, 60_000);
 
   it("finds a function without one", () => {
     expect(

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:65c54708936471f3d3b98b559584142b6f695350bf563f0c23f1bec4b22fa957
+-- @bsb-hash sha256:46bf7cacd1b21fbba743837db8dd2b9d8caa322199806f4164b7955159e60c80
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -117,6 +117,280 @@ end;
 $$;
 revoke execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
@@ -275,7 +549,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:8d26d67c388d08d8c284ed3abe35e54c3b424d5770e885f0c7c5f14e27c9aa57
+-- @bsb-hash sha256:c82154005b0c12a946da5b86b80b8bef5d0f774b4d366674b36ec46076d1bde9
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -391,6 +665,280 @@ end;
 $$;
 revoke execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
@@ -552,7 +1100,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:511b2af4bbc53584fb4eb6648bed9ed8383c3e69b92db3bcf2d71ea85190ba69
+-- @bsb-hash sha256:0367098659b0ade4724b0d84edcc63dde28ff1e39ea7a58995c3fb646b156e21
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -673,6 +1221,280 @@ end;
 $$;
 revoke execute on function "app_private"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "app_private"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
@@ -831,7 +1653,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:b9555f460c25af1b92d2fc893f4efd8207860098be80a53fa15924d0c4a5ebb9
+-- @bsb-hash sha256:2529326da54de43e5939a381c9e1e45c1fc8b15ae35fe685c6168705b63fea6a
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -947,6 +1769,280 @@ end;
 $$;
 revoke execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
@@ -1101,6 +2197,16 @@ as $$ select "better_supabase"."take_forecast_snapshot"($1, $2, $3, $4, $5, $6) 
 revoke execute on function "api"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "api"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
 
+create or replace function "api"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_forecast_snapshots"($1, $2) $$;
+revoke execute on function "api"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."forecast_snapshots"(tenant uuid, pipeline uuid default null, since date default null, until date default null, max_count integer default null)
 returns jsonb
 language sql
@@ -1148,7 +2254,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:5323f5ed2ee1d3ed0bb8c48900c8a4c068b590796b52fd89ea1305e2d0a414a6
+-- @bsb-hash sha256:35c96cb12f4473173694633031fe061e815172ec03c503e613ee81bf65e38708
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1258,6 +2364,280 @@ end;
 $$;
 revoke execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."tenant_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
@@ -1416,7 +2796,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:3bb98915b20586c372f2491f381128fd72574288b10d32759ff84733e05fe4b7
+-- @bsb-hash sha256:5e3e7f906315fe3236f51feb4d2fd4c11513366d89bd6416b421e84e736be885
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1532,6 +2912,280 @@ end;
 $$;
 revoke execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) from public, anon;
 grant execute on function "better_supabase"."take_forecast_snapshot"(uuid, uuid, date, date, text, bigint) to authenticated, service_role;
+
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_forecast_snapshots"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_forecast_snapshots.tenant, 'forecasts.read'), false)) then
+    raise exception 'You need forecasts.read to list forecast snapshots' using errcode = '42501', hint = 'FORECAST_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'pipelineId') then
+      raise exception 'facet is one of currency, pipelineId' using errcode = '22023', hint = 'FORECAST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'pipelineId' then (coalesce(x."pipeline_id"::text, ''))::text end) as v
+      from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('takenAt', 'since', 'dealCount') then
+    raise exception 'sort is one of takenAt, since, dealCount' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."taken_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'takenAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."taken_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."taken_at" <= (v_after ->> 0)::timestamptz and ((x."taken_at" < (v_after ->> 0)::timestamptz) or (x."taken_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."taken_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."period_start" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'since' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."period_start")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."period_start" <= (v_after ->> 0)::date and ((x."period_start" < (v_after ->> 0)::date) or (x."period_start" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."period_start" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count", x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."deal_count" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dealCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'FORECAST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'pipelineId', x."pipeline_id", 'since', x."period_start", 'until', x."period_end", 'currency', x."currency", 'target', x."target"::text, 'totals', x."totals", 'dealCount', x."deal_count", 'takenBy', x."taken_by", 'takenAt', x."taken_at") as j, jsonb_build_array((x."deal_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+        and (v_after is null or (x."deal_count" <= (v_after ->> 0)::integer and ((x."deal_count" < (v_after ->> 0)::integer) or (x."deal_count" = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by x."deal_count" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."forecast_snapshots" x
+      where x."org_id" = page_forecast_snapshots.tenant
+        and (not (v_filters -> 'pipelineId' is not null and jsonb_typeof(v_filters -> 'pipelineId') <> 'null' and not (jsonb_typeof(v_filters -> 'pipelineId') = 'array' and jsonb_array_length(v_filters -> 'pipelineId') = 0)) or x."pipeline_id" = any((case when jsonb_typeof(v_filters -> 'pipelineId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pipelineId')) else array[v_filters ->> 'pipelineId'] end)::uuid[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'since' is not null and jsonb_typeof(v_filters -> 'since') <> 'null' and not (jsonb_typeof(v_filters -> 'since') = 'array' and jsonb_array_length(v_filters -> 'since') = 0)) or x."period_start" = any((case when jsonb_typeof(v_filters -> 'since') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'since')) else array[v_filters ->> 'since'] end)::date[]))
+        and (not (v_filters -> 'until' is not null and jsonb_typeof(v_filters -> 'until') <> 'null' and not (jsonb_typeof(v_filters -> 'until') = 'array' and jsonb_array_length(v_filters -> 'until') = 0)) or x."period_end" = any((case when jsonb_typeof(v_filters -> 'until') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'until')) else array[v_filters ->> 'until'] end)::date[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_forecast_snapshots"(uuid, jsonb) to authenticated, service_role;
 
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.

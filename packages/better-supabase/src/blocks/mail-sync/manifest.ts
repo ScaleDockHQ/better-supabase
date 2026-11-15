@@ -3,6 +3,7 @@ import type { MailSyncEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { mailSyncEvents } from "./events.ts";
+import { mailAccountListSurface, mailThreadListSurface } from "./lists.ts";
 import { createMailSync } from "./mail-sync.ts";
 import { mailSyncSqlOptions } from "./options.ts";
 import { mailAccountInputSchema, mailDraftSchema } from "./schemas.ts";
@@ -27,8 +28,16 @@ export const mailSyncBlock: BlockOf<
   create: createMailSync,
   category: "crm",
   entities: {
-    mail_thread: { mutability: "append-only", emits: { create: false } },
-    mail_account: { mutability: "editable", emits: { update: false } },
+    mail_thread: {
+      ...mailThreadListSurface,
+      mutability: "append-only",
+      emits: { create: false },
+    },
+    mail_account: {
+      ...mailAccountListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     mail_message: { mutability: "state-machine" },
   },
   concerns: ["lifecycle"],

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import * as v from "valibot";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 

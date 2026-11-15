@@ -126,7 +126,7 @@ async function relationOptions(
         ? named(
             (
               await db.$blocks.contacts
-                .listCompanies({ organizationId: tenant, limit: OPTION_LIMIT })
+                .companyPage({ organizationId: tenant, limit: OPTION_LIMIT })
                 .orThrow()
             ).items,
           )
@@ -138,7 +138,7 @@ async function relationOptions(
         ? named(
             (
               await db.$blocks.contacts
-                .listPeople({ organizationId: tenant, limit: OPTION_LIMIT })
+                .personPage({ organizationId: tenant, limit: OPTION_LIMIT })
                 .orThrow()
             ).items,
           )

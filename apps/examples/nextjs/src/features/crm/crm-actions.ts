@@ -6,6 +6,7 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -147,10 +148,13 @@ export const createDefaultPipeline = bsb.action(
   async (_input, { tenant, db, auth }) => {
     const { pipelines } = db;
 
-    const existing = await pipelines.list({
-      organizationId: tenant,
-      subjectType: "deal",
-    });
+    const existing = await readAllPagesResult((page) =>
+      pipelines.page({
+        organizationId: tenant,
+        filters: { subjectType: ["deal"] },
+        ...page,
+      }),
+    );
 
     if (!existing.ok) {
       return existing;

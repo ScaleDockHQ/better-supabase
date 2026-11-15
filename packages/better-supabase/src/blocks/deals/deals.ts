@@ -1,8 +1,19 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -17,6 +28,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -45,6 +57,7 @@ import {
   bigintOf,
 } from "../shared.ts";
 import { strictChanges } from "../strict-changes.ts";
+import { dealListSurface } from "./lists.ts";
 
 /** How a rep calls a deal for the period. `undefined` is "not called". */
 export type ForecastCategory = "commit" | "best_case" | "pipeline" | "omit";
@@ -264,6 +277,23 @@ export interface Deals<F extends object = Record<never, never>> {
     subject: RecordRef;
     limit?: number | undefined;
   }): AsyncResult<readonly Deal<F>[]>;
+  /**
+   * One keyset page of the organization's deals, newest first. `filters` takes
+   * `pipelineId`, `stageId`, `outcome`, `ownerId`, `motion`, `priority`,
+   * `forecast`, `currency` and `companyId` as lists; `q` searches the name and
+   * identifier. It runs as the caller, so row level security decides which
+   * deals show. The organization comes from `organizationId` or
+   * `options.tenant`.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Deal<F>>>;
+  /** The values of each facet and how many deals hold each. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many deals match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One deal by id, or a `not_found` error. */
+  get(dealId: string): AsyncResult<Deal<F>>;
   create(input: {
     organizationId: string;
     input: DealInput<F>;
@@ -584,7 +614,29 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       fields: value,
     }));
 
+  const dealList = entityList<Deal, TenantOption>({
+    entity: "deal",
+    surface: dealListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_deals",
+    rowOf: (row) => dealOf(row),
+  });
+
   const client: Deals<F> = {
+    page: (page = {}) =>
+      dealList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: dealList.facets,
+    count: dealList.count,
+    // SAFETY: one row goes in, so one row comes out of the field read.
+    get: (dealId) =>
+      call("get_deal", { deal: dealId }, (value) => dealOf(value))
+        .andThen((row) => fields.rows([row]))
+        .map(([first]) => first as Deal<F>),
     create: ({ organizationId, input, contacts, idempotencyKey }) => {
       const { fields: extra, ...rest } = input;
 

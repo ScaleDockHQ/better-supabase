@@ -4,8 +4,19 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -29,6 +40,11 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
@@ -44,6 +60,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { companyListSurface, personListSurface } from "./lists.ts";
 import {
   REPRESENTATIVE_AUTHORITIES,
   REPRESENTATIVE_ROLES,
@@ -297,10 +314,53 @@ export interface Contacts<F extends object = Record<never, never>> {
     drop: string;
   }): AsyncResult<Company<F>>;
   mergePeople(input: { keep: string; drop: string }): AsyncResult<Person>;
-  /** A page of active companies by name (50 by default, at most 200). */
+  /**
+   * One keyset page of the organization's active companies, by name. It runs as
+   * the caller. `filters` takes `lifecycle`, `ownerId`, `role` and
+   * `supplierStatus` as lists; `q` searches the name and domain.
+   */
+  companyPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Company<F>>>;
+  /** The values of each company facet and how many companies hold each. */
+  companyFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many companies match the page's filters. */
+  companyCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One active company by id, or a `not_found` error. */
+  companyById(id: string): AsyncResult<Company<F>>;
+  /**
+   * One keyset page of the organization's active people, by name. `filters`
+   * takes the same lists as `companyPage`; `q` searches the name and email.
+   */
+  personPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Person>>;
+  /** The values of each person facet and how many people hold each. */
+  personFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many people match the page's filters. */
+  personCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One active person by id, or a `not_found` error. */
+  personById(id: string): AsyncResult<Person>;
+  /**
+   * A page of active companies by name (50 by default, at most 200).
+   *
+   * @deprecated Use `companyPage`, which takes `q`, sorts, array filters and a
+   * count (ADR 1077).
+   */
   listCompanies(
     input: { organizationId: string } & PartyListOptions,
   ): AsyncResult<PartyPage<Company<F>>>;
+  /**
+   * A page of active people by name.
+   *
+   * @deprecated Use `personPage` (ADR 1077).
+   */
   listPeople(
     input: { organizationId: string } & PartyListOptions,
   ): AsyncResult<PartyPage<Person>>;
@@ -335,9 +395,16 @@ export interface Contacts<F extends object = Record<never, never>> {
    * One active company by id, or `null` when it is archived, missing or hidden
    * by row level security. One read, where paging `listCompanies` takes one
    * request per 200 companies.
+   *
+   * @deprecated Use `companyById`, which returns a `not_found` error (ADR
+   * 1077).
    */
   getCompany(id: string): AsyncResult<Company<F> | null>;
-  /** One active person by id, or `null`; see `getCompany`. */
+  /**
+   * One active person by id, or `null`; see `getCompany`.
+   *
+   * @deprecated Use `personById`, which returns a `not_found` error (ADR 1077).
+   */
   getPerson(id: string): AsyncResult<Person | null>;
   /** A company's people with their role, primary contact first. */
   peopleOf(companyId: string): AsyncResult<CompanyPerson[]>;
@@ -735,7 +802,49 @@ export function createContacts<
     );
   };
 
+  const companies = entityList<Company, RequiredTenantOption>({
+    entity: "company",
+    surface: companyListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_companies",
+    rowOf: (row) => companyOf(row),
+  });
+
+  const people = entityList<Person, RequiredTenantOption>({
+    entity: "person",
+    surface: personListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_people",
+    rowOf: (row) => personOf(row),
+  });
+
   const client: Contacts<F> = {
+    companyPage: (page) =>
+      companies
+        .page(page)
+        .andThen((read) =>
+          readAllFields(fields, read.items).map((items) => ({
+            ...read,
+            items,
+          })),
+        ),
+    companyFacets: companies.facets,
+    companyCount: companies.count,
+    companyById: (id) =>
+      call("get_company", { id }, (value) =>
+        value === null ? null : companyOf(value),
+      )
+        .andThen((row) => foundOrNotFound("company", row, id))
+        .andThen((row) => readFields(fields, row)),
+    personPage: people.page,
+    personFacets: people.facets,
+    personCount: people.count,
+    personById: (id) =>
+      call("get_person", { id }, (value) =>
+        value === null ? null : personOf(value),
+      ).andThen((row) => foundOrNotFound("person", row, id)),
     saveCompany: ({ organizationId, input }) =>
       writeFields(fields, input.fields, (checked) =>
         company(
@@ -800,6 +909,7 @@ export function createContacts<
       company(call("merge_companies", { keep, drop }, companyOf)),
     mergePeople: ({ keep, drop }) =>
       call("merge_people", { keep, drop }, personOf),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listCompanies: ({ organizationId, ...listOptions }) =>
       list("list_companies", organizationId, listOptions, companyOf).andThen(
         (page) =>
@@ -808,6 +918,7 @@ export function createContacts<
             items,
           })),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listPeople: ({ organizationId, ...listOptions }) =>
       list("list_people", organizationId, listOptions, personOf),
     identities: (personId) =>
@@ -880,12 +991,14 @@ export function createContacts<
         { party: companyId },
         (value) => enumOrThrow(value, SUPPLIER_STATUSES, "supplier status"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     getCompany: (id) =>
       call("get_company", { id }, (value) =>
         value === null ? null : companyOf(value),
       ).andThen((row) =>
         row === null ? AsyncResult.ok(null) : readFields(fields, row),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     getPerson: (id) =>
       call("get_person", { id }, (value) =>
         value === null ? null : personOf(value),

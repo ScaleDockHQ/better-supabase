@@ -526,3 +526,19 @@ describe("deals block, options and sparse reads", () => {
     });
   });
 });
+
+describe("deals page and get", () => {
+  it("maps the rows of a page and a get", async () => {
+    const t = transport({
+      page_deals: () => ({ items: [ROW], hasMore: false, nextCursor: null }),
+      get_deal: () => ROW,
+    });
+
+    const deals = createDeals({ transport: t, tenant: "o" });
+    const page = await deals.page({}).orThrow();
+    const one = await deals.get("d1").orThrow();
+
+    expect(page.items.map((deal) => deal.id)).toEqual(["d1"]);
+    expect(one.id).toBe("d1");
+  });
+});

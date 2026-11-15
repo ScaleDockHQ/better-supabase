@@ -1,7 +1,15 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { ListSortKey } from "../list-template.ts";
 import type { MailNames } from "./mail-sync.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import {
   fail,
   pageSize,
@@ -11,6 +19,7 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { tenantRefGuard } from "./credentials.ts";
+import { asText } from "./over-app.ts";
 
 /** At most this many messages go into one `ingest_mail` call. */
 const BATCH = 500;
@@ -705,7 +714,142 @@ function readSql(ctx: BlockSqlContext, n: MailNames): string {
   const row = (alias: string): string =>
     `${n.json("threads", alias)} || jsonb_build_object('address', (select k.${a("address")} from ${t("accounts")} k where k.${a("id")} = ${alias}.${h("account")}), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s.${l("subjectType")}, 'id', s.${l("subjectId")}) order by ${n.subjectOrder}) from ${t("links")} s where s.${l("thread")} = ${alias}.${h("id")}), '[]'::jsonb))`;
 
+  const threadId = { expr: `x.${h("id")}`, dir: "desc", type: "uuid" } as const;
+
+  const latestKeys = [
+    { expr: `x.${h("lastMessageAt")}`, dir: "desc", type: "timestamptz" },
+    threadId,
+  ] as const;
+
+  const hasSubject = n.has("threads", "subject");
+  const hasSnippet = n.has("threads", "snippet");
+  const hasCount = n.has("threads", "messageCount");
+
+  const subjectKeys = (): readonly ListSortKey[] => [
+    {
+      expr: `lower(coalesce(x.${h("subject")}, ''))`,
+      dir: "asc",
+      type: "text",
+    },
+    { ...threadId, dir: "asc" },
+  ];
+
+  const countKeys = (): readonly ListSortKey[] => [
+    { expr: `x.${h("messageCount")}`, dir: "desc", type: "integer" },
+    threadId,
+  ];
+
+  const threadPage = {
+    name: "page_mail_threads",
+    from: t("threads"),
+    alias: "x",
+    where: [
+      `x.${h("tenant")} = page_mail_threads.tenant`,
+      filterAny("accountId", `x.${h("account")}`, "uuid"),
+      `(${filterFirst("subjectType")} is null or exists (select 1 from ${t("links")} s where s.${l("thread")} = x.${h("id")} and s.${l("subjectType")} = ${filterFirst("subjectType")} and (${filterFirst("subjectId")} is null or s.${l("subjectId")} = ${filterFirst("subjectId")})))`,
+      `(v_search is null${hasSubject ? ` or x.${h("subject")} ilike v_search` : ""}${hasSnippet ? ` or x.${h("snippet")} ilike v_search` : ""})`,
+    ],
+    keys: latestKeys,
+    sorts: {
+      lastMessageAt: latestKeys,
+      ...(hasSubject ? { subject: subjectKeys() } : {}),
+      ...(hasCount ? { messageCount: countKeys() } : {}),
+    },
+    facets: { accountId: `x.${h("account")}::text` },
+    rowJson: row("x"),
+    defaultLimit: 25,
+    maxLimit: 100,
+    invalid: (message: string) => fail("MAIL_INVALID", message, "22023"),
+  } as const;
+
+  const accountId = { expr: `x.${a("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const addressKeys = [
+    { expr: `lower(x.${a("address")})`, dir: "asc", type: "text" },
+    accountId,
+  ] as const;
+
+  const createdKeys = (): readonly ListSortKey[] => [
+    { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
+    accountId,
+  ];
+
+  const accountPage = {
+    name: "page_mail_accounts",
+    from: t("accounts"),
+    alias: "x",
+    where: [
+      `x.${a("tenant")} = page_mail_accounts.tenant`,
+      filterAny("status", asText(ctx, "accounts", `x.${a("status")}`)),
+      filterAny("provider", `x.${a("provider")}`),
+      filterAny("share", asText(ctx, "accounts", `x.${a("share")}`)),
+      filterAny("userId", `x.${a("user")}::text`),
+      `(v_search is null or x.${a("address")} ilike v_search)`,
+    ],
+    keys: addressKeys,
+    sorts: {
+      address: addressKeys,
+      ...(n.has("accounts", "createdAt") ? { createdAt: createdKeys() } : {}),
+    },
+    facets: {
+      status: asText(ctx, "accounts", `x.${a("status")}`),
+      provider: `x.${a("provider")}`,
+      share: asText(ctx, "accounts", `x.${a("share")}`),
+    },
+    rowJson: n.json("accounts", "x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("MAIL_INVALID", message, "22023"),
+  } as const;
+
   return `
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_mail_threads")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(threadPage)}
+begin
+  ${listBody(threadPage)}
+end;
+$$;
+${userGrant(`${fn("page_mail_threads")}(${ctx.idType}, jsonb)`)}
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_mail_accounts")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(accountPage)}
+begin
+  ${listBody(accountPage)}
+end;
+$$;
+${userGrant(`${fn("page_mail_accounts")}(${ctx.idType}, jsonb)`)}
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function ${fn("mail_threads_of")}(subject_type text, subject_id text, before timestamptz, page_size integer)

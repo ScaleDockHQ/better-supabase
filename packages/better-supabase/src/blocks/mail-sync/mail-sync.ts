@@ -1,5 +1,16 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -18,6 +29,11 @@ import type {
 } from "./providers.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -37,6 +53,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { mailAccountListSurface, mailThreadListSurface } from "./lists.ts";
 import { mailProviderOf } from "./providers.ts";
 import {
   pixelResponse,
@@ -194,9 +211,53 @@ export interface MailSync {
   disconnect(
     input: { accountId: string } & { readonly purge?: boolean },
   ): AsyncResult<boolean>;
-  /** The caller's mailboxes; every member's with `mail_sync.manage`. */
+  /**
+   * The caller's mailboxes; every member's with `mail_sync.manage`.
+   *
+   * @deprecated Use `accountPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   accounts(organizationId: string): AsyncResult<MailAccount[]>;
-  /** The threads the caller can see, the latest first (25, at most 100). */
+  /**
+   * One keyset page of the caller's mailboxes, by address; every member's with
+   * `mail_sync.manage`. `filters` takes `status`, `provider`, `share` and
+   * `userId` as lists; `q` searches the address.
+   */
+  accountPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<MailAccount>>;
+  /** The values of each mailbox facet and how many mailboxes hold each. */
+  accountFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many mailboxes match the page's filters. */
+  accountCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One mailbox the caller can see by id, or a `not_found` error. */
+  getAccount(accountId: string): AsyncResult<MailAccount>;
+  /**
+   * One keyset page of the threads the caller can see, the latest message
+   * first. `filters` takes `accountId` as a list and `subjectType` and
+   * `subjectId` (a value) for the records a thread is linked to; `q` searches
+   * the subject and snippet.
+   */
+  threadPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<MailThread>>;
+  /** The values of each thread facet and how many threads hold each. */
+  threadFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many threads match the page's filters. */
+  threadCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** A thread with its messages, or a `not_found` error. */
+  getThread(threadId: string): AsyncResult<MailThreadDetail>;
+  /**
+   * The threads the caller can see, the latest first (25, at most 100).
+   *
+   * @deprecated Use `threadPage` (ADR 1077).
+   */
   threads(
     input: { organizationId: string } & {
       readonly accountId?: string;
@@ -211,7 +272,11 @@ export interface MailSync {
       readonly limit?: number;
     },
   ): AsyncResult<MailThread[]>;
-  /** A thread with its messages, or `undefined` when the caller can't see it. */
+  /**
+   * A thread with its messages, or `undefined` when the caller can't see it.
+   *
+   * @deprecated Use `getThread`, which returns a `not_found` error (ADR 1077).
+   */
   thread(id: string): AsyncResult<MailThreadDetail | undefined>;
   /** Links a thread of the caller's mailbox to records by hand. */
   link(input: {
@@ -668,7 +733,39 @@ export function createMailSync(options: MailSyncOptions): MailSync {
       );
     });
 
+  const threadList = entityList<MailThread, RequiredTenantOption>({
+    entity: "mail thread",
+    surface: mailThreadListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_mail_threads",
+    rowOf: (row) => threadOf(row),
+  });
+
+  const accountList = entityList<MailAccount, RequiredTenantOption>({
+    entity: "mail account",
+    surface: mailAccountListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_mail_accounts",
+    rowOf: (row) => accountOf(row),
+  });
+
   const client: MailSync = {
+    accountPage: accountList.page,
+    accountFacets: accountList.facets,
+    accountCount: accountList.count,
+    getAccount: (accountId) =>
+      call("get_mail_account", { account: accountId }, (value) =>
+        value === null ? undefined : accountOf(value),
+      ).andThen((row) => foundOrNotFound("mail account", row, accountId)),
+    threadPage: threadList.page,
+    threadFacets: threadList.facets,
+    threadCount: threadList.count,
+    getThread: (threadId) =>
+      thread(threadId).andThen((row) =>
+        foundOrNotFound("mail thread", row, threadId),
+      ),
     connect: ({ organizationId, input }) =>
       call(
         "connect_mail_account",
@@ -697,10 +794,12 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         { account: accountId, purge: disconnect.purge ?? false },
         (value) => value === true,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     accounts: (organizationId) =>
       call("mail_accounts_of", { tenant: organizationId }, (value) =>
         recordsOf(value, "mail_accounts_of").map(accountOf),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     threads: ({ organizationId, ...list }) =>
       call(
         "list_mail_threads",
@@ -723,6 +822,7 @@ export function createMailSync(options: MailSyncOptions): MailSync {
         },
         (value) => recordsOf(value, "mail_threads_of").map(threadOf),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     thread,
     link: ({ threadId, subjects }) =>
       call(

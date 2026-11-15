@@ -143,6 +143,31 @@ messages, or `undefined` when the caller can't see it. A mailbox's owner
 links a thread to records the matching missed with
 `link(threadId, [{ type, id }])` and removes one with `unlink`.
 
+## Paging threads and mailboxes
+
+`threadPage` pages the caller's threads by keyset (ADR 1077), and `getThread(id)` reads one and returns a `not_found` error for an unknown id. `accountPage` and `getAccount(id)` do the same for connected mailboxes. The earlier `accounts`, `threads` and `thread` reads stay as deprecated aliases until 0.70.
+
+Thread sorts are `lastMessageAt` (the default, newest first), `subject` and `messageCount`. `accountId`, `subjectType` and `subjectId` filter, where the last two name the record a thread is linked to, and `q` searches the subject and the snippet. The one facet is `accountId`. Mailbox sorts are `address` (the default) and `createdAt`. `status`, `provider`, `share` and `userId` filter, `q` searches the address, and the facets are `status`, `provider` and `share`. `threadFacets`, `threadCount`, `accountFacets` and `accountCount` answer under the same filters. The organization comes from `organizationId`.
+
+```ts
+const threads = await mail
+  .threadPage({
+    organizationId,
+    filters: { subjectType: ["company"], subjectId: [company.id] },
+    q: "invoice",
+  })
+  .orThrow();
+
+const accounts = await mail
+  .accountPage({ organizationId, filters: { status: ["active"] } })
+  .orThrow();
+
+const total = await mail.threadCount({ organizationId }).orThrow();
+const one = await mail.getThread(threads.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Send
 
 ```ts

@@ -6,6 +6,7 @@ import { defineBlock } from "../define-block.ts";
 import { quoteFromDealFactory } from "./actions.ts";
 import { QUOTES_AUTOMATIONS } from "./automations.ts";
 import { quotesEvents } from "./events.ts";
+import { quoteListSurface } from "./lists.ts";
 import { quotesSqlOptions } from "./options.ts";
 import { createQuotes } from "./quotes.ts";
 import { quotesBinding } from "./record-binding.ts";
@@ -29,6 +30,7 @@ export const quotesBlock: BlockOf<
   importTarget: ["quote"],
   entities: {
     quote: {
+      ...quoteListSurface,
       mutability: "editable",
       idempotent: ["create"],
       emits: { create: true, update: true },
