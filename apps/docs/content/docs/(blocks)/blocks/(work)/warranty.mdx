@@ -64,13 +64,13 @@ when it is approved or rejected.
 
 ## Reading claims
 
-`get(id)` returns one claim. `list` is the capped convenience list, and `page`
-is the full list contract for claims (ADR 0749). It takes `sort`, `filters`
-whose values are lists (a row matches any of a filter's values), `after` and
-`limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the
-default, newest first) and `amount`. Filters are `status` and `assetId`, and the
-facet is `status`. Claims declare no text search, so `q` returns
-`invalid_input`.
+`get(id)` returns one claim. `list` is the capped convenience list (deprecated
+in favor of `page`, ADR 1077), and `page` is the full list contract for claims
+(ADR 0749). It takes `q`, `sort`, `filters` whose values are lists (a row
+matches any of a filter's values), `after` and `limit`, and returns
+`{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the default, newest
+first) and `amount`. Filters are `status` and `assetId`, the facet is `status`,
+and `q` searches the claim title.
 
 ```ts
 const first = await warranty

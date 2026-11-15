@@ -9,4 +9,5 @@ export const passListSurface: EntityListSurface = {
   sorts: ["createdAt", "validFrom", "validUntil"],
   facets: ["status"],
   filters: ["status", "holderUserId"],
+  search: ["holderName", "holderEmail"],
 };

@@ -27,6 +27,7 @@ import {
 import { storefrontOption } from "./catalog-functions.ts";
 import { moderationTables } from "./moderation.ts";
 import { OPERATIONS } from "./permissions-model.ts";
+import { reviewPageFunctions } from "./reviews-pages.ts";
 
 const WHERE = "blocks.reviews.options";
 
@@ -777,6 +778,7 @@ $$;
 revoke execute on function ${fn("list_reviews")}(${idType}, text, text, integer, timestamptz, integer, boolean) from public;
 grant execute on function ${fn("list_reviews")}(${idType}, text, text, integer, timestamptz, integer, boolean) to anon, authenticated, service_role;
 
+${reviewPageFunctions({ ctx, reviews, r, has, json, full, notFound, forbidden, readable })}
 -- The caller's own review of a subject in any status, or null.
 create or replace function ${fn("my_review")}(tenant ${idType}, subject_type text, subject_id text)
 returns jsonb
@@ -870,6 +872,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ],
       returns: "jsonb",
     },
+    { name: "page_reviews", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_review", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_reviews",
       args: [

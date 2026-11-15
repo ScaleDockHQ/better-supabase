@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 4 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 

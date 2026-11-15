@@ -2,7 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { bookSource } from "../accounting-sources-sql.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -145,6 +150,7 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
       filterAny("unitId", `x.${l("unit")}`, "uuid"),
       filterAny("partyType", `x.${l("partyType")}`),
       filterAny("partyId", `x.${l("partyId")}`),
+      `(v_search is null or x.${l("title")} ilike v_search)`,
     ],
     keys: leaseKeys("startsOn"),
     sorts: {
@@ -406,6 +412,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(leaseList)}
 begin
   if not ${can("list_leases.tenant", read)} then

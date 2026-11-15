@@ -528,7 +528,7 @@ begin
       raise;
     end if;
   end;
-  if not better_supabase.delete_expense(v_id) then
+  if not better_supabase.purge_expense(v_id) then
     raise exception 'delete returned false';
   end if;
   if exists (select 1 from public.expenses where id = v_id) then
@@ -542,7 +542,7 @@ begin
   end if;
   perform better_supabase.submit_expense(v_company);
   begin
-    perform better_supabase.delete_expense(v_company);
+    perform better_supabase.purge_expense(v_company);
     raise exception 'deleted a submitted expense';
   exception when others then
     if sqlerrm not like '%only a draft%' then
@@ -609,7 +609,7 @@ begin
   ${refused(`better_supabase.create_expense('${TENANT}', '2099-03-04', 100, 'EUR', user_id => '${ALICE}')`)}
   ${refused("better_supabase.update_expense(v_draft, amount => 500)")}
   ${refused("better_supabase.submit_expense(v_draft)")}
-  ${refused("better_supabase.delete_expense(v_draft)")}
+  ${refused("better_supabase.purge_expense(v_draft)")}
   ${refused(`better_supabase.save_expense_category('${TENANT}', 'meals', 'Meals')`)}
   perform better_supabase.reimburse_expense(v_id, 'batch-1');
   if better_supabase.get_expense(v_id) ->> 'status' <> 'reimbursed' then
@@ -650,7 +650,7 @@ $$;`,
     for (const name of [
       "create_expense",
       "update_expense",
-      "delete_expense",
+      "purge_expense",
       "reimburse_expense",
       "save_expense_category",
     ]) {
@@ -703,23 +703,23 @@ begin
   if v_expense ->> 'status' <> 'draft' or v_expense ->> 'decidedBy' is not null or v_expense ->> 'submittedAt' is not null then
     raise exception 'withdrawn %', v_expense;
   end if;
-  ${refused("better_supabase.delete_expense(v_other)", "not allowed")}
+  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
   ${refused("better_supabase.withdraw_expense(v_paid)", "submitted or approved")}
   perform better_supabase.submit_expense(v_id);
   ${AS(BOB)}
   perform better_supabase.decide_expense(v_id, true);
   ${AS(payroll)}
   ${refused("better_supabase.withdraw_expense(v_id)", "not allowed")}
-  ${refused("better_supabase.delete_expense(v_other)", "not allowed")}
+  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
   ${AS(BOB)}
   if better_supabase.withdraw_expense(v_id) ->> 'status' <> 'draft' then
     raise exception 'withdrawn by a key holder';
   end if;
-  if not better_supabase.delete_expense(v_other) then
+  if not better_supabase.purge_expense(v_other) then
     raise exception 'approved expense not deleted';
   end if;
   ${refused("better_supabase.get_expense(v_other)", "no such expense")}
-  ${refused("better_supabase.delete_expense(v_paid)", "only a draft")}
+  ${refused("better_supabase.purge_expense(v_paid)", "only a draft")}
 end;
 $$;`,
         {
@@ -755,8 +755,8 @@ $$;`,
       "only a submitted expense is withdrawn",
     );
     expect(body("withdraw_expense")).toContain("not in ('submitted')");
-    expect(body("delete_expense")).toContain("only a draft expense is deleted");
-    expect(body("delete_expense")).not.toContain("'approved'");
+    expect(body("purge_expense")).toContain("only a draft expense is purged");
+    expect(body("purge_expense")).not.toContain("'approved'");
   });
 
   it("runs over categories without key and currency columns, with extra columns", async () => {

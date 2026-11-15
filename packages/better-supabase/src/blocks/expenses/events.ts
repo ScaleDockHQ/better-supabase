@@ -71,8 +71,8 @@ export type ExpensesEvents = {
   readonly "expense.reimbursed": ExpenseEventData;
   /** A submitted expense went back to draft. */
   readonly "expense.withdrawn": ExpenseEventData;
-  /** A draft expense was deleted. */
-  readonly "expense.deleted": ExpenseEventData;
+  /** An expense was removed for good. */
+  readonly "expense.purged": ExpenseEventData;
   readonly "expense_category.archived": ExpenseCategoryEventData;
   readonly "expense_category.restored": ExpenseCategoryEventData;
 };
@@ -91,7 +91,7 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense.rejected": event<ExpenseEventData>(),
   "expense.reimbursed": event<ExpenseEventData>(),
   "expense.withdrawn": event<ExpenseEventData>(),
-  "expense.deleted": event<ExpenseEventData>(),
+  "expense.purged": event<ExpenseEventData>(),
   "expense_category.archived": event<ExpenseCategoryEventData>(),
   "expense_category.restored": event<ExpenseCategoryEventData>(),
 });

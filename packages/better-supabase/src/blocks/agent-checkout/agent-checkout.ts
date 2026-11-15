@@ -202,6 +202,12 @@ export interface AgentCheckout {
     input: { sessionId: string } & UpdateCheckoutSessionInput,
   ): AsyncResultType<CheckoutSession>;
   getSession(sessionId: string): AsyncResultType<CheckoutSession>;
+  /**
+   * Checkout sessions, newest first.
+   *
+   * @deprecated Use `sessionPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   listSessions(
     options?: CheckoutSessionListOptions,
   ): AsyncResultType<readonly CheckoutSession[]>;
@@ -247,6 +253,12 @@ export interface AgentCheckout {
     input: { credential: string } & { readonly sessionId?: string },
   ): AsyncResultType<AgentMandate>;
   getMandate(mandateId: string): AsyncResultType<AgentMandate>;
+  /**
+   * Agent mandates, newest first.
+   *
+   * @deprecated Use `mandatePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   listMandates(
     options?: AgentMandateListOptions,
   ): AsyncResultType<readonly AgentMandate[]>;
@@ -824,6 +836,7 @@ export function createAgentCheckout(
         (value) => sessionOf(value, "update_checkout_session"),
       ),
     getSession,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listSessions: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -849,6 +862,7 @@ export function createAgentCheckout(
       call("get_agent_mandate", { mandate_id: mandateId }, (value) =>
         mandateOf(value, "get_agent_mandate"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listMandates: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

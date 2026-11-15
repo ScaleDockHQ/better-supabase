@@ -590,7 +590,7 @@ export interface BlockNameRegistry {
       readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
       readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "list_collections" | "list_saved_items" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
+    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "get_collection" | "list_collections" | "list_saved_items" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {
@@ -1003,7 +1003,7 @@ export interface BlockNameRegistry {
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "restore_expense_category" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
-    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
+    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "purge" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
     readonly hooks: never;
     readonly entities: {
       readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
@@ -2061,7 +2061,7 @@ export interface BlockNameRegistry {
       readonly "reviews": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "authorName" | "rating" | "title" | "body" | "status" | "verified" | "rejectionReason" | "reply" | "repliedBy" | "repliedAt" | "publishedAt" | "createdAt" | "updatedAt";
       readonly "stats": "tenant" | "subjectType" | "subjectId" | "count" | "total" | "histogram" | "updatedAt";
     };
-    readonly functions: "delete_review" | "list_reviews" | "my_review" | "publish_review" | "reject_review" | "reply_to_review" | "review_moderation_item" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "reviews_moderated" | "submit_review";
+    readonly functions: "delete_review" | "get_review" | "list_reviews" | "my_review" | "page_reviews" | "publish_review" | "reject_review" | "reply_to_review" | "review_moderation_item" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "reviews_moderated" | "submit_review";
     readonly actions: "manage";
     readonly hooks: "before_review_submit" | "after_review_submit";
     readonly entities: {

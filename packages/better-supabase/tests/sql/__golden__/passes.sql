@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:8e828f71ca91c84590f418b411592297608075aa0b13458e1c45045359edb375
+-- @bsb-hash sha256:d5eefa1c4f9c8c35ce60eb215117e4f2a1025261743c386ebe0f1658ea2d567f
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -269,6 +269,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -300,6 +302,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -316,6 +319,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -341,6 +345,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -361,6 +366,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -381,6 +387,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -401,6 +408,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -421,6 +429,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -441,6 +450,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -461,6 +471,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -481,6 +492,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -496,6 +508,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -574,7 +587,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:90a8fd0ab2d3350d81834abbab8837b8d82f0008e56cd345379d80e0fbc27d22
+-- @bsb-hash sha256:f96b25a4552505175cad3a3cf95024c196fc3769bc8d0658a091df8afca25970
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -910,6 +923,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -941,6 +956,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -957,6 +973,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -982,6 +999,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1002,6 +1020,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1022,6 +1041,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1042,6 +1062,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1062,6 +1083,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1082,6 +1104,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1102,6 +1125,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1122,6 +1146,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1137,6 +1162,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1252,7 +1278,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:cbdf6aa79b7d046fda1988ad2e8eeed5f3d344f5f9d2f9f8cbf1111cb1a9cbf0
+-- @bsb-hash sha256:0c94437f203da2e86bdaabf4a38f019a188892b2276f19180a36f66d684121f6
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1525,6 +1551,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -1556,6 +1584,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1572,6 +1601,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1597,6 +1627,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1617,6 +1648,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1637,6 +1669,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1657,6 +1690,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1677,6 +1711,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1697,6 +1732,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1717,6 +1753,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1737,6 +1774,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1752,6 +1790,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1830,7 +1869,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:5cf757947a582d81e2861f765dfd658fd61c78c35d1fe72a5e990071f4cb6463
+-- @bsb-hash sha256:3bed8ee4d48f093e9c70668d826f69bb28821ae9c0412fb023a3699e4ecfb6d4
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2098,6 +2137,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2129,6 +2170,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2145,6 +2187,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2170,6 +2213,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2190,6 +2234,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2210,6 +2255,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2230,6 +2276,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2250,6 +2297,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2270,6 +2318,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2290,6 +2339,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2310,6 +2360,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2325,6 +2376,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2484,7 +2536,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:45a0caf8e74e53ba17e7827f42f43521050cae3a645a36198679d6551f185392
+-- @bsb-hash sha256:8f74319fb4053b72b8664c9029cf6ae7b42c26b481c521a246c3e6c958610a1e
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2744,6 +2796,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2775,6 +2829,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2791,6 +2846,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2816,6 +2872,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2836,6 +2893,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2856,6 +2914,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2876,6 +2935,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2896,6 +2956,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2916,6 +2977,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2936,6 +2998,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2956,6 +3019,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2971,6 +3035,7 @@ begin
       where x."tenant_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -3049,7 +3114,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_118_passes.sql
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:2b4ad3ba7e95b8c1b53134ac330529f3f8c8aee1595926bed9cc571f6556eaf5
+-- @bsb-hash sha256:0b796d67d18ae808ef7819688eff3006f23ae9c19c40d27aeb12d232d3727d91
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3317,6 +3382,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3348,6 +3415,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3364,6 +3432,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3389,6 +3458,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3409,6 +3479,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3429,6 +3500,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3449,6 +3521,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3469,6 +3542,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at" >= (v_after ->> 0)::timestamptz and ((x."starts_at" > (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."starts_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3489,6 +3563,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (x."starts_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."starts_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3509,6 +3584,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3529,6 +3605,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3544,6 +3621,7 @@ begin
       where x."org_id" = page_passes.tenant
         and (not (v_filters -> 'holderUserId' is not null and jsonb_typeof(v_filters -> 'holderUserId') <> 'null' and not (jsonb_typeof(v_filters -> 'holderUserId') = 'array' and jsonb_array_length(v_filters -> 'holderUserId') = 0)) or x."holder_id" = any((case when jsonb_typeof(v_filters -> 'holderUserId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'holderUserId')) else array[v_filters ->> 'holderUserId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or coalesce(x."holder_name", '') ilike v_search or coalesce(x."holder_email", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

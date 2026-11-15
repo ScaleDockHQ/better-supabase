@@ -4762,7 +4762,7 @@
   },
   {
     "code": "REVIEW_INVALID",
-    "message": "the reviews table has no reply column"
+    "message": "filters must name one subjectType and one subjectId"
   },
   {
     "code": "REVIEW_NOT_FOUND",
