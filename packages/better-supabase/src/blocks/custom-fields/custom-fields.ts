@@ -203,7 +203,7 @@ export interface CustomFields {
   /** Removes one field value. Needs `custom_fields.manage`. */
   deleteValue(id: string): AsyncResult<boolean>;
   /**
-   * `setField` for each input, in order, reported per field key (ADR 1035): a
+   * `setField` for each input, in order, reported per field key (ADR 1036): a
    * refused field lands in `failed` and the others still run. Takes at most 500
    * inputs, each key once.
    */
@@ -445,7 +445,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
         ({ input }) => hooked.setField({ subject, input }),
         bulkOptions,
       ),
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1035)
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1036)
     setMany: ({ subject, inputs }) =>
       AsyncResult.from(async () => {
         const values: FieldValue[] = [];

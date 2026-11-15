@@ -99,7 +99,7 @@ export interface BulkItem {
 }
 
 /**
- * `bulk` for a value per row (ADR 1035): runs `apply` once per item, in order,
+ * `bulk` for a value per row (ADR 1036): runs `apply` once per item, in order,
  * and collects the outcome. The report names each item by its `id`. A second
  * item with an id already seen fails with `BULK_DUPLICATE_ID` and never runs; a
  * thrown or failed item lands in `failed` and never stops the others. The limit

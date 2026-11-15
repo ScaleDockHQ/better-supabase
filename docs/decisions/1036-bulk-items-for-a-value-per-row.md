@@ -1,4 +1,4 @@
-# 1035: Bulk items for a value per row
+# 1036: Bulk items for a value per row
 
 - Status: accepted
 - Date: 2026-11-15
