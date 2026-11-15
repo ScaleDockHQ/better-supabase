@@ -560,6 +560,7 @@ describe.skipIf(!live)("commerce recipe", () => {
         .orThrow();
 
       const views = await savedViews
+        // oxlint-disable-next-line typescript/no-deprecated -- the recipe covers the deprecated array method until 0.70 (ADR 1077).
         .list({ organizationId, list: "orders" })
         .orThrow();
 

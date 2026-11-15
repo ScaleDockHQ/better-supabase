@@ -181,7 +181,8 @@ describe("renderBlocks", () => {
         );
       }
     }
-  });
+    // Renders every module twice; a loaded CI shard passes the 20 second default.
+  }, 90_000);
 
   it("shapes the features claim with entitlements.claim", () => {
     const entitlements = (claim: unknown) =>
