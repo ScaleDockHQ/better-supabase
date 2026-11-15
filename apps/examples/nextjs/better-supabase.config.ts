@@ -7,6 +7,8 @@ import { defineEntityPage, seedRef } from "better-supabase/list";
 
 import {
   contractsSeed,
+  customersSeed,
+  inboxSeed,
   dealsSeed,
   pipelinesSeed,
   queuesSeed,
@@ -271,6 +273,7 @@ export default defineConfig({
           name: "customers",
           columns: ["name", "status", "createdAt"],
           area: "sales",
+          seed: customersSeed,
           app: {
             surface: {
               sorts: ["name", "newest"],
@@ -304,6 +307,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["subject", "status", "lastMessageAt"],
           area: "messaging",
+          seed: inboxSeed,
           app: {
             surface: {
               sorts: ["lastMessageAt"],

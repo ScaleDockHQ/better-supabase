@@ -17,7 +17,9 @@ import type { EntitySeedJson } from "../packages/better-supabase/src/list/index.
 import { assignmentQueuesSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/assignment-queues.seed.ts";
 import { commissionsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/commissions.seed.ts";
 import { contractsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/contracts.seed.ts";
+import { customersSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/customers.seed.ts";
 import { dealsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/deals.seed.ts";
+import { inboxSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/inbox.seed.ts";
 import { incidentsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/incidents.seed.ts";
 import { invitationsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/invitations.seed.ts";
 import { periodsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/periods.seed.ts";
@@ -59,6 +61,33 @@ export interface SeedTarget {
 }
 
 export const TARGETS: readonly SeedTarget[] = [
+  {
+    seed: customersSeed,
+    sql: "insert into public.customers (organization_id, name, kvk, status, metadata) values ($1::uuid, $2::jsonb ->> 'name', $2::jsonb ->> 'kvk', $2::jsonb ->> 'status', coalesce($2::jsonb -> 'metadata', '{}'::jsonb))",
+    identity: ["name"],
+  },
+  {
+    seed: inboxSeed,
+    // The deals look their contact up among the people a conversation records, so
+    // this target stays first, because the orderings
+    // that pull the deals forward (commissions refer to them) keep the array order. `$1` only scopes the call.
+    sql: "select better_supabase.record_inbound($2::jsonb - 'age_days') where $1::uuid is not null",
+    // The row's age moves the conversation and its messages back; the insert has to commit first.
+    after: `with moved as (
+  update better_supabase.inbox_conversations
+  set last_inbound_at = now() - ($2::jsonb ->> 'age_days')::integer * interval '1 day',
+      last_message_at = now() - ($2::jsonb ->> 'age_days')::integer * interval '1 day',
+      created_at = now() - ($2::jsonb ->> 'age_days')::integer * interval '1 day'
+  where tenant_id = $1::uuid and thread_id = $2::jsonb ->> 'thread_id' and $2::jsonb ? 'age_days'
+  returning id
+)
+update better_supabase.messages m
+set sent_at = now() - ($2::jsonb ->> 'age_days')::integer * interval '1 day',
+    created_at = now() - ($2::jsonb ->> 'age_days')::integer * interval '1 day'
+from moved
+where m.conversation_id = moved.id`,
+    identity: ["thread_id"],
+  },
   {
     seed: workOrdersSeed,
     sql: "select better_supabase.create_work_order(tenant => $1::uuid, title => $2::jsonb ->> 'title')",
