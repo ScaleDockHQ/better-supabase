@@ -457,3 +457,47 @@ describe("employees block", () => {
     expect(t.calls[0]).toEqual(["purge_employee", { employee: "e1" }]);
   });
 });
+
+describe("employee pages", () => {
+  it("pages, facets, counts and gets employees", async () => {
+    const fake = transport({
+      page_employees: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "status",
+            values: [{ value: "active", count: { value: 1, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 1, exact: true };
+        }
+
+        return { items: [EMPLOYEE], hasMore: false, nextCursor: null };
+      },
+      get_employee: () => EMPLOYEE,
+    });
+
+    const employees = createEmployees({ transport: fake });
+    const organizationId = "o";
+
+    const page = await employees
+      .page({ organizationId, filters: { status: ["active"] } })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+
+    expect(
+      await employees.facets({ organizationId, facets: ["status"] }).orThrow(),
+    ).toHaveLength(1);
+
+    expect(await employees.count({ organizationId }).orThrow()).toEqual({
+      value: 1,
+      exact: true,
+    });
+
+    expect((await employees.get(EMPLOYEE.id).orThrow()).id).toBe(EMPLOYEE.id);
+  });
+});

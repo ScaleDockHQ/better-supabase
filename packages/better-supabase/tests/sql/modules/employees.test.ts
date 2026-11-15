@@ -127,6 +127,8 @@ describe("employees module", () => {
       "update_employees",
       "purge_employee",
       "offboard_employee",
+      "page_employees",
+      "get_employee",
       "org_chart",
       "reports_of",
     ]);

@@ -63,6 +63,29 @@ export default defineConfig({
 });
 ```
 
+## Paging employees
+
+`page` lists the organization's employees by name (ADR 1077) and needs `employees.read`. Sorts are `name` (the default) and `startDate`, newest first. Filters are `status`, `employmentType`, `teamId`, `managerId` and `userId`, each a list of values. `q` searches the name, email and job title. `facets` counts `status`, `employmentType` and `teamId`, `count` returns `{ value, exact }`, and `get` reads one employee by id (also for the employee and their managers).
+
+```ts
+const first = await employees
+  .page({
+    organizationId,
+    filters: { status: ["active"] },
+    q: "ada",
+    limit: 50,
+  })
+  .orThrow();
+
+const facets = await employees.facets({ organizationId }).orThrow();
+const total = await employees
+  .count({ organizationId, filters: { teamId: [teamId] } })
+  .orThrow();
+const one = await employees.get(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Editing
 
 `update(changes)` applies a batch of `{ employeeId, field, value }` cells, each on its own, as an editable grid sends them. A change that fails comes back in `rejected` with its hint and the others stay. The fields are `name`, `email`, `userId`, `jobTitle`, `teamId`, `managerId`, `employmentType`, `status`, `startDate`, `endDate` and the extra columns by name; `null` clears one. `status` takes `preboarding`, `active` or `on_leave`; setting it on an offboarded employee rehires them and clears the end date. An app status that a label maps to next to its first value, such as `offboarding` in `values: { employees: { status: { active: ["active", "offboarding"] } } }`, is accepted and written as it is, and counts as that label where the block checks the status.

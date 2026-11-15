@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:1dcea9bb85ed08cd307688fbbea345f3212a89f26ecaf7b55e9e8e766caf82ee
+-- @bsb-hash sha256:27e5b12f5d63c3937f638d0e695e422694dd144225dbb7d78f99244013edc128
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -153,6 +153,284 @@ $$;
 revoke execute on function better_supabase.bsb_employee_user_mirror() from public, anon, authenticated;
 create trigger bsb_employee_user_mirror after update of "user_id" on "better_supabase"."employees"
 for each row execute function better_supabase.bsb_employee_user_mirror();
+
+-- The organization's employees as a keyset page, by name (ADR 1077). Needs
+-- employees.read. filters is { status, employmentType, teamId, managerId,
+-- userId (each a value or a list), search, sort (name, startDate), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_employees"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_employees.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', page_employees.tenant, 'employees.read'), false)) then
+    raise exception 'not allowed to read the employees' using errcode = '42501', hint = 'EMPLOYEE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'employmentType', 'teamId') then
+      raise exception 'facet is one of status, employmentType, teamId' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'employmentType' then (x."employment_type")::text when 'teamId' then (x."team_id"::text)::text end) as v
+      from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'startDate') then
+    raise exception 'sort is one of name, startDate' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startDate' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((coalesce(x."start_date", date '0001-01-01'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (coalesce(x."start_date", date '0001-01-01'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."start_date", date '0001-01-01') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startDate' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EMPLOYEE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((coalesce(x."start_date", date '0001-01-01'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+        and (v_after is null or (coalesce(x."start_date", date '0001-01-01') <= (v_after ->> 0)::date and ((coalesce(x."start_date", date '0001-01-01') < (v_after ->> 0)::date) or (coalesce(x."start_date", date '0001-01-01') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."start_date", date '0001-01-01') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."employees" x
+      where x."tenant_id" = page_employees.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'employmentType' is not null and jsonb_typeof(v_filters -> 'employmentType') <> 'null' and not (jsonb_typeof(v_filters -> 'employmentType') = 'array' and jsonb_array_length(v_filters -> 'employmentType') = 0)) or x."employment_type" = any((case when jsonb_typeof(v_filters -> 'employmentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'employmentType')) else array[v_filters ->> 'employmentType'] end)::text[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'managerId' is not null and jsonb_typeof(v_filters -> 'managerId') <> 'null' and not (jsonb_typeof(v_filters -> 'managerId') = 'array' and jsonb_array_length(v_filters -> 'managerId') = 0)) or x."manager_id" = any((case when jsonb_typeof(v_filters -> 'managerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'managerId')) else array[v_filters ->> 'managerId'] end)::uuid[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id" = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search or x."email" ilike v_search or x."job_title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_employees"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_employees"(uuid, jsonb) to authenticated, service_role;
+
+-- One employee by id. Needs employees.read, or being the employee or one of
+-- their managers.
+create or replace function "better_supabase"."get_employee"(employee uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+begin
+  select * into v_row from "better_supabase"."employees" x where x."id" = get_employee.employee;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read'), false) or exists (
+    with recursive up (id, manager) as (
+      select u."id", u."manager_id" from "better_supabase"."employees" u where u."id" = get_employee.employee
+      union
+      select u."id", u."manager_id" from "better_supabase"."employees" u join up on u."id" = up.manager
+    )
+    select 1 from up join "better_supabase"."employees" me on me."id" = up.id where me."user_id" = auth.uid())) then
+    raise exception 'no such employee you can read' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."get_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_employee"(uuid) to authenticated, service_role;
 
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin

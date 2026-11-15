@@ -2,6 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   fail,
   raise,
   SERVICE_CALLER,
@@ -169,6 +175,44 @@ export function documentTemplateFunctions(ctx: BlockSqlContext): string {
   // The issue a template can have, as the raise that carries its hint code.
   const issueRaise = (code: string): string =>
     raise("%", "22023", code, "v_message");
+
+  const templateKeys = (
+    first: "name" | "updatedAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "name"
+      ? { expr: `t.${x("name")}`, dir: "asc", type: "text" }
+      : { expr: `t.${x("updatedAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `t.${x("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const templatePage = {
+    name: "page_document_templates",
+    from: templates,
+    alias: "t",
+    where: [
+      `t.${x("tenant")} = page_document_templates.tenant`,
+      filterAny("documentType", `t.${x("documentType")}`),
+      filterAny("legalEntityId", `t.${x("legalEntity")}`, "uuid"),
+      filterAny("language", `coalesce(t.${x("language")}, '')`),
+      filterAny("active", `t.${x("active")}::text`),
+      `(v_search is null or t.${x("name")} ilike v_search or t.${x("documentType")} ilike v_search or t.${x("body")} ilike v_search)`,
+    ],
+    keys: templateKeys("name"),
+    sorts: { name: templateKeys("name"), updatedAt: templateKeys("updatedAt") },
+    facets: {
+      documentType: `t.${x("documentType")}`,
+      active: `t.${x("active")}::text`,
+      language: `t.${x("language")}`,
+    },
+    rowJson: templateJson("t"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid,
+  } as const;
 
   return `
 -- The variable contract of a document type: its version and the paths and
@@ -523,6 +567,28 @@ as $$
     and (not coalesce(list_document_templates.active_only, false) or t.${x("active")})
 $$;
 ${userGrant(`${fn("list_document_templates")}(${idType}, text, uuid, boolean)`)}
+
+-- The organization's templates as a keyset page, by name (ADR 1077). filters is
+-- { documentType, legalEntityId, language, active (each a value or a list),
+-- search, sort (name, updatedAt), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function ${fn("page_document_templates")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_document_templates.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(templatePage)}
+begin
+  ${listBody(templatePage)}
+end;
+$$;
+${userGrant(`${fn("page_document_templates")}(${idType}, jsonb)`)}
 
 -- Saves a reusable text, read in a template as texts.<key>: a payment terms
 -- sentence, a dunning text, a footer, a legal line. The text may hold the same
