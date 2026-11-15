@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:70024fb222d60fb1a2e794d3c729d5d5c0586a8bd830ceb14c1591d3f3d87d8f
+-- @bsb-hash sha256:7edd822a76ee15ff080337672ee02d3c4d5ea786fed6e691836335679e6af674
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2212,7 +2212,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_bank_account_index"
-  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."bank_accounts"
+  after insert or delete or update of "id", "tenant_id", "name", "iban", "holder", "archived_at" on "better_supabase"."bank_accounts"
   for each row execute function "better_supabase"."search_index_row"('bank_account', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
