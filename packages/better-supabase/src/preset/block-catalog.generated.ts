@@ -4385,6 +4385,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "care_plan.archived",
         "care_plan.created",
         "care_plan.published",
+        "care_plan.restored",
         "care_plan.review_date_reached",
         "care_plan.updated",
         "care_plan_action.ended",

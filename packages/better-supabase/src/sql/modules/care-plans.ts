@@ -51,6 +51,7 @@ const EVENTS: BlockSqlEvents<CarePlansEvents> = {
     payload: [...PLAN, "previousPlanId", "versionId"],
   },
   "care_plan.archived": plan,
+  "care_plan.restored": plan,
   "care_plan.agreed": {
     subject: "care-plans",
     payload: [...PLAN, "signatureRequestId"],
@@ -475,6 +476,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "publish_care_plan", args: ["uuid"], returns: "jsonb" },
     { name: "archive_care_plan", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_care_plan", args: ["uuid"], returns: "jsonb" },
     { name: "get_care_plan", args: ["uuid"], returns: "jsonb" },
     { name: "get_care_plans", args: ["uuid[]"], returns: "jsonb" },
     {
