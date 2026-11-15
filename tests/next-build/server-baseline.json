@@ -852,7 +852,7 @@
   "/[locale]/(app)/settings/access-requests/page": {
     "raw": 3106256,
     "gzip": 946327,
-    "brotli": 784103
+    "brotli": 786088
   },
   "/[locale]/(app)/settings/ai-providers/page": {
     "raw": 3092915,
