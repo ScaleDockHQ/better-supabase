@@ -2360,8 +2360,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
-        "time_entry.deleted",
+        "time_entry.archived",
+        "time_entry.purged",
         "time_entry.recorded",
+        "time_entry.restored",
         "time_entry.started",
         "time_entry.updated",
         "timesheet.approved",
@@ -2545,10 +2547,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "activity.amended",
+        "activity.archived",
         "activity.completed",
-        "activity.deleted",
         "activity.error_marked",
         "activity.logged",
+        "activity.purged",
+        "activity.restored",
         "activity.updated"
       ],
       "subpath": "better-supabase/blocks/activities",

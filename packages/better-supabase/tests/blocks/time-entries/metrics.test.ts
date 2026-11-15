@@ -30,8 +30,12 @@ describe("timeEntriesMetrics", () => {
       timeColumn: "started_at",
       dimensions: ["billable", "user_id", "subject_type"],
       unit: "s",
+      where: { archived_at: null },
     });
     expect(tracked).not.toHaveProperty("tz");
+    expect(timeEntriesMetrics({ archivedAt: false })[0]).not.toHaveProperty(
+      "where",
+    );
     expect(
       timeEntriesMetrics({ schema: "work", tz: "Europe/Amsterdam" })[0],
     ).toMatchObject({ table: "work.time_entries", tz: "Europe/Amsterdam" });

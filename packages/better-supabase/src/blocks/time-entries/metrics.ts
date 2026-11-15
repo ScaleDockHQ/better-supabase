@@ -17,6 +17,11 @@ export interface TimeEntriesMetricsOptions {
   readonly tenant?: string;
   /** The IANA time zone buckets start in. Default `UTC`. */
   readonly tz?: string;
+  /**
+   * The column that archives an entry, which the metric skips. Default
+   * `archived_at`; `false` over a table with no archive column.
+   */
+  readonly archivedAt?: string | false;
 }
 
 export type TimeEntriesMetrics = readonly [
@@ -41,6 +46,9 @@ export function timeEntriesMetrics(
       timeColumn: "started_at",
       dimensions: ["billable", "user_id", "subject_type"],
       unit: "s",
+      ...(options.archivedAt === false
+        ? {}
+        : { where: { [options.archivedAt ?? "archived_at"]: null } }),
       ...(options.tz === undefined ? {} : { tz: options.tz }),
     }),
   ];
@@ -53,11 +61,15 @@ export function timeEntriesMetrics(
 export const TIME_ENTRIES_METRIC_EVENTS: {
   readonly "time_entry.recorded": readonly ["time_tracked"];
   readonly "time_entry.updated": readonly ["time_tracked"];
-  readonly "time_entry.deleted": readonly ["time_tracked"];
+  readonly "time_entry.archived": readonly ["time_tracked"];
+  readonly "time_entry.restored": readonly ["time_tracked"];
+  readonly "time_entry.purged": readonly ["time_tracked"];
 } = {
   "time_entry.recorded": ["time_tracked"],
   "time_entry.updated": ["time_tracked"],
-  "time_entry.deleted": ["time_tracked"],
+  "time_entry.archived": ["time_tracked"],
+  "time_entry.restored": ["time_tracked"],
+  "time_entry.purged": ["time_tracked"],
 };
 
 /**

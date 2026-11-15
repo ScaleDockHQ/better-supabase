@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:c192b473d59ef0f5fc4ebc356fd9f032a81fdbc9da7ceff0853406eb85c862c5
+-- @bsb-hash sha256:fdd8576ed449ea8387b4074de186fff45a63f9265df44b58d6b4bbc01ea7e9d4
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -286,7 +286,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -328,7 +328,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -357,7 +357,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -418,7 +418,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -466,7 +466,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -505,7 +505,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -567,7 +567,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -616,7 +616,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -704,7 +704,7 @@ begin
         limit 1
       ) card on true
       where x."tenant_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
     ),
@@ -782,7 +782,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:b951a12cd6611e55767a546f8f7a3cfe4df480895e5a3120169235ac8e0ca219
+-- @bsb-hash sha256:632a2c6861639a5786c2e13250fd08078ee9f25d2cd78581f5c82279432cd92d
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -856,7 +856,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -1067,7 +1067,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1109,7 +1109,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1138,7 +1138,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1199,7 +1199,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1247,7 +1247,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1286,7 +1286,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1357,7 +1357,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -1406,7 +1406,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -1506,7 +1506,7 @@ begin
           and l."dimensions" ->> 'project' = v_project."id"::text
       )
     where x."tenant_id" = v_project."tenant_id"
-      and x."ended_at" is not null
+      and x."ended_at" is not null and x."archived_at" is null
       and ((x."subject_type" = 'project' and x."subject_id" = v_project."id"::text) or (x."subject_type" = 'task' and x."subject_id" in (
         select y."id"::text from "better_supabase"."tasks" y where y."project_id" = v_project."id"
       )))
@@ -1596,7 +1596,7 @@ begin
         limit 1
       ) card on true
       where x."tenant_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
     ),
@@ -1677,7 +1677,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:6164be648e0e25812f363cba9f13a39f419d1c6fac11890d63fca24cf8567b01
+-- @bsb-hash sha256:53a6357ff338443daf83e0d772fc3ed91749486d849318f03e9a6a6b9a61b0e6
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1756,7 +1756,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -1967,7 +1967,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2009,7 +2009,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2038,7 +2038,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2099,7 +2099,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2147,7 +2147,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2186,7 +2186,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2248,7 +2248,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2297,7 +2297,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -2385,7 +2385,7 @@ begin
         limit 1
       ) card on true
       where x."tenant_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "app_private"."time_invoice_entries" d where d."entry_id" = x."id")
     ),
@@ -2463,7 +2463,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:292b91466edc61d529d6fae2a2ffc4cdfa88bdce29c4051301e6f50b804bfea7
+-- @bsb-hash sha256:8fc5e32cb63b34e1698bf89979243760453d21713114b7f1f6b776e462dd6f0f
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2537,7 +2537,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -2748,7 +2748,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2790,7 +2790,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2819,7 +2819,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2880,7 +2880,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2928,7 +2928,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -2967,7 +2967,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3029,7 +3029,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3078,7 +3078,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -3166,7 +3166,7 @@ begin
         limit 1
       ) card on true
       where x."tenant_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
     ),
@@ -3344,7 +3344,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:7d82f7d1c231370dfa68b96eabb3113407d6d1dbb276195ab47d6e0f261ee1dc
+-- @bsb-hash sha256:96c36dccf996d34451bd0c3139713b971504ff8c89cf5dc68ca73f720b9396d0
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3412,7 +3412,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -3623,7 +3623,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3665,7 +3665,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3694,7 +3694,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3755,7 +3755,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3803,7 +3803,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3842,7 +3842,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3904,7 +3904,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -3953,7 +3953,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."tenant_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -4041,7 +4041,7 @@ begin
         limit 1
       ) card on true
       where x."tenant_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
     ),
@@ -4119,7 +4119,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:72e3baaa7bdf3f86717aaa7d4053a0985a01323a4ed3cb41400ee6ca5a06306e
+-- @bsb-hash sha256:3c7298e79ab21d3d754f8598a40ce4e4442b5b19cde96ae73dfac12e1b60bfb6
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4193,7 +4193,7 @@ begin
   if tg_op = 'DELETE' then
     raise exception 'this entry is on an invoice; void the invoice to delete it' using errcode = '23001', hint = 'TIME_ENTRY_INVOICED';
   end if;
-  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" then
+  if old."started_at" is distinct from new."started_at" or old."ended_at" is distinct from new."ended_at" or old."billable" is distinct from new."billable" or old."rate" is distinct from new."rate" or old."rate_currency" is distinct from new."rate_currency" or old."archived_at" is distinct from new."archived_at" then
     raise exception 'this entry is on an invoice; void the invoice to change it' using errcode = '55000', hint = 'TIME_ENTRY_INVOICED';
   end if;
   return new;
@@ -4404,7 +4404,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4446,7 +4446,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4475,7 +4475,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = unbilled_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4536,7 +4536,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4584,7 +4584,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4623,7 +4623,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = invoice_from_time.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4685,7 +4685,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = time_lines_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (v_scope -> 'subject' is null or (x."subject_type" = v_scope -> 'subject' ->> 'type' and x."subject_id" = v_scope -> 'subject' ->> 'id'))
       and (v_scope ->> 'userId' is null or x."user_id" = (v_scope ->> 'userId')::uuid)
@@ -4734,7 +4734,7 @@ begin
       limit 1
     ) card on x."rate" is null
     where x."org_id" = claim_time_for_invoice.tenant
-      and x."billable" and x."ended_at" is not null
+      and x."billable" and x."ended_at" is not null and x."archived_at" is null
       and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' is null or (x."subject_type" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'type' and x."subject_id" = jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) -> 'subject' ->> 'id'))
       and (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId' is null or x."user_id" = (jsonb_build_object('entryIds', claim_time_for_invoice.entry_ids) ->> 'userId')::uuid)
@@ -4822,7 +4822,7 @@ begin
         limit 1
       ) card on true
       where x."org_id" = wip_valuation.tenant
-        and x."billable" and x."ended_at" is not null
+        and x."billable" and x."ended_at" is not null and x."archived_at" is null
         and (x."started_at" at time zone 'UTC')::date <= v_as_of
         and not exists (select 1 from "better_supabase"."time_invoice_entries" d where d."entry_id" = x."id")
     ),

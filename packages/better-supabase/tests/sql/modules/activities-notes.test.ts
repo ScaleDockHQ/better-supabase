@@ -198,7 +198,8 @@ begin
     raise exception 'logged %', v_note;
   end if;
   ${fails(`perform better_supabase.update_activity((v_note ->> 'id')::uuid, '{"body": "Changed"}'::jsonb, null)`, "ACTIVITY_LOCKED")}
-  ${fails(`perform better_supabase.delete_activity((v_note ->> 'id')::uuid)`, "ACTIVITY_LOCKED")}
+  ${fails(`perform better_supabase.purge_activity((v_note ->> 'id')::uuid)`, "ACTIVITY_LOCKED")}
+  ${fails(`perform better_supabase.archive_activity((v_note ->> 'id')::uuid)`, "ACTIVITY_LOCKED")}
   ${fails(`perform better_supabase.log_activity('${TENANT}', '{"type": "note", "title": "Bad", "category": "gossip"}'::jsonb, '[]'::jsonb)`, "ACTIVITY_CATEGORY_INVALID")}
   ${fails(`perform better_supabase.log_activity('${TENANT}', '{"type": "note", "title": "Bad", "audience": "everyone"}'::jsonb, '[]'::jsonb)`, "ACTIVITY_AUDIENCE_INVALID")}
   ${fails(`perform better_supabase.amend_activity((v_note ->> 'id')::uuid, ' ')`, "ACTIVITY_BODY_REQUIRED")}

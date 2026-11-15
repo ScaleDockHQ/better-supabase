@@ -6,7 +6,7 @@ import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { subjectsOption } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { projectType, taskType } from "./tasks.ts";
-import { entryEnded, entrySubjects } from "./time-entries-owner.ts";
+import { entryEnded, entryLive, entrySubjects } from "./time-entries-owner.ts";
 
 /** Whether billable time renders `project_costs`: tasks has projects. */
 export const costsProjects = (ctx: BlockSqlContext): boolean =>
@@ -123,7 +123,7 @@ begin
     ) card on true
     left join ${ctx.table("billed")} d on d.${b("entry")} = x.${e("id")}${booked}
     where x.${e("tenant")} = v_project.${p("tenant")}
-      and ${entryEnded(time, "x")} is not null
+      and ${entryEnded(time, "x")} is not null and ${entryLive(time, "x")}
       and ((${subject.type} = ${sqlString(projectType(tasks))} and ${subject.id} = v_project.${p("id")}::text)${items})
   ),
   totals as (
@@ -229,7 +229,7 @@ begin
         limit 1
       ) card on true
       where x.${e("tenant")} = wip_valuation.tenant
-        and x.${e("billable")} and ${entryEnded(time, "x")} is not null
+        and x.${e("billable")} and ${entryEnded(time, "x")} is not null and ${entryLive(time, "x")}
         and (x.${e("startedAt")} at time zone ${zone})::date <= v_as_of
         and not exists (select 1 from ${ctx.table("billed")} d where d.${b("entry")} = x.${e("id")})
     ),
