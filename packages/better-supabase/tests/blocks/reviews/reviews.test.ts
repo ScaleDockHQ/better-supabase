@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it } from "vitest";
 
 import { createReviews } from "../../../src/blocks/reviews/index.ts";
@@ -136,6 +137,67 @@ describe("reviews client", () => {
         verified: true,
       },
     ]);
+  });
+
+  it("pages a subject's published reviews with a sort, a list filter and text", async () => {
+    const fake = transport({
+      page_reviews: () => ({
+        items: [PUBLISHED],
+        hasMore: true,
+        nextCursor: ["a", "b"],
+      }),
+    });
+
+    const page = await createReviews({ transport: fake })
+      .reviewPage({
+        organizationId: "o",
+        subjectType: "product",
+        subjectId: "p1",
+        sort: { by: "rating" },
+        filters: { rating: ["4", "5"] },
+        q: "solid",
+        limit: 5,
+      })
+      .orThrow();
+
+    expect(page.items[0]?.authorId).toBeUndefined();
+    expect(page.nextCursor).toEqual(["a", "b"]);
+    expect(fake.calls[0]).toEqual([
+      "page_reviews",
+      {
+        tenant: "o",
+        filters: {
+          sort: "rating",
+          rating: ["4", "5"],
+          subjectType: ["product"],
+          subjectId: ["p1"],
+          search: "solid",
+          limit: 5,
+          paged: true,
+        },
+      },
+    ]);
+  });
+
+  it("counts and gets reviews", async () => {
+    const fake = transport({
+      page_reviews: () => ({ value: 3, exact: true }),
+      get_review: () => PUBLISHED,
+    });
+
+    const reviews = createReviews({ transport: fake });
+
+    expect(
+      await reviews
+        .reviewCount({
+          organizationId: "o",
+          subjectType: "product",
+          subjectId: "p1",
+        })
+        .orThrow(),
+    ).toEqual({ value: 3, exact: true });
+    expect((await reviews.get("r1").orThrow()).id).toBe("r1");
+    expect(fake.calls[1]).toEqual(["get_review", { review_id: "r1" }]);
   });
 
   it("reads the aggregate with a numeric histogram", async () => {

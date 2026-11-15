@@ -8,7 +8,12 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -237,6 +242,7 @@ function build(ctx: BlockSqlContext): string {
       filterAny("status", `x.${s("status")}`),
       filterAny("protocol", `x.${s("protocol")}`),
       filterAny("cartId", `x.${s("cart")}::text`),
+      `(v_search is null or x.${s("idempotencyKey")} ilike v_search or x.${s("id")}::text ilike v_search)`,
     ],
     keys: [
       { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
@@ -270,6 +276,7 @@ function build(ctx: BlockSqlContext): string {
       filterAny("sessionId", `x.${m("session")}::text`),
       filterAny("status", `x.${m("status")}`),
       filterAny("vct", `x.${m("vct")}`),
+      `(v_search is null or coalesce(x.${m("subject")}, '') ilike v_search or coalesce(x.${m("issuerKid")}, '') ilike v_search)`,
     ],
     keys: [
       { expr: `x.${m("createdAt")}`, dir: "desc", type: "timestamptz" },
@@ -472,6 +479,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list_list_checkout_sessions)}
 begin
   if not ${allowed("list_checkout_sessions.tenant", read)} then
@@ -677,6 +685,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list_list_agent_mandates)}
 begin
   if not ${allowed("list_agent_mandates.tenant", read)} then

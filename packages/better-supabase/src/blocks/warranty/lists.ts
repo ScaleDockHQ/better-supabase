@@ -9,4 +9,5 @@ export const warrantyClaimListSurface: EntityListSurface = {
   sorts: ["createdAt", "amount"],
   facets: ["status"],
   filters: ["status", "assetId"],
+  search: ["title"],
 };

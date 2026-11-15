@@ -9,6 +9,7 @@ export const checkoutSessionListSurface: EntityListSurface = {
   sorts: ["createdAt", "expiresAt"],
   facets: ["status", "protocol"],
   filters: ["status", "protocol", "cartId"],
+  search: ["idempotencyKey", "id"],
 };
 
 /** The same for an agent mandate (`list_agent_mandates`). */
@@ -16,4 +17,5 @@ export const agentMandateListSurface: EntityListSurface = {
   sorts: ["createdAt", "expiresAt"],
   facets: ["status", "vct"],
   filters: ["sessionId", "status", "vct"],
+  search: ["subject", "issuerKid"],
 };

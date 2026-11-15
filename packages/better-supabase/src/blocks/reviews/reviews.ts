@@ -3,8 +3,15 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -12,6 +19,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -26,6 +34,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { reviewListSurface } from "./lists.ts";
 
 export interface ReviewsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -94,6 +103,13 @@ export interface ReviewInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F>;
 }
 
+/** The subject whose reviews a page reads. */
+export interface ReviewSubject {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
+}
+
 export interface ReviewListOptions {
   readonly pageSize?: number;
   /** Reviews published before this instant, for the next page. */
@@ -143,6 +159,9 @@ export interface Reviews<F extends object = Record<never, never>> {
   /**
    * The subject's published reviews, newest first. Anonymous visitors can call
    * it for a public storefront's products.
+   *
+   * @deprecated Use `reviewPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
    */
   list(
     input: {
@@ -151,6 +170,22 @@ export interface Reviews<F extends object = Record<never, never>> {
       subjectId: string;
     } & ReviewListOptions,
   ): AsyncResult<readonly Review<F>[]>;
+  /**
+   * One keyset page of a subject's published reviews, newest first. `filters`
+   * takes `rating` and `verified` (lists); `q` searches the title and the body.
+   * Anonymous visitors can call it for a public storefront's products.
+   */
+  reviewPage(
+    input: ReviewSubject & PageOptions,
+  ): AsyncResult<ListPage<Review<F>>>;
+  /** The values of each facet (`rating`, `verified`) under the page's filters. */
+  reviewFacets(
+    input: ReviewSubject & FacetOptions,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many published reviews of the subject match the page's filters. */
+  reviewCount(input: ReviewSubject & CountOptions): AsyncResult<Count>;
+  /** One review by id, or a `not_found` error. */
+  get(reviewId: string): AsyncResult<Review<F>>;
   /**
    * The rating aggregate of up to 200 subjects of one type, by subject id.
    * Subjects without published reviews are left out.
@@ -266,6 +301,31 @@ export function createReviews<
     (value: unknown): readonly Review[] =>
       recordsOf(value, fn).map((row) => reviewOf(row, fn));
 
+  const reviews = entityList<Review, { readonly organizationId: string }>({
+    entity: "review",
+    surface: reviewListSurface,
+    call,
+    tenant: (organizationId) => AsyncResult.ok(organizationId ?? ""),
+    fn: "page_reviews",
+    rowOf: reviewOf,
+  });
+
+  // The page reads one subject, which the SQL function takes as two filters.
+  const ofSubject = <T extends { readonly filters?: PageOptions["filters"] }>(
+    input: ReviewSubject & T,
+  ) => {
+    const { subjectType, subjectId, filters, ...rest } = input;
+
+    return {
+      ...rest,
+      filters: {
+        ...filters,
+        subjectType: [subjectType],
+        subjectId: [subjectId],
+      },
+    };
+  };
+
   const client: Reviews<F> = {
     submit: ({ organizationId, subjectType, subjectId, input }) =>
       fields
@@ -301,6 +361,7 @@ export function createReviews<
       ).andThen((review) =>
         review === undefined ? AsyncResult.ok(undefined) : fields.row(review),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, subjectType, subjectId, ...list }) =>
       call(
         "list_reviews",
@@ -315,6 +376,18 @@ export function createReviews<
         },
         many("list_reviews"),
       ).andThen(fields.rows),
+    reviewPage: (input) =>
+      reviews
+        .page(ofSubject(input))
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    reviewFacets: (input) => reviews.facets(ofSubject(input)),
+    reviewCount: (input) => reviews.count(ofSubject(input)),
+    get: (reviewId) =>
+      call("get_review", { review_id: reviewId }, one("get_review")).andThen(
+        fields.row,
+      ),
     summary: ({ organizationId, subjectType, subjectIds }) =>
       call(
         "review_summary",

@@ -143,7 +143,12 @@ export interface Guests {
   accept(token: string): AsyncResult<Guest>;
   /** Needs `guests.manage`. Their grants stop counting. */
   revoke(guestId: string): AsyncResult<Guest>;
-  /** The tenant's guests, newest first. Needs `guests.read`. */
+  /**
+   * The tenant's guests, newest first. Needs `guests.read`.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(options?: GuestListOptions): AsyncResult<readonly Guest[]>;
   /** One guest by id. Needs `guests.read`. */
   get(guestId: string): AsyncResult<Guest>;
@@ -284,6 +289,7 @@ export function createGuests(options: GuestsOptions): Guests {
       call("revoke_guest", { guest_id: guestId }, (value) =>
         guestOf(value, "revoke_guest"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

@@ -129,6 +129,8 @@ describe("reviews module", () => {
     const [contract] = customContracts(["reviews"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual([
       "submit_review",
+      "page_reviews",
+      "get_review",
       "list_reviews",
       "review_summary",
       "publish_review",

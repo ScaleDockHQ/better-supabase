@@ -87,7 +87,12 @@ export interface Warranty {
     status: WarrantyDecision,
     decision?: string,
   ): AsyncResult<WarrantyClaim>;
-  /** Claims of the caller's organization, newest first. Needs `warranty.read`. */
+  /**
+   * Claims of the caller's organization, newest first. Needs `warranty.read`.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(
     options?: WarrantyClaimListOptions,
   ): AsyncResult<readonly WarrantyClaim[]>;
@@ -192,6 +197,7 @@ export function createWarranty(options: WarrantyOptions): Warranty {
         },
         claim("decide_warranty_claim"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

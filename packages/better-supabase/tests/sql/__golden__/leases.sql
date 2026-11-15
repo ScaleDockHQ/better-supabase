@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:8cfe4b5d7104dedaabf9485dfa27b3c639be23359a8a6d81e253bbda57c45acf
+-- @bsb-hash sha256:449a6b404b01f03c1379b316a22ffa88c894b7026a687e14fa5b3a20bcc84daf
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -339,6 +339,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -372,6 +374,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -390,6 +393,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -418,6 +422,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -441,6 +446,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -464,6 +470,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -487,6 +494,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -510,6 +518,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -533,6 +542,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -556,6 +566,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -579,6 +590,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -596,6 +608,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -811,7 +824,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:f6649fba204d618e65b5c1ce5ef24b12f95d90eafc81f267041b7a8d6d49a7d6
+-- @bsb-hash sha256:b973d49eb75bab8b40bd2f85d2353d9b886ca687fd6f366ebbdd6cd1f48a9241
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1189,6 +1202,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -1222,6 +1237,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1240,6 +1256,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1268,6 +1285,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1291,6 +1309,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1314,6 +1333,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1337,6 +1357,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1360,6 +1381,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1383,6 +1405,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1406,6 +1429,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1429,6 +1453,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1446,6 +1471,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1740,7 +1766,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:f355c4497fe85bcbe9764e0d7cb1c0c0506c01a9275bae3a035a1021ca9abfb6
+-- @bsb-hash sha256:6d69a8506b9a619f4e62eadad4363cabba7d0dcb3379a86ed58fa3873eba9520
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2083,6 +2109,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2116,6 +2144,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2134,6 +2163,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2162,6 +2192,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2185,6 +2216,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2208,6 +2240,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2231,6 +2264,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2254,6 +2288,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2277,6 +2312,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2300,6 +2336,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2323,6 +2360,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2340,6 +2378,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2555,7 +2594,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:550c6862adbeb28d0752f7b3ef1e210c3d641430a4a6ac3a47f6cab0f9c22fea
+-- @bsb-hash sha256:ca34ad34066fbe12e70c1e763959d5939f605dfc2e8a41fe7f18c7810e742d46
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2893,6 +2932,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2926,6 +2967,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2944,6 +2986,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2972,6 +3015,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2995,6 +3039,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3018,6 +3063,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3041,6 +3087,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3064,6 +3111,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3087,6 +3135,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3110,6 +3159,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3133,6 +3183,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3150,6 +3201,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -3453,7 +3505,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:6dc49ed2cbd6d6022aec03045b8c0c1add2889bbf4e018a97b6d05807f126219
+-- @bsb-hash sha256:a998436babe15652eb21ca84566313232ca3fc459f15e5bd0c117246c6fe194f
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3781,6 +3833,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3814,6 +3868,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3832,6 +3887,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3860,6 +3916,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3883,6 +3940,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3906,6 +3964,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3929,6 +3988,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3952,6 +4012,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3975,6 +4036,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3998,6 +4060,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4021,6 +4084,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4038,6 +4102,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -4253,7 +4318,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:76148e80c31424dc461db9c1cde8e089260b2b0fcb79655301fb7b677a542852
+-- @bsb-hash sha256:1f2a4e522d042136358e1489be1eb7e6c3dfa0f124ea4fd7ccb25fd5b7879e6c
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4591,6 +4656,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -4624,6 +4691,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -4642,6 +4710,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -4670,6 +4739,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4693,6 +4763,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4716,6 +4787,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."starts_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4739,6 +4811,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."starts_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4762,6 +4835,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."ends_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4785,6 +4859,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."ends_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."ends_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."ends_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."ends_on", 'infinity'::date) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4808,6 +4883,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4831,6 +4907,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4848,6 +4925,7 @@ begin
         and (not (v_filters -> 'unitId' is not null and jsonb_typeof(v_filters -> 'unitId') <> 'null' and not (jsonb_typeof(v_filters -> 'unitId') = 'array' and jsonb_array_length(v_filters -> 'unitId') = 0)) or x."unit_id" = any((case when jsonb_typeof(v_filters -> 'unitId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unitId')) else array[v_filters ->> 'unitId'] end)::uuid[]))
         and (not (v_filters -> 'partyType' is not null and jsonb_typeof(v_filters -> 'partyType') <> 'null' and not (jsonb_typeof(v_filters -> 'partyType') = 'array' and jsonb_array_length(v_filters -> 'partyType') = 0)) or x."party_type" = any((case when jsonb_typeof(v_filters -> 'partyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyType')) else array[v_filters ->> 'partyType'] end)::text[]))
         and (not (v_filters -> 'partyId' is not null and jsonb_typeof(v_filters -> 'partyId') <> 'null' and not (jsonb_typeof(v_filters -> 'partyId') = 'array' and jsonb_array_length(v_filters -> 'partyId') = 0)) or x."party_id" = any((case when jsonb_typeof(v_filters -> 'partyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'partyId')) else array[v_filters ->> 'partyId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
