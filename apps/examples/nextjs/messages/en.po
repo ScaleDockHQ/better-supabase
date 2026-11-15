@@ -17356,7 +17356,6 @@ msgid "Latest end"
 msgstr "Latest end"
 
 #: src/features/leave/components/leave-record-list.tsx
-#: src/features/onboarding/components/onboarding-record-list.tsx
 #: src/features/people/components/add-employee-dialog.tsx
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.HAlOn1"
@@ -20739,9 +20738,9 @@ msgid "Newest"
 msgstr "Newest"
 
 #: src/features/onboarding/components/onboarding-record-list.tsx
-msgctxt "people.3aEZlP"
-msgid "Least done"
-msgstr "Least done"
+msgctxt "people.aLAF_5"
+msgid "Recently changed"
+msgstr "Recently changed"
 
 #: src/features/onboarding/components/onboarding-record-list.tsx
 msgctxt "people.SejFmF"
@@ -21724,16 +21723,6 @@ msgstr "Reveal private details"
 msgctxt "people.2zQ_Df"
 msgid "Birth date"
 msgstr "Birth date"
-
-#: src/features/people/components/employee-record-list.tsx
-msgctxt "people.Ppx673"
-msgid "Reports"
-msgstr "Reports"
-
-#: src/features/people/components/employee-record-list.tsx
-msgctxt "people.AebSgL"
-msgid "Most reports"
-msgstr "Most reports"
 
 #: src/features/people/components/employee-record-list.tsx
 msgctxt "people.r4tSD3"

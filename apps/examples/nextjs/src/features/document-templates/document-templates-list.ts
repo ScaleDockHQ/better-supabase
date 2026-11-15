@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One template slot of a document type, as the page and the list route send it. */
 export interface TemplateRow {
@@ -20,16 +20,12 @@ export const templateList = defineBlockList({
   pageSize: 25,
 });
 
-export const templateSpec: BlockListSpec<TemplateRow> = {
-  text: (row) => [row.name, row.documentType, row.language],
-  facets: {
-    type: (row) => row.documentType,
-    active: (row) => (row.active ? "active" : "inactive"),
-  },
+/** The templates list's URL names on the document templates block's list. */
+export const templateMap: EntityListMap = {
   sorts: {
-    name: (a, b) =>
-      a.documentType.localeCompare(b.documentType) ||
-      a.name.localeCompare(b.name),
-    newest: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+    name: { by: "name" },
+    newest: { by: "updatedAt", direction: "desc" },
   },
+  filters: { type: "documentType" },
+  facets: { type: "documentType" },
 };

@@ -4,47 +4,62 @@ import type { EnrollmentProgram } from "better-supabase/blocks/enrollments";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import type { Loaded } from "@/features/people/people-queries";
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+import type {
+  DirectoryEmployee,
+  Loaded,
+} from "@/features/people/people-queries";
 
 import { readDirectory, settle } from "@/features/people/people-queries";
-import { readAllPages } from "@/lib/read-all-pages";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OnboardingRow } from "./onboarding-list";
 
 import { ONBOARDING_TAG } from "./onboarding-cache";
+import { onboardingList, onboardingMap } from "./onboarding-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
-/** The subject type the employees block registers its rows under. */
-const EMPLOYEE = "employee";
-
 /**
- * The runs of the organization's onboarding programs, with the employee's name.
- * The block lists a bounded window and has no search, so the list kit searches,
- * filters and pages these rows on the server (EX-901).
+ * One page of the employees' onboarding runs for a list query, searched,
+ * filtered and sorted by the enrollments block's `enrollmentPage` and counted
+ * by `enrollmentFacets`, with each employee's name from the directory. The
+ * programs and the directory load beside the page, in one wave.
  */
-export async function readOnboardingRows(
+export async function loadOnboardingPage(
   db: Db,
   tenant: string,
+  query: RecordListUrlQuery,
 ): Promise<{
-  readonly rows: readonly OnboardingRow[];
+  readonly page: RecordListPage<OnboardingRow>;
   readonly programs: readonly EnrollmentProgram[];
+  readonly directory: readonly DirectoryEmployee[];
 }> {
-  const [programs, enrollments, directory] = await Promise.all([
-    db.enrollments.programs().orThrow(),
-    readAllPages((page) => db.enrollments.enrollmentPage(page)),
+  const { enrollments } = db;
+
+  const context = Promise.all([
+    enrollments.programs().orThrow(),
     readDirectory(db, tenant),
-  ]);
+  ]).then(([programs, directory]) => ({ programs, directory }));
 
-  const programName = new Map(programs.map((p) => [p.key, p.name]));
-  const names = new Map(directory.map((e) => [e.id, e.name]));
+  const page = await pageEntityRows({
+    pager: {
+      page: (options) => enrollments.enrollmentPage(options),
+      facets: (options) => enrollments.enrollmentFacets(options),
+    },
+    map: onboardingMap,
+    query,
+    pageSize: onboardingList.config.pageSize,
+    rowsOf: async (items) => {
+      const { programs, directory } = await context;
+      const programName = new Map(programs.map((p) => [p.key, p.name]));
+      const names = new Map(directory.map((e) => [e.id, e.name]));
 
-  return {
-    programs,
-    rows: enrollments
-      .filter((enrollment) => enrollment.subject.type === EMPLOYEE)
-      .map((enrollment): OnboardingRow => ({
+      return items.map((enrollment): OnboardingRow => ({
         id: enrollment.id,
         who: names.get(enrollment.subject.id) ?? "–",
         employeeId: enrollment.subject.id,
@@ -55,8 +70,11 @@ export async function readOnboardingRows(
         total: enrollment.totalSteps,
         startsAt: enrollment.startsAt?.toString() ?? null,
         enrolledAt: enrollment.enrolledAt.toString(),
-      })),
-  };
+      }));
+    },
+  });
+
+  return { page, ...(await context) };
 }
 
 export interface OnboardingOverviewData {
@@ -65,7 +83,7 @@ export interface OnboardingOverviewData {
     readonly value: string;
     readonly label: string;
   }[];
-  readonly rows: readonly OnboardingRow[];
+  readonly initial: RecordListPage<OnboardingRow>;
 }
 
 async function loadOnboarding(): Promise<OnboardingOverviewData | null> {
@@ -78,13 +96,14 @@ async function loadOnboarding(): Promise<OnboardingOverviewData | null> {
     return null;
   }
 
-  const [{ rows, programs }, directory] = await Promise.all([
-    readOnboardingRows(db, tenant),
-    readDirectory(db, tenant),
-  ]);
+  const { page, programs, directory } = await loadOnboardingPage(
+    db,
+    tenant,
+    onboardingList.defaults,
+  );
 
   return {
-    rows,
+    initial: page,
     programs: programs
       .filter((program) => program.enabled)
       .map(({ key, name }) => ({ key, name })),

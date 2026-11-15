@@ -1,20 +1,18 @@
-import { leaveList, leaveSpec } from "@/features/leave/leave-list";
-import { readLeaveRows } from "@/features/leave/leave-queries";
-import { pageBlockRows } from "@/lib/block-list";
+import { leaveList } from "@/features/leave/leave-list";
+import { loadLeavePage } from "@/features/leave/leave-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
  * `GET /api/leave/list?q=&status=&type=&sort=&after=`: one page of leave
- * requests, searched, filtered and sorted on the server.
+ * requests, searched, filtered and sorted by the leave block's page methods.
+ * The block's row policies decide whose requests the caller reads.
  */
 export const GET = bsb.route(
   async (request, { db, tenant }) => {
-    const { rows } = await readLeaveRows(db, tenant);
     const query = leaveList.parse(request.nextUrl.searchParams);
+    const { page } = await loadLeavePage(db, tenant, query.value);
 
-    return Response.json(
-      pageBlockRows(leaveList, leaveSpec, rows, query.value),
-    );
+    return Response.json(page);
   },
   { requireTenant: true, permission: "leave.request" },
 );

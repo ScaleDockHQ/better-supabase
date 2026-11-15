@@ -77,10 +77,10 @@ function DoneCell({ row }: DeadlineCell) {
 /** Deadlines on the list kit; the URL holds search, filters, sort and page. */
 export function DeadlineRecordList({
   initial,
-  kinds,
+  groups,
 }: {
   initial: RecordListPage<DeadlineRow>;
-  kinds: readonly string[];
+  groups: readonly string[];
 }) {
   const t = useExtracted("work");
   const label = useDeadlineLabel();
@@ -106,16 +106,15 @@ export function DeadlineRecordList({
         { key: "state", label: t("State"), valueLabel: label },
         { key: "result", label: t("Result"), valueLabel: label },
         {
-          key: "kind",
-          label: t("Deadline"),
+          key: "group",
+          label: t("Group"),
           valueLabel: (value) => value,
-          values: kinds,
+          values: groups,
         },
       ]}
       sorts={[
         { value: "due", label: t("Nearest due") },
         { value: "newest", label: t("Newest") },
-        { value: "kind", label: t("Deadline") },
       ]}
       searchLabel={t("Search deadlines")}
       emptyIcon={<HourglassIcon />}

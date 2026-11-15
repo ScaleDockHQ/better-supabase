@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One employee's run of an onboarding program. */
 export interface OnboardingRow {
@@ -18,19 +18,17 @@ export interface OnboardingRow {
 
 export const onboardingList = defineBlockList({
   facets: ["status", "program"],
-  sorts: ["newest", "progress", "name"],
+  sorts: ["newest", "updated"],
   defaultSort: "newest",
   pageSize: 25,
 });
 
-export const onboardingSpec: BlockListSpec<OnboardingRow> = {
-  text: (row) => [row.who, row.programName],
-  facets: { status: (row) => row.status, program: (row) => row.program },
+/** The onboarding list's URL names on the enrollments block's list. */
+export const onboardingMap: EntityListMap = {
   sorts: {
-    newest: (a, b) => b.enrolledAt.localeCompare(a.enrolledAt),
-    // The runs furthest from done first.
-    progress: (a, b) =>
-      a.completed / Math.max(a.total, 1) - b.completed / Math.max(b.total, 1),
-    name: (a, b) => a.who.localeCompare(b.who),
+    newest: { by: "enrolledAt", direction: "desc" },
+    updated: { by: "updatedAt", direction: "desc" },
   },
+  // Only employees' runs; other subjects enroll in programs of their own.
+  defaultFilters: { subjectType: ["employee"] },
 };
