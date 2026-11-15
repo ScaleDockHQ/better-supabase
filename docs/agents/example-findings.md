@@ -8,19 +8,9 @@ you change the example, and add a line when you find something.
 
 <!-- example-findings:counts:start -->
 
-<<<<<<< HEAD
-295 findings: 235 fixed, 12 closed, 5 measured away,
-0 open, 0 partly fixed and 43 deferred
-(43 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-||||||| 9f64e23b5b
-295 findings: 234 fixed, 12 closed, 5 measured away,
-0 open, 0 partly fixed and 44 deferred
-(44 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-=======
-295 findings: 234 fixed, 13 closed, 5 measured away,
-0 open, 0 partly fixed and 43 deferred
-(43 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
->>>>>>> origin/main
+295 findings: 235 fixed, 13 closed, 5 measured away,
+0 open, 0 partly fixed and 42 deferred
+(42 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
 <!-- example-findings:counts:end -->
 
 ## Status after the library findings pass
