@@ -664,3 +664,19 @@ describe("quote documents", () => {
     });
   });
 });
+
+describe("quotes page and get", () => {
+  it("maps the rows of a page and a get", async () => {
+    const t = transport({
+      page_quotes: () => ({ items: [ROW], hasMore: false, nextCursor: null }),
+      get_quote: () => ROW,
+    });
+
+    const quotes = createQuotes({ transport: t, tenant: "o" });
+    const page = await quotes.page({}).orThrow();
+    const one = await quotes.get(ROW.id).orThrow();
+
+    expect(page.items.map((quote) => quote.id)).toEqual([ROW.id]);
+    expect(one.id).toBe(ROW.id);
+  });
+});

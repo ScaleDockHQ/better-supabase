@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -202,6 +203,43 @@ function functions(ctx: BlockSqlContext, n: ForecastNames): string {
   const readable = (tenant: string): string =>
     `(${SERVICE_CALLER} or ${ctx.scope.can(tenant, n.read)})`;
 
+  const idKey = { expr: `x.${s("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const takenKeys = [
+    { expr: `x.${s("takenAt")}`, dir: "desc", type: "timestamptz" },
+    idKey,
+  ] as const;
+
+  const snapshotPage = {
+    name: "page_forecast_snapshots",
+    from: t("snapshots"),
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = page_forecast_snapshots.tenant`,
+      filterAny("pipelineId", `x.${s("pipeline")}`, "uuid"),
+      filterAny("currency", `x.${s("currency")}`),
+      filterAny("since", `x.${s("since")}`, "date"),
+      filterAny("until", `x.${s("until")}`, "date"),
+    ],
+    keys: takenKeys,
+    sorts: {
+      takenAt: takenKeys,
+      since: [{ expr: `x.${s("since")}`, dir: "desc", type: "date" }, idKey],
+      dealCount: [
+        { expr: `x.${s("dealCount")}`, dir: "desc", type: "integer" },
+        idKey,
+      ],
+    },
+    facets: {
+      currency: `x.${s("currency")}`,
+      pipelineId: `coalesce(x.${s("pipeline")}::text, '')`,
+    },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("FORECAST_INVALID", message, "22023"),
+  } as const;
+
   const change = `case
       when a.${sd("deal")} is null then 'added'
       when b.${sd("deal")} is null then 'removed'
@@ -335,6 +373,30 @@ end;
 $$;
 ${userGrant(`${fn("take_forecast_snapshot")}(${ctx.idType}, uuid, date, date, text, bigint)`)}
 
+-- The organization's snapshots as a keyset page, newest first (ADR 1077).
+-- Needs forecasts.read. filters is { pipelineId, currency, since, until (each a
+-- value or a list), sort (takenAt, since, dealCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_forecast_snapshots")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_forecast_snapshots.filters, '{}'::jsonb);
+  ${listDeclare(snapshotPage)}
+begin
+  if not ${readable("page_forecast_snapshots.tenant")} then
+    ${fail("FORECAST_FORBIDDEN", "You need forecasts.read to list forecast snapshots")}
+  end if;
+  ${listBody(snapshotPage)}
+end;
+$$;
+${userGrant(`${fn("page_forecast_snapshots")}(${ctx.idType}, jsonb)`)}
+
 -- The organization's snapshots, newest first, optionally of one pipeline and
 -- of the period between since and until. Needs forecasts.read.
 create or replace function ${fn("forecast_snapshots")}(tenant ${ctx.idType}, pipeline uuid default null, since date default null, until date default null, max_count integer default null)
@@ -445,6 +507,11 @@ function contract(): readonly BlockSqlContractFunction[] {
     {
       name: "forecast_snapshots",
       args: ["{id}", "uuid", "date", "date", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "page_forecast_snapshots",
+      args: ["{id}", "jsonb"],
       returns: "jsonb",
     },
     { name: "forecast_snapshot", args: ["uuid"], returns: "jsonb" },

@@ -3,6 +3,13 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -115,6 +122,113 @@ export function contractsFunctions(ctx: BlockSqlContext): string {
 
   const obligationJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${o("id")}, 'organizationId', ${row}.${o("tenant")}, 'contractId', ${row}.${o("contract")}, 'title', ${row}.${o("title")}, 'description', ${obligationValue(row, "description")}, 'dueOn', ${row}.${o("dueOn")}, 'ownerId', ${row}.${o("owner")}, 'status', ${row}.${o("status")}, 'overdue', (${row}.${o("status")} = 'open' and ${row}.${o("dueOn")} < current_date), 'completedAt', ${obligationValue(row, "completedAt")}, 'completedBy', ${obligationValue(row, "completedBy")}, 'createdAt', ${row}.${o("createdAt")}, 'updatedAt', ${obligationValue(row, "updatedAt", `${row}.${o("createdAt")}`)})`;
+
+  const contractId = {
+    expr: `x.${c("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const obligationId = {
+    expr: `x.${o("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const createdKeys = [
+    { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+    contractId,
+  ] as const;
+
+  const contractPage = {
+    name: "page_contracts",
+    from: contracts,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_contracts.tenant`,
+      filterAny("status", contractStatus("x")),
+      filterAny("ownerId", `x.${c("owner")}::text`),
+      ...(counterparty
+        ? [
+            filterAny("counterpartyType", `x.${c("counterpartyType")}`),
+            filterAny("counterpartyId", `x.${c("counterpartyId")}`),
+          ]
+        : []),
+      `(not ${filterSet("renewingBefore")} or (x.${c("status")} = 'active' and ${deadline("x")} <= (v_filters ->> 'renewingBefore')::date))`,
+      `(v_search is null or x.${c("title")} ilike v_search${keeps("description") ? ` or x.${c("description")} ilike v_search` : ""})`,
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      endsOn: [
+        {
+          expr: `coalesce(x.${c("endsOn")}, date '9999-12-31')`,
+          dir: "asc",
+          type: "date",
+        },
+        contractId,
+      ],
+      startsOn: [
+        {
+          expr: `coalesce(x.${c("startsOn")}, date '0001-01-01')`,
+          dir: "desc",
+          type: "date",
+        },
+        contractId,
+      ],
+      title: [
+        { expr: `lower(x.${c("title")})`, dir: "asc", type: "text" },
+        contractId,
+      ],
+    },
+    facets: {
+      status: contractStatus("x"),
+      ownerId: `coalesce(x.${c("owner")}::text, '')`,
+    },
+    rowJson: contractJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("CONTRACT_INVALID", message, "22023"),
+  } as const;
+
+  const dueKeys = [
+    {
+      expr: `coalesce(x.${o("dueOn")}, date '9999-12-31')`,
+      dir: "asc",
+      type: "date",
+    },
+    obligationId,
+  ] as const;
+
+  const obligationPage = {
+    name: "page_contract_obligations",
+    from: obligations,
+    alias: "x",
+    where: [
+      `x.${o("tenant")} = page_contract_obligations.tenant`,
+      filterAny("contractId", `x.${o("contract")}`, "uuid"),
+      filterAny("ownerId", `x.${o("owner")}::text`),
+      filterAny("status", asText(ctx, "obligations", `x.${o("status")}`)),
+      `(not ${filterSet("dueBefore")} or x.${o("dueOn")} <= (v_filters ->> 'dueBefore')::date)`,
+      `(v_search is null or x.${o("title")} ilike v_search${obligationKeeps("description") ? ` or x.${o("description")} ilike v_search` : ""})`,
+    ],
+    keys: dueKeys,
+    sorts: {
+      dueOn: dueKeys,
+      createdAt: [
+        { expr: `x.${o("createdAt")}`, dir: "desc", type: "timestamptz" },
+        obligationId,
+      ],
+    },
+    facets: {
+      status: asText(ctx, "obligations", `x.${o("status")}`),
+      contractId: `x.${o("contract")}::text`,
+    },
+    rowJson: obligationJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("CONTRACT_INVALID", message, "22023"),
+  } as const;
 
   const contractRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -609,6 +723,30 @@ as $$
 $$;
 ${userGrant(`${fn("list_contracts")}(${idType}, text, text, text, uuid, date, timestamptz, integer)`)}
 
+-- The organization's contracts as a keyset page, newest first (ADR 1077). It
+-- runs as the caller. filters is { status, ownerId, counterpartyType,
+-- counterpartyId (each a value or a list), renewingBefore (a date: active
+-- contracts whose notice deadline falls on or before it), search (title,
+-- description), sort (createdAt, endsOn, startsOn, title), direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_contracts")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_contracts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(contractPage)}
+begin
+  ${listBody(contractPage)}
+end;
+$$;
+${userGrant(`${fn("page_contracts")}(${idType}, jsonb)`)}
+
 -- Renews or expires the active contracts that reached their end date: an
 -- auto-renewing contract moves ends_on by its renewal period, any other
 -- expires. Run it daily from a job; it returns the counts.
@@ -817,5 +955,28 @@ as $$
   ) x
 $$;
 ${userGrant(`${fn("list_contract_obligations")}(${idType}, uuid, uuid, boolean, date, integer)`)}
+
+-- The organization's contract obligations as a keyset page, the earliest due
+-- first (ADR 1077). It runs as the caller. filters is { contractId, ownerId,
+-- status (each a value or a list), dueBefore (a date), search (title,
+-- description), sort (dueOn, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_contract_obligations")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_contract_obligations.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(obligationPage)}
+begin
+  ${listBody(obligationPage)}
+end;
+$$;
+${userGrant(`${fn("page_contract_obligations")}(${idType}, jsonb)`)}
 `;
 }

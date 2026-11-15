@@ -4,6 +4,7 @@ import type { ContactsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createContacts } from "./contacts.ts";
 import { contactsEvents } from "./events.ts";
+import { companyListSurface, personListSurface } from "./lists.ts";
 import { contactsSqlOptions } from "./options.ts";
 import {
   companyInputSchema,
@@ -33,8 +34,16 @@ export const contactsBlock: BlockOf<
     "party_bank_account",
   ],
   entities: {
-    company: { mutability: "editable", emits: { create: true, update: true } },
-    person: { mutability: "editable", emits: { create: true, update: true } },
+    company: {
+      ...companyListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+    person: {
+      ...personListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
   },
   concerns: ["lifecycle", "search"],
   description:

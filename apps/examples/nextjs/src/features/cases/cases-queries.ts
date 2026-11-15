@@ -9,6 +9,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { INSPECTIONS_TAG } from "@/features/inspections/inspections-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OpenStage } from "./cases-stages";
@@ -49,9 +50,13 @@ async function loadBoard(): Promise<CaseBoardData | null> {
   const [page, kinds, pipelines] = await Promise.all([
     db.cases.list({ status: "open", limit: 200 }).orThrow(),
     db.cases.kinds().orThrow(),
-    db.pipelines
-      .list({ organizationId, subjectType: "case", limit: 50 })
-      .orThrow(),
+    readAllPages((page) =>
+      db.pipelines.page({
+        organizationId,
+        filters: { subjectType: ["case"] },
+        ...page,
+      }),
+    ),
   ]);
 
   const kindNames = new Map(kinds.map((kind) => [kind.id, kind.name]));

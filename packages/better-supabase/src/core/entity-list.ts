@@ -138,6 +138,20 @@ export function tenantOrOption(
       : AsyncResult.ok(organizationId);
 }
 
+/**
+ * The row a `get` read found, or a `not_found` error when the SQL function
+ * returned nothing (the block list contract, ADR 1077).
+ */
+export function foundOrNotFound<T>(
+  entity: string,
+  value: T | null | undefined,
+  id: string,
+): AsyncResult<T> {
+  return value === null || value === undefined
+    ? AsyncResult.err(dbError("not_found", `no ${entity} has the id ${id}`))
+    : AsyncResult.ok(value);
+}
+
 const invalid = <T>(message: string): Result<T> =>
   err(dbError("invalid_input", message));
 

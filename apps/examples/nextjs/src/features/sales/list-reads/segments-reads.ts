@@ -4,6 +4,7 @@ import type { BlockListSpec } from "@/lib/array-list";
 import type { AppDb } from "@/lib/array-reads";
 
 import { arrayReads } from "@/lib/array-reads";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 
 import type { SegmentRow } from "../automation/automation-queries";
 
@@ -41,9 +42,9 @@ export function segmentOf(segment: {
 
 /** The segments of the organization. */
 export function segmentsFrom(db: AppDb, tenant: string) {
-  return db.segments
-    .list({ organizationId: tenant })
-    .map((segments) => segments.map(segmentOf));
+  return readAllPagesResult((page) =>
+    db.segments.page({ organizationId: tenant, ...page }),
+  ).map((segments) => segments.map(segmentOf));
 }
 
 /** The reads module of the `app.segments` entity page (ADR 0894). */

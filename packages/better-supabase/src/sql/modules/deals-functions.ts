@@ -3,6 +3,12 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { STALE_WRITE, STALE_WRITE_SQLSTATE } from "../../core/stale-write.ts";
 import { sqlString } from "../../core/template.ts";
 import { lineItemsSql, TOTAL_COLUMNS } from "../line-items-sql.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { int8Text } from "../money-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
@@ -279,6 +285,67 @@ export function dealFunctions(ctx: BlockSqlContext, n: DealNames): string {
     `${fieldsJson(alias)} || jsonb_build_object(
       'contacts', coalesce((select jsonb_agg(jsonb_build_object('type', ck.${k("contactType")}, 'id', ck.${k("contactId")}, 'role', ${role("contacts", "ck")}, 'primary', ck.${k("isPrimary")}) order by ck.${k("isPrimary")} desc, ck.${k("contactId")}) from ${t("contacts")} ck where ck.${k("deal")} = ${alias}.${d("id")}), '[]'::jsonb),
       'members', coalesce((select jsonb_agg(jsonb_build_object('userId', cm.${m("user")}, 'role', ${role("members", "cm")}) order by cm.${m("user")}) from ${t("members")} cm where cm.${m("deal")} = ${alias}.${d("id")}), '[]'::jsonb))`;
+
+  const idKey = { expr: `x.${d("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const createdKeys = [
+    { expr: `x.${d("createdAt")}`, dir: "desc", type: "timestamptz" },
+    idKey,
+  ] as const;
+
+  const optionalFilter = (column: string, key: string): readonly string[] =>
+    has(column) ? [filterAny(key, `x.${d(column)}::text`)] : [];
+
+  const optionalFacet = (
+    column: string,
+    key: string,
+  ): Readonly<Record<string, string>> =>
+    has(column) ? { [key]: `x.${d(column)}::text` } : {};
+
+  const dealPage = {
+    name: "page_deals",
+    from: t("deals"),
+    alias: "x",
+    where: [
+      `x.${d("tenant")} = page_deals.tenant`,
+      `x.${d("archivedAt")} is null`,
+      ...optionalFilter("pipeline", "pipelineId"),
+      ...optionalFilter("stage", "stageId"),
+      filterAny("outcome", `x.${d("outcome")}::text`),
+      ...optionalFilter("owner", "ownerId"),
+      ...optionalFilter("motion", "motion"),
+      ...optionalFilter("priority", "priority"),
+      ...optionalFilter("forecast", "forecast"),
+      filterAny("currency", `x.${d("currency")}`),
+      ...optionalFilter("companyId", "companyId"),
+      `(v_search is null or x.${d("name")} ilike v_search or x.${d("identifier")} ilike v_search)`,
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      closeOn: [{ expr: `x.${d("closeOn")}`, dir: "asc", type: "date" }, idKey],
+      amount: [
+        { expr: `x.${d("amount")}`, dir: "desc", type: "bigint" },
+        idKey,
+      ],
+      name: [
+        { expr: `lower(x.${d("name")})`, dir: "asc", type: "text" },
+        idKey,
+      ],
+    },
+    facets: {
+      outcome: `x.${d("outcome")}::text`,
+      ...optionalFacet("stage", "stageId"),
+      ...optionalFacet("owner", "ownerId"),
+      ...optionalFacet("priority", "priority"),
+      ...optionalFacet("motion", "motion"),
+      ...optionalFacet("forecast", "forecast"),
+    },
+    rowJson: row("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("DEAL_INVALID", message, "22023"),
+  } as const;
 
   const payload = (
     id: string,
@@ -887,6 +954,51 @@ as $$
   ) z;
 $$;
 ${userGrant(`${fn("list_deals_for_subject")}(${ctx.idType}, text, text, integer)`)}
+
+-- The organization's open and closed deals as a keyset page, newest first
+-- (ADR 1077). It runs as the caller, so the deals the caller can't read stay
+-- out, as on the table. filters is { pipelineId, stageId, outcome, ownerId,
+-- motion, priority, forecast, currency, companyId (each a value or a list),
+-- search (name, identifier), sort (createdAt, closeOn, amount, name),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_deals")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_deals.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(dealPage)}
+begin
+  ${listBody(dealPage)}
+end;
+$$;
+${userGrant(`${fn("page_deals")}(${ctx.idType}, jsonb)`)}
+
+-- One deal by id, or a not-found error when it is missing or the caller can't
+-- read it.
+create or replace function ${fn("get_deal")}(deal uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+begin
+  select ${row("x")} into v_row from ${t("deals")} x where x.${d("id")} = get_deal.deal;
+  if v_row is null then
+    ${fail("DEAL_NOT_FOUND", "no deal you can read has this id", "P0002")}
+  end if;
+  return v_row;
+end;
+$$;
+${userGrant(`${fn("get_deal")}(uuid)`)}
 
 -- A pipeline's board in one call: every stage with its deals ordered by
 -- rank, the count and the total per currency, and the forecast weighted by

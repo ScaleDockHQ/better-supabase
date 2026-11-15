@@ -504,6 +504,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "deal_health", args: ["uuid"], returns: "jsonb" },
     { name: "deal_board", args: ["uuid"], returns: "jsonb" },
+    { name: "page_deals", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_deal", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_deals_for_subject",
       args: ["{id}", "text", "text", "integer"],

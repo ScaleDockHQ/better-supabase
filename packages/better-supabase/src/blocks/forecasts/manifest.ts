@@ -4,6 +4,7 @@ import type { ForecastsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { forecastsEvents } from "./events.ts";
 import { createForecasts } from "./forecasts.ts";
+import { forecastSnapshotListSurface } from "./lists.ts";
 
 /** The `forecasts` block's manifest (ADR 0029). */
 export const forecastsBlock: BlockOf<
@@ -17,7 +18,11 @@ export const forecastsBlock: BlockOf<
   create: createForecasts,
   category: "crm",
   entities: {
-    forecast_snapshot: { mutability: "append-only", emits: { create: true } },
+    forecast_snapshot: {
+      ...forecastSnapshotListSurface,
+      mutability: "append-only",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle"],
   description:

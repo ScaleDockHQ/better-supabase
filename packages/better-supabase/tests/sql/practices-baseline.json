@@ -219,7 +219,7 @@
     "security-definer-functions": 78
   },
   "forecasts": {
-    "security-definer-functions": 24
+    "security-definer-functions": 30
   },
   "forms": {
     "security-definer-functions": 104
@@ -423,7 +423,7 @@
     "security-definer-functions": 110
   },
   "quotes": {
-    "security-definer-functions": 139,
+    "security-definer-functions": 151,
     "row-triggers": 6
   },
   "rank": {
@@ -476,7 +476,7 @@
     "security-definer-functions": 4
   },
   "segments": {
-    "security-definer-functions": 54
+    "security-definer-functions": 60
   },
   "sequences": {
     "security-definer-functions": 97,

@@ -83,11 +83,11 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   consents:
     "archive_consent_purpose consent_active expire_consents issue_consent_receipt list_consent_purposes list_consent_receipts list_consent_signals list_consents record_consent record_consent_signal restore_consent_purpose save_consent_purpose withdraw_consent",
   contacts:
-    "add_person_identity archive_company archive_person company_people_of delete_payment_term find_person_by_identity get_company get_person list_companies list_document_delivery_preferences list_payment_terms list_people list_person_identities merge_companies merge_people remove_company_person remove_person_identity save_company save_payment_term save_person set_company_person set_document_delivery_preferences set_party_roles set_supplier_status supplier_status_from_qualifications",
+    "add_person_identity archive_company archive_person company_people_of delete_payment_term find_person_by_identity get_company get_person list_companies list_document_delivery_preferences list_payment_terms list_people list_person_identities merge_companies merge_people page_companies page_people remove_company_person remove_person_identity save_company save_payment_term save_person set_company_person set_document_delivery_preferences set_party_roles set_supplier_status supplier_status_from_qualifications",
   content:
     "archive_content_entry create_content_entry get_content_entry list_content_entries public_content_entries public_content_entry publish_content_entry publish_due_content_entries restore_content_entry schedule_content_entry update_content_entry",
   contracts:
-    "create_contract delete_contract_obligation get_contract list_contract_obligations list_contracts run_contract_renewals save_contract_obligation send_contract_for_signature set_contract_obligation_status transition_contract update_contract",
+    "create_contract delete_contract_obligation get_contract list_contract_obligations list_contracts page_contract_obligations page_contracts run_contract_renewals save_contract_obligation send_contract_for_signature set_contract_obligation_status transition_contract update_contract",
   courses:
     "archive_course complete_course_lesson course_lesson course_outline course_progress delete_course_lesson delete_course_module enroll_in_course list_course_learners list_courses purge_course restore_course revoke_course_certificate save_course save_course_lesson save_course_module start_course_lesson unenroll_from_course verify_course_certificate",
   credentials: "credential_delete credential_get credential_set",
@@ -96,7 +96,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "data-lifecycle":
     "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions erase_data_subject expired_data_exports extend_data_subject_request fail_data_export forget_data_exports fulfil_data_subject_request get_data_export list_data_exports list_data_subject_requests list_legal_holds list_retention_policies open_data_subject_request organization_credential_refs organization_deletion place_legal_hold purge_organization refuse_data_subject_request release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy verify_data_subject_request",
   deals:
-    "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal list_deals_for_subject reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
+    "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal get_deal list_deals_for_subject page_deals reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
     "create_work_order dispatch_board get_work_order list_work_order_parts list_work_orders page_work_orders plan_dispatch_route record_work_order_part remove_work_order_part schedule_work_order set_work_order_status technician_day unschedule_work_order update_work_order",
   documents:
@@ -120,7 +120,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   flags:
     "delete_flag delete_flag_segment flag_definitions flag_history list_flag_segments list_flags restore_flag save_flag save_flag_segment set_flag_override",
   forecasts:
-    "forecast_changes forecast_snapshot forecast_snapshots take_forecast_snapshot",
+    "forecast_changes forecast_snapshot forecast_snapshots page_forecast_snapshots take_forecast_snapshot",
   forms:
     "archive_form_submission create_form form_nps get_form get_form_submission get_form_version list_form_submissions list_forms page_form_submissions publish_form_version purge_form_submission restore_form_submission review_form_submission submit_form update_form",
   funding:
@@ -193,7 +193,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "legal-entities":
     "create_legal_entity get_legal_entity get_legal_entity_settings legal_entities_disable_check legal_entity_of list_legal_entities reset_legal_entity_setting resolve_setting set_default_legal_entity set_legal_entity_archived set_legal_entity_setting update_legal_entity",
   "mail-sync":
-    "connect_mail_account disconnect_mail_account due_mail_accounts get_mail_account get_mail_thread ingest_mail link_mail_thread list_mail_threads mail_accounts_of mail_template_stats mail_threads_of record_sent_mail set_mail_account_status track_mail unlink_mail_thread update_mail_account",
+    "connect_mail_account disconnect_mail_account due_mail_accounts get_mail_account get_mail_thread ingest_mail link_mail_thread list_mail_threads mail_accounts_of mail_template_stats mail_threads_of page_mail_accounts page_mail_threads record_sent_mail set_mail_account_status track_mail unlink_mail_thread update_mail_account",
   manufacturing:
     "activate_bom bom_where_used cancel_production_order complete_production_order create_from_requirements create_production_order explode_bom finish_production_operation get_bom get_production_order list_boms list_production_orders list_work_centers lot_genealogy lot_recall material_requirements record_production_consumption release_production_order save_bom save_work_center start_production_operation",
   medications:
@@ -226,7 +226,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
   permissions: "can list_roles my_permissions set_permission_override",
   pipelines:
-    "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
+    "archive_pipeline archive_pipeline_stage get_pipeline list_pipelines page_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:
     "archive_post create_post get_post list_post_boards list_posts merge_posts purge_post restore_post save_post_board set_post_state update_post vote_on_post",
   profiles: "my_profile update_my_profile",
@@ -238,7 +238,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   queue:
     "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job get_job job_queue_stats list_dead_jobs list_schedules purge_job_archive ready_job_queues release_lease_claim replay_dead_job retry_dead_jobs schedule_has_work schedule_job unschedule_job unschedule_tenant",
   quotes:
-    "create_quote decide_quote expire_quotes list_quotes_for_subject portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote withdraw_quote",
+    "create_quote decide_quote expire_quotes get_quote list_quotes_for_subject page_quotes portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote withdraw_quote",
   rank: "move rebalance_ranks",
   "rate-limit":
     "check_rate_limit check_rate_limits purge_rate_limits set_organization_rate_limit",
@@ -261,7 +261,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "security-events":
     "create_ssf_stream delete_ssf_stream forget_ssf_received note_ssf_verification poll_ssf_events purge_shared_signals queue_ssf_set record_ssf_received set_ssf_stream_status ssf_stream ssf_streams ssf_streams_for_event update_ssf_stream",
   segments:
-    "list_segment_members refresh_due_segments refresh_segment remove_segment save_segment segment_get segments_list segments_of",
+    "list_segment_members page_segments refresh_due_segments refresh_segment remove_segment save_segment segment_get segments_list segments_of",
   sequences:
     "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences page_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
