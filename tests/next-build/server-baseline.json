@@ -81,7 +81,7 @@
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
     "raw": 5289490,
-    "gzip": 1590090,
+    "gzip": 1594069,
     "brotli": 1323843
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
@@ -91,7 +91,7 @@
   },
   "/[locale]/(app)/assistant/agents/page": {
     "raw": 5290699,
-    "gzip": 1590502,
+    "gzip": 1594482,
     "brotli": 1324196
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
@@ -432,7 +432,7 @@
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3624013,
     "gzip": 1080733,
-    "brotli": 898739
+    "brotli": 900993
   },
   "/[locale]/(app)/documents/register/page": {
     "raw": 3613508,
@@ -446,7 +446,7 @@
   },
   "/[locale]/(app)/documents/templates/page": {
     "raw": 3110726,
-    "gzip": 486781,
+    "gzip": 946775,
     "brotli": 788807
   },
   "/[locale]/(app)/drive/[folderId]/page": {
@@ -811,7 +811,7 @@
   },
   "/[locale]/(app)/qualifications/page": {
     "raw": 3124435,
-    "gzip": 486680,
+    "gzip": 950400,
     "brotli": 792322
   },
   "/[locale]/(app)/rfqs/[id]/page": {
