@@ -1,6 +1,6 @@
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:b0731fc9ebb43a4ca3085621be0ff17f281d8cdbdb910c7f7521f7f5c523b475
+-- @bsb-hash sha256:f48cce128e8540e13f5688220b96537e31424d07985d08c5458fba1bbedd36e9
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1391,6 +1391,54 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('care_plan.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'title', v_row."title", 'status', v_row."status", 'version', v_row."version"), 'care-plans/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/care-plans');
+  perform better_supabase.audit_event(
+    event_type => 'care_plan.restored',
+    category => 'data',
+    target_type => 'care_plan',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'care plan restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'title', v_row."title", 'status', v_row."status", 'version', v_row."version")
+  );
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -2006,6 +2054,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_care_plan"($1) $$;
 revoke execute on function "api"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "api"."archive_care_plan"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_care_plan"($1) $$;
+revoke execute on function "api"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "api"."restore_care_plan"(uuid) to authenticated, service_role;
 
 create or replace function "api"."record_care_plan_evaluation"(goal_id uuid, status text, outcome text default null, submission_id uuid default null)
 returns jsonb

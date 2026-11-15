@@ -1307,7 +1307,7 @@
   "/[locale]/(auth)/share/[token]/page": {
     "raw": 2938649,
     "gzip": 891603,
-    "brotli": 738357
+    "brotli": 740291
   },
   "/[locale]/(auth)/signup/page": {
     "raw": 1452664,
