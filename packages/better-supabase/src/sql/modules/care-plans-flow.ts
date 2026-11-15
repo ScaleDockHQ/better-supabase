@@ -427,7 +427,7 @@ end;
 $$;
 ${userGrant(`${fn("archive_care_plan")}(uuid)`)}
 
--- Restores an archived plan as a draft (ADR 1033). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function ${fn("restore_care_plan")}(plan_id uuid)
 returns jsonb

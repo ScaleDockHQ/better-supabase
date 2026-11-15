@@ -60,7 +60,7 @@
     "size": "turbo run test --filter=@better-supabase/bundle",
     "supabase:diff": "supabase db schema declarative sync --no-apply --strict-coverage -f",
     "supabase:prune": "node scripts/supabase-prune.ts",
-    "supabase:reset": "supabase db reset",
+    "supabase:reset": "node scripts/supabase-reset.ts",
     "supabase:reset:library": "supabase db reset --sql-paths ./seed.sql",
     "supabase:signing-key": "node packages/better-supabase/bin/better-supabase.js dev keys --cwd .",
     "supabase:start": "node scripts/supabase-start.ts",

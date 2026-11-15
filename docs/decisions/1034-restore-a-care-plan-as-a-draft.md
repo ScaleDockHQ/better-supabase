@@ -1,4 +1,4 @@
-# 1033: Restore a care plan as a draft (lane Y2, slice 2)
+# 1034: Restore a care plan as a draft (lane Y2, slice 2)
 
 - Status: accepted
 - Date: 2026-11-15
