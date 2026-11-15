@@ -321,7 +321,7 @@
   },
   "/[locale]/(app)/crm/forecasts/page": {
     "raw": 3160898,
-    "gzip": 959641,
+    "gzip": 962136,
     "brotli": 798618
   },
   "/[locale]/(app)/crm/page": {
@@ -916,17 +916,17 @@
   },
   "/[locale]/(app)/settings/jobs/page": {
     "raw": 3210888,
-    "gzip": 975173,
+    "gzip": 977680,
     "brotli": 813148
   },
   "/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page": {
     "raw": 3212698,
-    "gzip": 977643,
+    "gzip": 980150,
     "brotli": 815367
   },
   "/[locale]/(app)/settings/jobs/runs/page": {
     "raw": 3202208,
-    "gzip": 973338,
+    "gzip": 975841,
     "brotli": 811609
   },
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
@@ -1112,12 +1112,12 @@
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 3135144,
     "gzip": 951013,
-    "brotli": 790258
+    "brotli": 792249
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
     "raw": 3135201,
     "gzip": 951023,
-    "brotli": 790242
+    "brotli": 792233
   },
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 3149430,
@@ -1281,7 +1281,7 @@
   },
   "/[locale]/(auth)/mfa/page": {
     "raw": 1447874,
-    "gzip": 458516,
+    "gzip": 459664,
     "brotli": 387795
   },
   "/[locale]/(auth)/oauth/consent/page": {
@@ -1296,7 +1296,7 @@
   },
   "/[locale]/(auth)/reset-password/page": {
     "raw": 1447942,
-    "gzip": 458531,
+    "gzip": 459679,
     "brotli": 387796
   },
   "/[locale]/(auth)/send/[token]/page": {
@@ -1612,12 +1612,12 @@
   "/api/invoices/[id]/send/route": {
     "raw": 2619956,
     "gzip": 792095,
-    "brotli": 671189
+    "brotli": 673019
   },
   "/api/invoices/[id]/ubl/route": {
     "raw": 2619983,
     "gzip": 792132,
-    "brotli": 671193
+    "brotli": 673017
   },
   "/api/jobs/drain/route": {
     "raw": 4756436,
@@ -1707,7 +1707,7 @@
   "/api/qualifications/list/route": {
     "raw": 2738306,
     "gzip": 827128,
-    "brotli": 700770
+    "brotli": 702653
   },
   "/api/queues/audit-export/route": {
     "raw": 637124,
@@ -1821,7 +1821,7 @@
   },
   "/api/workflows/hooks/[token]/route": {
     "raw": 3245754,
-    "gzip": 992711,
+    "gzip": 995199,
     "brotli": 842716
   },
   "/api/workflows/runs/list/route": {
