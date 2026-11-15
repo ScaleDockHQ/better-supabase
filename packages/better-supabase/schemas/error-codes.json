@@ -649,6 +649,9 @@
     "message": "rank must be a key from rankBetween"
   },
   {
+    "code": "BANK_ACCOUNT_INVALID"
+  },
+  {
     "code": "BANK_ACCOUNT_NOT_FOUND",
     "message": "no such bank account"
   },
@@ -678,6 +681,10 @@
   {
     "code": "BILLABLE_TIME_GROUPING_INVALID",
     "message": "group_by is subject, member or entry"
+  },
+  {
+    "code": "BILLABLE_TIME_RATE_NOT_FOUND",
+    "message": "time rate not found"
   },
   {
     "code": "BILLABLE_TIME_STALE",
