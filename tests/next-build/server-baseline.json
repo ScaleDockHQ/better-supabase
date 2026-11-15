@@ -320,16 +320,8 @@
     "brotli": 802315
   },
   "/[locale]/(app)/crm/forecasts/page": {
-<<<<<<< HEAD
     "raw": 3160898,
-    "gzip": 962136,
-||||||| 0b8bcb5c87
-    "raw": 3160332,
-    "gzip": 959641,
-=======
-    "raw": 3160332,
-    "gzip": 962049,
->>>>>>> origin/main
+    "gzip": 964544,
     "brotli": 798618
   },
   "/[locale]/(app)/crm/page": {
@@ -1120,24 +1112,12 @@
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 3135144,
     "gzip": 951013,
-<<<<<<< HEAD
-    "brotli": 792249
-||||||| 0b8bcb5c87
-    "brotli": 790258
-=======
-    "brotli": 792347
->>>>>>> origin/main
+    "brotli": 794338
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
     "raw": 3135201,
     "gzip": 951023,
-<<<<<<< HEAD
-    "brotli": 792233
-||||||| 0b8bcb5c87
-    "brotli": 790242
-=======
-    "brotli": 792334
->>>>>>> origin/main
+    "brotli": 794325
   },
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 3149430,
@@ -1841,13 +1821,7 @@
   },
   "/api/workflows/hooks/[token]/route": {
     "raw": 3245754,
-<<<<<<< HEAD
-    "gzip": 995199,
-||||||| 0b8bcb5c87
-    "gzip": 992711,
-=======
-    "gzip": 995194,
->>>>>>> origin/main
+    "gzip": 997682,
     "brotli": 842716
   },
   "/api/workflows/runs/list/route": {
