@@ -268,7 +268,7 @@ export interface Webhooks extends WebhookEndpoints {
   redeliver(deliveryId: string): AsyncResult<string>;
   /**
    * `dispatch` that returns `{ jobId: "webhook:<delivery id>" }`; read the
-   * delivery back with `jobs.get` (ADR 1032).
+   * delivery back with `jobs.get` (ADR 1034).
    */
   dispatchJob(input: DispatchInput): AsyncResult<JobRef>;
   /** `redeliver` that returns the `{ jobId }` of the delivery queued again. */

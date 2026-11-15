@@ -364,7 +364,7 @@ attempt.
 `dispatchJob(input)` and `redeliverJob(deliveryId)` do the same and return
 `{ jobId: "webhook:<delivery id>" }`. `webhooks.jobs` is the `webhook` source of
 `createJobs`, so `jobs.get("webhook:<delivery id>")` returns the common
-`JobResult` (ADR 1032): a delivery that waits is `pending`, one that is being
+`JobResult` (ADR 1034): a delivery that waits is `pending`, one that is being
 sent or retried is `running`, a succeeded one is `completed` with the delivery
 (`status`, `attempt`, `responseStatus`, `durationMs`) as its `result`, and a dead
 or canceled one is `failed` with the hint `WEBHOOK_DELIVERY_DEAD` or

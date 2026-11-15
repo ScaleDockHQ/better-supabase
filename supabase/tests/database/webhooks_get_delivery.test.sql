@@ -1,5 +1,5 @@
 -- better_supabase.get_webhook_delivery: one delivery for a caller who may read
--- its endpoint's tenant, the job source of dispatch and redeliver (ADR 1032).
+-- its endpoint's tenant, the job source of dispatch and redeliver (ADR 1034).
 -- The owner is …00a1 in Acme (…0001); supabase/seed.sql.
 begin;
 select plan(6);

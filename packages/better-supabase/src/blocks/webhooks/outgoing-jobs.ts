@@ -21,7 +21,7 @@ export interface WebhookDeliveryRun {
   readonly createdAt: string;
 }
 
-/** The `webhook` job kind (ADR 1032): `dispatchJob` and `redeliverJob` start it. */
+/** The `webhook` job kind (ADR 1034): `dispatchJob` and `redeliverJob` start it. */
 export interface WebhookJobs {
   /** `dispatch` that returns `{ jobId: "webhook:<delivery id>" }`. */
   dispatchJob(input: DispatchInput): AsyncResult<JobRef>;
