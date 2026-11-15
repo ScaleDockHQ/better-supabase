@@ -17,9 +17,9 @@ better-supabase add announcements   # adds tenant and access as well
 | `announcements`           | `title`, `body`, `severity`, `href`, `audience` and its `targets`, `starts_at`, `ends_at`, `dismissible` |
 | `announcement_dismissals` | Which user dismissed which announcement                                                                  |
 
-| Permission             | Lets                                      | Default roles          |
-| ---------------------- | ----------------------------------------- | ---------------------- |
-| `announcements.manage` | platform staff publish, change and remove | platform roles with it |
+| Permission             | Lets                                                       | Default roles          |
+| ---------------------- | ---------------------------------------------------------- | ---------------------- |
+| `announcements.manage` | platform staff publish, change, archive, restore and purge | platform roles with it |
 
 ## Audiences
 
@@ -61,6 +61,23 @@ const rows = useAnnouncements({ limit: 50 });
 `href` must start with `https://` or `/`. The body is text you render; the
 block doesn't interpret it.
 
+## Archiving and purging
+
+`archive` takes an announcement out of `listActive` and `list` and keeps the row
+and its dismissals; `restore` brings it back, and both record their event once
+(`announcement.archived`, `announcement.restored`) and do nothing when the
+announcement is already in that state. `list({ includeArchived: true })` adds
+the archived ones. `purge` removes the announcement and its dismissals for good
+and records `announcement.purged`. It needs `permissions.purge`, which falls
+back to `announcements.manage` until you set it. `purge` replaces `remove`
+(ADR 1042).
+
+```ts
+await announcements.archive(notice.id).orThrow();
+const all = await announcements.list({ includeArchived: true }).orThrow();
+await announcements.purge(notice.id).orThrow();
+```
+
 ## Showing them
 
 ```ts
@@ -73,7 +90,7 @@ await announcements.dismiss(live[0].id);
 
 In Client Components, `useAnnouncements` loads the list and subscribes to
 the private `announcements` topic. The module broadcasts there whenever an
-announcement is published, changed or removed, and the hook loads the list
+announcement is published, changed, archived, restored or purged, and the hook loads the list
 again. The hook is a registry item: install it with
 `npx shadcn add @better-supabase/use-announcements`, which writes
 `hooks/use-announcements.ts` into the app.
@@ -206,13 +223,15 @@ export function Component(props: { organizationId: string }) {
 
 ## Functions
 
-| Function                        | Granted to                      | Does                                          |
-| ------------------------------- | ------------------------------- | --------------------------------------------- |
-| `active_announcements(tenant)`  | `authenticated`, `service_role` | The caller's live, undismissed announcements  |
-| `dismiss_announcement(id)`      | `authenticated`, `service_role` | Hides one for the caller                      |
-| `list_announcements()`          | `authenticated`, `service_role` | Every announcement, for staff                 |
-| `save_announcement(id, fields)` | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff |
-| `delete_announcement(id)`       | `authenticated`, `service_role` | Removes one, for staff                        |
+| Function                               | Granted to                      | Does                                                                                          |
+| -------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------- |
+| `active_announcements(tenant)`         | `authenticated`, `service_role` | The caller's live, undismissed announcements                                                  |
+| `dismiss_announcement(id)`             | `authenticated`, `service_role` | Hides one for the caller                                                                      |
+| `list_announcements(include_archived)` | `authenticated`, `service_role` | Every announcement that is not archived, for staff; `include_archived` adds the archived ones |
+| `save_announcement(id, fields)`        | `authenticated`, `service_role` | Creates (`id` null) or changes one, for staff                                                 |
+| `archive_announcement(id)`             | `authenticated`, `service_role` | Takes one out of the lists, for staff                                                         |
+| `restore_announcement(id)`             | `authenticated`, `service_role` | Brings an archived one back, for staff                                                        |
+| `purge_announcement(id)`               | `authenticated`, `service_role` | Removes one and its dismissals for good, for staff                                            |
 
 ## Your own fields
 
@@ -258,5 +277,5 @@ const notice = await announcements
 
 await announcements.update(notice.id, { body: "Moved to 23:00 UTC." });
 await announcements.list();
-await announcements.remove(notice.id);
+await announcements.purge(notice.id);
 ```

@@ -31,7 +31,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "ai-schedules":
     "claim_due_ai_tasks delete_ai_task finish_ai_task_run list_ai_task_runs list_ai_tasks save_ai_task schedule_ai_tasks start_ai_task_run",
   announcements:
-    "active_announcements delete_announcement dismiss_announcement list_announcements save_announcement",
+    "active_announcements archive_announcement dismiss_announcement list_announcements purge_announcement restore_announcement save_announcement",
   "api-keys":
     "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:

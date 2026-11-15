@@ -57,6 +57,8 @@ export interface Announcement {
 export interface ManagedAnnouncement extends Announcement {
   readonly audience: AnnouncementAudience;
   readonly createdBy: string | undefined;
+  /** Set while the announcement is archived. */
+  readonly archivedAt: Temporal.Instant | undefined;
 }
 
 export interface AnnouncementInput {
@@ -106,8 +108,13 @@ export interface Announcements<F extends object = Record<never, never>> {
   ): AsyncResult<readonly (Announcement & F)[]>;
   /** Hides one for the caller; `false` when it was hidden already. */
   dismiss(announcementId: string): AsyncResult<boolean>;
-  /** Every announcement; needs `announcements.manage` on the platform. */
-  list(): AsyncResult<readonly (ManagedAnnouncement & F)[]>;
+  /**
+   * Every announcement that is not archived; needs `announcements.manage` on
+   * the platform. `includeArchived` adds the archived ones.
+   */
+  list(input?: {
+    readonly includeArchived?: boolean;
+  }): AsyncResult<readonly (ManagedAnnouncement & F)[]>;
   /** Keys besides the input's own are the announcement's extra columns. */
   publish(
     input: AnnouncementInput & Partial<F>,
@@ -116,7 +123,20 @@ export interface Announcements<F extends object = Record<never, never>> {
     announcementId: string;
     input: Partial<AnnouncementInput> & Partial<F>;
   }): AsyncResult<ManagedAnnouncement & F>;
-  remove(announcementId: string): AsyncResult<boolean>;
+  /**
+   * Needs `announcements.manage`. Takes an announcement out of `listActive` and
+   * `list`, keeps the row and its dismissals, and records
+   * `announcement.archived`.
+   */
+  archive(announcementId: string): AsyncResult<ManagedAnnouncement & F>;
+  /** Brings an archived announcement back; records `announcement.restored`. */
+  restore(announcementId: string): AsyncResult<ManagedAnnouncement & F>;
+  /**
+   * Removes the announcement and its dismissals for good (hard delete).
+   * `permissions.purge` gates this, falling back to `manage`; records
+   * `announcement.purged`.
+   */
+  purge(announcementId: string): AsyncResult<boolean>;
 }
 
 const SEVERITIES: ReadonlySet<string> = new Set([
@@ -179,6 +199,7 @@ function managedOf(value: unknown): ManagedAnnouncement {
     ...announcementOf(row),
     audience: audienceOf(row["audience"], row["targets"]),
     createdBy: optionalText(row["created_by"]),
+    archivedAt: optionalInstant(row["archived_at"]),
   };
 }
 
@@ -291,6 +312,14 @@ export function createAnnouncements<
       .andThen((value) => withFields(fields, value, managedOf(value)));
   };
 
+  const transition = (
+    name: "archive_announcement" | "restore_announcement",
+    announcementId: string,
+  ): AsyncResult<ManagedAnnouncement & F> =>
+    call(name, { id: announcementId }, (value) => value).andThen((value) =>
+      withFields(fields, value, managedOf(value)),
+    );
+
   const client: Announcements<F> = {
     listActive: (organizationId) =>
       call(
@@ -307,17 +336,24 @@ export function createAnnouncements<
         { id: announcementId },
         (value) => value === true,
       ),
-    list: () =>
-      call("list_announcements", {}, (value) =>
-        recordsOf(value, "list_announcements").map(
-          (raw) => [raw, managedOf(raw)] as const,
-        ),
+    list: (input) =>
+      call(
+        "list_announcements",
+        { include_archived: input?.includeArchived ?? false },
+        (value) =>
+          recordsOf(value, "list_announcements").map(
+            (raw) => [raw, managedOf(raw)] as const,
+          ),
       ).andThen((rows) => allWithFields(fields, rows)),
     publish: (input) => save(null, input),
     update: ({ announcementId, input }) => save(announcementId, input),
-    remove: (announcementId) =>
+    archive: (announcementId) =>
+      transition("archive_announcement", announcementId),
+    restore: (announcementId) =>
+      transition("restore_announcement", announcementId),
+    purge: (announcementId) =>
       call(
-        "delete_announcement",
+        "purge_announcement",
         { id: announcementId },
         (value) => value === true,
       ),
