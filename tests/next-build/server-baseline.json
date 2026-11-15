@@ -1817,7 +1817,7 @@
   "/api/workflows/definitions/list/route": {
     "raw": 4807153,
     "gzip": 1445209,
-    "brotli": 1216836
+    "brotli": 1219892
   },
   "/api/workflows/hooks/[token]/route": {
     "raw": 3245754,
@@ -1827,7 +1827,7 @@
   "/api/workflows/runs/list/route": {
     "raw": 4807156,
     "gzip": 1445213,
-    "brotli": 1216841
+    "brotli": 1219902
   },
   "/api/workflows/tick/route": {
     "raw": 4690785,
