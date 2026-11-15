@@ -149,6 +149,10 @@ function startDatabase(cwd: string): void {
   }
 
   run("pnpm", ["supabase:start"]);
+
+  // `supabase start` applies the SQL seeds only; the example's entity pages
+  // take their demo rows from the generated seeds (ADR 1032).
+  run("pnpm", ["db:seed:pages"]);
 }
 
 async function main(): Promise<void> {
