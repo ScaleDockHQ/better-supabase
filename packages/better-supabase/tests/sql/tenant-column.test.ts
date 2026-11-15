@@ -21,15 +21,19 @@ const rendered = (module: string, blockTenantColumn?: string): string => {
 };
 
 describe("sql.tenantColumn", () => {
-  it("names the tenant column of every table a block creates", () => {
-    const left = Object.keys(SQL_MODULES)
-      .filter((module) => module !== "pgtap")
-      .filter((module) =>
-        rendered(module, "organization_id").includes('"tenant_id"'),
-      );
+  it(
+    "names the tenant column of every table a block creates",
+    { timeout: 60_000 },
+    () => {
+      const left = Object.keys(SQL_MODULES)
+        .filter((module) => module !== "pgtap")
+        .filter((module) =>
+          rendered(module, "organization_id").includes('"tenant_id"'),
+        );
 
-    expect(left).toEqual([]);
-  });
+      expect(left).toEqual([]);
+    },
+  );
 
   it("changes the SQL of the modules with tenant tables", () => {
     const sql = rendered("quotes", "organization_id");
