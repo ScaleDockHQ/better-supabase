@@ -172,4 +172,58 @@ describe("testBlockList", () => {
       /does not say which sorts/,
     );
   });
+
+  it("runs only the checks of the reads a target has, with idOf", async () => {
+    const base = memoryList();
+
+    const report = await testBlockList({
+      name: "demo.minimal",
+      rows: ROWS.length,
+      idOf: (row) => row.title,
+      target: { page: (pageOptions) => base.page(pageOptions) },
+    });
+
+    expect(report.checks.map((check) => check.name)).toEqual([
+      "page returns items, hasMore and nextCursor",
+      "the seeded rows are all there",
+      "limit is respected",
+      "following nextCursor walks every row once",
+    ]);
+  });
+
+  it("reports a read that errors and a row without an id", async () => {
+    const failing: BlockListTarget<Row> = {
+      page: () => Promise.resolve(err(dbError("forbidden", "no"))),
+    };
+
+    await expect(
+      testBlockList({ name: "demo.failing", rows: 3, target: failing }),
+    ).rejects.toThrow(/page returned an error: forbidden: no/);
+
+    const noId: BlockListTarget<{ readonly title: string }> = {
+      page: () =>
+        Promise.resolve(
+          ok({ items: [{ title: "x" }], hasMore: false, nextCursor: null }),
+        ),
+    };
+
+    await expect(
+      testBlockList({ name: "demo.no-id", rows: 1, target: noId }),
+    ).rejects.toThrow(/no string `id`/);
+  });
+
+  it("accepts a get that answers null for an unknown id", async () => {
+    const base = memoryList();
+
+    const report = await testBlockList({
+      ...options,
+      target: {
+        ...base,
+        get: (id) =>
+          Promise.resolve(ok(ROWS.find((row) => row.id === id) ?? null)),
+      },
+    });
+
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
 });

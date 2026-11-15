@@ -1,7 +1,7 @@
 import type { Count, FacetResult, ListPage } from "../../core/block-helpers.ts";
 import type { PageSort } from "../../core/page-sort.ts";
 import type { Result } from "../../core/result.ts";
-import type { ConformanceReport } from "../conformance.ts";
+import type { Check, ConformanceReport } from "../conformance.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { MAX_PAGE_SORTS } from "../../core/page-sort.ts";
@@ -103,15 +103,14 @@ async function read<T>(call: PromiseLike<Result<T>>, what: string): Promise<T> {
 export function testBlockList<Item>(
   options: TestBlockListOptions<Item>,
 ): Promise<ConformanceReport> {
-  const { target, rows } = options;
+  const { target, rows, sorts = [], arrayFilter, search } = options;
   const idOf = options.idOf ?? ((item: Item) => DEFAULT_ID(item));
-
   const idsOf = (page: ListPage<Item>): string[] => page.items.map(idOf);
 
   const all = async (extra: BlockListPageOptions = {}): Promise<string[]> =>
     idsOf(await read(target.page({ ...extra, limit: rows + 5 }), "page"));
 
-  return conform(`BlockList "${options.name}"`, [
+  const checks: Check[] = [
     [
       "page returns items, hasMore and nextCursor",
       async () => {
@@ -133,6 +132,7 @@ export function testBlockList<Item>(
       "the seeded rows are all there",
       async () => {
         const ids = await all();
+
         expect(ids.length === rows, `${ids.length} rows read, ${rows} seeded`);
         expect(new Set(ids).size === ids.length, "a row appears twice");
       },
@@ -141,6 +141,7 @@ export function testBlockList<Item>(
       "limit is respected",
       async () => {
         const page = await read(target.page({ limit: 1 }), "page");
+
         expect(page.items.length === 1, `${page.items.length} rows, not 1`);
         expect(page.hasMore, "hasMore is false with rows left");
       },
@@ -174,7 +175,10 @@ export function testBlockList<Item>(
         );
       },
     ],
-    ...(options.sorts ?? []).map((by): [string, () => Promise<void>] => [
+  ];
+
+  for (const by of sorts) {
+    checks.push([
       `sort "${by}" reverses with direction`,
       async () => {
         const asc = await all({ sort: { by, direction: "asc" } });
@@ -182,27 +186,28 @@ export function testBlockList<Item>(
 
         expect(asc.length === desc.length, "the sorts read different rows");
         expect(
-          JSON.stringify(asc.toReversed()) === JSON.stringify(desc) ||
-            asc.length < 2,
+          JSON.stringify(asc.toReversed()) === JSON.stringify(desc),
           `"${by}" asc reversed is not desc (ties need a stable id order)`,
         );
       },
-    ]),
-    (options.sorts?.length ?? 0) >= 2 && [
+    ]);
+  }
+
+  if (sorts.length >= 2) {
+    const terms = sorts.slice(0, MAX_PAGE_SORTS);
+
+    checks.push([
       "a list of sorts is accepted and reported",
       async () => {
-        const [first, second] = options.sorts ?? [];
+        const sort: readonly PageSort[] = terms.map((by, index) => ({
+          by,
+          direction: index % 2 === 0 ? "asc" : "desc",
+        }));
 
-        const sort: readonly PageSort[] = [
-          { by: first ?? "", direction: "asc" },
-          { by: second ?? "", direction: "desc" },
-        ];
-
-        expect(sort.length <= MAX_PAGE_SORTS, "too many sorts");
-
-        const page = await read(target.page({ sort, limit: rows }), "page");
-
-        const { sorted } = page;
+        const { sorted } = await read(
+          target.page({ sort, limit: rows }),
+          "page",
+        );
 
         expect(
           sorted !== undefined,
@@ -216,15 +221,15 @@ export function testBlockList<Item>(
           `applied and ignored hold ${reported} of ${sort.length} sorts`,
         );
       },
-    ],
-    options.arrayFilter !== undefined && [
+    ]);
+  }
+
+  if (arrayFilter !== undefined) {
+    const { column, values } = arrayFilter;
+
+    checks.push([
       "an array filter matches any of its values",
       async () => {
-        const { column, values } = options.arrayFilter ?? {
-          column: "",
-          values: ["", ""],
-        };
-
         const [a, b, both] = await Promise.all([
           all({ filters: { [column]: [values[0]] } }),
           all({ filters: { [column]: [values[1]] } }),
@@ -232,89 +237,105 @@ export function testBlockList<Item>(
         ]);
 
         const union = new Set([...a, ...b]);
+
         expect(a.length > 0 && b.length > 0, "a value matches no seeded row");
         expect(
           both.length === union.size && both.every((id) => union.has(id)),
           `"${column}" with two values reads ${both.length} rows, the union is ${union.size}`,
         );
       },
-    ],
-    options.search !== undefined && [
+    ]);
+  }
+
+  if (search !== undefined) {
+    checks.push([
       "q narrows the rows",
       async () => {
-        const found = await all({ q: options.search ?? "" });
+        const found = await all({ q: search });
+
         expect(found.length > 0, "q matched no seeded row");
         expect(found.length < rows, "q matched every row");
       },
-    ],
-    target.count !== undefined && [
+    ]);
+  }
+
+  const { count } = target;
+
+  if (count !== undefined) {
+    checks.push([
       "count returns { value, exact } for the same filters",
       async () => {
-        const count = await read(target.count?.() ?? never(), "count");
-        expect(typeof count.value === "number", "value is not a number");
-        expect(typeof count.exact === "boolean", "exact is not a boolean");
+        const total = await read(count(), "count");
+
+        expect(typeof total.value === "number", "value is not a number");
+        expect(typeof total.exact === "boolean", "exact is not a boolean");
         expect(
-          !count.exact || count.value === rows,
-          `an exact count of ${count.value} for ${rows} rows`,
+          !total.exact || total.value === rows,
+          `an exact count of ${total.value} for ${rows} rows`,
         );
 
-        if (options.search !== undefined) {
-          const found = await all({ q: options.search });
+        const found = await all(search === undefined ? {} : { q: search });
 
-          const narrowed = await read(
-            target.count?.({ q: options.search }) ?? never(),
-            "count",
-          );
+        const narrowed = await read(
+          count(search === undefined ? {} : { q: search }),
+          "count",
+        );
 
-          expect(
-            !narrowed.exact || narrowed.value === found.length,
-            "count and page disagree under q",
-          );
+        expect(
+          !narrowed.exact || narrowed.value === found.length,
+          "count and page disagree under the same filters",
+        );
+      },
+    ]);
+  }
+
+  const { facets } = target;
+
+  if (facets !== undefined && options.facets !== undefined) {
+    const expected = options.facets;
+
+    checks.push([
+      "facets report the seeded counts",
+      async () => {
+        const names = Object.keys(expected);
+        const results = await read(facets({ facets: names }), "facets");
+
+        for (const [name, counts] of Object.entries(expected)) {
+          const found = results.find((entry) => entry.facet === name);
+
+          expect(found !== undefined, `no result for facet "${name}"`);
+
+          for (const [value, wanted] of Object.entries(counts)) {
+            const entry = found.values.find((item) => item.value === value);
+
+            expect(
+              entry?.count.value === wanted,
+              `facet "${name}" value "${value}" is ${entry?.count.value}, not ${wanted}`,
+            );
+          }
         }
       },
-    ],
-    target.facets !== undefined &&
-      options.facets !== undefined && [
-        "facets report the seeded counts",
-        async () => {
-          const names = Object.keys(options.facets ?? {});
+    ]);
+  }
 
-          const results = await read(
-            target.facets?.({ facets: names }) ?? never(),
-            "facets",
-          );
+  const { get } = target;
 
-          for (const name of names) {
-            const found = results.find((entry) => entry.facet === name);
-            expect(found !== undefined, `no result for facet "${name}"`);
-
-            for (const [value, expected] of Object.entries(
-              options.facets?.[name] ?? {},
-            )) {
-              const entry = found.values.find((item) => item.value === value);
-              expect(
-                entry?.count.value === expected,
-                `facet "${name}" value "${value}" is ${entry?.count.value}, not ${expected}`,
-              );
-            }
-          }
-        },
-      ],
-    target.get !== undefined && [
+  if (get !== undefined) {
+    checks.push([
       "get returns the row the list returned, and not_found for an unknown id",
       async () => {
         const [first] = (await read(target.page({ limit: 1 }), "page")).items;
+
         expect(first !== undefined, "no row to get");
 
-        const found = await read(target.get?.(idOf(first)) ?? never(), "get");
+        const found = await read(get(idOf(first)), "get");
+
         expect(
           found !== null && found !== undefined && idOf(found) === idOf(first),
           "get returned another row",
         );
 
-        const missing = await (target.get?.(
-          "00000000-0000-4000-8000-000000000000",
-        ) ?? never());
+        const missing = await get("00000000-0000-4000-8000-000000000000");
 
         expect(
           missing.ok
@@ -323,10 +344,8 @@ export function testBlockList<Item>(
           "get of an unknown id neither returned null nor a not_found error",
         );
       },
-    ],
-  ]);
-}
+    ]);
+  }
 
-function never(): never {
-  throw new TypeError("the target has no such read");
+  return conform(`BlockList "${options.name}"`, checks);
 }
