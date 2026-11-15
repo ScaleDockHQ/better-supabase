@@ -222,7 +222,7 @@
     "security-definer-functions": 24
   },
   "forms": {
-    "security-definer-functions": 98
+    "security-definer-functions": 104
   },
   "funding": {
     "security-definer-functions": 74
@@ -265,7 +265,7 @@
     "row-triggers": 1
   },
   "inventory": {
-    "security-definer-functions": 331
+    "security-definer-functions": 343
   },
   "invitations": {
     "security-definer-functions": 72,
@@ -510,7 +510,7 @@
     "row-triggers": 6
   },
   "signatures": {
-    "security-definer-functions": 42
+    "security-definer-functions": 48
   },
   "signing-keys": {
     "security-definer-functions": 40,
@@ -567,7 +567,7 @@
     "row-triggers": 24
   },
   "versions": {
-    "security-definer-functions": 55
+    "security-definer-functions": 61
   },
   "waitlist": {
     "security-definer-functions": 60

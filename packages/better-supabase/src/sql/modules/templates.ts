@@ -1,6 +1,12 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -302,6 +308,58 @@ ${also("templates", "settings", () => `        ${ct("settings")} = coalesce(v_st
         : `x.${ct("tenant")} is null`
       : `case x.${ct("scope")}::text when 'tenant' then 0 when 'brand' then 1 else 2 end`;
 
+  const templateScope = has("templates", "scope")
+    ? asText(ctx, "templates", `x.${ct("scope")}`)
+    : `case when x.${ct("tenant")} is null then 'system' else 'tenant' end`;
+
+  const templateIdKey = {
+    expr: `x.${ct("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const templateNameKeys = [
+    { expr: `lower(x.${ct("name")})`, dir: "asc", type: "text" },
+    templateIdKey,
+  ] as const;
+
+  const templatePage = {
+    name: "page_templates",
+    from: t,
+    alias: "x",
+    where: [
+      visibleIn("x.", "page_templates.tenant"),
+      filterAny("type", `x.${ct("type")}`),
+      filterAny("language", `x.${ct("language")}`),
+      filterAny("scope", templateScope),
+      ...(has("templates", "isDefault")
+        ? [filterAny("isDefault", `x.${ct("isDefault")}::text`)]
+        : []),
+      `(v_search is null or x.${ct("name")} ilike v_search${has("templates", "key") ? ` or x.${ct("key")} ilike v_search` : ""})`,
+    ],
+    keys: templateNameKeys,
+    sorts: {
+      name: templateNameKeys,
+      createdAt: [
+        { expr: `x.${ct("createdAt")}`, dir: "desc", type: "timestamptz" },
+        templateIdKey,
+      ],
+      updatedAt: [
+        { expr: `x.${ct("updatedAt")}`, dir: "desc", type: "timestamptz" },
+        templateIdKey,
+      ],
+    },
+    facets: {
+      type: `x.${ct("type")}`,
+      language: `x.${ct("language")}`,
+      scope: templateScope,
+    },
+    rowJson: templateJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("TEMPLATE_INVALID", message, "22023"),
+  } as const;
+
   const workflows =
     builder === undefined
       ? undefined
@@ -466,6 +524,29 @@ as $$
     and (templates_list.language is null or x.${ct("language")} = templates_list.language)
 $$;
 ${userGrant(`${fn("templates_list")}(${id}, text, text)`)}
+
+-- A keyset page of the templates the tenant sees: its own, its brand's and the
+-- system starters, by name (ADR 1077). Row security decides what the caller
+-- sees. filters is { type, language, scope${has("templates", "isDefault") ? ", isDefault" : ""} (each a value or a list),
+-- search, sort (name, createdAt, updatedAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_templates")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_templates.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(templatePage)}
+begin
+  ${listBody(templatePage)}
+end;
+$$;
+${userGrant(`${fn("page_templates")}(${id}, jsonb)`)}
 
 -- One template with its newest published version and its draft, bodies
 -- included; null when the caller can't read it.
@@ -882,6 +963,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
+    { name: "page_templates", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "template_get", args: ["uuid"], returns: "jsonb" },
     { name: "templates_get_many", args: ["uuid[]"], returns: "jsonb" },
     { name: "remove_template", args: ["uuid"], returns: "boolean" },

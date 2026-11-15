@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -12,6 +23,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -25,6 +37,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { qualificationTypeListSurface } from "./lists.ts";
 
 export interface QualificationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -222,10 +235,31 @@ export interface Qualifications<F extends object = Record<never, never>> {
   archiveType(typeId: string): AsyncResult<QualificationType>;
   /** Needs `qualifications.manage`. The type takes new holdings again. */
   restoreType(typeId: string): AsyncResult<QualificationType>;
-  /** By name. */
+  /**
+   * By name.
+   *
+   * @deprecated Use `typePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   types(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly QualificationType[]>;
+  /**
+   * One keyset page of qualification types, by name. `filters` takes `state`
+   * (`active`, `archived`) and `expiry` (`never`, `expires`) as lists; `q`
+   * searches the name and the key. Row security decides what the caller sees.
+   */
+  typePage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<QualificationType>>;
+  /** The values of each facet (`state`, `expiry`) under the page's filters. */
+  typeFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many types match the page's filters. */
+  typeCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One qualification type by id, or a `not_found` error. */
+  getType(typeId: string): AsyncResult<QualificationType>;
   /** Needs `qualifications.manage`. Adding the same target twice keeps one. */
   addRequirement(input: {
     typeId: string;
@@ -452,6 +486,15 @@ export function createQualifications<
   const requirement = (fn: string) => (value: unknown) =>
     requirementOf(value, fn);
 
+  const types = entityList<QualificationType, RequiredTenantOption>({
+    entity: "qualification_type",
+    surface: qualificationTypeListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_qualification_types",
+    rowOf: (row, fn) => typeOf(row, fn),
+  });
+
   const client: Qualifications<F> = {
     saveType: ({ organizationId, input }) =>
       call(
@@ -477,6 +520,7 @@ export function createQualifications<
       call("restore_qualification_type", { type_id: typeId }, (value) =>
         typeOf(value, "restore_qualification_type"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     types: ({ organizationId, ...list }) =>
       call(
         "list_qualification_types",
@@ -485,6 +529,13 @@ export function createQualifications<
           include_archived: list.includeArchived ?? false,
         },
         many("list_qualification_types", typeOf),
+      ),
+    typePage: types.page,
+    typeFacets: types.facets,
+    typeCount: types.count,
+    getType: (typeId) =>
+      call("get_qualification_type", { type_id: typeId }, (value) =>
+        typeOf(value, "get_qualification_type"),
       ),
     addRequirement: ({ typeId, targetType, targetValue }) =>
       call(
@@ -564,6 +615,7 @@ export function createQualifications<
     matrix: ({ organizationId, holderType, on }) =>
       AsyncResult.from<QualificationMatrix>(async () => {
         const kind = holderType ?? "member";
+        // oxlint-disable-next-line typescript/no-deprecated -- the matrix reads every type, not a page (ADR 1077)
         const types = await hooked.types({ organizationId });
 
         if (!types.ok) {

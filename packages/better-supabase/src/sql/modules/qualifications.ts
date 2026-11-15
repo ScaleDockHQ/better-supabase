@@ -347,6 +347,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "page_qualification_types",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_qualification_type", args: ["uuid"], returns: "jsonb" },
+    {
       name: "add_qualification_requirement",
       args: ["uuid", "text", "text"],
       returns: "jsonb",

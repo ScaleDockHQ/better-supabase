@@ -4,6 +4,13 @@ import type { DriveKit } from "./drive-kit.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { sequenceFormatOf, withFixedNumber } from "../numbering-sql.ts";
 import {
   activeMembership,
@@ -164,6 +171,7 @@ export const DOCUMENT_FUNCTIONS: readonly BlockSqlContractFunction[] = [
     returns: "jsonb",
   },
   { name: "drive_documents", args: ["{id}", "jsonb"], returns: "jsonb" },
+  { name: "page_drive_documents", args: ["{id}", "jsonb"], returns: "jsonb" },
   { name: "notify_due_drive_reviews", args: [], returns: "integer" },
 ];
 
@@ -792,7 +800,84 @@ function registerSql(kit: DriveKit): string {
   const filter = (key: string): string =>
     `drive_documents.filters ->> '${key}'`;
 
+  const reviewState = `case when x.${n("documentStatus")} = 'effective' and x.${n("nextReviewOn")} <= current_date then 'due' else 'ok' end`;
+
+  const idKey = { expr: `x.${n("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const numberKeys = [
+    { expr: `x.${n("documentNumber")}`, dir: "asc", type: "text" },
+    idKey,
+  ] as const;
+
+  const documentPage = {
+    name: "page_drive_documents",
+    from: T,
+    alias: "x",
+    where: [
+      `x.${n("tenant")} = page_drive_documents.tenant`,
+      `x.${n("documentStatus")} is not null`,
+      ...(live("x") === "" ? [] : [live("x").replace(/^ and /u, "")]),
+      `(${SERVICE_CALLER} or ${canRead(`x.${n("id")}`)})`,
+      filterAny("type", `x.${n("documentType")}`),
+      filterAny("status", `x.${n("documentStatus")}`),
+      filterAny("ownerId", `x.${n("documentOwner")}::text`),
+      filterAny("review", reviewState),
+      `(not ${filterFlag("reviewDue")} or (x.${n("documentStatus")} = 'effective' and x.${n("nextReviewOn")} <= current_date))`,
+      `(v_search is null or x.${n("documentNumber")} ilike v_search or x.${n("name")} ilike v_search)`,
+    ],
+    keys: numberKeys,
+    sorts: {
+      number: numberKeys,
+      name: [
+        { expr: `lower(x.${n("name")})`, dir: "asc", type: "text" },
+        idKey,
+      ],
+      nextReviewOn: [
+        {
+          expr: `coalesce(x.${n("nextReviewOn")}, date '9999-12-31')`,
+          dir: "asc",
+          type: "date",
+        },
+        idKey,
+      ],
+    },
+    facets: {
+      type: `x.${n("documentType")}`,
+      status: `x.${n("documentStatus")}`,
+      review: reviewState,
+    },
+    rowJson: withRole("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("DRIVE_DOCUMENT_FILTER_INVALID", message, "22023"),
+  } as const;
+
   return `
+-- A keyset page of the document register, by number (ADR 1077): the controlled
+-- files of an organization the caller reads. filters is { type, status,
+-- ownerId, review (due, ok) (each a value or a list), reviewDue (true for
+-- effective documents whose review date has come), search (number or name),
+-- sort (number, name, nextReviewOn), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function ${fn("page_drive_documents")}(tenant ${ctx.idType}, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_drive_documents.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(documentPage)}
+begin
+  ${listBody(documentPage)}
+end;
+$$;
+${userGrant(`${fn("page_drive_documents")}(${ctx.idType}, jsonb)`)}
+
 -- The document register of an organization: its controlled files the caller
 -- reads, by number. filters takes type, status, ownerId, reviewDue (true for
 -- effective documents whose review date has come) and search (number or name).

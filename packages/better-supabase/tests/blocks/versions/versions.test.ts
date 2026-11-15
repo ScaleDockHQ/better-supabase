@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 3 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createVersions } from "../../../src/blocks/versions/index.ts";
@@ -271,5 +272,24 @@ describe("versions client", () => {
 
     await versions.delete("v1").orThrow();
     expect(seen).toEqual(["before"]);
+  });
+});
+
+describe("versions page", () => {
+  it("maps the rows of one page", async () => {
+    const fake = transport({
+      page_versions: () => ({ items: [ROW], hasMore: false }),
+    });
+
+    const versions = createVersions({ transport: fake, schema: "app" });
+
+    const page = await versions
+      .versionPage({
+        organizationId: "org-1",
+        filters: { subjectId: [DOC.id] },
+      })
+      .orThrow();
+
+    expect(page.items.map((version) => version.id)).toEqual(["v1"]);
   });
 });

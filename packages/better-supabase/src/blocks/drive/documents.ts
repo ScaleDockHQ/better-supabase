@@ -1,7 +1,20 @@
-import type { AsyncResult } from "../../core/result.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { BlockCall } from "../shared.ts";
 import type { DriveNode } from "./drive.ts";
 
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   enumOrThrow,
@@ -10,6 +23,7 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
+import { driveDocumentListSurface } from "./lists.ts";
 
 const DOCUMENT_STATUSES = [
   "draft",
@@ -107,11 +121,41 @@ export interface DriveDocuments<N> {
     outcome: "unchanged" | "revise";
     note?: string | undefined;
   }): AsyncResult<N>;
-  /** The organization's document register, by number. */
+  /**
+   * The organization's document register, by number.
+   *
+   * @deprecated Use `documentPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   documents(input: {
     organizationId: string;
     filters?: DriveDocumentFilters | undefined;
   }): AsyncResult<readonly N[]>;
+  /**
+   * One keyset page of the document register, by number. `filters` takes
+   * `type`, `status`, `ownerId` and `review` (`due`, `ok`) as lists and
+   * `reviewDue: ["true"]`; `q` searches the number and the name. The caller
+   * sees the documents they can read.
+   */
+  documentPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<N>>;
+  /**
+   * The values of each facet (`type`, `status`, `review`) under the page's
+   * filters.
+   */
+  documentFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many documents match the page's filters. */
+  documentCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /**
+   * One controlled document by id, or a `not_found` error for a file without
+   * one.
+   */
+  getDocument(id: string): AsyncResult<N>;
   /** Service role: reports the documents whose review is due, once per date. */
   notifyDueReviews(): AsyncResult<number>;
 }
@@ -149,6 +193,15 @@ export function driveDocuments(
     (fn: string) =>
     (value: unknown): DriveNode =>
       nodeOf(value, fn);
+
+  const register = entityList<DriveNode, RequiredTenantOption>({
+    entity: "drive_document",
+    surface: driveDocumentListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_drive_documents",
+    rowOf: (row, fn) => nodeOf(row, fn),
+  });
 
   return {
     saveDocument: ({ id, document }) =>
@@ -190,9 +243,25 @@ export function driveDocuments(
         { node: id, outcome, note: note ?? null },
         node("drive_document_review"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     documents: ({ organizationId, filters = {} }) =>
       call("drive_documents", { tenant: organizationId, filters }, (value) =>
         nodesOf(value, "drive_documents"),
+      ),
+    documentPage: register.page,
+    documentFacets: register.facets,
+    documentCount: register.count,
+    getDocument: (id) =>
+      call("drive_get", { node: id }, (value) =>
+        nodeOf(value, "drive_get"),
+      ).andThen((found) =>
+        found.document === undefined
+          ? AsyncResult.err(
+              dbError("not_found", "No controlled document has this id", {
+                hint: "DRIVE_NOT_FOUND",
+              }),
+            )
+          : AsyncResult.ok(found),
       ),
     notifyDueReviews: () => call("notify_due_drive_reviews", {}, Number),
   };

@@ -3,6 +3,7 @@ import type { TemplatesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { templatesEvents } from "./events.ts";
+import { templateListSurface } from "./lists.ts";
 import { templatesSqlOptions } from "./options.ts";
 import { createTemplates } from "./templates.ts";
 
@@ -20,6 +21,7 @@ export const templatesBlock: BlockOf<
   category: "content",
   entities: {
     template: {
+      ...templateListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

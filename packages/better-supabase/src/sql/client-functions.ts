@@ -41,7 +41,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   assignment:
     "assign_subject assignment_history list_assignment_queues remove_assignment_queue save_assignment_queue set_assignment_members",
   attachments:
-    "claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan replace_attachment restore_attachment_version set_attachment_status set_object_scan",
+    "claim_attachment_upload confirm_attachment create_attachment define_attachment_document_type delete_attachment delete_attachment_document_type get_attachment list_attachment_document_types list_attachment_versions list_attachments mark_attachment_missing object_scan page_attachments replace_attachment restore_attachment_version set_attachment_status set_object_scan",
   audit:
     "audit_event audit_event_many audit_event_types audit_events_tenants chain_heads chain_proof count_audit_events get_audit_event list_audit_events list_chain_checkpoints purge_audit_log record_chain_checkpoint verify_chain",
   automations:
@@ -122,7 +122,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   forecasts:
     "forecast_changes forecast_snapshot forecast_snapshots take_forecast_snapshot",
   forms:
-    "archive_form_submission create_form form_nps get_form get_form_submission get_form_version list_form_submissions list_forms publish_form_version purge_form_submission restore_form_submission review_form_submission submit_form update_form",
+    "archive_form_submission create_form form_nps get_form get_form_submission get_form_version list_form_submissions list_forms page_form_submissions publish_form_version purge_form_submission restore_form_submission review_form_submission submit_form update_form",
   funding:
     "approve_funding_deliveries archive_funding_claim build_funding_claim end_funding_award funding_award_usage get_funding_claim invoice_funding_claim list_funding_awards list_funding_claims list_funding_deliveries list_funding_products mark_funding_claim_sent purge_funding_claim record_funding_claim_response register_funding_deliveries_from_time register_funding_delivery restore_funding_claim save_funding_award save_funding_product",
   goals: "goal_progress save_goal",
@@ -176,7 +176,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   meetings:
     "add_meeting_action_item archive_meeting cancel_meeting create_meeting decide_meeting_decision delete_meeting_agenda_item get_meeting hold_meeting list_meetings purge_meeting record_meeting_decision remove_meeting_attendee restore_meeting save_meeting_agenda_item set_meeting_attendee start_meeting update_meeting",
   inventory:
-    "adjust_stock allocate_stock cancel_purchase_order cancel_purchase_order_quantity cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_purchase_requisition inventory_levels inventory_overview list_allocations list_inventory_movements open_stock_count pick_serials place_purchase_order post_stock_count purchase_order_from_requisitions purchase_order_tax_lines receive_purchase_order receive_transfer record_count_line release_allocation release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_reorder_quantity set_stock_item ship_transfer stock_detail stock_valuation transfer_allocation",
+    "adjust_stock allocate_stock cancel_purchase_order cancel_purchase_order_quantity cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_inventory_level get_inventory_lot get_inventory_movement get_purchase_requisition inventory_levels inventory_overview list_allocations list_inventory_movements open_stock_count page_inventory_levels page_inventory_lots page_inventory_movements pick_serials place_purchase_order post_stock_count purchase_order_from_requisitions purchase_order_tax_lines receive_purchase_order receive_transfer record_count_line release_allocation release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_reorder_quantity set_stock_item ship_transfer stock_detail stock_valuation transfer_allocation",
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
@@ -234,7 +234,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "apply_promotion_code create_promotion_codes delete_promotion delete_promotion_code remove_promotion_code save_promotion set_promotion_active",
   push: "prune_push_tokens push_tokens_for register_push_device unregister_push_device",
   qualifications:
-    "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement restore_qualification_type revoke_qualification save_qualification_type",
+    "add_qualification_requirement archive_qualification_type get_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications page_qualification_types qualification_gaps qualifications_of qualified_holders remove_qualification_requirement restore_qualification_type revoke_qualification save_qualification_type",
   queue:
     "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job get_job job_queue_stats list_dead_jobs list_schedules purge_job_archive ready_job_queues release_lease_claim replay_dead_job retry_dead_jobs schedule_has_work schedule_job unschedule_job unschedule_tenant",
   quotes:
@@ -277,7 +277,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   shipments:
     "archive_shipment cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_delivery_proof record_tracking_events restore_shipment save_intrastat_line set_shipment_direction set_shipment_label set_shipment_lines",
   signatures:
-    "cancel_signature_request create_signature_request decline_signature_request get_signature_request list_signature_requests sign_signature",
+    "cancel_signature_request create_signature_request decline_signature_request get_signature_request list_signature_requests page_signature_requests sign_signature",
   "signing-keys":
     "add_signing_key delete_signing_keys note_signing_key_exp purge_signing_keys retire_signing_key signing_jwks signing_key",
   sla: "check_sla_clocks record_sla_event save_sla_policy sla_clocks_of sla_due_at start_sla_clocks",
@@ -294,7 +294,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   teams:
     "add_team_member archive_team create_team list_teams purge_team remove_team_member update_team",
   templates:
-    "fork_template publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
+    "fork_template page_templates publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":
     "archive_time_entry get_timesheet list_time_entries list_timesheets log_time purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
   timeline: "list_activity record_activity",
@@ -304,7 +304,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "vercel-marketplace":
     "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_installation_for marketplace_resource marketplace_resources marketplace_resources_for record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
   versions:
-    "delete_version get_version get_versions label_version list_versions restore_version snapshot_version",
+    "delete_version get_version get_versions label_version list_versions page_versions restore_version snapshot_version",
   waitlist:
     "create_invite_code decide_waitlist_entry join_waitlist list_invite_codes list_waitlist redeem_invite_code revoke_invite_code waitlist_admit",
   warranty:

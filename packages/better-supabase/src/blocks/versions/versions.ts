@@ -3,7 +3,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -15,6 +26,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -27,6 +39,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { createPatch } from "./json-patch.ts";
+import { versionListSurface } from "./lists.ts";
 
 export interface VersionsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -126,10 +139,33 @@ export interface Versions<F extends object = Record<never, never>> {
     subject: RecordRef;
     input?: SnapshotInput<F> | undefined;
   }): AsyncResult<SnapshotResult>;
-  /** A subject's versions, newest first, without content. */
+  /**
+   * A subject's versions, newest first, without content.
+   *
+   * @deprecated Use `versionPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(
     input: { subject: RecordRef } & VersionListOptions,
   ): AsyncResult<readonly Version<F>[]>;
+  /**
+   * One keyset page of versions without content, newest first. `filters` takes
+   * `subjectType`, `subjectId` and `source` as lists; `q` searches the label
+   * and the subject id. The organization comes from `organizationId` or
+   * `options.tenant`.
+   */
+  versionPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<Version<F>>>;
+  /**
+   * The values of each facet (`source`, `subjectType`) under the page's
+   * filters.
+   */
+  versionFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many versions match the page's filters. */
+  versionCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   get(id: string): AsyncResult<Version<F>>;
   /**
    * Many versions with their content in one read, in the order requested. A
@@ -233,6 +269,16 @@ export function createVersions<
       versionOf(value, "get_version"),
     ).andThen(fields.row);
 
+  // SAFETY: `versionOf` reads the extra columns as a record; `fields.rows` types them next.
+  const versionList = entityList<Version<F>, TenantOption>({
+    entity: "version",
+    surface: versionListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_versions",
+    rowOf: (row, fn) => versionOf(row, fn) as Version<F>,
+  });
+
   const client: Versions<F> = {
     getShared: (token) =>
       call("get_shared_version", { token }, (value) =>
@@ -261,6 +307,7 @@ export function createVersions<
             ),
           ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ subject, ...page }) =>
       tenant().andThen((organizationId) =>
         call(
@@ -278,6 +325,14 @@ export function createVersions<
             ),
         ).andThen(fields.rows),
       ),
+    versionPage: (page = {}) =>
+      versionList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    versionFacets: versionList.facets,
+    versionCount: versionList.count,
     get,
     getMany: (ids) =>
       call("get_versions", { version_ids: ids }, (value) =>

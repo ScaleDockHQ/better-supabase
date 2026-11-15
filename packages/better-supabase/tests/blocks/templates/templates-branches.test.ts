@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 1 finding. */
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -470,5 +471,32 @@ describe("template apply edge cases", () => {
       subject_id: null,
     });
     expect(called).toBe(0);
+  });
+});
+
+describe("templates page and get", () => {
+  it("maps a page and reads one template or a not_found error", async () => {
+    const fake = transport({
+      page_templates: () => ({ items: [TEMPLATE], hasMore: false }),
+      template_get: (args) =>
+        (args as { template_id: string }).template_id === "t1"
+          ? { ...TEMPLATE, published: VERSION, draft: DRAFT }
+          : null,
+    });
+
+    const templates = createTemplates({ transport: fake });
+
+    const page = await templates
+      .templatePage({ organizationId: "o" })
+      .orThrow();
+
+    expect(page.items.map((template) => template.id)).toEqual(["t1"]);
+    expect((await templates.getTemplate("t1").orThrow()).id).toBe("t1");
+
+    const missing = await templates.getTemplate("nope");
+
+    expect(missing.ok ? undefined : missing.error.hint).toBe(
+      "TEMPLATE_NOT_FOUND",
+    );
   });
 });

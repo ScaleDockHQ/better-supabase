@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -12,6 +23,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -26,6 +38,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { signatureRequestListSurface } from "./lists.ts";
 
 export interface SignaturesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -173,12 +186,32 @@ export interface Signatures<F extends object = Record<never, never>> {
   }): AsyncResult<SignatureRequest<F>>;
   cancel(requestId: string): AsyncResult<SignatureRequest<F>>;
   get(requestId: string): AsyncResult<SignatureRequestDetail<F>>;
-  /** Newest first. */
+  /**
+   * Newest first.
+   *
+   * @deprecated Use `requestPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(
     input: {
       organizationId?: string | undefined;
     } & SignatureRequestListOptions,
   ): AsyncResult<readonly SignatureRequest<F>[]>;
+  /**
+   * One keyset page of requests, newest first. `filters` takes `status`,
+   * `subjectType` and `subjectId` (lists) and `mine: ["true"]` for the requests
+   * the caller is asked to sign; `q` searches the subject id and the message.
+   * The organization comes from `organizationId` or `options.tenant`.
+   */
+  requestPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<SignatureRequest<F>>>;
+  /** The values of each facet (`status`) under the page's filters. */
+  requestFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many requests match the page's filters. */
+  requestCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
 }
 
 const STATUSES: readonly SignatureRequestStatus[] = [
@@ -274,6 +307,16 @@ export function createSignatures<
     "signature request fields",
   );
 
+  // SAFETY: `requestOf` reads the extra columns as a record; `fields.rows` types them next.
+  const requests = entityList<SignatureRequest<F>, TenantOption>({
+    entity: "signature_request",
+    surface: signatureRequestListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_signature_requests",
+    rowOf: (row, fn) => requestOf(row, fn) as SignatureRequest<F>,
+  });
+
   const client: Signatures<F> = {
     request: (input) =>
       fields
@@ -340,6 +383,7 @@ export function createSignatures<
           ),
         };
       }).andThen(fields.row),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       (organizationId === undefined
         ? requireTenant(options.tenant)
@@ -362,6 +406,14 @@ export function createSignatures<
             ),
         ).andThen(fields.rows),
       ),
+    requestPage: (page = {}) =>
+      requests
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    requestFacets: requests.facets,
+    requestCount: requests.count,
   };
 
   return withBlockHooks(client, options.hooks, {

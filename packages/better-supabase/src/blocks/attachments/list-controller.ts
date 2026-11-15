@@ -82,6 +82,7 @@ export function createAttachmentListController<
       const refresh = async (): Promise<void> => {
         ticket += 1;
         const request = ticket;
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         const result = await client.list(subject);
 
         if (request !== ticket) {
