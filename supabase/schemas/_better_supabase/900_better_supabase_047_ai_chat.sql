@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:b4debb55fc0a8902ec95d84660de6278132e5d80a60b35df81af202822b28030
+-- @bsb-hash sha256:3f370d377fc7fee7681f9f5e9a50256a36df8bb10b8e85644737999d8ea1ac32
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2330,6 +2330,57 @@ $$;
 revoke execute on function "better_supabase"."list_ai_runs"(uuid, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_ai_runs"(uuid, boolean, integer) to authenticated, service_role;
 
+-- What each user of a tenant spent on runs, most expensive first, for the
+-- runs that started in since (inclusive) to until (exclusive). ai_runs is
+-- readable by its owner only, so this is the one read across a tenant
+-- ('ai_chat.manage'). Usage keys that are not numbers count as zero.
+create or replace function "better_supabase"."ai_usage_by_user"(tenant uuid, since timestamptz default null, until timestamptz default null, size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', ai_usage_by_user.tenant, 'ai_chat.manage'), false)) then
+    raise exception 'You may not read usage here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'user_id', u.user_id,
+      'runs', u.runs,
+      'failed', u.failed,
+      'input_tokens', u.input_tokens,
+      'output_tokens', u.output_tokens,
+      'cached_input_tokens', u.cached_input_tokens,
+      'cost_micro_usd', u.cost_micro_usd,
+      'last_run_at', u.last_run_at
+    ) order by u.cost_micro_usd desc, u.runs desc, u.user_id), '[]'::jsonb)
+    from (
+      select
+        x."owner_id" as user_id,
+        count(*) as runs,
+        count(*) filter (where x."status" = 'failed') as failed,
+        coalesce(sum(case when jsonb_typeof(x."usage" -> 'inputTokens') = 'number' then (x."usage" ->> 'inputTokens')::numeric end), 0)::bigint as input_tokens,
+        coalesce(sum(case when jsonb_typeof(x."usage" -> 'outputTokens') = 'number' then (x."usage" ->> 'outputTokens')::numeric end), 0)::bigint as output_tokens,
+        coalesce(sum(case when jsonb_typeof(x."usage" -> 'cachedInputTokens') = 'number' then (x."usage" ->> 'cachedInputTokens')::numeric end), 0)::bigint as cached_input_tokens,
+        coalesce(sum(x."cost_micro_usd"), 0)::bigint as cost_micro_usd,
+        max(x."started_at") as last_run_at
+      from "better_supabase"."ai_runs" x
+      join "better_supabase"."ai_chats" c on c."id" = x."chat_id"
+      where c."tenant_id" = ai_usage_by_user.tenant
+        and (ai_usage_by_user.since is null or x."started_at" >= ai_usage_by_user.since)
+        and (ai_usage_by_user.until is null or x."started_at" < ai_usage_by_user.until)
+      group by x."owner_id"
+      order by cost_micro_usd desc, runs desc, user_id
+      limit least(greatest(coalesce(ai_usage_by_user.size, 50), 1), 500)
+    ) u
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."ai_usage_by_user"(uuid, timestamptz, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."ai_usage_by_user"(uuid, timestamptz, timestamptz, integer) to authenticated, service_role;
+
 -- Records the durable engine's run id on a run claimed before the engine
 -- started (the service role only).
 create or replace function "better_supabase"."attach_ai_run"(run uuid, external_run_id text)
@@ -3185,6 +3236,16 @@ set search_path = ''
 as $$ select "better_supabase"."list_ai_runs"($1, $2, $3) $$;
 revoke execute on function "api"."list_ai_runs"(uuid, boolean, integer) from public, anon;
 grant execute on function "api"."list_ai_runs"(uuid, boolean, integer) to authenticated, service_role;
+
+create or replace function "api"."ai_usage_by_user"(tenant uuid, since timestamptz default null, until timestamptz default null, size integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."ai_usage_by_user"($1, $2, $3, $4) $$;
+revoke execute on function "api"."ai_usage_by_user"(uuid, timestamptz, timestamptz, integer) from public, anon;
+grant execute on function "api"."ai_usage_by_user"(uuid, timestamptz, timestamptz, integer) to authenticated, service_role;
 
 create or replace function "api"."attach_ai_run"(run uuid, external_run_id text)
 returns boolean
