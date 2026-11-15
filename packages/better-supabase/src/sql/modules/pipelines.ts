@@ -14,6 +14,7 @@ import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { registryReadable } from "./attachments-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { pipelineBindings } from "./pipelines-bindings.ts";
+import { pipelinePageFunctions } from "./pipelines-page.ts";
 import { pipelineSeeds } from "./pipelines-seeds.ts";
 import {
   defaultPipeline,
@@ -349,7 +350,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 -- a category that maps to a fixed outcome, a stage history and board totals.
 ${tables(ctx, names, layout)}${defaultPipeline(ctx, names, bindings)}
 ${bindings.map((binding) => stageTrigger(ctx, names, binding)).join("\n")}
-${manageFunctions(ctx, names, bindings)}${readFunctions(ctx.idType, names, bindings)}`;
+${manageFunctions(ctx, names, bindings)}${readFunctions(ctx.idType, names, bindings)}${pipelinePageFunctions(ctx.idType, names)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -414,6 +415,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "pipeline_health", args: ["uuid"], returns: "jsonb" },
     { name: "list_pipelines", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_pipelines", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_pipeline", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

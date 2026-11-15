@@ -498,6 +498,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "timestamptz", "integer"],
       returns: "jsonb",
     },
+    { name: "page_mail_threads", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_mail_accounts", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_mail_thread", args: ["uuid"], returns: "jsonb" },
     {
       name: "track_mail",

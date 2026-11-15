@@ -4,9 +4,20 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -29,6 +40,7 @@ import {
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -53,6 +65,7 @@ import {
   textOf,
   bigintOf,
 } from "../shared.ts";
+import { quoteListSurface } from "./lists.ts";
 
 export type {
   CatalogLineInput,
@@ -378,6 +391,21 @@ export interface Quotes<
     subject: RecordRef;
     limit?: number | undefined;
   }): AsyncResult<readonly Quote<F>[]>;
+  /**
+   * One keyset page of the organization's quotes, newest first. Needs
+   * `quotes.read`. `filters` takes `status`, `ownerId`, `currency`, `companyId`
+   * and `contactId` as lists; `q` searches the title and identifier. The
+   * organization comes from `organizationId` or `options.tenant`.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Quote<F>>>;
+  /** The values of each facet and how many quotes hold each. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many quotes match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One quote by id, or a `not_found` error. */
+  get(quoteId: string): AsyncResult<Quote<F>>;
   /** The revisions sent so far, oldest first. */
   versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
   /** The quote as it was sent at `revision`. */
@@ -724,6 +752,15 @@ export function createQuotes<
     };
   };
 
+  const quoteList = entityList<Quote, TenantOption>({
+    entity: "quote",
+    surface: quoteListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_quotes",
+    rowOf: (row) => quoteOf(row),
+  });
+
   const client: Quotes<F> = {
     create: ({ organizationId, input, lines, idempotencyKey }) => {
       const amounts = lineAmounts(lines ?? []);
@@ -860,6 +897,19 @@ export function createQuotes<
         quoteOf,
       ),
     ...quoteVariants(call),
+    page: (page = {}) =>
+      quoteList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: quoteList.facets,
+    count: quoteList.count,
+    // SAFETY: one row goes in, so one row comes out of the field read.
+    get: (quoteId) =>
+      call("get_quote", { quote: quoteId }, (value) => quoteOf(value))
+        .andThen((row) => fields.rows([row]))
+        .map(([first]) => first as Quote<F>),
     list: ({ subject, limit }) =>
       requireTenant(options.tenant).andThen((organizationId) =>
         call(

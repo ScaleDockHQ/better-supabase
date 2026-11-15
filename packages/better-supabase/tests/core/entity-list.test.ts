@@ -4,6 +4,7 @@ import type { BlockCall } from "../../src/core/block-helpers.ts";
 
 import {
   entityList,
+  foundOrNotFound,
   listFilters,
   tenantOrOption,
 } from "../../src/core/entity-list.ts";
@@ -360,5 +361,21 @@ describe("entityList export", () => {
 
     expect(text).toBe("id\r\n1\r\n");
     expect(tenants).toEqual(["call-org"]);
+  });
+});
+
+describe("foundOrNotFound", () => {
+  it("returns the value, or a not_found error for a missing one", async () => {
+    await expect(
+      foundOrNotFound("thing", { id: "1" }, "1").orThrow(),
+    ).resolves.toEqual({ id: "1" });
+
+    for (const missing of [null, undefined]) {
+      const result = await foundOrNotFound("thing", missing, "9");
+
+      expect(result.ok).toBe(false);
+      expect(result.error?.kind).toBe("not_found");
+      expect(result.error?.message).toBe("no thing has the id 9");
+    }
   });
 });

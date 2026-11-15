@@ -1,14 +1,15 @@
 import "server-only";
 import type { SupplierStatus } from "better-supabase/blocks/contacts";
+import type { Quote, QuoteStatus } from "better-supabase/blocks/quotes";
 import type { Money } from "better-supabase/commerce";
 
-import { money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
-import * as v from "valibot";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { orMissing } from "@/lib/or-missing";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { CRM_TAG } from "./crm-cache";
@@ -103,8 +104,8 @@ export async function readContacts({
   const { contacts: parties } = db.$blocks;
 
   const [companies, people] = await Promise.all([
-    parties.listCompanies({ organizationId: tenant, limit: PAGE }).orThrow(),
-    parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
+    parties.companyPage({ organizationId: tenant, limit: PAGE }).orThrow(),
+    parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
   ]);
 
   return [
@@ -142,15 +143,18 @@ export async function loadContact(
 
   const { contacts: parties } = db.$blocks;
 
-  const [company, person] = await Promise.all([
-    parties.getCompany(id).orThrow(),
-    parties.getPerson(id).orThrow(),
+  const [companyRead, personRead] = await Promise.all([
+    parties.companyById(id),
+    parties.personById(id),
   ]);
+
+  const company = orMissing(companyRead);
+  const person = orMissing(personRead);
 
   if (company) {
     const [people, everyone] = await Promise.all([
       parties.peopleOf(company.id).orThrow(),
-      parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
+      parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
     ]);
 
     const linked = new Set(people.map((member) => member.id));
@@ -287,9 +291,13 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
 
   const { pipelines, deals } = db;
 
-  const all = await pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 50 })
-    .orThrow();
+  const all = await readAllPages((page) =>
+    pipelines.page({
+      organizationId: tenant,
+      filters: { subjectType: ["deal"] },
+      ...page,
+    }),
+  );
 
   const pipeline = all.find((item) => item.isDefault) ?? all[0];
 
@@ -376,44 +384,7 @@ export async function loadTargets(): Promise<readonly TargetRow[] | null> {
   }));
 }
 
-const Amount = v.union([v.string(), v.number()]);
-
-const QuoteRow = v.object({
-  id: v.string(),
-  identifier: v.string(),
-  revision: v.number(),
-  title: v.string(),
-  status: v.picklist([
-    "draft",
-    "sent",
-    "viewed",
-    "accepted",
-    "rejected",
-    "changes_requested",
-    "expired",
-    "withdrawn",
-  ]),
-  currency: v.string(),
-  valid_until: v.nullish(v.string()),
-  total: Amount,
-  subtotal: Amount,
-  discount_total: Amount,
-  tax_total: Amount,
-  list_total: Amount,
-  lines: v.nullish(
-    v.array(
-      v.object({
-        description: v.string(),
-        quantity: v.nullish(v.number()),
-        unitAmount: Amount,
-        discountBps: v.nullish(v.number()),
-        taxRateBps: v.nullish(v.number()),
-      }),
-    ),
-  ),
-});
-
-export type QuoteStatus = v.InferOutput<typeof QuoteRow>["status"];
+export type { QuoteStatus };
 
 export interface QuoteLineRow {
   /** 1-based, in the order the quote lists them. */
@@ -440,37 +411,31 @@ export interface QuoteDetailData {
   readonly total: Money;
 }
 
-function quoteOf(row: v.InferOutput<typeof QuoteRow>): QuoteDetailData {
-  const at = (amount: string | number) => money(BigInt(amount), row.currency);
-
+function quoteOf(quote: Quote): QuoteDetailData {
   return {
-    id: row.id,
-    identifier: row.identifier,
-    revision: row.revision,
-    title: row.title,
-    status: row.status,
-    currency: row.currency,
-    validUntil: row.valid_until ?? null,
-    lines: (row.lines ?? []).map((line, index) => ({
-      position: index + 1,
+    id: quote.id,
+    identifier: quote.identifier,
+    revision: quote.revision,
+    title: quote.title,
+    status: quote.status,
+    currency: quote.currency,
+    validUntil: quote.validUntil?.toString() ?? null,
+    lines: quote.lines.map((line) => ({
+      position: line.position,
       description: line.description,
-      quantity: line.quantity ?? 1,
-      unitAmount: at(line.unitAmount),
-      discountBps: line.discountBps ?? 0,
-      taxRateBps: line.taxRateBps ?? 0,
+      quantity: line.quantity,
+      unitAmount: line.unitAmount,
+      discountBps: line.discountBps,
+      taxRateBps: line.taxRateBps,
     })),
-    subtotal: at(row.subtotal),
-    discountTotal: at(row.discount_total),
-    taxTotal: at(row.tax_total),
-    total: at(row.total),
+    subtotal: quote.totals.subtotal,
+    discountTotal: quote.totals.discountTotal,
+    taxTotal: quote.totals.taxTotal,
+    total: quote.totals.total,
   };
 }
 
-/**
- * The organization's latest quotes. The quotes block has no read function yet:
- * this calls `api.list_quotes(tenant, page_size)`, which the library still has
- * to add, so the region shows its error state until then.
- */
+/** The organization's latest quotes, newest first. */
 export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
@@ -481,21 +446,14 @@ export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
     return null;
   }
 
-  const rows = await db
-    .$api(
-      "list_quotes",
-      { tenant, page_size: 50 },
-      { returns: v.array(QuoteRow) },
-    )
+  const page = await db.$blocks.quotes
+    .page({ organizationId: tenant, limit: 50 })
     .orThrow();
 
-  return rows.map(quoteOf);
+  return page.items.map(quoteOf);
 }
 
-/**
- * One quote, `undefined` when it is gone. Calls `api.get_quote(quote)`, see
- * `loadQuotes`.
- */
+/** One quote, `undefined` when it is gone. */
 export async function loadQuote(
   id: string,
 ): Promise<QuoteDetailData | undefined | null> {
@@ -507,9 +465,7 @@ export async function loadQuote(
     return null;
   }
 
-  const row = await db
-    .$api("get_quote", { quote: id }, { returns: v.nullish(QuoteRow) })
-    .orThrow();
+  const quote = orMissing(await db.$blocks.quotes.get(id));
 
-  return row ? quoteOf(row) : undefined;
+  return quote ? quoteOf(quote) : undefined;
 }

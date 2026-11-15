@@ -688,7 +688,7 @@ export interface BlockNameRegistry {
       readonly "bankAccounts": "id" | "tenant" | "party" | "iban" | "bic" | "holder" | "isPrimary" | "createdAt" | "updatedAt";
       readonly "channels": "id" | "tenant" | "party" | "partyKind" | "channel" | "label" | "address" | "isPrimary" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "contact_method_updated_at" | "delete_payment_term" | "delivery_preference_write" | "document_delivery_preference_updated_at" | "find_person_by_identity" | "get_company" | "get_person" | "import_contact_method" | "import_document_delivery_preference" | "import_party" | "import_party_bank_account" | "import_party_contact" | "import_party_location" | "import_payment_term" | "list_companies" | "list_document_delivery_preferences" | "list_payment_terms" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "party_bank_account_id" | "party_bank_account_updated_at" | "party_contact_updated_at" | "party_location_updated_at" | "party_updated_at" | "payment_term_updated_at" | "payment_term_write" | "remove_company_person" | "remove_person_identity" | "resolve_payment_terms" | "resolve_person" | "save_company" | "save_payment_term" | "save_person" | "set_company_person" | "set_document_delivery_preferences" | "set_party_roles" | "set_supplier_status";
+    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "contact_method_updated_at" | "delete_payment_term" | "delivery_preference_write" | "document_delivery_preference_updated_at" | "find_person_by_identity" | "get_company" | "get_person" | "import_contact_method" | "import_document_delivery_preference" | "import_party" | "import_party_bank_account" | "import_party_contact" | "import_party_location" | "import_payment_term" | "list_companies" | "list_document_delivery_preferences" | "list_payment_terms" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "page_companies" | "page_people" | "party_bank_account_id" | "party_bank_account_updated_at" | "party_contact_updated_at" | "party_location_updated_at" | "party_updated_at" | "payment_term_updated_at" | "payment_term_write" | "remove_company_person" | "remove_person_identity" | "resolve_payment_terms" | "resolve_person" | "save_company" | "save_payment_term" | "save_person" | "set_company_person" | "set_document_delivery_preferences" | "set_party_roles" | "set_supplier_status";
     readonly actions: "read" | "write" | "manage" | "approveSupplier";
     readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
     readonly entities: {
@@ -714,7 +714,7 @@ export interface BlockNameRegistry {
       readonly "contracts": "id" | "tenant" | "title" | "description" | "counterpartyType" | "counterpartyId" | "owner" | "status" | "value" | "currency" | "startsOn" | "endsOn" | "autoRenew" | "renewalMonths" | "noticeDays" | "renewedCount" | "signatureRequest" | "signedAt" | "terminatedAt" | "terminationReason" | "createdBy" | "createdAt" | "updatedAt";
       readonly "obligations": "id" | "tenant" | "contract" | "title" | "description" | "dueOn" | "owner" | "status" | "completedAt" | "completedBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_contract_obligation" | "get_contract" | "list_contract_obligations" | "list_contracts" | "run_contract_renewals" | "save_contract_obligation" | "send_contract_for_signature" | "set_contract_obligation_status" | "transition_contract" | "update_contract";
+    readonly functions: "contract_apply_status" | "contract_schedule_renewal" | "contract_signature_settled" | "create_contract" | "delete_contract_obligation" | "get_contract" | "list_contract_obligations" | "list_contracts" | "page_contract_obligations" | "page_contracts" | "run_contract_renewals" | "save_contract_obligation" | "send_contract_for_signature" | "set_contract_obligation_status" | "transition_contract" | "update_contract";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -824,7 +824,7 @@ export interface BlockNameRegistry {
       readonly "members": "tenant" | "deal" | "user" | "role";
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
     };
-    readonly functions: "archive_deal" | "close_deal" | "create_deal" | "deal_board" | "deal_forecast" | "deal_health" | "delete_deal" | "list_deals_for_subject" | "reopen_deal" | "set_deal_contacts" | "set_deal_lines" | "set_deal_lines_recount" | "set_deal_members" | "update_deals";
+    readonly functions: "archive_deal" | "close_deal" | "create_deal" | "deal_board" | "deal_forecast" | "deal_health" | "delete_deal" | "get_deal" | "list_deals_for_subject" | "page_deals" | "reopen_deal" | "set_deal_contacts" | "set_deal_lines" | "set_deal_lines_recount" | "set_deal_members" | "update_deals";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_deal_create" | "after_deal_create" | "before_deal_update" | "after_deal_update";
     readonly entities: {
@@ -1050,7 +1050,7 @@ export interface BlockNameRegistry {
       readonly "snapshots": "id" | "tenant" | "pipeline" | "since" | "until" | "currency" | "target" | "totals" | "dealCount" | "takenBy" | "takenAt";
       readonly "deals": "snapshot" | "tenant" | "deal" | "name" | "owner" | "stage" | "forecast" | "outcome" | "amount" | "closeOn" | "closedAt";
     };
-    readonly functions: "forecast_changes" | "forecast_snapshot" | "forecast_snapshots" | "take_forecast_snapshot";
+    readonly functions: "forecast_changes" | "forecast_snapshot" | "forecast_snapshots" | "page_forecast_snapshots" | "take_forecast_snapshot";
     readonly actions: "read" | "snapshot";
     readonly hooks: never;
     readonly entities: {
@@ -1467,7 +1467,7 @@ export interface BlockNameRegistry {
       readonly "tracking": "id" | "tenant" | "message" | "kind" | "position" | "userAgent" | "occurredAt";
       readonly "links": "tenant" | "thread" | "subjectType" | "subjectId" | "source" | "createdAt";
     };
-    readonly functions: "connect_mail_account" | "disconnect_mail_account" | "due_mail_accounts" | "get_mail_account" | "get_mail_thread" | "ingest_mail" | "link_mail_thread" | "list_mail_threads" | "mail_accounts_of" | "mail_template_stats" | "mail_thread_visible" | "mail_threads_of" | "record_sent_mail" | "set_mail_account_status" | "store_mail_message" | "track_mail" | "unlink_mail_thread" | "update_mail_account";
+    readonly functions: "connect_mail_account" | "disconnect_mail_account" | "due_mail_accounts" | "get_mail_account" | "get_mail_thread" | "ingest_mail" | "link_mail_thread" | "list_mail_threads" | "mail_accounts_of" | "mail_template_stats" | "mail_thread_visible" | "mail_threads_of" | "page_mail_accounts" | "page_mail_threads" | "record_sent_mail" | "set_mail_account_status" | "store_mail_message" | "track_mail" | "unlink_mail_thread" | "update_mail_account";
     readonly actions: "read" | "connect" | "send" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1836,7 +1836,7 @@ export interface BlockNameRegistry {
       readonly "transitions": "tenant" | "pipeline" | "from" | "to";
       readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "pipeline" | "fromStage" | "toStage" | "stageName" | "category" | "outcome" | "amount" | "currency" | "actor" | "enteredAt" | "exitedAt";
     };
-    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "list_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "restore_pipeline" | "restore_pipeline_stage" | "save_pipeline" | "save_pipeline_stage" | "set_pipeline_transitions";
+    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "get_pipeline" | "list_pipelines" | "page_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "restore_pipeline" | "restore_pipeline_stage" | "save_pipeline" | "save_pipeline_stage" | "set_pipeline_transitions";
     readonly actions: "read" | "manage";
     readonly hooks: "before_pipeline_save" | "after_pipeline_save" | "before_pipeline_stage_save" | "after_pipeline_stage_save" | "before_pipeline_stage_change" | "after_pipeline_stage_change";
     readonly entities: {
@@ -1941,7 +1941,7 @@ export interface BlockNameRegistry {
       readonly "versionLines": "id" | "tenant" | "version" | "position" | "description" | "quantity" | "unitAmount" | "periods" | "unit" | "discountKind" | "discountBps" | "taxRateBps" | "taxCode" | "section" | "optional" | "selected" | "productType" | "productId";
       readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
-    readonly functions: "clone_quote" | "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "import_quote" | "list_quote_variants" | "list_quotes_for_subject" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
+    readonly functions: "clone_quote" | "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "get_quote" | "import_quote" | "list_quote_variants" | "list_quotes_for_subject" | "page_quotes" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept" | "before_quote_clone" | "after_quote_clone";
     readonly entities: {
@@ -2175,7 +2175,7 @@ export interface BlockNameRegistry {
       readonly "segments": "id" | "tenant" | "name" | "description" | "subjectType" | "conditions" | "memberCount" | "refreshedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "members": "segment" | "tenant" | "subjectId" | "enteredAt";
     };
-    readonly functions: "evaluate_segment" | "list_segment_members" | "refresh_due_segments" | "refresh_segment" | "remove_segment" | "save_segment" | "segment_get" | "segments_list" | "segments_of";
+    readonly functions: "evaluate_segment" | "list_segment_members" | "page_segments" | "refresh_due_segments" | "refresh_segment" | "remove_segment" | "save_segment" | "segment_get" | "segments_list" | "segments_of";
     readonly actions: "read" | "write";
     readonly hooks: never;
     readonly entities: {

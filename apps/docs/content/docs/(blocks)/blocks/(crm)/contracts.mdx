@@ -129,6 +129,30 @@ marks it `done` or `waived` (and back to `open`). It needs `contracts.write`,
 or being the obligation's owner. `obligations` filters by contract, owner,
 `openOnly` and `dueBefore`.
 
+## Paging contracts and obligations
+
+`page` pages contracts by keyset (ADR 1077). `list` and `obligations` stay as deprecated aliases until 0.70. Contract sorts are `createdAt` (the default), `endsOn`, `startsOn` and `title`. `status`, `ownerId`, `counterpartyType` and `counterpartyId` filter by a list of values, `renewingBefore` takes one date, and `q` searches the title and the description. The facets are `status` and `ownerId`.
+
+`obligationPage` pages obligations the same way. Its sorts are `dueOn` (the default) and `createdAt`, its filters are `contractId`, `ownerId` and `status` (lists) and `dueBefore` (one date), and its facets are `status` and `contractId`. `obligationFacets` and `obligationCount` answer under the same filters. The organization comes from `organizationId`.
+
+```ts
+const open = await contracts
+  .page({ organizationId, filters: { status: ["active"] }, q: "hosting" })
+  .orThrow();
+
+const obligations = await contracts
+  .obligationPage({
+    organizationId,
+    filters: { contractId: [open.items[0].id], status: ["open"] },
+  })
+  .orThrow();
+
+const total = await contracts.count({ organizationId }).orThrow();
+const one = await contracts.get(open.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Section
 
 The [contracts binding](/docs/repository/record-bindings) lists the contracts with a

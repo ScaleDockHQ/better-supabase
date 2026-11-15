@@ -7,6 +7,7 @@ import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
 
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 export type Loaded<T> =
@@ -51,9 +52,13 @@ async function loadRenewals(): Promise<readonly RenewalRow[] | null> {
     return null;
   }
 
-  const contracts = await db.contracts
-    .list({ organizationId: tenant, status: "active", pageSize: 100 })
-    .orThrow();
+  const contracts = await readAllPages((page) =>
+    db.contracts.page({
+      organizationId: tenant,
+      filters: { status: ["active"] },
+      ...page,
+    }),
+  );
 
   const today = Date.parse(new Date().toISOString().slice(0, 10));
 

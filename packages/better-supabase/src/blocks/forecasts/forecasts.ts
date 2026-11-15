@@ -1,6 +1,17 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { DealForecast } from "../deal-forecast.ts";
@@ -8,6 +19,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { forecastOf } from "../deal-forecast.ts";
 import {
@@ -26,6 +38,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { forecastSnapshotListSurface } from "./lists.ts";
 
 /** A stored forecast call. */
 export interface ForecastSnapshot {
@@ -99,7 +112,12 @@ export interface Forecasts {
       readonly pipelineId?: string;
     };
   }): AsyncResult<ForecastSnapshot>;
-  /** Snapshots, newest first, of one pipeline or period when given. */
+  /**
+   * Snapshots, newest first, of one pipeline or period when given.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(input: {
     organizationId: string;
     filter?:
@@ -112,6 +130,20 @@ export interface Forecasts {
         }
       | undefined;
   }): AsyncResult<ForecastSnapshot[]>;
+  /**
+   * One keyset page of the organization's snapshots, newest first. Needs
+   * `forecasts.read`. `filters` takes `pipelineId`, `currency`, `since` and
+   * `until` as lists; a snapshot has no text, so `q` is refused.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<ForecastSnapshot>>;
+  /** The values of each facet (`currency`, `pipelineId`) and their counts. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many snapshots match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** One snapshot with the deals it counted, the largest amount first. */
   get(
     snapshotId: string,
@@ -233,6 +265,15 @@ export function createForecasts(options: ForecastsOptions): Forecasts {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const snapshots = entityList<ForecastSnapshot, RequiredTenantOption>({
+    entity: "forecast snapshot",
+    surface: forecastSnapshotListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_forecast_snapshots",
+    rowOf: (row) => snapshotOf(row),
+  });
+
   const forecasts: Forecasts = {
     snapshot: ({ organizationId, period }) => {
       const invalid = amountsError(period.currency, [period.target]);
@@ -252,6 +293,10 @@ export function createForecasts(options: ForecastsOptions): Forecasts {
           )
         : AsyncResult.err(invalid);
     },
+    page: snapshots.page,
+    facets: snapshots.facets,
+    count: snapshots.count,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, filter = {} }) =>
       call(
         "forecast_snapshots",

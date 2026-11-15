@@ -390,6 +390,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ],
       returns: "jsonb",
     },
+    { name: "page_contracts", args: ["{id}", "jsonb"], returns: "jsonb" },
+    {
+      name: "page_contract_obligations",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "save_contract_obligation",
       args: ["uuid", "text", "date", "uuid", "text", "uuid"],

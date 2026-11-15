@@ -80,6 +80,26 @@ import { useQuotes } from "@/lib/supabase/hooks";
 const rows = useQuotes({ limit: 50 });
 ```
 
+## Paging quotes
+
+`page` pages quotes by keyset (ADR 1077), and `get(id)` reads one and returns a `not_found` error for an unknown id. `list({ subject, limit })` stays as the read for the quotes of one record. Sorts are `createdAt` (the default, newest first), `validUntil` and `title`. `status`, `ownerId`, `currency`, `companyId` and `contactId` filter by a list of values, and `q` searches the title and the identifier. The facets are `status`, `currency` and `ownerId`. The organization comes from `organizationId` or the block's `tenant` option.
+
+```ts
+const first = await quotes
+  .page({
+    filters: { status: ["sent", "accepted"] },
+    sort: { by: "validUntil", direction: "asc" },
+    limit: 50,
+  })
+  .orThrow();
+
+const facets = await quotes.facets().orThrow();
+const total = await quotes.count({ filters: { status: ["sent"] } }).orThrow();
+const one = await quotes.get(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Lifecycle
 
 | Status                 | How it gets there                                                           |
