@@ -4,9 +4,7 @@ import { forbidden } from "next/navigation";
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { movementList, movementSpec } from "../inventory-list";
 import { getMovements } from "../inventory-queries";
 import { InventoryLoadError } from "./inventory-load-error";
 import { MovementRecordList } from "./movement-record-list";
@@ -33,12 +31,7 @@ export async function MovementsOverview() {
 
   return (
     <MovementRecordList
-      initial={pageBlockRows(
-        movementList,
-        movementSpec,
-        movements.data.rows,
-        movementList.defaults,
-      )}
+      initial={movements.data.page}
       locations={movements.data.locations}
     />
   );
