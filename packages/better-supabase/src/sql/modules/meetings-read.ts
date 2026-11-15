@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { archivedListFilter } from "../archive-sql.ts";
 import {
   filterAny,
   filterFirst,
@@ -63,6 +64,9 @@ export function meetingReads(ctx: BlockSqlContext): string {
           select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = ${filterFirst("attendeeId")}::uuid
         ))`,
       `(v_search is null or ${search})`,
+      ...(ctx.has("meetings", "archivedAt")
+        ? [archivedListFilter("x", m("archivedAt"))]
+        : []),
     ],
     keys: [
       { expr: `x.${m("startsAt")}`, dir: "desc", type: "timestamptz" },
@@ -127,7 +131,8 @@ $$;
 ${userGrant(`${fn("get_meeting")}(uuid)`)}
 
 -- The organization's meetings, the latest first. filters is { kind, status (each
--- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- a value or a list of them), from, to (on the start time), attendeeId, archived
+-- (archived meetings are hidden unless it is true, which lists only them), search,
 -- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
 -- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.

@@ -358,7 +358,7 @@ describe.skipIf(!live)("courses", () => {
       );
 
       await s.asRole(owner);
-      expect(await courses.delete(course.id).orThrow()).toBe(true);
+      expect(await courses.purge(course.id).orThrow()).toBe(true);
     } finally {
       await s.close();
     }

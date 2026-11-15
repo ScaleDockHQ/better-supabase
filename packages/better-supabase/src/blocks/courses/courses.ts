@@ -282,8 +282,18 @@ export interface Courses<F extends object = Record<never, never>> {
   facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
   /** How many courses match the page's filters. */
   count(options?: CountOptions): AsyncResult<Count>;
-  /** Deletes a course with its enrollments; `false` when it was gone. */
-  delete(courseId: string): AsyncResult<boolean>;
+  /**
+   * Archives a course (status `archived`): learners without `courses.manage`
+   * stop seeing it and enrollments stay. Records `course.archived`.
+   */
+  archive(courseId: string): AsyncResult<Course<F>>;
+  /** Brings an archived course back as a draft; records `course.restored`. */
+  restore(courseId: string): AsyncResult<Course<F>>;
+  /**
+   * Removes a course for good with its enrollments; `false` when it was gone.
+   * `permissions.purge` gates this, falling back to `courses.manage`.
+   */
+  purge(courseId: string): AsyncResult<boolean>;
   /** The course with its modules and lessons in rank order. */
   outline(courseId: string): AsyncResult<CourseOutline<F>>;
   saveModule(input: {
@@ -682,8 +692,16 @@ export function createCourses<
         ),
     facets: courses.facets,
     count: courses.count,
-    delete: (courseId) =>
-      call("delete_course", { course_id: courseId }, (value) => value === true),
+    archive: (courseId) =>
+      call("archive_course", { course_id: courseId }, (value) =>
+        courseOf(value, "archive_course"),
+      ).andThen(fields.row),
+    restore: (courseId) =>
+      call("restore_course", { course_id: courseId }, (value) =>
+        courseOf(value, "restore_course"),
+      ).andThen(fields.row),
+    purge: (courseId) =>
+      call("purge_course", { course_id: courseId }, (value) => value === true),
     outline: (courseId) =>
       call("course_outline", { course_id: courseId }, outlineOf).andThen(
         fields.row,
