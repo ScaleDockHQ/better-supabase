@@ -116,7 +116,7 @@ export interface EntityListSpec<Item> {
    * one. A block with a `tenant` option passes `() => requireTenant(...)`; a
    * block that takes the organization per call passes `tenantOrOption`.
    */
-  readonly tenant: (organizationId?: string) => AsyncResult<string>;
+  readonly tenant?: (organizationId?: string) => AsyncResult<string>;
   /** The block's SQL list function. */
   readonly fn: string;
   readonly rowOf: (row: Record<string, unknown>, fn: string) => Item;
@@ -292,16 +292,21 @@ export function entityList<Item>(
     filters: Result<Record<string, unknown>>,
     extra: Readonly<Record<string, unknown>>,
     then: (value: unknown) => T,
-  ): AsyncResult<T> =>
-    filters.ok
-      ? tenant(organization).andThen((organizationId) =>
-          call(
-            fn,
-            { tenant: organizationId, filters: { ...filters.data, ...extra } },
-            then,
-          ),
-        )
-      : AsyncResult.err(filters.error);
+  ): AsyncResult<T> => {
+    if (!filters.ok) {
+      return AsyncResult.err(filters.error);
+    }
+
+    const merged = { ...filters.data, ...extra };
+
+    if (tenant === undefined) {
+      return call(fn, { filters: merged }, then);
+    }
+
+    return tenant(organization).andThen((organizationId) =>
+      call(fn, { tenant: organizationId, filters: merged }, then),
+    );
+  };
 
   const page = (options: PageOptions & TenantOption = {}) =>
     read(

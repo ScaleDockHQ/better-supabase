@@ -2,6 +2,13 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ConsentsSql } from "./consents-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { archivedListFilter } from "../archive-sql.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
 import { consentsSql, LEGAL_BASES, PURPOSE_KEY } from "./consents-sql.ts";
@@ -11,6 +18,40 @@ const list = (values: readonly string[]): string =>
 
 function purposeFunctions(ctx: BlockSqlContext, q: ConsentsSql): string {
   const { fn, p, has, purposes, invalid, purposeJson } = q;
+
+  const purposePage = {
+    name: "page_consent_purposes",
+    from: purposes,
+    alias: "x",
+    where: [
+      `(x.${p("tenant")} = page_consent_purposes.tenant or x.${p("tenant")} is null)`,
+      filterAny("key", `x.${p("key")}`),
+      filterAny("legalBasis", `x.${p("legalBasis")}::text`),
+      archivedListFilter("x", p("archivedAt")),
+      `(v_search is null or x.${p("key")} ilike v_search or x.${p("title")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${p("key")}`, dir: "asc", type: "text" },
+      { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      key: [
+        { expr: `x.${p("key")}`, dir: "asc", type: "text" },
+        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { legalBasis: `x.${p("legalBasis")}::text` },
+    rowJson: purposeJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("CONSENT_INVALID", message, "22023"),
+  } as const;
 
   const description = has("purposes", "description")
     ? `\n    ${p("description")} = v_description,`
@@ -201,6 +242,52 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_consent_purposes")}(${ctx.idType}, boolean)`)}
+
+-- The purposes as a keyset page: the organization's own and the system ones, by key, the newest version first (ADR 1077). filters is { key, legalBasis (each a value or a list), archived, search (key and title), sort (key, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_consent_purposes")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_consent_purposes.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(purposePage)}
+begin
+  if not (${SERVICE_CALLER} or page_consent_purposes.tenant in (select ${ctx.scope.members()})) then
+    ${q.forbidden("not a member of this organization")}
+  end if;
+  ${listBody(purposePage)}
+end;
+$$;
+${userGrant(`${fn("page_consent_purposes")}(${ctx.idType}, jsonb)`)}
+
+-- One purpose, or a not-found error. Any member of the organization reads its own and the system purposes.
+create or replace function ${fn("get_consent_purpose")}(purpose_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${purposes}%rowtype;
+begin
+  select * into v_row from ${purposes} x where x.${p("id")} = get_consent_purpose.purpose_id;
+  if not found then
+    ${fail("CONSENT_PURPOSE_NOT_FOUND", "consent purpose not found", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER} or v_row.${p("tenant")} is null or v_row.${p("tenant")} in (select ${ctx.scope.members()})) then
+    ${q.forbidden("not a member of this organization")}
+  end if;
+  return ${purposeJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_consent_purpose")}(uuid)`)}
 `;
 }
 

@@ -15,6 +15,10 @@ const BLOCKS = join(import.meta.dirname, "../../src/blocks");
  */
 const POSITIONAL = new Set<string>([
   "access-requests/access-requests.ts:rowOf",
+  "compliance/compliance.ts:rowOf",
+  "consents/consents.ts:rowOf",
+  "impersonation/impersonation.ts:rowOf",
+  "sequences/sequences.ts:rowOf",
   "advisories/feed.ts:epss",
   "advisories/feed.ts:osv",
   "agent-checkout/x402.ts:onVerified",

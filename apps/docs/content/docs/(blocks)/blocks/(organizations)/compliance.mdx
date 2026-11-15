@@ -317,3 +317,15 @@ const access = await controls
   })
   .orThrow();
 ```
+
+## Paging frameworks, evidence tasks and policies
+
+`frameworkPage`, `evidenceTaskPage` and `policyPage` page by keyset (ADR 1077), each with facets and a count, and `getFramework`, `getEvidenceTask` and `getPolicy` return one row, or a `not_found` error. `frameworks`, `evidenceTasks` and `policies` stay as deprecated aliases until 0.70. Framework filters are `kind`. Task filters are `controlId`, `assigneeId` and `overdue` (`["true"]` keeps the overdue tasks, which replaces `overdueOnly`). Policy filters are `ownerId`, `requiresAcknowledgement` and `archived`. Row level security decides which rows a member sees.
+
+```ts
+const overdue = await compliance
+  .evidenceTaskPage({ organizationId, filters: { overdue: ["true"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

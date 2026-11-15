@@ -1,9 +1,17 @@
-import type { BlockOptions } from "../../core/block-helpers.ts";
+import type {
+  BlockOptions,
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -15,6 +23,7 @@ import {
   textOf,
   isRecord,
 } from "../shared.ts";
+import { sessionListSurface } from "./lists.ts";
 
 /** Why a support session ended. */
 export type SupportSessionEndedBy = "admin" | "expired" | "revoked";
@@ -78,7 +87,12 @@ export interface Impersonation {
    * end anyone's.
    */
   end(sessionId: string): AsyncResult<boolean>;
-  /** Sessions, newest first, for staff with the read permission. */
+  /**
+   * Sessions, newest first, for staff with the read permission.
+   *
+   * @deprecated Use `sessionPage`, which pages by keyset and takes sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(filter?: {
     readonly adminId?: string;
     readonly targetUserId?: string;
@@ -86,6 +100,20 @@ export interface Impersonation {
     readonly active?: boolean;
     readonly limit?: number;
   }): AsyncResult<readonly ImpersonationSession[]>;
+  /**
+   * One keyset page of the support sessions, newest first, for staff with the
+   * read permission. `filters` takes `adminId`, `targetUserId` and `tenant` as
+   * lists, and `active`.
+   */
+  sessionPage(
+    options?: PageOptions,
+  ): AsyncResult<ListPage<ImpersonationSession>>;
+  /** The values of each facet (`readOnly`) and how many sessions hold each. */
+  sessionFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many sessions match the page's filters. */
+  sessionCount(options?: CountOptions): AsyncResult<Count>;
+  /** One support session by id, or a `not_found` error. */
+  getSession(sessionId: string): AsyncResult<ImpersonationSession>;
 }
 
 export interface ImpersonationOptions extends Pick<
@@ -160,7 +188,23 @@ export function createImpersonation(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const sessionList = entityList<ImpersonationSession>({
+    entity: "support session",
+    surface: sessionListSurface,
+    call,
+    fn: "page_support_sessions",
+    rowOf: (row, fn) => sessionOf(row, fn),
+  });
+
   const client: Impersonation = {
+    sessionPage: (page = {}) => sessionList.page(page),
+    sessionFacets: (facets = {}) => sessionList.facets(facets),
+    sessionCount: (count = {}) => sessionList.count(count),
+    getSession: (sessionId) =>
+      call("get_support_session", { session_id: sessionId }, (value) =>
+        sessionOf(value, "get_support_session"),
+      ),
+
     request: (input) =>
       call(
         "request_support_session",
@@ -200,6 +244,7 @@ export function createImpersonation(
         (value) => value === true,
       ),
 
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (filter = {}) =>
       call(
         "list_support_sessions",

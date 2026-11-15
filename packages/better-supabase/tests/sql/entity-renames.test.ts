@@ -98,6 +98,8 @@ describe("blocks.<name>.entities in the SQL", () => {
     catalog: ["'productId'", "'variantId'"],
     // The obligation list filters by `contractId`, a key the client sends.
     contracts: ["'contractId'"],
+    // The enrollment list filters by `sequenceId`, a key the client sends.
+    sequences: ["'sequenceId'"],
     // The gift list filters by `pledgeId`, a key the client sends.
     donations: ["'pledgeId'"],
     // Import item keys the client sends.
@@ -139,7 +141,9 @@ describe("blocks.<name>.entities in the SQL", () => {
     ],
     tills: ["'tillId'"],
     incidents: ["'incidentId'", "'filings'"],
+    // The evidence task list filters by `controlId`, a key the client sends.
     compliance: [
+      "'controlId'",
       "'reviewed-controls'",
       "'include-controls'",
       "'Evidence collected for the applicable controls of '",

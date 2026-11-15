@@ -11,11 +11,14 @@ import { bankingBlock } from "../../src/blocks/banking/manifest.ts";
 import { billableTimeBlock } from "../../src/blocks/billable-time/manifest.ts";
 import { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
+import { complianceBlock } from "../../src/blocks/compliance/manifest.ts";
+import { consentsBlock } from "../../src/blocks/consents/manifest.ts";
 import { contactsBlock } from "../../src/blocks/contacts/manifest.ts";
 import { contentBlock } from "../../src/blocks/content/manifest.ts";
 import { contractsBlock } from "../../src/blocks/contracts/manifest.ts";
 import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { dataLifecycleBlock } from "../../src/blocks/data-lifecycle/manifest.ts";
 import { deadlinesBlock } from "../../src/blocks/deadlines/manifest.ts";
 import { dealsBlock } from "../../src/blocks/deals/manifest.ts";
 import { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
@@ -29,6 +32,7 @@ import { expensesBlock } from "../../src/blocks/expenses/manifest.ts";
 import { forecastsBlock } from "../../src/blocks/forecasts/manifest.ts";
 import { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import { guestsBlock } from "../../src/blocks/guests/manifest.ts";
+import { impersonationBlock } from "../../src/blocks/impersonation/manifest.ts";
 import { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
@@ -42,6 +46,7 @@ import { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
 import { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
 import { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
+import { optionSetsBlock } from "../../src/blocks/option-sets/manifest.ts";
 import { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
@@ -130,6 +135,11 @@ const BLOCKS = [
   attachmentsBlock,
   templatesBlock,
   inventoryBlock,
+  complianceBlock,
+  consentsBlock,
+  dataLifecycleBlock,
+  impersonationBlock,
+  optionSetsBlock,
 ];
 
 const RENDERED = renderBlocks(
@@ -187,6 +197,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(84);
+    expect(CASES).toHaveLength(92);
   });
 });

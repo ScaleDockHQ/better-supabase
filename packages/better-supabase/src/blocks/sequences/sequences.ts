@@ -5,7 +5,11 @@ import type {
   PageOptions,
 } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { MailSendDraft } from "../mail-sync/mail-sync.ts";
@@ -14,7 +18,7 @@ import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { entityList } from "../../core/entity-list.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import {
@@ -32,7 +36,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
-import { sequenceListSurface } from "./lists.ts";
+import { enrollmentListSurface, sequenceListSurface } from "./lists.ts";
 
 const SEQUENCE_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const RUN_STATUSES = ["active", "paused", "completed", "exited"] as const;
@@ -236,6 +240,25 @@ export interface Sequences {
   resume(enrollmentId: string): AsyncResult<SequenceEnrollment>;
   /** Ends a run by hand; its completed steps stay. */
   exit(enrollmentId: string): AsyncResult<SequenceEnrollment>;
+  /**
+   * One keyset page of the sequence recipients. `filters` takes `sequenceId`,
+   * `subjectType`, `subjectId` and `status` as lists.
+   */
+  enrollmentPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<SequenceEnrollment>>;
+  /** The values of each facet (`status`) and how many rows hold each. */
+  enrollmentFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rows match the page's filters. */
+  enrollmentCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One recipient's run by id, or a `not_found` error. */
+  getEnrollment(enrollmentId: string): AsyncResult<SequenceEnrollment>;
+  /**
+   * @deprecated Use `enrollmentPage`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   enrollments(
     filter?: SequenceEnrollmentsFilter,
   ): AsyncResult<readonly SequenceEnrollment[]>;
@@ -547,7 +570,25 @@ export function createSequences(options: SequencesOptions): Sequences {
     rowOf: sequenceOf,
   });
 
+  const enrollmentList = entityList<SequenceEnrollment, TenantOption>({
+    entity: "sequence enrollment",
+    surface: enrollmentListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_sequence_enrollments",
+    rowOf: (row, fn) => enrollment(fn)(row),
+  });
+
   const client: Sequences = {
+    enrollmentPage: (page = {}) => enrollmentList.page(page),
+    enrollmentFacets: (facets = {}) => enrollmentList.facets(facets),
+    enrollmentCount: (count = {}) => enrollmentList.count(count),
+    getEnrollment: (enrollmentId) =>
+      call(
+        "get_sequence_enrollment",
+        { enrollment_id: enrollmentId },
+        enrollment("get_sequence_enrollment"),
+      ),
     sequencePage: sequences.page,
     sequenceFacets: sequences.facets,
     sequenceCount: sequences.count,
@@ -599,6 +640,7 @@ export function createSequences(options: SequencesOptions): Sequences {
     pause: (enrollmentId) => change(enrollmentId, "pause"),
     resume: (enrollmentId) => change(enrollmentId, "resume"),
     exit: (enrollmentId) => change(enrollmentId, "exit"),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     enrollments: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(

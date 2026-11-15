@@ -77,11 +77,11 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   comments:
     "comment_conversation comment_counts copy_comments create_comment get_comment list_comments list_file_comments",
   compliance:
-    "add_control_evidence apply_oscal_profile archive_compliance_policy control_posture export_oscal_assessment_results get_control import_oscal_catalog list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence restore_compliance_policy save_compliance_policy save_control save_control_framework save_evidence_task",
+    "add_control_evidence apply_oscal_profile archive_compliance_policy control_posture export_oscal_assessment_results get_compliance_policy get_control get_control_framework get_evidence_task import_oscal_catalog list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks page_compliance_policies page_control_frameworks page_evidence_tasks publish_compliance_policy remove_control_evidence restore_compliance_policy save_compliance_policy save_control save_control_framework save_evidence_task",
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
   consents:
-    "archive_consent_purpose consent_active expire_consents issue_consent_receipt list_consent_purposes list_consent_receipts list_consent_signals list_consents record_consent record_consent_signal restore_consent_purpose save_consent_purpose withdraw_consent",
+    "archive_consent_purpose consent_active expire_consents get_consent_purpose issue_consent_receipt list_consent_purposes list_consent_receipts list_consent_signals list_consents page_consent_purposes record_consent record_consent_signal restore_consent_purpose save_consent_purpose withdraw_consent",
   contacts:
     "add_person_identity archive_company archive_person company_people_of delete_payment_term find_person_by_identity get_company get_person list_companies list_document_delivery_preferences list_payment_terms list_people list_person_identities merge_companies merge_people page_companies page_people remove_company_person remove_person_identity save_company save_payment_term save_person set_company_person set_document_delivery_preferences set_party_roles set_supplier_status supplier_status_from_qualifications",
   content:
@@ -94,7 +94,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "custom-fields":
     "archive_field_definition delete_field_value install_field_pack list_field_definitions purge_field_definition rank_field_definition read_field_values restore_field_definition save_field_definition set_field_value update_field_value",
   "data-lifecycle":
-    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions erase_data_subject expired_data_exports extend_data_subject_request fail_data_export forget_data_exports fulfil_data_subject_request get_data_export list_data_exports list_data_subject_requests list_legal_holds list_retention_policies open_data_subject_request organization_credential_refs organization_deletion place_legal_hold purge_organization refuse_data_subject_request release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy verify_data_subject_request",
+    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions erase_data_subject expired_data_exports extend_data_subject_request fail_data_export forget_data_exports fulfil_data_subject_request get_data_export get_data_subject_request list_data_exports list_data_subject_requests list_legal_holds list_retention_policies open_data_subject_request organization_credential_refs organization_deletion page_data_subject_requests place_legal_hold purge_organization refuse_data_subject_request release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy verify_data_subject_request",
   deals:
     "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal get_deal list_deals_for_subject page_deals reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
@@ -137,7 +137,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   identities:
     "backfill_verified_emails begin_identity_link my_identities principal_by_identity redeem_identity_link unlink_identity",
   impersonation:
-    "approve_support_request end_support_session list_support_sessions request_support_session start_support_session",
+    "approve_support_request end_support_session get_support_session list_support_sessions page_support_sessions request_support_session start_support_session",
   imports:
     "cancel_import_run fail_import_chunk finish_import_run get_import_run import_chunk_progress import_resolve import_upsert_batch list_import_runs mark_import_running process_import_chunk start_import start_import_run store_import_chunk",
   inbox:
@@ -221,7 +221,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   "option-sets":
-    "archive_option_set_item ensure_option_set list_option_sets rank_option_set_item restore_option_set_item save_option_set save_option_set_item",
+    "archive_option_set_item ensure_option_set get_option_set list_option_sets page_option_sets rank_option_set_item restore_option_set_item save_option_set save_option_set_item",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
   permissions: "can list_roles my_permissions set_permission_override",
@@ -263,7 +263,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   segments:
     "list_segment_members page_segments refresh_due_segments refresh_segment remove_segment save_segment segment_get segments_list segments_of",
   sequences:
-    "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences page_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
+    "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence get_sequence_enrollment list_sequence_enrollments list_sequences page_sequence_enrollments page_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
     "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
   sessions:

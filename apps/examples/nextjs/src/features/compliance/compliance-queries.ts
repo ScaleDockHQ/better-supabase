@@ -111,10 +111,14 @@ async function loadPosture(): Promise<Posture | null> {
 
   const { compliance: controls } = db;
 
-  const [frameworks, tasks] = await Promise.all([
+  const [frameworks, { items: tasks }] = await Promise.all([
     controls.posture({ organizationId: tenant }).orThrow(),
     controls
-      .evidenceTasks({ organizationId: tenant, overdueOnly: true })
+      .evidenceTaskPage({
+        organizationId: tenant,
+        filters: { overdue: ["true"] },
+        limit: 100,
+      })
       .orThrow(),
   ]);
 
@@ -155,7 +159,9 @@ async function loadPurposes(): Promise<readonly PurposeRow[] | null> {
     return null;
   }
 
-  const purposes = await db.consents.purposes().orThrow();
+  const { items: purposes } = await db.consents
+    .purposePage({ limit: 100 })
+    .orThrow();
 
   return purposes.map((purpose) => ({
     id: purpose.id,

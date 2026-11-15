@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:6393035fa352513c8bfb9efc4e16e071a59a2c4b5f9bd169a0d34b09c2331c6d
+-- @bsb-hash sha256:cea983fa98202c0a82f1ef3e81cc4973ee38826e014768e8e7101bac7ba6ce6e
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -187,6 +187,238 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_control_frameworks"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_control_frameworks"(uuid) to authenticated, service_role;
+
+-- The frameworks as a keyset page, by name (ADR 1077). Row level security decides what the caller reads. filters is { kind (a value or a list), search (name and key), sort (name, key), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_control_frameworks"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_control_frameworks.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('kind') then
+      raise exception 'facet is one of kind' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind"::text)::text end) as v
+      from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."control_frameworks" x
+      where x."tenant_id" = page_control_frameworks.tenant
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind"::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_control_frameworks"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_control_frameworks"(uuid, jsonb) to authenticated, service_role;
+
+-- One framework, or a not-found error. Row level security decides what the caller reads.
+create or replace function "better_supabase"."get_control_framework"(framework_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."control_frameworks"%rowtype;
+begin
+  select * into v_row from "better_supabase"."control_frameworks" x where x."id" = get_control_framework.framework_id;
+  if not found then
+    raise exception 'framework not found' using errcode = 'P0002', hint = 'CONTROL_FRAMEWORK_NOT_FOUND';
+  end if;
+  
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_control_framework"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_control_framework"(uuid) to authenticated, service_role;
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
@@ -480,6 +712,256 @@ $$;
 revoke execute on function "better_supabase"."list_evidence_tasks"(uuid, uuid, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_evidence_tasks"(uuid, uuid, uuid, boolean) to authenticated, service_role;
 
+-- The evidence tasks as a keyset page, the earliest due first (ADR 1077). Row level security decides what the caller reads. filters is { controlId, assigneeId (each a value or a list), overdue (true keeps the overdue tasks), search (title), sort (dueOn, title), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_evidence_tasks"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_evidence_tasks.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('controlId') then
+      raise exception 'facet is one of controlId' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'controlId' then (x."control_id"::text)::text end) as v
+      from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('dueOn', 'title') then
+    raise exception 'sort is one of dueOn, title' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."due_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."due_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."due_on" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."due_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."due_on" <= (v_after ->> 0)::date and ((x."due_on" < (v_after ->> 0)::date) or (x."due_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."due_on" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."due_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."due_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."due_on" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."due_on")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."due_on" <= (v_after ->> 0)::date and ((x."due_on" < (v_after ->> 0)::date) or (x."due_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."due_on" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."title", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."title" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'controlId', x."control_id", 'title', x."title", 'assigneeId', x."assignee_id", 'intervalDays', x."interval_days", 'dueOn', x."due_on", 'lastCollectedAt', x."last_collected_at", 'active', x."active", 'overdue', (x."active" and x."due_on" < current_date), 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('controlCode', (select y."code" from "better_supabase"."controls" y where y."id" = x."control_id"), 'controlTitle', (select y."title" from "better_supabase"."controls" y where y."id" = x."control_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."title" <= (v_after ->> 0)::text and ((x."title" < (v_after ->> 0)::text) or (x."title" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."title" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."evidence_tasks" x
+      where x."tenant_id" = page_evidence_tasks.tenant
+        and (not (v_filters -> 'controlId' is not null and jsonb_typeof(v_filters -> 'controlId') <> 'null' and not (jsonb_typeof(v_filters -> 'controlId') = 'array' and jsonb_array_length(v_filters -> 'controlId') = 0)) or x."control_id"::text = any((case when jsonb_typeof(v_filters -> 'controlId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'controlId')) else array[v_filters ->> 'controlId'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id"::text = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."active" and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_evidence_tasks"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_evidence_tasks"(uuid, jsonb) to authenticated, service_role;
+
+-- One evidence task, or a not-found error. Row level security decides what the caller reads.
+create or replace function "better_supabase"."get_evidence_task"(task_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."evidence_tasks"%rowtype;
+begin
+  select * into v_row from "better_supabase"."evidence_tasks" x where x."id" = get_evidence_task.task_id;
+  if not found then
+    raise exception 'evidence task not found' using errcode = 'P0002', hint = 'EVIDENCE_TASK_NOT_FOUND';
+  end if;
+  
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'controlId', v_row."control_id", 'title', v_row."title", 'assigneeId', v_row."assignee_id", 'intervalDays', v_row."interval_days", 'dueOn', v_row."due_on", 'lastCollectedAt', v_row."last_collected_at", 'active', v_row."active", 'overdue', (v_row."active" and v_row."due_on" < current_date), 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_evidence_task"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_evidence_task"(uuid) to authenticated, service_role;
+
 -- The status rollup per framework: how many controls pass, fail, haven't
 -- started or are out of scope, and how many evidence tasks are overdue.
 create or replace function "better_supabase"."control_posture"(tenant uuid, framework_id uuid default null)
@@ -739,6 +1221,260 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_compliance_policies"(uuid, boolean) to authenticated, service_role;
+
+-- The policies as a keyset page, by title, with the caller's acknowledgement of each current version (ADR 1077). filters is { ownerId, requiresAcknowledgement (each a value or a list), archived, search (title and key), sort (title, publishedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_compliance_policies"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_compliance_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_compliance_policies.tenant, 'compliance.read'), false)) then
+    raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('requiresAcknowledgement') then
+      raise exception 'facet is one of requiresAcknowledgement' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'requiresAcknowledgement' then (x."requires_acknowledgement"::text)::text end) as v
+      from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'publishedAt') then
+    raise exception 'sort is one of title, publishedAt' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (x."title", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."title" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (x."title" <= (v_after ->> 0)::text and ((x."title" < (v_after ->> 0)::text) or (x."title" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."title" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (x."title", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."title" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((x."title")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (x."title" <= (v_after ->> 0)::text and ((x."title" < (v_after ->> 0)::text) or (x."title" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."title" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((coalesce(x."published_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (coalesce(x."published_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = x."tenant_id")) as j, jsonb_build_array((coalesce(x."published_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+        and (v_after is null or (coalesce(x."published_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", 'infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."compliance_policies" x
+      where x."tenant_id" = page_compliance_policies.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'requiresAcknowledgement' is not null and jsonb_typeof(v_filters -> 'requiresAcknowledgement') <> 'null' and not (jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' and jsonb_array_length(v_filters -> 'requiresAcknowledgement') = 0)) or x."requires_acknowledgement"::text = any((case when jsonb_typeof(v_filters -> 'requiresAcknowledgement') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'requiresAcknowledgement')) else array[v_filters ->> 'requiresAcknowledgement'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_compliance_policies"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_compliance_policies"(uuid, jsonb) to authenticated, service_role;
+
+-- One policy, or a not-found error. Needs the compliance read permission.
+create or replace function "better_supabase"."get_compliance_policy"(policy_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."compliance_policies"%rowtype;
+begin
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = get_compliance_policy.policy_id;
+  if not found then
+    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)) then
+    raise exception 'not allowed to read policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."workspace_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."workspace_id" = v_row."tenant_id"));
+end;
+$$;
+revoke execute on function "better_supabase"."get_compliance_policy"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_compliance_policy"(uuid) to authenticated, service_role;
 -- Imports an OSCAL catalog (1.2.3) as a framework and its controls. The
 -- framework key defaults to the catalog uuid. Groups and nested controls
 -- flatten into controls by id; the statement prose becomes the description.
