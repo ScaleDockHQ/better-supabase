@@ -26,32 +26,6 @@ export interface SampleRow {
   readonly receivedOn: string;
 }
 
-/**
- * The newest 200 samples. `listSamples` filters by status only, so the overview
- * searches the number, title and lot on the server over these rows (EX-1104).
- */
-export async function loadSamples(): Promise<readonly SampleRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(LIMS_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  const samples = await db.lims.listSamples({ limit: 200 }).orThrow();
-
-  return samples.map((row) => ({
-    id: row.id,
-    number: row.number,
-    title: row.title,
-    kind: row.kind ?? null,
-    lot: row.lot ?? null,
-    status: row.status,
-    receivedOn: row.receivedOn.toString(),
-  }));
-}
-
 export interface MethodRow {
   readonly id: string;
   readonly key: string;

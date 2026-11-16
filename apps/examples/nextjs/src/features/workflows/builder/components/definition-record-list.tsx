@@ -11,7 +11,7 @@ import type { RecordListPage } from "@/components/record-list/record-list-types"
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { RecordListView } from "@/components/record-list/record-list-view";
-import { useSimpleListState } from "@/components/record-list/use-simple-list-state";
+import { useBlockListState } from "@/components/record-list/use-block-list-state";
 import { Badge } from "@/components/reui/badge";
 import {
   AlertDialog,
@@ -172,7 +172,7 @@ export function DefinitionRecordList({
 }) {
   const t = useExtracted("workflows");
   const stateLabel = useStateLabel();
-  const list = useSimpleListState(definitionList);
+  const list = useBlockListState(definitionList);
 
   const columns: RecordListColumns<DefinitionListRow> = [
     { accessorKey: "name", header: t("Workflow"), size: 340, cell: NameCell },

@@ -3,7 +3,7 @@
 import type { CellContext } from "@tanstack/react-table";
 
 import { useExtracted } from "next-intl";
-import { parseAsInteger, parseAsString, useQueryStates } from "nuqs";
+import { parseAsString, useQueryStates } from "nuqs";
 import { useMemo, useTransition } from "react";
 
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -129,10 +129,12 @@ function cellOf(column: BlockColumn): (context: RowCell) => React.ReactNode {
 const ALL = "__all__";
 
 /**
- * An overview over a list a block returns whole: the search, one facet filter,
- * the sort and the page live in the URL, the server filters and pages the rows
- * (`applyBlockList`), and a change runs in a transition that keeps the grid and
- * dims it while the next page renders.
+ * An overview over a block's `page` method: the search, one facet filter, the
+ * sort and the keyset cursor (`after`) live in the URL, the database filters,
+ * sorts and pages the rows (`pageEntityRows`), and a change runs in a
+ * transition that keeps the grid and dims it while the next page renders. Each
+ * next page is a history entry, so the browser's back button returns to the
+ * page before.
  */
 export function BlockListView({
   rows,
@@ -142,9 +144,7 @@ export function BlockListView({
   facetOptions,
   sorts,
   searchLabel,
-  total,
-  page,
-  pages,
+  nextCursor,
   emptyIcon,
   emptyTitle,
   emptyDescription,
@@ -157,10 +157,10 @@ export function BlockListView({
   facetLabel?: string;
   facetOptions?: readonly BlockFacetOption[];
   sorts: readonly RecordListSort[];
-  searchLabel: string;
-  total: number;
-  page: number;
-  pages: number;
+  /** Omit it for a list the block cannot search. */
+  searchLabel?: string | undefined;
+  /** The cursor of the next page, `null` on the last one. */
+  nextCursor: string | null;
   emptyIcon: React.ReactNode;
   emptyTitle: string;
   emptyDescription: string;
@@ -174,7 +174,7 @@ export function BlockListView({
       q: parseAsString.withDefault(""),
       f: parseAsString.withDefault(""),
       sort: parseAsString.withDefault(""),
-      page: parseAsInteger.withDefault(1),
+      after: parseAsString.withDefault(""),
     },
     { shallow: false, startTransition, clearOnDefault: true },
   );
@@ -218,7 +218,7 @@ export function BlockListView({
                 if (value !== null) {
                   void setState({
                     f: value === ALL ? null : value,
-                    page: null,
+                    after: null,
                   });
                 }
               }}
@@ -237,10 +237,10 @@ export function BlockListView({
           ) : null
         }
         onSearch={(value) => {
-          void setState({ q: value === "" ? null : value, page: null });
+          void setState({ q: value === "" ? null : value, after: null });
         }}
         onSort={(value) => {
-          void setState({ sort: value, page: null });
+          void setState({ sort: value, after: null });
         }}
       />
       <RecordListGrid
@@ -258,7 +258,7 @@ export function BlockListView({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void setState({ q: null, f: null, page: null });
+                  void setState({ q: null, f: null, after: null });
                 }}
               >
                 {t("Reset filters")}
@@ -268,40 +268,31 @@ export function BlockListView({
           </div>
         }
         onRetry={() => {
-          void setState({ page: null });
+          void setState({ after: null });
         }}
       />
-      {pages > 1 ? (
-        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-          <span>
-            {t("Page {page} of {pages}, {total} rows", {
-              page: String(page),
-              pages: String(pages),
-              total: String(total),
-            })}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending || page <= 1}
-              onClick={() => {
-                void setState({ page: page - 1 });
-              }}
-            >
-              {t("Previous page")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={pending || page >= pages}
-              onClick={() => {
-                void setState({ page: page + 1 });
-              }}
-            >
-              {t("Next page")}
-            </Button>
-          </div>
+      {state.after !== "" || nextCursor !== null ? (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || state.after === ""}
+            onClick={() => {
+              void setState({ after: null });
+            }}
+          >
+            {t("First page")}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || nextCursor === null}
+            onClick={() => {
+              void setState({ after: nextCursor }, { history: "push" });
+            }}
+          >
+            {t("Next page")}
+          </Button>
         </div>
       ) : null}
     </div>

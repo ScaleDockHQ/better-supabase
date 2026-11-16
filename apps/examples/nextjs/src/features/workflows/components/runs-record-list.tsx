@@ -12,7 +12,7 @@ import type { RecordListPage } from "@/components/record-list/record-list-types"
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
 import { RecordListView } from "@/components/record-list/record-list-view";
-import { useSimpleListState } from "@/components/record-list/use-simple-list-state";
+import { useBlockListState } from "@/components/record-list/use-block-list-state";
 import { Badge } from "@/components/reui/badge";
 import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -120,7 +120,7 @@ export function RunsRecordList({
   tenant: string | null;
 }) {
   const t = useExtracted("workflows");
-  const list = useSimpleListState(runList);
+  const list = useBlockListState(runList);
 
   const sinceLabel = (value: string): string => {
     switch (value) {

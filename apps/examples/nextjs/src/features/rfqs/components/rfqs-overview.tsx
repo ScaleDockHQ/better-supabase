@@ -1,7 +1,7 @@
 import { FileQuestionIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { settle } from "@/features/crm/crm-queries";
@@ -14,7 +14,6 @@ import {
 import { loadLookups } from "@/features/warehouse/warehouse-queries";
 
 import { createRfq } from "../rfqs-actions";
-import { loadRfqs } from "../rfqs-queries";
 
 export function RfqListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -37,38 +36,38 @@ export async function rfqStatusLabels(): Promise<Record<string, string>> {
  * server.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function RfqOverview({ query }: { query: BlockListQuery }) {
+export async function RfqOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("rfqs.read");
 
-  const [t, loaded, fmtDate, statuses] = await Promise.all([
+  const [t, fmtDate, statuses] = await Promise.all([
     getExtracted("rfqs"),
-    settle(loadRfqs),
     dateFormatter(),
     rfqStatusLabels(),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (rfq) => `${rfq.number} ${rfq.title}`,
-        facet: (rfq) => rfq.status,
-        defaultSort: "newest",
+      pager={({ db }) => ({
+        page: (options) => db.rfqs.rfqPage(options),
+        facets: (options) => db.rfqs.rfqFacets(options),
+      })}
+      map={{
         sorts: {
-          newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
-          due: (a, b) => (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999"),
-          title: (a, b) => a.title.localeCompare(b.title),
+          newest: { by: "number", direction: "desc" },
+          due: { by: "dueAt" },
         },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
+      query={query}
       toRow={(rfq) => ({
         id: rfq.id,
         number: rfq.number,
         title: rfq.title,
         currency: rfq.currency,
         status: rfq.status,
-        dueAt: fmtDate(rfq.dueAt),
-        createdAt: fmtDate(rfq.createdAt),
+        dueAt: fmtDate(rfq.dueAt?.toString()),
+        createdAt: fmtDate(rfq.createdAt.toString()),
       })}
       columns={[
         { key: "number", header: t("Number"), kind: "muted", size: 110 },
@@ -100,7 +99,6 @@ export async function RfqOverview({ query }: { query: BlockListQuery }) {
       sorts={[
         { value: "newest", label: t("Newest first") },
         { value: "due", label: t("Soonest due") },
-        { value: "title", label: t("Title") },
       ]}
       searchLabel={t("Search requests")}
       errorTitle={t("The requests didn't load")}

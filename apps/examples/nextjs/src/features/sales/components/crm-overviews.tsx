@@ -1,3 +1,4 @@
+import { AsyncResult, ok } from "better-supabase";
 import {
   BuildingIcon,
   FileSignatureIcon,
@@ -8,23 +9,32 @@ import {
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { CreateContactDialog } from "@/features/crm/components/create-contact-dialog";
-import { loadContacts, settle } from "@/features/crm/crm-queries";
+import { CrmLoadError } from "@/features/crm/components/crm-load-error";
+import { contactsMap, contactsPager } from "@/features/crm/contacts-list";
+import { settle } from "@/features/crm/crm-queries";
+import { loadedPager } from "@/lib/loaded-pager";
 
+import { loadHealth } from "../automation/automation-queries";
 import {
-  loadHealth,
-  loadQueues,
-  loadScoreModels,
-  loadSegments,
-} from "../automation/automation-queries";
-import { contractsSpec } from "../list-reads/contracts-reads";
-import { queuesSpec } from "../list-reads/queues-reads";
-import { scoreModelsSpec } from "../list-reads/scores-reads";
-import { segmentsSpec } from "../list-reads/segments-reads";
-import { loadContracts } from "../revenue/revenue-queries";
+  contractOf,
+  contractsMap,
+  contractsPager,
+} from "../list-reads/contracts-reads";
+import { queuesMap, queuesPager } from "../list-reads/queues-reads";
+import {
+  scoreModelOf,
+  scoreModelsMap,
+  scoreModelsPager,
+} from "../list-reads/scores-reads";
+import {
+  segmentOf,
+  segmentsMap,
+  segmentsPager,
+} from "../list-reads/segments-reads";
 import {
   createContract,
   createQueue,
@@ -83,29 +93,38 @@ export async function CreateSegmentDialog() {
 }
 
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function SegmentOverview({ query }: { query: BlockListQuery }) {
+export async function SegmentOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("segments.read");
 
-  const [t, loaded, fmtDate, canWrite] = await Promise.all([
+  const [t, fmtDate, canWrite] = await Promise.all([
     getExtracted("sales"),
-    settle(loadSegments),
     dateFormatter(),
     holds("segments.write"),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => segmentsPager(db, tenant)}
+      map={segmentsMap}
       query={query}
-      spec={segmentsSpec}
-      toRow={(segment) => ({
-        id: segment.id,
-        name: segment.name,
-        subjectType: segment.subjectType,
-        members: segment.memberCount,
-        rules: segment.rules,
-        refreshedAt: segment.refreshedAt ? fmtDate(segment.refreshedAt) : null,
-      })}
+      toRow={(row) => {
+        const segment = segmentOf(row);
+
+        return {
+          id: segment.id,
+          name: segment.name,
+          subjectType: segment.subjectType,
+          members: segment.memberCount,
+          rules: segment.rules,
+          refreshedAt: segment.refreshedAt
+            ? fmtDate(segment.refreshedAt)
+            : null,
+        };
+      }}
       columns={[
         {
           key: "name",
@@ -189,20 +208,19 @@ export async function CreateQueueDialog() {
 }
 
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function QueueOverview({ query }: { query: BlockListQuery }) {
+export async function QueueOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("assignment.read");
 
-  const [t, loaded, canManage] = await Promise.all([
+  const [t, canManage] = await Promise.all([
     getExtracted("sales"),
-    settle(loadQueues),
     holds("assignment.manage"),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => queuesPager(db, tenant)}
+      map={queuesMap}
       query={query}
-      spec={queuesSpec}
       toRow={(queue) => ({
         id: queue.id,
         name: queue.name,
@@ -302,31 +320,38 @@ export async function CreateScoreModelDialog() {
 }
 
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function ScoreModelOverview({ query }: { query: BlockListQuery }) {
+export async function ScoreModelOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("scores.read");
 
-  const [t, loaded, canManage] = await Promise.all([
+  const [t, canManage] = await Promise.all([
     getExtracted("sales"),
-    settle(loadScoreModels),
     holds("scores.manage"),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => scoreModelsPager(db, tenant)}
+      map={scoreModelsMap}
       query={query}
-      spec={scoreModelsSpec}
-      toRow={(model) => ({
-        id: model.id,
-        name: model.name,
-        key: model.key,
-        subjectType: model.subjectType,
-        rules: model.rules,
-        metrics: model.metrics,
-        bands: model.bands,
-        version: model.version,
-        state: model.enabled ? "enabled" : "paused",
-      })}
+      toRow={(row) => {
+        const model = scoreModelOf(row);
+
+        return {
+          id: model.id,
+          name: model.name,
+          key: model.key,
+          subjectType: model.subjectType,
+          rules: model.rules,
+          metrics: model.metrics,
+          bands: model.bands,
+          version: model.version,
+          state: model.enabled ? "enabled" : "paused",
+        };
+      }}
       columns={[
         {
           key: "name",
@@ -428,34 +453,40 @@ export async function contractStatusLabels(): Promise<
 }
 
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function ContractOverview({ query }: { query: BlockListQuery }) {
+export async function ContractOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("contracts.read");
 
-  const [t, loaded, fmtMoney, fmtDate, statusLabels, canWrite] =
-    await Promise.all([
-      getExtracted("sales"),
-      settle(loadContracts),
-      moneyFormatter(),
-      dateFormatter(),
-      contractStatusLabels(),
-      holds("contracts.write"),
-    ]);
+  const [t, fmtMoney, fmtDate, statusLabels, canWrite] = await Promise.all([
+    getExtracted("sales"),
+    moneyFormatter(),
+    dateFormatter(),
+    contractStatusLabels(),
+    holds("contracts.write"),
+  ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => contractsPager(db, tenant)}
+      map={contractsMap}
       query={query}
-      spec={contractsSpec}
-      toRow={(contract) => ({
-        id: contract.id,
-        title: contract.title,
-        status: contract.status,
-        value: contract.value ? fmtMoney(contract.value) : null,
-        startsOn: fmtDate(contract.startsOn),
-        endsOn: fmtDate(contract.endsOn),
-        notice: fmtDate(contract.noticeDeadline),
-        renews: contract.autoRenew ? "auto" : "manual",
-      })}
+      toRow={(row) => {
+        const contract = contractOf(row);
+
+        return {
+          id: contract.id,
+          title: contract.title,
+          status: contract.status,
+          value: contract.value ? fmtMoney(contract.value) : null,
+          startsOn: fmtDate(contract.startsOn),
+          endsOn: fmtDate(contract.endsOn),
+          notice: fmtDate(contract.noticeDeadline),
+          renews: contract.autoRenew ? "auto" : "manual",
+        };
+      }}
       columns={[
         {
           key: "title",
@@ -493,7 +524,7 @@ export async function ContractOverview({ query }: { query: BlockListQuery }) {
       facet={{ key: "status", label: t("Status"), values: statusLabels }}
       sorts={[
         { value: "ending", label: t("Ending soonest") },
-        { value: "notice", label: t("Notice deadline") },
+        { value: "starting", label: t("Starting soonest") },
         { value: "title", label: t("Title") },
       ]}
       searchLabel={t("Search contracts")}
@@ -507,7 +538,7 @@ export async function ContractOverview({ query }: { query: BlockListQuery }) {
 }
 
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function HealthOverview({ query }: { query: BlockListQuery }) {
+export async function HealthOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("scores.read");
 
   const [t, loaded, fmtDate] = await Promise.all([
@@ -516,30 +547,44 @@ export async function HealthOverview({ query }: { query: BlockListQuery }) {
     dateFormatter(),
   ]);
 
-  const rows =
-    loaded.kind === "ok"
-      ? ({ kind: "ok", data: loaded.data.rows } as const)
-      : loaded;
+  if (loaded.kind === "no-organization") {
+    return null;
+  }
+
+  if (loaded.kind === "error") {
+    return <CrmLoadError title={t("Account health didn't load")} />;
+  }
 
   const bands = Object.fromEntries(
-    (loaded.kind === "ok" ? loaded.data.rows : [])
+    loaded.data.rows
       .flatMap((row) => (row.band ? [row.band] : []))
       .map((band) => [band, band]),
   );
 
   return (
     <BlockOverview
-      loaded={rows}
       query={query}
-      spec={{
-        search: (row) => `${row.name} ${row.band ?? ""}`,
-        facet: (row) => row.band ?? "",
-        defaultSort: "lowest",
+      pager={() =>
+        loadedPager(
+          () => AsyncResult.from(() => Promise.resolve(ok(loaded.data.rows))),
+          {
+            search: (row) => `${row.name} ${row.band ?? ""}`,
+            facets: { band: (row) => row.band ?? "" },
+            sorts: {
+              score: (a, b) => a.score - b.score,
+              name: (a, b) => a.name.localeCompare(b.name),
+            },
+          },
+        )
+      }
+      map={{
         sorts: {
-          lowest: (a, b) => a.score - b.score,
-          highest: (a, b) => b.score - a.score,
-          name: (a, b) => a.name.localeCompare(b.name),
+          lowest: { by: "score" },
+          highest: { by: "score", direction: "desc" },
+          name: { by: "name" },
         },
+        filters: { f: "band" },
+        facets: { f: "band" },
       }}
       toRow={(row) => ({
         id: row.subjectId,
@@ -587,26 +632,17 @@ export async function ContactOverview({
   query,
   kind,
 }: {
-  query: BlockListQuery;
+  query: RecordListUrlQuery;
   kind?: "company";
 }) {
   await requirePermission("contacts.read");
 
-  const [t, everyone, canWrite] = await Promise.all([
+  const [t, canWrite] = await Promise.all([
     getExtracted("sales"),
-    settle(loadContacts),
     holds("contacts.write"),
   ]);
 
   const companies = kind === "company";
-
-  const loaded =
-    everyone.kind === "ok" && companies
-      ? ({
-          kind: "ok",
-          data: everyone.data.filter((contact) => contact.kind === "company"),
-        } as const)
-      : everyone;
 
   const lifecycles = {
     lead: t("Lead"),
@@ -626,19 +662,11 @@ export async function ContactOverview({
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) =>
+        contactsPager(db, tenant, companies ? "company" : "person")
+      }
+      map={contactsMap}
       query={query}
-      spec={{
-        search: (contact) => `${contact.name} ${contact.detail ?? ""}`,
-        facet: (contact) => contact.lifecycle,
-        defaultSort: "name",
-        sorts: {
-          name: (a, b) => a.name.localeCompare(b.name),
-          lifecycle: (a, b) =>
-            a.lifecycle.localeCompare(b.lifecycle) ||
-            a.name.localeCompare(b.name),
-        },
-      }}
       toRow={(contact) => ({
         id: contact.id,
         name: contact.name,
@@ -691,7 +719,7 @@ export async function ContactOverview({
       facet={{ key: "lifecycle", label: t("Lifecycle"), values: lifecycles }}
       sorts={[
         { value: "name", label: t("Name") },
-        { value: "lifecycle", label: t("Lifecycle") },
+        { value: "newest", label: t("Newest first") },
       ]}
       searchLabel={companies ? t("Search companies") : t("Search contacts")}
       errorTitle={

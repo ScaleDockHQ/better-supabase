@@ -50,6 +50,23 @@ export async function loadTills(): Promise<readonly TillRow[] | null> {
   }));
 }
 
+/** The ids of the tills with a session open right now. */
+export async function loadOpenTillIds(): Promise<readonly string[] | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(TILLS_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const open = await db.tills
+    .listSessions({ status: "open", limit: 200 })
+    .orThrow();
+
+  return open.map((row) => row.tillId);
+}
+
 export interface TillSessionRow {
   readonly id: string;
   readonly tillId: string;
@@ -59,42 +76,6 @@ export interface TillSessionRow {
   readonly expected: Money;
   readonly openedAt: string;
   readonly closedAt: string | null;
-}
-
-/**
- * The newest 200 sessions. `listSessions` filters by till and status but has no
- * text search, so the overview searches the till name on the server (EX-1105).
- */
-export async function loadSessions(): Promise<
-  readonly TillSessionRow[] | null
-> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(TILLS_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  const [tills, sessions] = await Promise.all([
-    readAllPages((page) =>
-      db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
-    ),
-    db.tills.listSessions({ limit: 200 }).orThrow(),
-  ]);
-
-  const names = new Map(tills.map((till) => [till.id, till.name]));
-
-  return sessions.map((row) => ({
-    id: row.id,
-    tillId: row.tillId,
-    till: names.get(row.tillId) ?? "",
-    status: row.status,
-    openingFloat: row.openingFloat,
-    expected: row.expected,
-    openedAt: row.openedAt.toString(),
-    closedAt: row.closedAt?.toString() ?? null,
-  }));
 }
 
 export interface MovementRow {

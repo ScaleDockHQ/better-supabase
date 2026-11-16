@@ -1,4 +1,11 @@
 import "server-only";
+import type {
+  CountPlan,
+  PickList,
+  PickWave,
+  PutawayRule,
+} from "better-supabase/blocks/warehouse";
+
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
@@ -96,6 +103,21 @@ export interface PickListRow {
   readonly createdAt: string;
 }
 
+/** The pick list as the overview shows it. */
+export function pickListRowOf(row: PickList): PickListRow {
+  return {
+    id: row.id,
+    documentType: row.documentType,
+    documentId: row.documentId,
+    status: row.status,
+    locationId: row.locationId,
+    waveId: row.waveId ?? null,
+    picked: row.lines.filter((line) => line.status === "picked").length,
+    lines: row.lines.length,
+    createdAt: row.createdAt.toString(),
+  };
+}
+
 /**
  * The newest 200 pick lists. `listPickLists` filters by status, wave and
  * document but has no text search, so the overview searches the document id on
@@ -112,17 +134,7 @@ export async function loadPickLists(): Promise<readonly PickListRow[] | null> {
 
   const rows = await db.warehouse.listPickLists({ limit: 200 }).orThrow();
 
-  return rows.map((row) => ({
-    id: row.id,
-    documentType: row.documentType,
-    documentId: row.documentId,
-    status: row.status,
-    locationId: row.locationId,
-    waveId: row.waveId ?? null,
-    picked: row.lines.filter((line) => line.status === "picked").length,
-    lines: row.lines.length,
-    createdAt: row.createdAt.toString(),
-  }));
+  return rows.map(pickListRowOf);
 }
 
 export interface PickLineRow {
@@ -205,6 +217,19 @@ export interface WaveRow {
   readonly createdAt: string;
 }
 
+/** The pick wave as the overview shows it. */
+export function waveRowOf(wave: PickWave): WaveRow {
+  return {
+    id: wave.id,
+    name: wave.name,
+    locationId: wave.locationId,
+    status: wave.status,
+    lists: wave.lists ?? 0,
+    openLists: wave.openLists ?? 0,
+    createdAt: wave.createdAt.toString(),
+  };
+}
+
 export async function loadWaves(): Promise<readonly WaveRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
@@ -216,15 +241,7 @@ export async function loadWaves(): Promise<readonly WaveRow[] | null> {
 
   const waves = await readAllPages((page) => db.warehouse.pickWavePage(page));
 
-  return waves.map((wave) => ({
-    id: wave.id,
-    name: wave.name,
-    locationId: wave.locationId,
-    status: wave.status,
-    lists: wave.lists ?? 0,
-    openLists: wave.openLists ?? 0,
-    createdAt: wave.createdAt.toString(),
-  }));
+  return waves.map(waveRowOf);
 }
 
 export interface PutawayRuleRow {
@@ -235,6 +252,19 @@ export interface PutawayRuleRow {
   readonly priority: number;
   readonly maxQuantity: string | null;
   readonly active: boolean;
+}
+
+/** The putaway rule as the overview shows it. */
+export function putawayRuleRowOf(rule: PutawayRule): PutawayRuleRow {
+  return {
+    id: rule.id,
+    locationId: rule.locationId,
+    binId: rule.binId,
+    variantId: rule.variantId ?? null,
+    priority: rule.priority,
+    maxQuantity: rule.maxQuantity ?? null,
+    active: rule.active,
+  };
 }
 
 export async function loadPutawayRules(): Promise<
@@ -252,15 +282,7 @@ export async function loadPutawayRules(): Promise<
     db.warehouse.putawayRulePage(page),
   );
 
-  return rules.map((rule) => ({
-    id: rule.id,
-    locationId: rule.locationId,
-    binId: rule.binId,
-    variantId: rule.variantId ?? null,
-    priority: rule.priority,
-    maxQuantity: rule.maxQuantity ?? null,
-    active: rule.active,
-  }));
+  return rules.map(putawayRuleRowOf);
 }
 
 export interface SlottingRow {
@@ -313,6 +335,24 @@ export interface CountPlanRow {
   readonly due: boolean;
 }
 
+/** The count plan as the overview shows it; it is due from its run date. */
+export function countPlanRowOf(plan: CountPlan): CountPlanRow {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    id: plan.id,
+    name: plan.name,
+    locationId: plan.locationId,
+    everyDays: plan.everyDays,
+    varianceLimitPct: plan.varianceLimitPct,
+    nextRunOn: plan.nextRunOn,
+    lastRunAt: plan.lastRunAt?.toString() ?? null,
+    lastCountId: plan.lastCountId ?? null,
+    active: plan.active,
+    due: plan.active && plan.nextRunOn <= today,
+  };
+}
+
 export async function loadCountPlans(): Promise<
   readonly CountPlanRow[] | null
 > {
@@ -325,20 +365,8 @@ export async function loadCountPlans(): Promise<
   }
 
   const plans = await readAllPages((page) => db.warehouse.countPlanPage(page));
-  const today = new Date().toISOString().slice(0, 10);
 
-  return plans.map((plan) => ({
-    id: plan.id,
-    name: plan.name,
-    locationId: plan.locationId,
-    everyDays: plan.everyDays,
-    varianceLimitPct: plan.varianceLimitPct,
-    nextRunOn: plan.nextRunOn,
-    lastRunAt: plan.lastRunAt?.toString() ?? null,
-    lastCountId: plan.lastCountId ?? null,
-    active: plan.active,
-    due: plan.active && plan.nextRunOn <= today,
-  }));
+  return plans.map(countPlanRowOf);
 }
 
 export interface VarianceLine {

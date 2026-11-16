@@ -23,33 +23,6 @@ export interface RfqRow {
   readonly awarded: boolean;
 }
 
-/**
- * The newest 200 requests. The block has no text search on `listRfqs`, so the
- * overview searches, filters and pages these rows on the server (EX-1101).
- */
-export async function loadRfqs(): Promise<readonly RfqRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(RFQS_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  const rfqs = await db.rfqs.listRfqs({ limit: 200 }).orThrow();
-
-  return rfqs.map((row) => ({
-    id: row.id,
-    number: row.number,
-    title: row.title,
-    currency: row.currency,
-    status: row.status,
-    dueAt: row.dueAt?.toString() ?? null,
-    createdAt: row.createdAt.toString(),
-    awarded: row.awardedQuoteId !== undefined,
-  }));
-}
-
 export interface RfqLineRow {
   readonly id: string;
   readonly ordinal: number;

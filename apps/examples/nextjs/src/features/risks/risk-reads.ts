@@ -3,7 +3,7 @@ import type { EntityListReads } from "better-supabase/list";
 
 import { sortsOf } from "better-supabase/blocks";
 
-import type { AppDb } from "@/lib/array-reads";
+import type { AppDb } from "@/lib/block-entity-page";
 
 import type { RiskRow } from "./risk-rows";
 

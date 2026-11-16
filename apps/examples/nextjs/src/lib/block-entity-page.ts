@@ -6,14 +6,22 @@ import type {
   PageOptions,
   PageSort,
 } from "better-supabase/blocks";
+import type { EntityListReads } from "better-supabase/list";
+
+import { ok } from "better-supabase";
+import { sortsOf } from "better-supabase/blocks";
 
 import type {
   RecordListPage,
   RecordListUrlQuery,
 } from "@/components/record-list/record-list-types";
 import type { Mutable } from "@/lib/block-status-list";
+import type { bsb } from "@/lib/supabase/server";
 
 import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
+
+/** The route's `db`, as the server client hands it out. */
+export type AppDb = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
 /** The `page` and `facets` reads of a block list, with its tenant bound. */
 export interface EntityPager<Item> {
@@ -106,5 +114,131 @@ export async function pageEntityRows<Item, Row>({
     facetCountsCapped: facets.some((facet) =>
       facet.values.some((value) => !value.count.exact),
     ),
+  };
+}
+
+/** The `page` and `facets` of a block list that takes the organization per call. */
+export interface OrganizationReads<Item> {
+  page(
+    options: PageOptions & { readonly organizationId: string },
+  ): AsyncResult<ListPage<Item>>;
+  facets(
+    options: FacetOptions & { readonly organizationId: string },
+  ): AsyncResult<readonly FacetResult[]>;
+}
+
+/** A block list with the organization bound, as `pageEntityRows` takes it. */
+export function organizationPager<Item>(
+  organizationId: string,
+  reads: OrganizationReads<Item>,
+): EntityPager<Item> {
+  return {
+    page: (options) => reads.page({ ...options, organizationId }),
+    facets: (options) => reads.facets({ ...options, organizationId }),
+  };
+}
+
+/**
+ * The reads module of an `app.*` entity page over a block's `page` and
+ * `facets`. The entity's sort, filter and facet names map onto the block's
+ * through `map`; the database filters, sorts and pages, so no list is read
+ * whole. The organization arrives as the page option `tenantOption` names.
+ */
+export function blockEntityReads<Item, Wire>({
+  pager,
+  map,
+  wire,
+}: {
+  pager: (organizationId: string) => EntityPager<Item>;
+  map: EntityListMap;
+  wire: (item: Item) => Wire;
+}): EntityListReads<Wire> {
+  const filtersOf = (filters: PageOptions["filters"]) => {
+    const mapped: Record<string, readonly string[]> = {};
+
+    for (const [key, values] of Object.entries(filters ?? {})) {
+      mapped[map.filters?.[key] ?? key] = values;
+    }
+
+    return mapped;
+  };
+
+  return {
+    async page(options) {
+      const tenant = String(options["tenant"] ?? "");
+
+      if (tenant === "") {
+        return ok({ items: [], hasMore: false, nextCursor: null });
+      }
+
+      const draft: Mutable<PageOptions> = {};
+
+      if (options.q !== undefined) {
+        draft.q = options.q;
+      }
+
+      if (options.limit !== undefined) {
+        draft.limit = options.limit;
+      }
+
+      if (options.after !== undefined) {
+        draft.after = options.after;
+      }
+
+      const filters = filtersOf(options.filters);
+
+      if (Object.keys(filters).length > 0) {
+        draft.filters = filters;
+      }
+
+      const [term] = sortsOf(options.sort);
+      const sort = term === undefined ? undefined : map.sorts[term.by];
+
+      if (sort !== undefined) {
+        draft.sort = sort;
+      }
+
+      const page = await pager(tenant).page(draft);
+
+      return page.ok
+        ? ok({ ...page.data, items: page.data.items.map(wire) })
+        : page;
+    },
+    async facets(options) {
+      const tenant = String(options["tenant"] ?? "");
+
+      if (tenant === "") {
+        return ok([]);
+      }
+
+      const draft: Mutable<FacetOptions> = {};
+
+      if (options.q !== undefined) {
+        draft.q = options.q;
+      }
+
+      const filters = filtersOf(options.filters);
+
+      if (Object.keys(filters).length > 0) {
+        draft.filters = filters;
+      }
+
+      const facets = await pager(tenant).facets(draft);
+
+      if (!facets.ok) {
+        return facets;
+      }
+
+      const urlKeyOf = new Map(
+        Object.entries(map.facets ?? {}).map(([key, name]) => [name, key]),
+      );
+
+      return ok(
+        facets.data.map((facet) => ({
+          ...facet,
+          facet: urlKeyOf.get(facet.facet) ?? facet.facet,
+        })),
+      );
+    },
   };
 }

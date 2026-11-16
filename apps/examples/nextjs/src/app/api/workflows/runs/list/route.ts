@@ -13,10 +13,6 @@ export const GET = bsb.route(
   async (request, { tenant, supabase }) => {
     const query = runList.parse(request.nextUrl.searchParams);
 
-    if (!query.ok) {
-      return Response.json({ issues: [] }, { status: 400 });
-    }
-
     const names = await definitionNames(supabase, tenant);
 
     return Response.json(await queryRuns(supabase, tenant, query.value, names));

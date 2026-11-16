@@ -1,10 +1,9 @@
 import { FlaskConicalIcon, RulerIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
-import { settle } from "@/features/crm/crm-queries";
 import { ActionDialog } from "@/features/sales/components/action-dialog";
 import { BlockOverview } from "@/features/sales/components/block-overview";
 import {
@@ -13,7 +12,6 @@ import {
 } from "@/features/sales/components/overview-support";
 
 import { registerSample, saveMethod } from "../lims-actions";
-import { loadMethods, loadSamples } from "../lims-queries";
 
 export function LimsListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -33,39 +31,39 @@ export async function sampleStatusLabels(): Promise<Record<string, string>> {
 
 /** Samples, searched, filtered by status, sorted and paged on the server. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function SampleOverview({ query }: { query: BlockListQuery }) {
+export async function SampleOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("lims.read");
 
-  const [t, loaded, fmtDate, statuses] = await Promise.all([
+  const [t, fmtDate, statuses] = await Promise.all([
     getExtracted("lims"),
-    settle(loadSamples),
     dateFormatter(),
     sampleStatusLabels(),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (sample) =>
-          `${sample.number} ${sample.title} ${sample.lot ?? ""} ${sample.kind ?? ""}`,
-        facet: (sample) => sample.status,
-        defaultSort: "received",
+      pager={({ db }) => ({
+        page: (options) => db.lims.samplePage(options),
+        facets: (options) => db.lims.sampleFacets(options),
+      })}
+      map={{
         sorts: {
-          received: (a, b) => b.receivedOn.localeCompare(a.receivedOn),
-          oldest: (a, b) => a.receivedOn.localeCompare(b.receivedOn),
-          title: (a, b) => a.title.localeCompare(b.title),
+          received: { by: "receivedOn", direction: "desc" },
+          oldest: { by: "receivedOn" },
+          number: { by: "number" },
         },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
+      query={query}
       toRow={(sample) => ({
         id: sample.id,
         number: sample.number,
         title: sample.title,
-        kind: sample.kind,
-        lot: sample.lot,
+        kind: sample.kind ?? null,
+        lot: sample.lot ?? null,
         status: sample.status,
-        receivedOn: fmtDate(sample.receivedOn),
+        receivedOn: fmtDate(sample.receivedOn.toString()),
       })}
       columns={[
         { key: "number", header: t("Number"), kind: "muted", size: 100 },
@@ -97,7 +95,7 @@ export async function SampleOverview({ query }: { query: BlockListQuery }) {
       sorts={[
         { value: "received", label: t("Newest first") },
         { value: "oldest", label: t("Oldest first") },
-        { value: "title", label: t("Title") },
+        { value: "number", label: t("Number") },
       ]}
       searchLabel={t("Search samples")}
       errorTitle={t("The samples didn't load")}
@@ -112,30 +110,26 @@ export async function SampleOverview({ query }: { query: BlockListQuery }) {
 
 /** The methods and their specification limits. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function MethodOverview({ query }: { query: BlockListQuery }) {
+export async function MethodOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("lims.read");
 
-  const [t, loaded] = await Promise.all([
-    getExtracted("lims"),
-    settle(loadMethods),
-  ]);
+  const t = await getExtracted("lims");
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db }) => ({
+        page: (options) => db.lims.methodPage(options),
+        facets: (options) => db.lims.methodFacets(options),
+      })}
+      map={{ sorts: { name: { by: "name" } } }}
       query={query}
-      spec={{
-        search: (method) => `${method.key} ${method.name}`,
-        defaultSort: "name",
-        sorts: { name: (a, b) => a.name.localeCompare(b.name) },
-      }}
       toRow={(method) => ({
         id: method.id,
         name: method.name,
         key: method.key,
-        unit: method.unit,
-        lower: method.lowerLimit,
-        upper: method.upperLimit,
+        unit: method.unit ?? null,
+        lower: method.lowerLimit ?? null,
+        upper: method.upperLimit ?? null,
       })}
       columns={[
         { key: "name", header: t("Method"), kind: "text", size: 240 },

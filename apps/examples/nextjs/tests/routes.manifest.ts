@@ -921,7 +921,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/crm/deals",
     archetype: "board",
     url: "/crm/deals",
-    maxCalls: 8,
+    maxCalls: 15,
     maxWaves: 3,
     instant: true,
     scale: true,

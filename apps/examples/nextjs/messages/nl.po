@@ -2196,14 +2196,10 @@ msgid "Reset filters"
 msgstr "Filters herstellen"
 
 #: src/components/record-list/block-list-view.tsx
-msgctxt "recordList.kDE93l"
-msgid "Page {page} of {pages}, {total} rows"
-msgstr "Pagina {page} van {pages}, {total} rijen"
-
-#: src/components/record-list/block-list-view.tsx
-msgctxt "recordList.k9hDFZ"
-msgid "Previous page"
-msgstr "Vorige pagina"
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.A64Z-T"
+msgid "First page"
+msgstr "Eerste pagina"
 
 #: src/components/record-list/block-list-view.tsx
 #: src/components/record-list/record-list-view.tsx
@@ -2240,11 +2236,6 @@ msgstr ""
 msgctxt "recordList.hDI-JM"
 msgid "Sort by"
 msgstr "Sorteren op"
-
-#: src/components/record-list/record-list-view.tsx
-msgctxt "recordList.A64Z-T"
-msgid "First page"
-msgstr "Eerste pagina"
 
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
@@ -17622,11 +17613,6 @@ msgid "Oldest first"
 msgstr "Oudste eerst"
 
 #: src/features/lims/components/lims-overview.tsx
-msgctxt "lims.9a9-ww"
-msgid "Title"
-msgstr "Titel"
-
-#: src/features/lims/components/lims-overview.tsx
 msgctxt "lims.fDZ5tn"
 msgid "Search samples"
 msgstr "Zoek monsters"
@@ -17721,6 +17707,11 @@ msgstr "Registreren"
 msgctxt "lims.fANVSk"
 msgid "Sample registered"
 msgstr "Monster geregistreerd"
+
+#: src/features/lims/components/lims-overview.tsx
+msgctxt "lims.9a9-ww"
+msgid "Title"
+msgstr "Titel"
 
 #: src/features/lims/components/lims-overview.tsx
 msgctxt "lims.i8jG2K"
@@ -18188,9 +18179,9 @@ msgid "Name"
 msgstr "Naam"
 
 #: src/features/maintenance/components/maintenance-overviews.tsx
-msgctxt "maintenance.4VwXbW"
-msgid "Highest reading"
-msgstr "Hoogste stand"
+msgctxt "maintenance.w63PV9"
+msgid "Latest reading"
+msgstr "Laatste stand"
 
 #: src/features/maintenance/components/maintenance-overviews.tsx
 msgctxt "maintenance.zBDAB5"
@@ -24062,11 +24053,6 @@ msgid "Soonest due"
 msgstr "Eerst aan de beurt"
 
 #: src/features/rfqs/components/rfqs-overview.tsx
-msgctxt "rfqs.9a9-ww"
-msgid "Title"
-msgstr "Titel"
-
-#: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.H-7v7w"
 msgid "Search requests"
 msgstr "Zoek aanvragen"
@@ -24105,6 +24091,11 @@ msgstr "Aanvraag maken"
 msgctxt "rfqs.rabUi9"
 msgid "Request created"
 msgstr "Aanvraag gemaakt"
+
+#: src/features/rfqs/components/rfqs-overview.tsx
+msgctxt "rfqs.9a9-ww"
+msgid "Title"
+msgstr "Titel"
 
 #: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.-oxq2j"
@@ -24789,11 +24780,6 @@ msgstr "Wissen"
 msgctxt "sales.dZa7bo"
 msgid "{count, plural, one {Assign # deal} other {Assign # deals}}"
 msgstr "{count, plural, one {# deal toewijzen} other {# deals toewijzen}}"
-
-#: src/features/sales/components/block-overview.tsx
-msgctxt "sales.qnf-Ea"
-msgid "{count} in total"
-msgstr "{count} in totaal"
 
 #: src/features/sales/components/contact-sales-panel.tsx
 msgctxt "sales.nAt_Dl"
@@ -25534,9 +25520,9 @@ msgid "Ending soonest"
 msgstr "Eindigt het eerst"
 
 #: src/features/sales/components/crm-overviews.tsx
-msgctxt "sales.TqvuYv"
-msgid "Notice deadline"
-msgstr "Opzegtermijn"
+msgctxt "sales.Lxk1jF"
+msgid "Starting soonest"
+msgstr "Begint het eerst"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.F_iVjh"
@@ -25559,6 +25545,11 @@ msgid "Draft a contract, or change the filters."
 msgstr "Stel een contract op of pas de filters aan."
 
 #: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.JizYb9"
+msgid "Account health didn't load"
+msgstr "De accountgezondheid is niet geladen"
+
+#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.TwyMau"
 msgid "Account"
 msgstr "Account"
@@ -25577,11 +25568,6 @@ msgstr "Hoogste score eerst"
 msgctxt "sales.DgHeiI"
 msgid "Search accounts"
 msgstr "Accounts zoeken"
-
-#: src/features/sales/components/crm-overviews.tsx
-msgctxt "sales.JizYb9"
-msgid "Account health didn't load"
-msgstr "De accountgezondheid is niet geladen"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.sncc9z"
@@ -25672,6 +25658,14 @@ msgstr "Levenscyclus"
 msgctxt "sales.5Ya43Y"
 msgid "Supplier"
 msgstr "Leverancier"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.MeKajs"
+msgid "Newest first"
+msgstr "Nieuwste eerst"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.orv8wZ"
@@ -26110,11 +26104,6 @@ msgid "Largest amount"
 msgstr "Hoogste bedrag"
 
 #: src/features/sales/components/pipeline-overviews.tsx
-msgctxt "sales.gr-SEI"
-msgid "Longest in stage"
-msgstr "Langst in fase"
-
-#: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.NUh7Jr"
 msgid "Search deals"
 msgstr "Deals zoeken"
@@ -26171,13 +26160,6 @@ msgid "Snapshot taken"
 msgstr "Momentopname gemaakt"
 
 #: src/features/sales/components/pipeline-overviews.tsx
-#: src/features/sales/components/quote-overview.tsx
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.MeKajs"
-msgid "Newest first"
-msgstr "Nieuwste eerst"
-
-#: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.h-T3T7"
 msgid "Oldest first"
 msgstr "Oudste eerst"
@@ -26186,11 +26168,6 @@ msgstr "Oudste eerst"
 msgctxt "sales.H9mMTC"
 msgid "Period start"
 msgstr "Begin van de periode"
-
-#: src/features/sales/components/pipeline-overviews.tsx
-msgctxt "sales.Spw9wt"
-msgid "Search by date"
-msgstr "Zoeken op datum"
 
 #: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.eYOyvu"
@@ -26332,9 +26309,9 @@ msgid "Valid until"
 msgstr "Geldig tot"
 
 #: src/features/sales/components/quote-overview.tsx
-msgctxt "sales.ipMocl"
-msgid "Highest total"
-msgstr "Hoogste totaal"
+msgctxt "sales.Iid4yG"
+msgid "Expiring soonest"
+msgstr "Verloopt het eerst"
 
 #: src/features/sales/components/quote-overview.tsx
 msgctxt "sales.Tn82fY"
@@ -26643,11 +26620,6 @@ msgid "Archived"
 msgstr "Gearchiveerd"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.kzefVV"
-msgid "Search plans"
-msgstr "Plannen zoeken"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.jCxF10"
 msgid "No plans found"
 msgstr "Geen plannen gevonden"
@@ -26663,11 +26635,6 @@ msgid "Largest total"
 msgstr "Hoogste totaal"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.QNMLkW"
-msgid "Search statements"
-msgstr "Afrekeningen zoeken"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.0QnWbN"
 msgid "No statements found"
 msgstr "Geen afrekeningen gevonden"
@@ -26681,11 +26648,6 @@ msgstr "Stel een afrekening op uit de opgebouwde commissies van een verkoper."
 msgctxt "sales.XsRDqK"
 msgid "Largest commission"
 msgstr "Hoogste commissie"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.3kqd0l"
-msgid "Search commissions"
-msgstr "Commissies zoeken"
 
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.Fn9eDV"
@@ -26778,16 +26740,6 @@ msgid "Inactive"
 msgstr "Inactief"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.WQyg8j"
-msgid "Most used"
-msgstr "Meest gebruikt"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.acWl5A"
-msgid "Search codes"
-msgstr "Codes zoeken"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.DezqbZ"
 msgid "No referral codes found"
 msgstr "Geen verwijscodes gevonden"
@@ -26806,11 +26758,6 @@ msgstr "Verwezen"
 msgctxt "sales.ORGv1Q"
 msgid "Created"
 msgstr "Aangemaakt"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.WIMpwu"
-msgid "Search referrals"
-msgstr "Verwijzingen zoeken"
 
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.N4sRxX"
@@ -27652,14 +27599,9 @@ msgid "Name"
 msgstr "Naam"
 
 #: src/features/sequences/components/sequence-overview.tsx
-msgctxt "sequences.-8EjeW"
-msgid "Most enrolled"
-msgstr "Meeste inschrijvingen"
-
-#: src/features/sequences/components/sequence-overview.tsx
-msgctxt "sequences.kr7xJ0"
-msgid "Search sequences"
-msgstr "Reeksen zoeken"
+msgctxt "sequences.ie_Tbp"
+msgid "Recently updated"
+msgstr "Onlangs bijgewerkt"
 
 #: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.xiZz44"
@@ -30630,14 +30572,9 @@ msgid "Oldest first"
 msgstr "Oudste eerst"
 
 #: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.5DCYo2"
-msgid "Most cash"
-msgstr "Meeste contant geld"
-
-#: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.ZYXB_I"
-msgid "Search by till"
-msgstr "Zoek op kassa"
+msgctxt "tills.EJbFi7"
+msgid "Search notes"
+msgstr ""
 
 #: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.vuBPCO"
@@ -31681,16 +31618,6 @@ msgid "Oldest first"
 msgstr "Oudste eerst"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.XBefns"
-msgid "Least picked"
-msgstr "Minst gepickt"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.qYC8sq"
-msgid "Search pick lists"
-msgstr "Zoek picklijsten"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.PAaa4v"
 msgid "The pick lists didn't load"
 msgstr "De picklijsten zijn niet geladen"
@@ -31716,11 +31643,6 @@ msgid "Name"
 msgstr "Naam"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.gBOILT"
-msgid "Most open lists"
-msgstr "Meeste open lijsten"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.fwLCPq"
 msgid "Search waves"
 msgstr "Zoek golven"
@@ -31739,11 +31661,6 @@ msgstr "Geen golven gevonden"
 msgctxt "warehouse.HI469v"
 msgid "A wave releases several pick lists to pickers at once."
 msgstr "Een golf geeft meerdere picklijsten tegelijk vrij aan pickers."
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.SLiQIK"
-msgid "Search putaway rules"
-msgstr "Zoek opbergregels"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.86lash"

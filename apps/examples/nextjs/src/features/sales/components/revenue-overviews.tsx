@@ -5,14 +5,11 @@ import {
   Share2Icon,
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
+import { connection } from "next/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
-
-import { CrmLoadError } from "@/features/crm/components/crm-load-error";
-import { settle } from "@/features/crm/crm-queries";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { loadMemberOptions } from "../member/member-queries";
-import { loadCommissions, loadReferrals } from "../revenue/revenue-queries";
 import {
   buildCommissionStatement,
   createCommissionPlan,
@@ -68,6 +65,8 @@ export async function CreatePlanDialog() {
 export async function BuildStatementDialog() {
   const t = await getExtracted("sales");
   const members = await loadMemberOptions();
+  // The default period reads the clock, which a prerender may not.
+  await connection();
   const today = new Date();
 
   const since = new Date(
@@ -139,14 +138,13 @@ export async function CommissionOverview({
   query,
   tab,
 }: {
-  query: BlockListQuery;
+  query: RecordListUrlQuery;
   tab: CommissionTab;
 }) {
   await requirePermission("commissions.read");
 
-  const [t, loaded, fmtMoney, fmtDate, nameOf, canManage] = await Promise.all([
+  const [t, fmtMoney, fmtDate, nameOf, canManage] = await Promise.all([
     getExtracted("sales"),
-    settle(loadCommissions),
     moneyFormatter(),
     dateFormatter(),
     namesOf(),
@@ -166,32 +164,22 @@ export async function CommissionOverview({
     paid: t("Paid"),
   };
 
-  if (loaded.kind === "no-organization") {
-    return null;
-  }
-
-  if (loaded.kind === "error") {
-    return <CrmLoadError title={common.errorTitle} />;
-  }
-
   if (tab === "plans") {
     return (
       <BlockOverview
         {...common}
-        loaded={{ kind: "ok", data: loaded.data.plans }}
-        spec={{
-          search: (plan) => plan.name,
-          facet: (plan) => plan.kind,
-          defaultSort: "name",
-          sorts: { name: (a, b) => a.name.localeCompare(b.name) },
-        }}
+        pager={({ db }) => ({
+          page: (options) => db.commissions.planPage(options),
+          facets: (options) => db.commissions.planFacets(options),
+        })}
+        map={{ sorts: { name: { by: "name" } } }}
         toRow={(plan) => ({
           id: plan.id,
           name: plan.name,
           kind: plan.kind,
-          rate: plan.rateBps === null ? null : `${plan.rateBps / 100}%`,
-          tiers: plan.tiers,
-          state: plan.archived ? "archived" : "active",
+          rate: plan.rateBps === undefined ? null : `${plan.rateBps / 100}%`,
+          tiers: plan.tiers?.length ?? 0,
+          state: plan.archivedAt === undefined ? "active" : "archived",
         })}
         columns={[
           { key: "name", header: t("Plan"), kind: "text", size: 260 },
@@ -213,13 +201,7 @@ export async function CommissionOverview({
             tones: { active: "success-light" },
           },
         ]}
-        facet={{
-          key: "kind",
-          label: t("Kind"),
-          values: { flat: t("Flat"), tiered: t("Tiered") },
-        }}
         sorts={[{ value: "name", label: t("Name") }]}
-        searchLabel={t("Search plans")}
         emptyIcon={<BadgePercentIcon />}
         emptyTitle={t("No plans found")}
         emptyDescription={t("Create a plan, then assign it to your sellers.")}
@@ -232,21 +214,22 @@ export async function CommissionOverview({
     return (
       <BlockOverview
         {...common}
-        loaded={{ kind: "ok", data: loaded.data.statements }}
-        spec={{
-          search: (statement) =>
-            `${nameOf(statement.sellerId)} ${statement.startsOn}`,
-          facet: (statement) => statement.status,
-          defaultSort: "newest",
+        pager={({ db }) => ({
+          page: (options) => db.commissions.statementPage(options),
+          facets: (options) => db.commissions.statementFacets(options),
+        })}
+        map={{
           sorts: {
-            newest: (a, b) => b.endsOn.localeCompare(a.endsOn),
-            total: (a, b) => Number(b.total.amount - a.total.amount),
+            newest: { by: "endsOn", direction: "desc" },
+            total: { by: "total", direction: "desc" },
           },
+          filters: { f: "status" },
+          facets: { f: "status" },
         }}
         toRow={(statement) => ({
           id: statement.id,
           seller: nameOf(statement.sellerId),
-          period: `${fmtDate(statement.startsOn)} – ${fmtDate(statement.endsOn)}`,
+          period: `${fmtDate(statement.startsOn.toString())} – ${fmtDate(statement.endsOn.toString())}`,
           total: fmtMoney(statement.total),
           status: statement.status,
         })}
@@ -278,7 +261,6 @@ export async function CommissionOverview({
           { value: "newest", label: t("Newest first") },
           { value: "total", label: t("Largest total") },
         ]}
-        searchLabel={t("Search statements")}
         emptyIcon={<ReceiptIcon />}
         emptyTitle={t("No statements found")}
         emptyDescription={t(
@@ -292,16 +274,17 @@ export async function CommissionOverview({
   return (
     <BlockOverview
       {...common}
-      loaded={{ kind: "ok", data: loaded.data.commissions }}
-      spec={{
-        search: (commission) =>
-          `${nameOf(commission.sellerId)} ${commission.sourceType}`,
-        facet: (commission) => commission.status,
-        defaultSort: "newest",
+      pager={({ db }) => ({
+        page: (options) => db.commissions.commissionPage(options),
+        facets: (options) => db.commissions.commissionFacets(options),
+      })}
+      map={{
         sorts: {
-          newest: (a, b) => b.occurredOn.localeCompare(a.occurredOn),
-          amount: (a, b) => Number(b.amount.amount - a.amount.amount),
+          newest: { by: "occurredOn", direction: "desc" },
+          amount: { by: "amount", direction: "desc" },
         },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
       toRow={(commission) => ({
         id: commission.id,
@@ -309,7 +292,7 @@ export async function CommissionOverview({
         source: commission.sourceType,
         basis: fmtMoney(commission.basis),
         amount: fmtMoney(commission.amount),
-        occurredOn: fmtDate(commission.occurredOn),
+        occurredOn: fmtDate(commission.occurredOn.toString()),
         status: commission.status,
       })}
       columns={[
@@ -332,7 +315,6 @@ export async function CommissionOverview({
         { value: "newest", label: t("Newest first") },
         { value: "amount", label: t("Largest commission") },
       ]}
-      searchLabel={t("Search commissions")}
       emptyIcon={<BadgePercentIcon />}
       emptyTitle={t("No commissions found")}
       emptyDescription={t(
@@ -372,18 +354,22 @@ export async function ReferralOverview({
   query,
   tab,
 }: {
-  query: BlockListQuery;
+  query: RecordListUrlQuery;
   tab: ReferralTab;
 }) {
   await requirePermission("referrals.read");
 
-  const [t, loaded, fmtDate, nameOf, canWrite] = await Promise.all([
+  const [t, fmtDate, nameOf, canWrite, members] = await Promise.all([
     getExtracted("sales"),
-    settle(loadReferrals),
     dateFormatter(),
     namesOf(),
     holds("referrals.write"),
+    loadMemberOptions(),
   ]);
+
+  const referrers = Object.fromEntries(
+    members.map((member) => [member.userId, member.name]),
+  );
 
   const statuses = {
     attributed: t("Attributed"),
@@ -392,38 +378,29 @@ export async function ReferralOverview({
     void: t("Void"),
   };
 
-  if (loaded.kind === "no-organization") {
-    return null;
-  }
-
-  if (loaded.kind === "error") {
-    return <CrmLoadError title={t("The referrals didn't load")} />;
-  }
-
   if (tab === "codes") {
     return (
       <BlockOverview
         query={query}
         errorTitle={t("The referrals didn't load")}
-        loaded={{ kind: "ok", data: loaded.data.codes }}
-        spec={{
-          search: (code) => `${code.code} ${nameOf(code.referrerId)}`,
-          facet: (code) => (code.active ? "active" : "inactive"),
-          defaultSort: "uses",
-          sorts: {
-            uses: (a, b) => b.uses - a.uses,
-            code: (a, b) => a.code.localeCompare(b.code),
-          },
+        pager={({ db }) => ({
+          page: (options) => db.referrals.codePage(options),
+          facets: (options) => db.referrals.codeFacets(options),
+        })}
+        map={{
+          sorts: { newest: { by: "createdAt", direction: "desc" } },
+          filters: { f: "referrer" },
+          facets: { f: "referrer" },
         }}
         toRow={(code) => ({
           id: code.id,
           code: code.code,
           referrer: nameOf(code.referrerId),
           uses:
-            code.maxUses === null
+            code.maxUses === undefined
               ? `${code.uses}`
               : `${code.uses} / ${code.maxUses}`,
-          expiresAt: code.expiresAt ? fmtDate(code.expiresAt) : null,
+          expiresAt: code.expiresAt ? fmtDate(code.expiresAt.toString()) : null,
           state: code.active ? "active" : "inactive",
         })}
         columns={[
@@ -440,16 +417,8 @@ export async function ReferralOverview({
             tones: { active: "success-light" },
           },
         ]}
-        facet={{
-          key: "state",
-          label: t("State"),
-          values: { active: t("Active"), inactive: t("Inactive") },
-        }}
-        sorts={[
-          { value: "uses", label: t("Most used") },
-          { value: "code", label: t("Code") },
-        ]}
-        searchLabel={t("Search codes")}
+        facet={{ key: "referrer", label: t("Referrer"), values: referrers }}
+        sorts={[{ value: "newest", label: t("Newest first") }]}
         emptyIcon={<Share2Icon />}
         emptyTitle={t("No referral codes found")}
         emptyDescription={t(
@@ -464,20 +433,21 @@ export async function ReferralOverview({
     <BlockOverview
       query={query}
       errorTitle={t("The referrals didn't load")}
-      loaded={{ kind: "ok", data: loaded.data.referrals }}
-      spec={{
-        search: (referral) =>
-          `${referral.referredEmail ?? ""} ${nameOf(referral.referrerId)}`,
-        facet: (referral) => referral.status,
-        defaultSort: "newest",
-        sorts: { newest: (a, b) => b.createdAt.localeCompare(a.createdAt) },
+      pager={({ db }) => ({
+        page: (options) => db.referrals.referralPage(options),
+        facets: (options) => db.referrals.referralFacets(options),
+      })}
+      map={{
+        sorts: { newest: { by: "createdAt", direction: "desc" } },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
       toRow={(referral) => ({
         id: referral.id,
-        referred: referral.referredEmail,
+        referred: referral.referredEmail ?? null,
         referrer: nameOf(referral.referrerId),
         status: referral.status,
-        createdAt: fmtDate(referral.createdAt),
+        createdAt: fmtDate(referral.createdAt.toString()),
       })}
       columns={[
         { key: "referred", header: t("Referred"), kind: "text", size: 260 },
@@ -499,7 +469,6 @@ export async function ReferralOverview({
       ]}
       facet={{ key: "status", label: t("Status"), values: statuses }}
       sorts={[{ value: "newest", label: t("Newest first") }]}
-      searchLabel={t("Search referrals")}
       emptyIcon={<GiftIcon />}
       emptyTitle={t("No referrals found")}
       emptyDescription={t(

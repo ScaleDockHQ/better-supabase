@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { settle } from "@/features/crm/crm-queries";
@@ -30,14 +30,14 @@ import {
   savePutawayRule,
 } from "../warehouse-actions";
 import {
-  loadCountPlans,
+  countPlanRowOf,
   loadLookups,
-  loadPickLists,
-  loadPutawayRules,
   loadReceipts,
   loadReceivableOrders,
   loadSlotting,
-  loadWaves,
+  pickListRowOf,
+  putawayRuleRowOf,
+  waveRowOf,
 } from "../warehouse-queries";
 
 function countState(plan: CountPlanRow): "inactive" | "due" | "scheduled" {
@@ -90,12 +90,11 @@ export async function waveStatusLabels(): Promise<Record<string, string>> {
  * server.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function PickOverview({ query }: { query: BlockListQuery }) {
+export async function PickOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("warehouse.read");
 
-  const [t, loaded, fmtDate, lookup, statuses] = await Promise.all([
+  const [t, fmtDate, lookup, statuses] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadPickLists),
     dateFormatter(),
     names(),
     pickStatusLabels(),
@@ -103,27 +102,31 @@ export async function PickOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (list) => `${list.documentType} ${list.documentId}`,
-        facet: (list) => list.status,
-        defaultSort: "newest",
-        sorts: {
-          newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
-          oldest: (a, b) => a.createdAt.localeCompare(b.createdAt),
-          progress: (a, b) =>
-            a.picked / Math.max(a.lines, 1) - b.picked / Math.max(b.lines, 1),
-        },
-      }}
-      toRow={(list) => ({
-        id: list.id,
-        document: `${list.documentType} ${list.documentId.slice(0, 8)}`,
-        location: lookup.locations.get(list.locationId) ?? "–",
-        status: list.status,
-        progress: `${list.picked} / ${list.lines}`,
-        createdAt: fmtDate(list.createdAt),
+      pager={({ db }) => ({
+        page: (options) => db.warehouse.pickListPage(options),
+        facets: (options) => db.warehouse.pickListFacets(options),
       })}
+      map={{
+        sorts: {
+          newest: { by: "createdAt", direction: "desc" },
+          oldest: { by: "createdAt" },
+        },
+        filters: { f: "status" },
+        facets: { f: "status" },
+      }}
+      query={query}
+      toRow={(item) => {
+        const list = pickListRowOf(item);
+
+        return {
+          id: list.id,
+          document: `${list.documentType} ${list.documentId.slice(0, 8)}`,
+          location: lookup.locations.get(list.locationId) ?? "–",
+          status: list.status,
+          progress: `${list.picked} / ${list.lines}`,
+          createdAt: fmtDate(list.createdAt),
+        };
+      }}
       columns={[
         {
           key: "document",
@@ -153,9 +156,7 @@ export async function PickOverview({ query }: { query: BlockListQuery }) {
       sorts={[
         { value: "newest", label: t("Newest first") },
         { value: "oldest", label: t("Oldest first") },
-        { value: "progress", label: t("Least picked") },
       ]}
-      searchLabel={t("Search pick lists")}
       errorTitle={t("The pick lists didn't load")}
       emptyIcon={<ClipboardListIcon />}
       emptyTitle={t("No pick lists found")}
@@ -168,12 +169,11 @@ export async function PickOverview({ query }: { query: BlockListQuery }) {
 
 /** Pick waves group pick lists; a row opens the wave. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function WaveOverview({ query }: { query: BlockListQuery }) {
+export async function WaveOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("warehouse.read");
 
-  const [t, loaded, fmtDate, lookup, statuses] = await Promise.all([
+  const [t, fmtDate, lookup, statuses] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadWaves),
     dateFormatter(),
     names(),
     waveStatusLabels(),
@@ -181,26 +181,31 @@ export async function WaveOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (wave) => wave.name,
-        facet: (wave) => wave.status,
-        defaultSort: "newest",
-        sorts: {
-          newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
-          name: (a, b) => a.name.localeCompare(b.name),
-          open: (a, b) => b.openLists - a.openLists,
-        },
-      }}
-      toRow={(wave) => ({
-        id: wave.id,
-        name: wave.name,
-        location: lookup.locations.get(wave.locationId) ?? "–",
-        status: wave.status,
-        lists: `${wave.lists - wave.openLists} / ${wave.lists}`,
-        createdAt: fmtDate(wave.createdAt),
+      pager={({ db }) => ({
+        page: (options) => db.warehouse.pickWavePage(options),
+        facets: (options) => db.warehouse.pickWaveFacets(options),
       })}
+      map={{
+        sorts: {
+          newest: { by: "createdAt", direction: "desc" },
+          name: { by: "name" },
+        },
+        filters: { f: "status" },
+        facets: { f: "status" },
+      }}
+      query={query}
+      toRow={(item) => {
+        const wave = waveRowOf(item);
+
+        return {
+          id: wave.id,
+          name: wave.name,
+          location: lookup.locations.get(wave.locationId) ?? "–",
+          status: wave.status,
+          lists: `${wave.lists - wave.openLists} / ${wave.lists}`,
+          createdAt: fmtDate(wave.createdAt),
+        };
+      }}
       columns={[
         {
           key: "name",
@@ -225,7 +230,6 @@ export async function WaveOverview({ query }: { query: BlockListQuery }) {
       sorts={[
         { value: "newest", label: t("Newest first") },
         { value: "name", label: t("Name") },
-        { value: "open", label: t("Most open lists") },
       ]}
       searchLabel={t("Search waves")}
       errorTitle={t("The waves didn't load")}
@@ -240,12 +244,15 @@ export async function WaveOverview({ query }: { query: BlockListQuery }) {
 
 /** The putaway rules, and the slotting suggestions of the first location. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function PutawayOverview({ query }: { query: BlockListQuery }) {
+export async function PutawayOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("warehouse.read");
 
-  const [t, loaded, lookup, receipts, fmtDate] = await Promise.all([
+  const [t, lookup, receipts, fmtDate] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadPutawayRules),
     names(),
     settle(loadReceipts),
     dateFormatter(),
@@ -260,33 +267,32 @@ export async function PutawayOverview({ query }: { query: BlockListQuery }) {
   return (
     <div className="flex flex-col gap-6">
       <BlockOverview
-        loaded={loaded}
-        query={query}
-        spec={{
-          search: (rule) =>
-            `${lookup.bins.get(rule.binId) ?? ""} ${lookup.variants.get(rule.variantId ?? "") ?? ""}`,
-          facet: (rule) => (rule.active ? "active" : "inactive"),
-          defaultSort: "priority",
-          sorts: {
-            priority: (a, b) => a.priority - b.priority,
-            bin: (a, b) =>
-              (lookup.bins.get(a.binId) ?? "").localeCompare(
-                lookup.bins.get(b.binId) ?? "",
-              ),
-          },
-        }}
-        toRow={(rule) => ({
-          id: rule.id,
-          bin: lookup.bins.get(rule.binId) ?? "–",
-          location: lookup.locations.get(rule.locationId) ?? "–",
-          variant: rule.variantId
-            ? (lookup.variants.get(rule.variantId) ?? "–")
-            : t("Any variant"),
-          priority: rule.priority,
-          maxQuantity:
-            rule.maxQuantity === null ? null : trimmed(rule.maxQuantity),
-          state: rule.active ? "active" : "inactive",
+        pager={({ db }) => ({
+          page: (options) => db.warehouse.putawayRulePage(options),
+          facets: (options) => db.warehouse.putawayRuleFacets(options),
         })}
+        map={{
+          sorts: { priority: { by: "priority" } },
+          filters: { f: "active" },
+          facets: { f: "active" },
+        }}
+        query={query}
+        toRow={(item) => {
+          const rule = putawayRuleRowOf(item);
+
+          return {
+            id: rule.id,
+            bin: lookup.bins.get(rule.binId) ?? "–",
+            location: lookup.locations.get(rule.locationId) ?? "–",
+            variant: rule.variantId
+              ? (lookup.variants.get(rule.variantId) ?? "–")
+              : t("Any variant"),
+            priority: rule.priority,
+            maxQuantity:
+              rule.maxQuantity === null ? null : trimmed(rule.maxQuantity),
+            state: rule.active ? "active" : "inactive",
+          };
+        }}
         columns={[
           {
             key: "bin",
@@ -314,15 +320,11 @@ export async function PutawayOverview({ query }: { query: BlockListQuery }) {
           },
         ]}
         facet={{
-          key: "state",
+          key: "active",
           label: t("Status"),
-          values: { active: t("Active"), inactive: t("Inactive") },
+          values: { true: t("Active"), false: t("Inactive") },
         }}
-        sorts={[
-          { value: "priority", label: t("Priority") },
-          { value: "bin", label: t("Bin") },
-        ]}
-        searchLabel={t("Search putaway rules")}
+        sorts={[{ value: "priority", label: t("Priority") }]}
         errorTitle={t("The putaway rules didn't load")}
         emptyIcon={<MapPinnedIcon />}
         emptyTitle={t("No putaway rules")}
@@ -416,12 +418,11 @@ export async function PutawayOverview({ query }: { query: BlockListQuery }) {
 
 /** Cycle count plans with the date of the next run. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function CountOverview({ query }: { query: BlockListQuery }) {
+export async function CountOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("warehouse.read");
 
-  const [t, loaded, fmtDate, lookup] = await Promise.all([
+  const [t, fmtDate, lookup] = await Promise.all([
     getExtracted("warehouse"),
-    settle(loadCountPlans),
     dateFormatter(),
     names(),
   ]);
@@ -434,26 +435,29 @@ export async function CountOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (plan) => plan.name,
-        facet: countState,
-        defaultSort: "next",
-        sorts: {
-          next: (a, b) => a.nextRunOn.localeCompare(b.nextRunOn),
-          name: (a, b) => a.name.localeCompare(b.name),
-        },
-      }}
-      toRow={(plan) => ({
-        id: plan.id,
-        name: plan.name,
-        location: lookup.locations.get(plan.locationId) ?? "–",
-        everyDays: `${plan.everyDays}`,
-        limit: `${plan.varianceLimitPct}%`,
-        nextRunOn: fmtDate(plan.nextRunOn),
-        state: countState(plan),
+      pager={({ db }) => ({
+        page: (options) => db.warehouse.countPlanPage(options),
+        facets: (options) => db.warehouse.countPlanFacets(options),
       })}
+      map={{
+        sorts: { next: { by: "nextRunOn" }, name: { by: "name" } },
+        filters: { f: "active" },
+        facets: { f: "active" },
+      }}
+      query={query}
+      toRow={(item) => {
+        const plan = countPlanRowOf(item);
+
+        return {
+          id: plan.id,
+          name: plan.name,
+          location: lookup.locations.get(plan.locationId) ?? "–",
+          everyDays: `${plan.everyDays}`,
+          limit: `${plan.varianceLimitPct}%`,
+          nextRunOn: fmtDate(plan.nextRunOn),
+          state: countState(plan),
+        };
+      }}
       columns={[
         {
           key: "name",
@@ -485,7 +489,11 @@ export async function CountOverview({ query }: { query: BlockListQuery }) {
           tones: { due: "warning-light", scheduled: "secondary" },
         },
       ]}
-      facet={{ key: "state", label: t("Status"), values: states }}
+      facet={{
+        key: "active",
+        label: t("Status"),
+        values: { true: t("Active"), false: t("Inactive") },
+      }}
       sorts={[
         { value: "next", label: t("Next run") },
         { value: "name", label: t("Name") },

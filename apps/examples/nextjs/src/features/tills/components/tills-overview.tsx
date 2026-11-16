@@ -1,7 +1,7 @@
 import { CoinsIcon, StoreIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { settle } from "@/features/crm/crm-queries";
@@ -15,7 +15,7 @@ import {
 } from "@/features/sales/components/overview-support";
 
 import { createTill, openSession } from "../tills-actions";
-import { loadSessions, loadTills } from "../tills-queries";
+import { loadOpenTillIds, loadTills } from "../tills-queries";
 
 export function TillsListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -23,41 +23,49 @@ export function TillsListSkeleton() {
 
 /** Shifts, searched by till, filtered by status, sorted and paged on the server. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function SessionOverview({ query }: { query: BlockListQuery }) {
+export async function SessionOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("tills.read");
 
-  const [t, loaded, fmtDate, fmtMoney] = await Promise.all([
+  const [t, tills, fmtDate, fmtMoney] = await Promise.all([
     getExtracted("tills"),
-    settle(loadSessions),
+    settle(loadTills),
     dateFormatter(),
     moneyFormatter(),
   ]);
 
   const statuses = { open: t("Open"), closed: t("Closed") };
 
+  const tillNames = new Map(
+    tills.kind === "ok" ? tills.data.map((till) => [till.id, till.name]) : [],
+  );
+
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (row) => row.till,
-        facet: (row) => row.status,
-        defaultSort: "newest",
+      pager={({ db }) => ({
+        page: (options) => db.tills.sessionPage(options),
+        facets: (options) => db.tills.sessionFacets(options),
+      })}
+      map={{
         sorts: {
-          newest: (a, b) => b.openedAt.localeCompare(a.openedAt),
-          oldest: (a, b) => a.openedAt.localeCompare(b.openedAt),
-          expected: (a, b) =>
-            Number(b.expected.amount) - Number(a.expected.amount),
+          newest: { by: "openedAt", direction: "desc" },
+          oldest: { by: "openedAt" },
         },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
+      query={query}
       toRow={(row) => ({
         id: row.id,
-        till: row.till,
+        till: tillNames.get(row.tillId) ?? "",
         status: row.status,
         openingFloat: fmtMoney(row.openingFloat),
         expected: fmtMoney(row.expected),
-        openedAt: fmtDate(row.openedAt),
-        closedAt: fmtDate(row.closedAt),
+        openedAt: fmtDate(row.openedAt.toString()),
+        closedAt: fmtDate(row.closedAt?.toString()),
       })}
       columns={[
         {
@@ -89,9 +97,8 @@ export async function SessionOverview({ query }: { query: BlockListQuery }) {
       sorts={[
         { value: "newest", label: t("Newest first") },
         { value: "oldest", label: t("Oldest first") },
-        { value: "expected", label: t("Most cash") },
       ]}
-      searchLabel={t("Search by till")}
+      searchLabel={t("Search notes")}
       errorTitle={t("The sessions didn't load")}
       emptyIcon={<CoinsIcon />}
       emptyTitle={t("No sessions found")}
@@ -104,12 +111,12 @@ export async function SessionOverview({ query }: { query: BlockListQuery }) {
 
 /** The tills of the organization and whether each has a shift open. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function TillOverview({ query }: { query: BlockListQuery }) {
+export async function TillOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("tills.read");
 
-  const [t, loaded, canManage] = await Promise.all([
+  const [t, openIds, canManage] = await Promise.all([
     getExtracted("tills"),
-    settle(loadTills),
+    loadOpenTillIds(),
     holds("tills.manage"),
   ]);
 
@@ -119,24 +126,40 @@ export async function TillOverview({ query }: { query: BlockListQuery }) {
     archived: t("Archived"),
   };
 
+  const open = new Set(openIds);
+
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (till) => `${till.name} ${till.location ?? ""}`,
-        facet: (till) =>
-          till.archived ? "archived" : till.open ? "open" : "idle",
-        defaultSort: "name",
-        sorts: { name: (a, b) => a.name.localeCompare(b.name) },
+      pager={({ db }) => ({
+        page: (options) =>
+          db.tills.tillPage({
+            ...options,
+            filters: { ...options.filters, includeArchived: ["true"] },
+          }),
+        facets: (options) =>
+          db.tills.tillFacets({
+            ...options,
+            filters: { ...options.filters, includeArchived: ["true"] },
+          }),
+      })}
+      map={{
+        sorts: { name: { by: "name" } },
+        filters: { f: "currency" },
+        facets: { f: "currency" },
       }}
+      query={query}
       toRow={(till) => ({
         id: till.id,
         name: till.name,
-        location: till.location,
+        location: till.location ?? null,
         currency: till.currency,
-        books: till.hasAccount ? "linked" : "none",
-        state: till.archived ? "archived" : till.open ? "open" : "idle",
+        books: till.accountId === undefined ? "none" : "linked",
+        state:
+          till.archivedAt === undefined
+            ? open.has(till.id)
+              ? "open"
+              : "idle"
+            : "archived",
       })}
       columns={[
         { key: "name", header: t("Till"), kind: "text", size: 240 },
@@ -159,7 +182,11 @@ export async function TillOverview({ query }: { query: BlockListQuery }) {
           tones: { open: "info-light" },
         },
       ]}
-      facet={{ key: "state", label: t("Status"), values: states }}
+      facet={{
+        key: "currency",
+        label: t("Currency"),
+        values: { EUR: "EUR", USD: "USD", GBP: "GBP" },
+      }}
       sorts={[{ value: "name", label: t("Name") }]}
       searchLabel={t("Search tills")}
       errorTitle={t("The tills didn't load")}

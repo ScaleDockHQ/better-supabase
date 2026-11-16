@@ -1,25 +1,40 @@
 import type { EntityListReads } from "better-supabase/list";
 
-import type { BlockListSpec } from "@/lib/array-list";
-import type { AppDb } from "@/lib/array-reads";
+import type { AppDb, EntityListMap } from "@/lib/block-entity-page";
+import type { LoadedSpec } from "@/lib/loaded-pager";
 
-import { arrayReads } from "@/lib/array-reads";
+import { blockEntityReads } from "@/lib/block-entity-page";
+import { loadedPager } from "@/lib/loaded-pager";
 
 import type { QueueRow } from "../automation/automation-queries";
 
 /**
- * The search, sort and facet of the assignment queues list, shared with its
- * overview.
+ * How the assignment queues are searched, filtered and sorted. The `assignment`
+ * block returns its queues whole (`queues`), so this is the one list that stays
+ * a thin per-page read.
  */
-export const queuesSpec: BlockListSpec<QueueRow> = {
+const queuesSpec: LoadedSpec<QueueRow> = {
   search: (queue) => queue.name,
-  facet: (queue) => queue.strategy,
-  defaultSort: "rank",
+  facets: { strategy: (queue) => queue.strategy },
   sorts: {
     rank: (a, b) => a.rank - b.rank,
     name: (a, b) => a.name.localeCompare(b.name),
-    assigned: (a, b) => b.assigned - a.assigned,
+    assigned: (a, b) => a.assigned - b.assigned,
   },
+};
+
+/** The queues list's sorts on the spec's. */
+const queueSorts: EntityListMap["sorts"] = {
+  rank: { by: "rank" },
+  name: { by: "name" },
+  assigned: { by: "assigned", direction: "desc" },
+};
+
+/** The queues overview's URL names on the spec's. */
+export const queuesMap: EntityListMap = {
+  sorts: queueSorts,
+  filters: { f: "strategy" },
+  facets: { f: "strategy" },
 };
 
 /** The queue as the list shows it. */
@@ -47,19 +62,22 @@ export function queueOf(queue: {
   };
 }
 
-/** The assignment queues of the organization. */
-export function queuesFrom(db: AppDb, tenant: string) {
-  return db.assignment
-    .queues({ organizationId: tenant })
-    .map((queues) => queues.map(queueOf));
+/** The assignment queues of the organization, searched and paged in memory. */
+export function queuesPager(db: AppDb, tenant: string) {
+  return loadedPager(
+    () =>
+      db.assignment
+        .queues({ organizationId: tenant })
+        .map((queues) => queues.map(queueOf)),
+    queuesSpec,
+  );
 }
 
 /** The reads module of the `app.queues` entity page (ADR 0894). */
 export function queuesReads(db: AppDb): EntityListReads<QueueRow> {
-  return arrayReads({
-    load: (tenant) => queuesFrom(db, tenant),
-    facet: "strategy",
-    spec: queuesSpec,
+  return blockEntityReads({
+    pager: (tenant) => queuesPager(db, tenant),
+    map: { sorts: queueSorts },
     wire: (queue) => queue,
   });
 }

@@ -1,25 +1,37 @@
 import { FileTextIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
 import { CreateQuoteDialog } from "@/features/crm/components/create-quote-dialog";
-import { loadQuotes, settle } from "@/features/crm/crm-queries";
+import { organizationPager } from "@/lib/block-entity-page";
 
 import { BlockOverview } from "./block-overview";
 import { holds, moneyFormatter, requirePermission } from "./overview-support";
+
+/** The quotes list's URL names on the quotes block's page. */
+const quotesMap: EntityListMap = {
+  sorts: {
+    newest: { by: "createdAt", direction: "desc" },
+    // The block has no total sort, so the quotes that expire first come on top.
+    expires: { by: "validUntil" },
+    title: { by: "title" },
+  },
+  filters: { f: "status" },
+  facets: { f: "status" },
+};
 
 /**
  * The organization's quotes, searched, filtered by status and paged on the
  * server.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function QuoteOverview({ query }: { query: BlockListQuery }) {
+export async function QuoteOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("quotes.read");
 
-  const [t, loaded, fmtMoney, canWrite] = await Promise.all([
+  const [t, fmtMoney, canWrite] = await Promise.all([
     getExtracted("sales"),
-    settle(loadQuotes),
     moneyFormatter(),
     holds("quotes.write"),
   ]);
@@ -37,18 +49,14 @@ export async function QuoteOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) =>
+        organizationPager(tenant, {
+          page: (options) => db.$blocks.quotes.page(options),
+          facets: (options) => db.$blocks.quotes.facets(options),
+        })
+      }
+      map={quotesMap}
       query={query}
-      spec={{
-        search: (quote) => `${quote.identifier} ${quote.title}`,
-        facet: (quote) => quote.status,
-        defaultSort: "newest",
-        sorts: {
-          newest: (a, b) => b.identifier.localeCompare(a.identifier),
-          total: (a, b) => Number(b.total.amount - a.total.amount),
-          title: (a, b) => a.title.localeCompare(b.title),
-        },
-      }}
       toRow={(quote) => ({
         id: quote.id,
         quote:
@@ -57,8 +65,8 @@ export async function QuoteOverview({ query }: { query: BlockListQuery }) {
             : quote.identifier,
         title: quote.title,
         status: quote.status,
-        total: fmtMoney(quote.total),
-        validUntil: quote.validUntil,
+        total: fmtMoney(quote.totals.total),
+        validUntil: quote.validUntil?.toString() ?? null,
       })}
       columns={[
         {
@@ -95,7 +103,7 @@ export async function QuoteOverview({ query }: { query: BlockListQuery }) {
       facet={{ key: "status", label: t("Status"), values: statuses }}
       sorts={[
         { value: "newest", label: t("Newest first") },
-        { value: "total", label: t("Highest total") },
+        { value: "expires", label: t("Expiring soonest") },
         { value: "title", label: t("Title") },
       ]}
       searchLabel={t("Search quotes")}
