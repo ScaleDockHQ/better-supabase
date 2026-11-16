@@ -220,6 +220,8 @@ blocks: {
 
 The functions check the keys themselves, so a member without `invoice.send` can't issue through the API either.
 
+A caller who can read the invoice but lacks an action's key gets `INVOICE_FORBIDDEN` (`42501`), so the app can say why. A caller who can't read it gets `INVOICE_NOT_FOUND`, which keeps the invoice's existence hidden.
+
 ### Totals the app keeps
 
 By default the block recounts an invoice's totals from its lines, rounding each line once, from each line's `discountBps` and `taxRateBps` and the header's pricing. It knows no fixed discount per line and no VAT regime that keeps the line rates but counts no VAT (reverse charge, exempt, a small-business scheme). When the app computes them itself, for those or for VAT per rate on the summed lines, set `options.totals: "app"`. The block then installs no totals trigger, never writes `subtotal`, `taxTotal` or `total`, and reads what they hold for the balance, credits, events and aging. `listTotal` and `discountTotal` can map to `null` then; reads fill them from the subtotal and zero.
@@ -724,10 +726,10 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 | Hint                                 | Cause                                                                                                 |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`                  | the caller lacks `invoices.write`                                                                     |
+| `INVOICE_FORBIDDEN`                  | the caller can read the invoice but lacks the action's key, such as `payment` or `issue`              |
 | `NUMBER_FIXED_FORBIDDEN`             | a fixed number outside an import run                                                                  |
 | `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
-| `INVOICE_NOT_FOUND`                  | no invoice the caller can edit (or manage, for void)                                                  |
+| `INVOICE_NOT_FOUND`                  | no invoice the caller can read                                                                        |
 | `INVOICE_NOT_DRAFT`                  | the invoice was already issued, so it no longer changes and isn't deleted                             |
 | `INVOICE_ARCHIVE_UNSUPPORTED`        | `archive` or `restore` on an invoices table without the `archivedAt` column                           |
 | `INVOICE_EMPTY`                      | an invoice without lines can't be issued                                                              |

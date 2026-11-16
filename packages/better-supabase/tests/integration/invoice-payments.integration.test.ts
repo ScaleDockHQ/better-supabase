@@ -185,4 +185,59 @@ describe.skipIf(!live)("invoice payments", () => {
       await s.close();
     }
   });
+
+  const withMember = async (s: BlockSession, settle?: string) => {
+    const owner = await s.user("owner");
+    const member = await s.user("member");
+    const outsider = await s.user("outsider");
+    await s.install(
+      ["organizations", "invoices"],
+      settle === undefined
+        ? {}
+        : { modules: { invoices: { permissions: { settle } } } },
+    );
+    const org = await s.organization(owner, { member });
+    await s.organization(outsider);
+    const invoices = createInvoices({ transport: sqlTransport(s.sql) });
+    await s.as(owner);
+
+    const draft = await invoices
+      .create({
+        organizationId: org,
+        input: { title: "Work" },
+        lines: [{ description: "Work", unitAmount: eur(1000n) }],
+      })
+      .orThrow();
+
+    const invoice = await invoices.issue({ invoiceId: draft.id }).orThrow();
+
+    return { member, outsider, invoices, invoice };
+  };
+
+  it("refuses a reader without the payment key as forbidden and others as not found", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const { member, outsider, invoices, invoice } = await withMember(s);
+
+      const pay = () =>
+        invoices.recordPayment({
+          invoiceId: invoice.id,
+          payment: { amount: eur(1000n) },
+        });
+
+      await s.as(member);
+      const refused = await pay();
+      expect(hint(refused)).toBe("INVOICE_FORBIDDEN");
+      expect(refused.ok ? undefined : refused.error.kind).toBe("forbidden");
+
+      await s.as(outsider);
+      expect(hint(await pay())).toBe("INVOICE_NOT_FOUND");
+      expect(
+        hint(await invoices.void({ invoiceId: invoice.id, reason: "x" })),
+      ).toBe("INVOICE_NOT_FOUND");
+    } finally {
+      await s.close();
+    }
+  });
 });
