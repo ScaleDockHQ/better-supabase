@@ -1302,7 +1302,7 @@
   "/[locale]/(auth)/send/[token]/page": {
     "raw": 3486510,
     "gzip": 1033470,
-    "brotli": 854675
+    "brotli": 856901
   },
   "/[locale]/(auth)/share/[token]/page": {
     "raw": 2997362,
