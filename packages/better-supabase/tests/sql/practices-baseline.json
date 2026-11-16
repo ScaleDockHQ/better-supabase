@@ -13,7 +13,7 @@
     "security-definer-functions": 49
   },
   "advisories": {
-    "security-definer-functions": 114
+    "security-definer-functions": 126
   },
   "agent-checkout": {
     "security-definer-functions": 60
@@ -44,7 +44,7 @@
     "security-definer-functions": 36
   },
   "announcements": {
-    "security-definer-functions": 40,
+    "security-definer-functions": 50,
     "row-triggers": 5
   },
   "api-keys": {
@@ -95,7 +95,7 @@
     "row-triggers": 12
   },
   "care-plans": {
-    "security-definer-functions": 146,
+    "security-definer-functions": 152,
     "row-triggers": 1
   },
   "cases": {
@@ -150,7 +150,7 @@
     "row-triggers": 1
   },
   "custom-fields": {
-    "security-definer-functions": 68
+    "security-definer-functions": 80
   },
   "dam": {
     "security-definer-functions": 48
@@ -446,7 +446,7 @@
     "security-definer-functions": 12
   },
   "reminders": {
-    "security-definer-functions": 30
+    "security-definer-functions": 42
   },
   "reviews": {
     "security-definer-functions": 96,
@@ -532,7 +532,7 @@
     "security-definer-functions": 55
   },
   "tags": {
-    "security-definer-functions": 54
+    "security-definer-functions": 66
   },
   "tasks": {
     "security-definer-functions": 106,
@@ -553,11 +553,11 @@
     "security-definer-functions": 68
   },
   "time-entries": {
-    "security-definer-functions": 108,
+    "security-definer-functions": 120,
     "row-triggers": 6
   },
   "trash": {
-    "security-definer-functions": 54
+    "security-definer-functions": 66
   },
   "usage": {
     "security-definer-functions": 116

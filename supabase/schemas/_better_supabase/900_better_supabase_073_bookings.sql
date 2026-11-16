@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:428d3d71934955cd130f5cc7f9f97525f57dcac5bd22b5639b37f1f41a67b1e5
+-- @bsb-hash sha256:9a1780774d0310f0f2a78e3029fd508d964d3fa4ca797396e4d3b07f9829f955
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -904,6 +904,338 @@ $$;
 revoke execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
 
+-- The tenant's bookings as a keyset page, the latest start first (ADR 1077).
+-- filters is { status, resourceId, serviceId, customerId (each a value or a
+-- list), from, to (the first value counts: bookings that overlap the window),
+-- archived (true adds archived bookings), search (customer name, email), sort
+-- (startsAt, createdAt, customerName), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_bookings"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_bookings.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'resourceId') then
+      raise exception 'facet is one of status, resourceId' using errcode = '22023', hint = 'BOOKING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (bk."status"::text)::text when 'resourceId' then (bk."resource_id"::text)::text end) as v
+      from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'createdAt', 'customerName') then
+    raise exception 'sort is one of startsAt, createdAt, customerName' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(bk."during"))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(bk."during") >= (v_after ->> 0)::timestamptz and ((lower(bk."during") > (v_after ->> 0)::timestamptz) or (lower(bk."during") = (v_after ->> 0)::timestamptz and bk."id" < (v_after ->> 1)::uuid))))
+      order by lower(bk."during") asc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(bk."during"))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(bk."during"), bk."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by lower(bk."during") desc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(bk."during"))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(bk."during") >= (v_after ->> 0)::timestamptz and ((lower(bk."during") > (v_after ->> 0)::timestamptz) or (lower(bk."during") = (v_after ->> 0)::timestamptz and bk."id" < (v_after ->> 1)::uuid))))
+      order by lower(bk."during") asc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(bk."during"))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(bk."during"), bk."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by lower(bk."during") desc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((bk."created_at")::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (bk."created_at" >= (v_after ->> 0)::timestamptz and ((bk."created_at" > (v_after ->> 0)::timestamptz) or (bk."created_at" = (v_after ->> 0)::timestamptz and bk."id" < (v_after ->> 1)::uuid))))
+      order by bk."created_at" asc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((bk."created_at")::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (bk."created_at", bk."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by bk."created_at" desc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'customerName' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(coalesce(bk."customer_name", '')))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(coalesce(bk."customer_name", '')) >= (v_after ->> 0)::text and ((lower(coalesce(bk."customer_name", '')) > (v_after ->> 0)::text) or (lower(coalesce(bk."customer_name", '')) = (v_after ->> 0)::text and bk."id" < (v_after ->> 1)::uuid))))
+      order by lower(coalesce(bk."customer_name", '')) asc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  elsif v_sort = 'customerName' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BOOKING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as j, jsonb_build_array((lower(coalesce(bk."customer_name", '')))::text, (bk."id")::text) as k
+    from (
+      select * from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+        and (v_after is null or (lower(coalesce(bk."customer_name", '')), bk."id") < ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(bk."customer_name", '')) desc, bk."id" desc
+      limit v_limit + 1 offset v_offset
+    ) bk
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."bookings" bk
+      where bk."tenant_id" = page_bookings.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or bk."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'resourceId' is not null and jsonb_typeof(v_filters -> 'resourceId') <> 'null' and not (jsonb_typeof(v_filters -> 'resourceId') = 'array' and jsonb_array_length(v_filters -> 'resourceId') = 0)) or bk."resource_id" = any((case when jsonb_typeof(v_filters -> 'resourceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'resourceId')) else array[v_filters ->> 'resourceId'] end)::uuid[]))
+        and (not (v_filters -> 'serviceId' is not null and jsonb_typeof(v_filters -> 'serviceId') <> 'null' and not (jsonb_typeof(v_filters -> 'serviceId') = 'array' and jsonb_array_length(v_filters -> 'serviceId') = 0)) or bk."service_id" = any((case when jsonb_typeof(v_filters -> 'serviceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'serviceId')) else array[v_filters ->> 'serviceId'] end)::uuid[]))
+        and (not (v_filters -> 'customerId' is not null and jsonb_typeof(v_filters -> 'customerId') <> 'null' and not (jsonb_typeof(v_filters -> 'customerId') = 'array' and jsonb_array_length(v_filters -> 'customerId') = 0)) or bk."customer_id"::text = any((case when jsonb_typeof(v_filters -> 'customerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'customerId')) else array[v_filters ->> 'customerId'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or upper(bk."during") > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or lower(bk."during") < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or bk."archived_at" is null)
+        and (v_search is null or bk."customer_name" ilike v_search or bk."customer_email" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_bookings"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_bookings"(uuid, jsonb) to authenticated, service_role;
+
+-- One booking the caller reads, or null.
+create or replace function "better_supabase"."get_booking"(booking uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'seriesId', bk."series_id", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") from "better_supabase"."bookings" bk where bk."id" = get_booking.booking
+$$;
+revoke execute on function "better_supabase"."get_booking"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_booking"(uuid) to authenticated, service_role;
+
 -- Public booking through a share link to a service (subjectType
 -- "booking_service"): the token is the credential, hashed before the lookup.
 create or replace function "better_supabase"."public_booking_service"(token text)
@@ -1727,6 +2059,26 @@ set search_path = ''
 as $$ select "better_supabase"."list_bookings_for_customer"($1, $2, $3) $$;
 revoke execute on function "api"."list_bookings_for_customer"(uuid, text, integer) from public, anon;
 grant execute on function "api"."list_bookings_for_customer"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "api"."page_bookings"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_bookings"($1, $2) $$;
+revoke execute on function "api"."page_bookings"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_bookings"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_booking"(booking uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_booking"($1) $$;
+revoke execute on function "api"."get_booking"(uuid) from public, anon;
+grant execute on function "api"."get_booking"(uuid) to authenticated, service_role;
 
 create or replace function "api"."public_booking_service"(token text)
 returns jsonb

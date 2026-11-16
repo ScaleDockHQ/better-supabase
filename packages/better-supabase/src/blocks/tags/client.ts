@@ -79,7 +79,9 @@ export function createTagInputController(
         const request = ticket;
 
         const [tags, available] = await Promise.all([
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
           client.list({ on: subject }),
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
           client.list({ kind }),
         ]);
 

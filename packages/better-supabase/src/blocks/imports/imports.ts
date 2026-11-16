@@ -222,6 +222,7 @@ export interface Imports {
       input: { organizationId: string; source: string } & StartImportRunOptions,
     ): AsyncResult<{ readonly id: string }>;
     get(id: string): AsyncResult<ImportRun>;
+    /** @deprecated Use `page` (ADR 1077). */
     list(
       input: { organizationId: string } & ListImportRunsOptions,
     ): AsyncResult<readonly ImportRun[]>;
@@ -638,6 +639,7 @@ export function createImports(options: ImportsOptions): Imports {
         call("get_import_run", { id }, (value) =>
           runOf(value, "get_import_run"),
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
       list: ({ organizationId, ...listOptions }) =>
         call(
           "list_import_runs",

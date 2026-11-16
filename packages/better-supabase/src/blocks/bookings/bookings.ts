@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
-import type { BlockOptions } from "../../core/block-helpers.ts";
+import type {
+  BlockOptions,
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { WeeklyHours } from "../calendar/availability.ts";
@@ -22,6 +33,11 @@ import {
 import { applyTemporal } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -35,6 +51,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { bookingListSurface } from "./lists.ts";
 import { bookingOf } from "./rows.ts";
 import { bookingSeriesOf, recurrenceItem } from "./series.ts";
 
@@ -307,8 +324,27 @@ export interface Bookings<F extends object = Record<never, never>> {
    */
   restore(bookingId: string): AsyncResult<Booking & F>;
   /**
+   * One keyset page of the bookings the caller's policies show, the latest
+   * start first. `filters` takes `status`, `resourceId`, `serviceId`,
+   * `customerId`, `from`, `to` (an instant) and `archived`; `q` matches the
+   * customer's name and email (ADR 1077). `page` is the booking page's read.
+   */
+  pageBookings(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<Booking & F>>;
+  /** Counts per `status` or `resourceId` for the page's `q` and filters. */
+  bookingFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many bookings match the page's `q` and filters. */
+  countBookings(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One booking, or a `not_found` error. */
+  getBooking(bookingId: string): AsyncResult<Booking & F>;
+  /**
    * The bookings that overlap the range, as the caller's policies allow.
    * `includeArchived` adds the archived ones.
+   *
+   * @deprecated Use `pageBookings` (ADR 1077).
    */
   list(
     input: { organizationId: string; range: BookingRange } & {
@@ -527,7 +563,30 @@ export function createBookings<
       to_status: to,
     });
 
+  const bookingPages = entityList<readonly [unknown, Booking]>({
+    entity: "booking",
+    surface: bookingListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_bookings",
+    rowOf: (raw) => [raw, bookingOf(raw)] as const,
+  });
+
   const client: Bookings<F> = {
+    pageBookings: (pageOptions) =>
+      bookingPages
+        .page(pageOptions)
+        .andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({ ...page, items }),
+          ),
+        ),
+    bookingFacets: (facetOptions) => bookingPages.facets(facetOptions),
+    countBookings: (countOptions) => bookingPages.count(countOptions),
+    getBooking: (bookingId) =>
+      call("get_booking", { booking: bookingId }, (value) => value)
+        .andThen((value) => foundOrNotFound("booking", value, bookingId))
+        .andThen((value) => withFields(fields, value, bookingOf(value))),
     saveResource: ({ organizationId, input }) =>
       call(
         "save_booking_resource",
@@ -625,6 +684,7 @@ export function createBookings<
       one("cancel_booking", { booking: bookingId, reason: reason ?? null }),
     archive: (bookingId) => one("archive_booking", { booking: bookingId }),
     restore: (bookingId) => one("restore_booking", { booking: bookingId }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, range, ...listOptions }) =>
       call(
         "list_bookings",

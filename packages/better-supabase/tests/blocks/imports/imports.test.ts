@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated methods until 0.70 (ADR 1077). 1 findings. */
 import { describe, expect, it } from "vitest";
 
 import {

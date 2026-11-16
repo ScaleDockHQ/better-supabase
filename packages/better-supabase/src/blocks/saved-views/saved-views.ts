@@ -3,8 +3,19 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper, ValidationIssue } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -29,6 +40,11 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import {
   neighborsForIndex,
@@ -36,6 +52,7 @@ import {
 } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { blockCall, isRecord, recordOf, recordsOf, textOf } from "../shared.ts";
+import { savedViewListSurface } from "./lists.ts";
 import { preferenceOf, viewOf } from "./rows.ts";
 import { SAVED_VIEW_DENSITIES, SAVED_VIEW_SCOPES } from "./types.ts";
 
@@ -102,12 +119,35 @@ export interface SavedViews<F extends object = Record<never, never>> {
   upsert(
     input: SaveViewInput<ListQueryInput<string, string>, F>,
   ): AsyncResult<SavedViewRef<F>>;
-  /** The views the caller sees for a list, in rank order. */
+  /**
+   * The views the caller sees for a list, in rank order.
+   *
+   * @deprecated Use `page` with `filters: { list: [...] }`, which pages by
+   * keyset and takes sorts, `q` and a count (ADR 1077).
+   */
   list(input: {
     organizationId: string;
     list: string;
     limit?: number;
   }): AsyncResult<SavedView<ListQueryInput<string, string>, F>[]>;
+  /**
+   * One keyset page of the views the caller sees in the organization, in rank
+   * order. `filters` takes `list`, `scope` and `kind` as lists, and `q`
+   * searches the name.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<SavedView<ListQueryInput<string, string>, F>>>;
+  /** The values of each facet (`scope`, `kind`) and their counts. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many views match the page's `q` and filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One view the caller sees, or a `not_found` error. */
+  get(
+    viewId: string,
+  ): AsyncResult<SavedView<ListQueryInput<string, string>, F>>;
   /** Moves a view between its neighbours' rank keys. Resolves to its new key. */
   reorder(input: { id: string; neighbors: RankNeighbors }): AsyncResult<string>;
   /**
@@ -338,6 +378,15 @@ export function createSavedViews<
     "saved view fields",
   );
 
+  const views = entityList<SavedView, RequiredTenantOption>({
+    entity: "saved view",
+    surface: savedViewListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_saved_views",
+    rowOf: (row) => viewOf(row),
+  });
+
   const client: SavedViews<F> = {
     upsert: (input) => {
       const issues = savedViewIssues(input.state, options.lists?.[input.list]);
@@ -368,6 +417,24 @@ export function createSavedViews<
         ),
       ).andThen((saved) => readFields(fields, saved));
     },
+    page: (pageOptions) =>
+      views
+        .page(pageOptions)
+        .andThen((page) =>
+          readAllFields(fields, page.items).map((items) => ({
+            ...page,
+            items,
+          })),
+        ),
+    facets: views.facets,
+    count: views.count,
+    get: (viewId) =>
+      call("get_view", { view_id: viewId }, (value) =>
+        value === null || value === undefined ? undefined : viewOf(value),
+      )
+        .andThen((view) => foundOrNotFound("saved view", view, viewId))
+        .andThen((view) => readFields(fields, view)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, list, limit }) =>
       call("list_views", { tenant: organizationId, list }, (value) => {
         const rows = recordsOf(value, "list_views").map(viewOf);
@@ -375,6 +442,7 @@ export function createSavedViews<
         return limit === undefined ? rows : rows.slice(0, limit);
       }).andThen((views) => readAllFields(fields, views)),
     move: ({ id, organizationId, list, toIndex }) =>
+      // oxlint-disable-next-line typescript/no-deprecated -- move reads the whole list in rank order
       hooked.list({ organizationId, list }).andThen((views) => {
         const neighbors = neighborsForIndex(views, id, toIndex);
 

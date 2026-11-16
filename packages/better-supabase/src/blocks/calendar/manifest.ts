@@ -4,6 +4,7 @@ import type { CalendarEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCalendar } from "./calendar.ts";
 import { calendarEvents } from "./events.ts";
+import { calendarListSurface, eventListSurface } from "./lists.ts";
 import { calendarSqlOptions } from "./options.ts";
 import { calendarEventInputSchema } from "./schemas.ts";
 
@@ -28,10 +29,12 @@ export const calendarBlock: BlockOf<
   category: "scheduling",
   entities: {
     calendar_event: {
+      ...eventListSurface,
       mutability: "editable",
       emits: { create: true, update: true, purge: true },
     },
     calendar: {
+      ...calendarListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: false },
     },

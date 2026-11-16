@@ -1,7 +1,18 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -13,17 +24,24 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { bulkItems } from "../../core/bulk.ts";
 import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
+import {
   neighborsForIndex,
   rankBetweenResult,
 } from "../../core/rank-result.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
+  isRecord,
   optionalText,
   recordOf,
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { fieldDefinitionListSurface } from "./lists.ts";
 
 export interface CustomFieldsOptions extends BlockTenantOptions {
   /** `withBlockHooks` hooks around the client's methods. */
@@ -121,6 +139,23 @@ export interface CustomFields {
    * One entity's definitions in the tenant, in display order. Needs
    * `custom_fields.read`.
    */
+  /**
+   * One keyset page of the tenant's definitions in display order. `filters`
+   * takes `entity`, `type`, `sensitive` and `archived`; `q` matches the key and
+   * label. It needs the normalized layout (ADR 1077).
+   */
+  page(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<FieldDefinitionDetail>>;
+  /** Counts per `entity` or `type` for the page's `q` and filters. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many definitions match the page's `q` and filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One definition, or a `not_found` error. */
+  getDefinition(id: string): AsyncResult<FieldDefinitionDetail>;
+  /** @deprecated Use `page` (ADR 1077). */
   listDefinitions(
     entity:
       | string
@@ -282,6 +317,28 @@ function entityArg(scope: FieldEntityScope | undefined) {
     : { legal_entity: scope.legalEntity };
 }
 
+function definitionOf(row: Record<string, unknown>): FieldDefinitionDetail {
+  const rank = optionalText(row["rank"]);
+  const pack = optionalText(row["pack"]);
+  const packVersion = row["packVersion"];
+  const archivedAt = optionalText(row["archivedAt"]);
+
+  return {
+    id: textOf(row["id"]),
+    entity: textOf(row["entity"]),
+    key: textOf(row["key"]),
+    label: textOf(row["label"]),
+    type: textOf(row["type"]),
+    required: row["required"] === true,
+    sensitive: row["sensitive"] === true,
+    encrypted: row["encrypted"] === true,
+    ...(rank === undefined ? {} : { rank }),
+    ...(pack === undefined ? {} : { pack }),
+    ...(typeof packVersion === "number" ? { packVersion } : {}),
+    ...(archivedAt === undefined ? {} : { archivedAt }),
+  };
+}
+
 export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   const call = blockCall(options.transport, options.schema, options.mappers);
 
@@ -291,7 +348,26 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const definitions = entityList<FieldDefinitionDetail, TenantOption>({
+    entity: "field definition",
+    surface: fieldDefinitionListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_field_definitions",
+    rowOf: (row) => definitionOf(row),
+  });
+
   const client: CustomFields = {
+    page: definitions.page,
+    facets: definitions.facets,
+    count: definitions.count,
+    getDefinition: (id) =>
+      call("get_field_definition", { id }, (value) =>
+        isRecord(value) ? definitionOf(value) : undefined,
+      ).andThen((definition) =>
+        foundOrNotFound("field definition", definition, id),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     listDefinitions: (input) =>
       tenant().andThen((organizationId) =>
         call(
@@ -305,27 +381,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
                 : (input.includeArchived ?? false),
           },
           (value) =>
-            recordsOf(value, "list_field_definitions").map((row) => {
-              const rank = optionalText(row["rank"]);
-              const pack = optionalText(row["pack"]);
-              const packVersion = row["packVersion"];
-              const archivedAt = optionalText(row["archivedAt"]);
-
-              return {
-                id: textOf(row["id"]),
-                entity: textOf(row["entity"]),
-                key: textOf(row["key"]),
-                label: textOf(row["label"]),
-                type: textOf(row["type"]),
-                required: row["required"] === true,
-                sensitive: row["sensitive"] === true,
-                encrypted: row["encrypted"] === true,
-                ...(rank === undefined ? {} : { rank }),
-                ...(pack === undefined ? {} : { pack }),
-                ...(typeof packVersion === "number" ? { packVersion } : {}),
-                ...(archivedAt === undefined ? {} : { archivedAt }),
-              };
-            }),
+            recordsOf(value, "list_field_definitions").map(definitionOf),
         ),
       ),
     saveDefinition: ({ entity, key, label, type, sensitive }) =>
@@ -357,6 +413,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       );
     },
     moveDefinition: ({ id, entity, toIndex }) =>
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
       hooked.listDefinitions(entity).andThen((definitions) => {
         const neighbors = neighborsForIndex(definitions, id, toIndex);
 

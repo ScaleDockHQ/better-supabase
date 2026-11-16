@@ -1,4 +1,4 @@
-import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
@@ -20,19 +20,15 @@ import {
 import { alarmsTable, alarmWrites } from "./calendar-alarms.ts";
 import { attendeesSql } from "./calendar-attendees.ts";
 import {
-  availabilityContract,
   availabilitySql,
   EVENT_KINDS,
   TRANSPARENCIES,
   workingHoursTable,
 } from "./calendar-availability.ts";
-import {
-  calendarBootstrapContract,
-  calendarBootstrapFunction,
-} from "./calendar-bootstrap.ts";
+import { calendarBootstrapFunction } from "./calendar-bootstrap.ts";
+import { contract } from "./calendar-contract.ts";
 import {
   defaultAlarmFunctions,
-  defaultAlarmsContract,
   defaultAlarmsTable,
   defaultAlarmWrites,
 } from "./calendar-default-alarms.ts";
@@ -53,6 +49,7 @@ import {
 } from "./calendar-features.ts";
 import { calendarFeed, feed } from "./calendar-feed.ts";
 import { CALENDAR_NAMES } from "./calendar-names.ts";
+import { calendarPageSql } from "./calendar-pages.ts";
 import {
   eventExtras,
   eventFields,
@@ -218,6 +215,13 @@ ${addCheck({
     : "";
 
   const calendarExtras = ctx.extraColumns("calendars", ["fields"]);
+
+  const calendarJson = (row: string): string =>
+    `jsonb_build_object('id', ${row}.${k("id")}, 'name', ${row}.${k("name")}, 'tz', ${row}.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', ${row}.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', ${row}.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', ${row}.${k("ownerId")}` : ""}${
+      features.access && ctx.has("calendars", "visibility")
+        ? `, 'visibility', ${ctx.label("calendars", "visibility", `${row}.${k("visibility")}`)}`
+        : ""
+    }${features.details && ctx.has("calendars", "description") ? `, 'description', ${row}.${k("description")}` : ""}${features.details && ctx.has("calendars", "rank") ? `, 'rank', ${row}.${k("rank")}` : ""}${features.details && ctx.has("calendars", "isDefault") ? `, 'isDefault', ${row}.${k("isDefault")}` : ""}${extraFieldsJson(row, calendarExtras)})`;
 
   const calendarExtra = extraFieldsArg(calendarExtras);
 
@@ -883,126 +887,12 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', k.${k("id")}, 'name', k.${k("name")}, 'tz', k.${k("tz")}${ctx.has("calendars", "color") ? `, 'color', k.${k("color")}` : ""}${ctx.has("calendars", "ownerType") ? `, 'ownerType', k.${k("ownerType")}` : ""}${ctx.has("calendars", "ownerId") ? `, 'ownerId', k.${k("ownerId")}` : ""}${
-    features.access && ctx.has("calendars", "visibility")
-      ? `, 'visibility', ${ctx.label("calendars", "visibility", `k.${k("visibility")}`)}`
-      : ""
-  }${features.details && ctx.has("calendars", "description") ? `, 'description', k.${k("description")}` : ""}${features.details && ctx.has("calendars", "rank") ? `, 'rank', k.${k("rank")}` : ""}${features.details && ctx.has("calendars", "isDefault") ? `, 'isDefault', k.${k("isDefault")}` : ""}${extraFieldsJson("k", calendarExtras)}) order by ${features.details && ctx.has("calendars", "rank") ? `k.${k("rank")} nulls last, ` : ""}k.${k("name")}), '[]'::jsonb)
+  select coalesce(jsonb_agg(${calendarJson("k")} order by ${features.details && ctx.has("calendars", "rank") ? `k.${k("rank")} nulls last, ` : ""}k.${k("name")}), '[]'::jsonb)
   from ${calendars} k
   where k.${k("tenant")} = list_calendars.tenant
 $$;
 ${userGrant(`${fn("list_calendars")}(${ctx.idType})`)}
-${calendarBootstrapFunction(ctx)}${updateCalendar}${grantFunctions(ctx)}${defaultAlarmFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
-}
-
-function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
-  const features = calendarFeatures(ctx);
-  const attrs = features.access || features.details;
-
-  return [
-    {
-      name: "create_calendar",
-      args: [
-        "{id}",
-        "text",
-        "text",
-        "text",
-        "text",
-        ...extraFieldsArg(ctx.extraColumns("calendars", ["fields"])).contract,
-        ...(attrs ? ["jsonb"] : []),
-      ],
-      returns: "jsonb",
-    },
-    ...(attrs
-      ? [
-          {
-            name: "update_calendar",
-            args: ["uuid", "jsonb"],
-            returns: "boolean",
-          },
-        ]
-      : []),
-    ...(features.grants
-      ? [
-          {
-            name: "set_calendar_grant",
-            args: ["uuid", "uuid", "text"],
-            returns: "boolean",
-          },
-          {
-            name: "remove_calendar_grant",
-            args: ["uuid", "uuid"],
-            returns: "boolean",
-          },
-          { name: "list_calendar_grants", args: ["uuid"], returns: "jsonb" },
-        ]
-      : []),
-    { name: "delete_calendar", args: ["uuid"], returns: "boolean" },
-    {
-      name: "save_calendar_event",
-      args: ["uuid", "jsonb", "uuid"],
-      returns: "jsonb",
-    },
-    { name: "purge_calendar_event", args: ["uuid"], returns: "boolean" },
-    {
-      name: "cancel_calendar_occurrence",
-      args: ["uuid", "timestamptz"],
-      returns: "boolean",
-    },
-    {
-      name: "split_calendar_event",
-      args: ["uuid", "timestamptz", "text", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "import_calendar_events",
-      args: ["uuid", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_calendar_events",
-      args: ["uuid[]", "timestamptz", "timestamptz"],
-      returns: "jsonb",
-    },
-    { name: "list_calendars", args: ["{id}"], returns: "jsonb" },
-    ...calendarBootstrapContract(),
-    ...(ctx.hasTable("attendees")
-      ? [
-          {
-            name: "set_calendar_attendee",
-            args: ["uuid", "text", "text", "uuid", "text"],
-            returns: "boolean",
-          },
-          {
-            name: "respond_calendar_event",
-            args: ["uuid", "text"],
-            returns: "boolean",
-          },
-          ...(features.anyAttendee
-            ? [
-                {
-                  name: "set_calendar_attendee",
-                  args: ["uuid", "jsonb"],
-                  returns: "jsonb",
-                },
-                {
-                  name: "remove_calendar_attendee",
-                  args: ["uuid"],
-                  returns: "boolean",
-                },
-              ]
-            : []),
-        ]
-      : []),
-    ...availabilityContract(ctx),
-    ...defaultAlarmsContract(ctx),
-    ...(ctx.installed("share-links")
-      ? [{ name: "calendar_feed", args: ["text"], returns: "jsonb" }]
-      : []),
-    ...(ctx.installed("share-links") && features.userFeed
-      ? [{ name: "calendar_user_feed", args: ["text"], returns: "jsonb" }]
-      : []),
-  ];
+${calendarPageSql({ ctx, fn, events, calendars, attendees, k, calendarJson })}${calendarBootstrapFunction(ctx)}${updateCalendar}${grantFunctions(ctx)}${defaultAlarmFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
 }
 
 const CONTRIBUTES: BlockContributes = {

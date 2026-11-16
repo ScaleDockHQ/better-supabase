@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -18,7 +29,6 @@ import type {
   AttendeeRole,
   CalendarAttendee,
   CalendarEventStatus,
-  IcsEvent,
 } from "./ics.ts";
 import type {
   CalendarEvent,
@@ -31,8 +41,15 @@ import {
   allWithFields,
   blockFields,
   extraOf,
+  withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  noTenant,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
@@ -46,7 +63,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { alarmItem, alarmOf, defaultAlarmOf, reminderOf } from "./alarms.ts";
+import { alarmOf, defaultAlarmOf, reminderOf } from "./alarms.ts";
 import {
   CALENDAR_EVENT_KINDS,
   CALENDAR_TRANSPARENCIES,
@@ -54,7 +71,9 @@ import {
   workingHoursOf,
 } from "./availability.ts";
 import { bootstrapOf, calendarInfoOf } from "./bootstrap.ts";
+import { copyOf, importItem, itemOf } from "./calendar-items.ts";
 import { parseIcs, toIcs } from "./ics.ts";
+import { calendarListSurface, eventListSurface } from "./lists.ts";
 import { expandOccurrences, splitRule } from "./occurrences.ts";
 
 export interface CalendarOptions<
@@ -229,7 +248,39 @@ export interface Calendar<F extends object = Record<never, never>> {
     attributes: CalendarAttributes;
   }): AsyncResult<boolean>;
   deleteCalendar(id: string): AsyncResult<boolean>;
+  /** @deprecated Use `pageCalendars` (ADR 1077). */
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
+  /**
+   * One keyset page of the organization's calendars by name. `filters` takes
+   * `ownerType`; `q` matches the name (ADR 1077).
+   */
+  pageCalendars(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<CalendarInfo>>;
+  /** Counts per `ownerType` for the page's `q` and filters. */
+  calendarFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many calendars match the page's `q` and filters. */
+  countCalendars(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One calendar, or a `not_found` error. */
+  getCalendar(calendarId: string): AsyncResult<CalendarInfo>;
+  /**
+   * One keyset page of the stored events the caller reads, the earliest start
+   * first: single events, series and their overrides, as `events` returns them.
+   * `filters` takes `calendarId`, `status`, `subjectType`, `subjectId`, `from`
+   * and `to` (an instant); `q` matches the title and location. Series stay
+   * unexpanded: `occurrences` expands them (ADR 1077).
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<CalendarEvent & F>>;
+  /** Counts per `status` or `calendarId` for the page's `q` and filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many events match the page's `q` and filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
+  /** One event, or a `not_found` error. */
+  getEvent(eventId: string): AsyncResult<CalendarEvent & F>;
   /**
    * What a calendar page reads, in one call: the organization's calendars, the
    * occurrences in `range` (series expanded), those in `upcoming` when given
@@ -509,92 +560,6 @@ export function calendarEventOf(value: unknown): CalendarEvent {
   };
 }
 
-/** The jsonb `save_calendar_event` takes. */
-function itemOf(
-  input: CalendarEventInput & {
-    readonly id?: string;
-    readonly recurrenceId?: string;
-    readonly originalStart?: Temporal.Instant;
-  },
-): Record<string, unknown> {
-  const item: Record<string, unknown> = {};
-
-  for (const [key, value] of Object.entries(input)) {
-    if (value === undefined) {
-      continue;
-    }
-
-    if ((key === "exdates" || key === "rdates") && Array.isArray(value)) {
-      item[key] = value.map(String);
-    } else if (key === "alarms" && Array.isArray(value)) {
-      item[key] = value.map(alarmItem);
-    } else if (
-      key === "startsAt" ||
-      key === "endsAt" ||
-      key === "originalStart"
-    ) {
-      item[key] = String(value);
-    } else {
-      item[key] = value;
-    }
-  }
-
-  return item;
-}
-
-/** An imported event as the jsonb `import_calendar_events` takes. */
-function importItem(event: IcsEvent): Record<string, unknown> {
-  return itemOf({
-    uid: event.uid,
-    title: event.title,
-    description: event.description ?? null,
-    location: event.location ?? null,
-    startsAt: event.startsAt,
-    endsAt: event.endsAt,
-    allDay: event.allDay,
-    tz: event.tz,
-    status: event.status,
-    rrule: event.rrule ?? null,
-    exdates: event.exdates,
-    ...(event.rdates === undefined ? {} : { rdates: event.rdates }),
-    ...(event.originalStart === undefined
-      ? {}
-      : { originalStart: event.originalStart }),
-    ...(event.transparency === undefined
-      ? {}
-      : { transparency: event.transparency }),
-    alarms: event.alarms ?? [],
-  });
-}
-
-/** The fields of a series that an override or a new series starts from. */
-function copyOf(event: CalendarEvent): CalendarEventInput {
-  return {
-    title: event.title,
-    ...(event.description === undefined
-      ? {}
-      : { description: event.description }),
-    ...(event.location === undefined ? {} : { location: event.location }),
-    allDay: event.allDay,
-    tz: event.tz,
-    status: event.status,
-    ...(event.subjectType === undefined
-      ? {}
-      : { subjectType: event.subjectType }),
-    ...(event.subjectId === undefined ? {} : { subjectId: event.subjectId }),
-    ...(event.color === undefined ? {} : { color: event.color }),
-    ...(event.kind === undefined ? {} : { kind: event.kind }),
-    ...(event.transparency === undefined
-      ? {}
-      : { transparency: event.transparency }),
-    ...(event.autoDecline === undefined
-      ? {}
-      : { autoDecline: event.autoDecline }),
-    ...(event.visibility === undefined ? {} : { visibility: event.visibility }),
-    ...(event.alarms === undefined ? {} : { alarms: event.alarms }),
-  };
-}
-
 const INFINITE = { from: "-infinity", until: "infinity" } as const;
 
 function attributesOf(
@@ -726,7 +691,48 @@ export function createCalendar<
       ),
     );
 
+  const eventPages = entityList<readonly [unknown, CalendarEvent]>({
+    entity: "calendar event",
+    surface: eventListSurface,
+    call,
+    tenant: noTenant,
+    fn: "page_calendar_events",
+    rowOf: (raw) => [raw, calendarEventOf(raw)] as const,
+  });
+
+  const calendarPages = entityList<CalendarInfo, RequiredTenantOption>({
+    entity: "calendar",
+    surface: calendarListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_calendars",
+    rowOf: (raw) => calendarInfoOf(raw),
+  });
+
   const client: Calendar<F> = {
+    page: (pageOptions) =>
+      eventPages
+        .page(pageOptions)
+        .andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({ ...page, items }),
+          ),
+        ),
+    facets: (facetOptions) => eventPages.facets(facetOptions),
+    count: (countOptions) => eventPages.count(countOptions),
+    getEvent: (eventId) =>
+      call("get_calendar_event", { event_id: eventId }, (value) => value)
+        .andThen((value) => foundOrNotFound("calendar event", value, eventId))
+        .andThen((value) => withFields(fields, value, calendarEventOf(value))),
+    pageCalendars: calendarPages.page,
+    calendarFacets: calendarPages.facets,
+    countCalendars: calendarPages.count,
+    getCalendar: (calendarId) =>
+      call("get_calendar", { calendar_id: calendarId }, (value) =>
+        isRecord(value) ? calendarInfoOf(value) : undefined,
+      ).andThen((calendar) =>
+        foundOrNotFound("calendar", calendar, calendarId),
+      ),
     createCalendar: ({ organizationId, name, options: extra = {} }) => {
       const attrs = attributesOf(extra);
 
@@ -759,6 +765,7 @@ export function createCalendar<
       ),
     deleteCalendar: (id) =>
       call("delete_calendar", { calendar_id: id }, (value) => value === true),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     listCalendars: (organizationId) =>
       call("list_calendars", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_calendars").map(calendarInfoOf),

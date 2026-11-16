@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -12,6 +23,12 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  noTenant,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -25,6 +42,10 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import {
+  observationDefinitionListSurface,
+  observationListSurface,
+} from "./lists.ts";
 
 export interface ObservationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -268,7 +289,11 @@ export interface Observations<F extends object = Record<never, never>> {
   archiveDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
   /** Needs `observations.manage`. New observations can use it again. */
   restoreDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
-  /** The organization's definitions and the system ones, by title. */
+  /**
+   * The organization's definitions and the system ones, by title.
+   *
+   * @deprecated Use `pageDefinitions` (ADR 1077).
+   */
   definitions(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly ObservationDefinition[]>;
@@ -304,7 +329,41 @@ export interface Observations<F extends object = Record<never, never>> {
     observationId: string;
     reason: string;
   }): AsyncResult<Observation<F>>;
-  /** A record's observations, the latest first. */
+  /**
+   * One keyset page of the observations the caller reads, the latest first.
+   * `filters` takes `subjectType`, `subjectId`, `definitionKey` and `status`;
+   * without `status` only final observations (ADR 1077).
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Observation<F>>>;
+  /** Counts per `status` or `definitionKey` for the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many observations match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
+  /** One observation, or a `not_found` error. */
+  getObservation(observationId: string): AsyncResult<Observation<F>>;
+  /**
+   * One keyset page of the organization's definitions and the system ones it
+   * does not override, by title. `filters` takes `valueType`, `scope` and
+   * `archived`; `q` matches the title and key.
+   */
+  pageDefinitions(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<ObservationDefinition>>;
+  /** Counts per `valueType` or `scope` for the page's `q` and filters. */
+  definitionFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many definitions match the page's `q` and filters. */
+  countDefinitions(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One definition, or a `not_found` error. */
+  getDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
+  /**
+   * A record's observations, the latest first.
+   *
+   * @deprecated Use `page` (ADR 1077).
+   */
   list(
     input: { subjectType: string; subjectId: string } & ObservationListOptions,
   ): AsyncResult<readonly Observation<F>[]>;
@@ -623,7 +682,58 @@ export function createObservations<
       AsyncResult.ok([]),
     );
 
+  const observationPages = entityList<Observation>({
+    entity: "observation",
+    surface: observationListSurface,
+    call,
+    tenant: noTenant,
+    fn: "page_observations",
+    rowOf: observationOf,
+  });
+
+  const definitionPages = entityList<
+    ObservationDefinition,
+    RequiredTenantOption
+  >({
+    entity: "observation definition",
+    surface: observationDefinitionListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_observation_definitions",
+    rowOf: definitionOf,
+  });
+
   const client: Observations<F> = {
+    page: (pageOptions) =>
+      observationPages
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: (facetOptions) => observationPages.facets(facetOptions),
+    count: (countOptions) => observationPages.count(countOptions),
+    getObservation: (observationId) =>
+      call("get_observation", { observation_id: observationId }, (value) =>
+        value === null || value === undefined
+          ? undefined
+          : observationOf(value, "get_observation"),
+      )
+        .andThen((row) => foundOrNotFound("observation", row, observationId))
+        .andThen(fields.row),
+    pageDefinitions: definitionPages.page,
+    definitionFacets: definitionPages.facets,
+    countDefinitions: definitionPages.count,
+    getDefinition: (definitionId) =>
+      call(
+        "get_observation_definition",
+        { definition_id: definitionId },
+        (value) =>
+          value === null || value === undefined
+            ? undefined
+            : definitionOf(value, "get_observation_definition"),
+      ).andThen((row) =>
+        foundOrNotFound("observation definition", row, definitionId),
+      ),
     saveDefinition: ({ organizationId, key, input }) =>
       call(
         "save_observation_definition",
@@ -642,6 +752,7 @@ export function createObservations<
         { definition_id: definitionId },
         (value) => definitionOf(value, "restore_observation_definition"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     definitions: ({ organizationId, ...list }) =>
       call(
         "list_observation_definitions",
@@ -706,6 +817,7 @@ export function createObservations<
         { observation_id: observationId, reason },
         one("mark_observation_error"),
       ).andThen(fields.row),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     list: ({ subjectType, subjectId, ...list }) =>
       call(
         "list_observations",

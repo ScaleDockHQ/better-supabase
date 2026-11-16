@@ -85,7 +85,8 @@ export async function getEncryptionView(): Promise<EncryptionView | null> {
     Promise.all(
       FIELD_ENTITIES.map(async (entity) => {
         const definitions = await db.customFields
-          .listDefinitions(entity)
+          .page({ filters: { entity: [entity] }, limit: 200 })
+          .map((page) => page.items)
           .orThrow();
 
         return definitions.map((definition) => ({ entity, definition }));

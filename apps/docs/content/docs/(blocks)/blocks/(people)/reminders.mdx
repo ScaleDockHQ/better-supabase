@@ -200,3 +200,11 @@ export const GET = jobs.drainRoute({
   handlers: { [REMINDER_DELIVERY_QUEUE]: reminders.job },
 });
 ```
+
+## Paging reminders
+
+`page` pages the caller's own reminders, so every row belongs to the signed-in user. Sorts are `offsetMinutes` and `subjectType`. Filters are `subjectType`, `subjectId` and `method`, facets are `method` and `subjectType`. `facets` and `count` read under the same filters, and `get(reminderId)` returns one reminder or a `not_found` error. The SQL functions are `page_my_reminders` and `get_my_reminder`.
+
+```ts
+const mine = await reminders.page({ filters: { method: ["email"] } }).orThrow();
+```

@@ -85,3 +85,7 @@ better-supabase remove care --with-parts
 ```
 
 The first command replaces `care` in `blocks` with its parts. The second removes the parts too, except any part another block still needs ([`remove`](/docs/cli/init#remove)).
+
+## Paging care records
+
+`care` bundles the care plan, observation and medication blocks and has no list of its own, so it has no page. Page the plans with `carePlans.page` and the observations with `observations.page`, which follow the block list contract. See the care plans and observations pages.

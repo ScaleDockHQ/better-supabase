@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   addCheck,
   columnsObject,
@@ -274,6 +275,57 @@ ${lockTable(deliveries, { read: true })}
 `
     : "";
 
+  const reminderJson = (row: string): string =>
+    `jsonb_build_object('id', ${row}.${ctx.col("reminders", "id")}, 'subjectType', ${row}.${ctx.col("reminders", "subjectType")}, 'subjectId', ${row}.${ctx.col("reminders", "subjectId")}, 'method', ${row}.${ctx.col("reminders", "method")}, 'offsetMinutes', ${row}.${ctx.col("reminders", "offsetMinutes")}${at ? `, 'remindAt', ${row}.${remindAt}` : ""})`;
+
+  const reminderId = {
+    expr: `x.${ctx.col("reminders", "id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const offsetKeys = [
+    {
+      expr: `x.${ctx.col("reminders", "offsetMinutes")}`,
+      dir: "desc",
+      type: "integer",
+    },
+    reminderId,
+  ] as const;
+
+  const reminderPage = {
+    name: "page_my_reminders",
+    from: reminders,
+    alias: "x",
+    where: [
+      `x.${ctx.col("reminders", "tenant")} = page_my_reminders.tenant`,
+      `x.${ctx.col("reminders", "user")} = auth.uid()`,
+      filterAny("subjectType", `x.${ctx.col("reminders", "subjectType")}`),
+      filterAny("subjectId", `x.${ctx.col("reminders", "subjectId")}`),
+      filterAny("method", `x.${ctx.col("reminders", "method")}`),
+    ],
+    keys: offsetKeys,
+    sorts: {
+      offsetMinutes: offsetKeys,
+      subjectType: [
+        {
+          expr: `x.${ctx.col("reminders", "subjectType")}`,
+          dir: "asc",
+          type: "text",
+        },
+        reminderId,
+      ],
+    },
+    facets: {
+      method: `x.${ctx.col("reminders", "method")}`,
+      subjectType: `x.${ctx.col("reminders", "subjectType")}`,
+    },
+    rowJson: reminderJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("REMINDER_INVALID", message, "22023"),
+  } as const;
+
   return `${schemaPreamble(ctx)}
 ${tables}
 ${fields.drop(ctx.fn("save_reminder"), saveArgs)}${
@@ -342,6 +394,46 @@ begin
 end;
 $$;
 ${userGrant(`${ctx.fn("list_my_reminders")}(${ctx.idType}, text, text)`)}
+
+-- The caller's reminders in the tenant as a keyset page, the earliest before
+-- the occurrence first (ADR 1077). filters is { subjectType, subjectId, method
+-- (each a value or a list), sort (offsetMinutes, subjectType), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${ctx.fn("page_my_reminders")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_my_reminders.filters, '{}'::jsonb);
+  ${listDeclare(reminderPage)}
+begin
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("page_my_reminders.tenant", manage)}) then
+    ${fail("REMINDER_FORBIDDEN", "not allowed to manage reminders")}
+  end if;
+  ${listBody(reminderPage)}
+end;
+$$;
+${userGrant(`${ctx.fn("page_my_reminders")}(${ctx.idType}, jsonb)`)}
+
+-- One of the caller's reminders, or null.
+create or replace function ${ctx.fn("get_my_reminder")}(reminder uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select ${reminderJson("r")}
+  from ${reminders} r
+  where r.${ctx.col("reminders", "id")} = get_my_reminder.reminder
+    and r.${ctx.col("reminders", "user")} = auth.uid()
+    and ${ctx.scope.can(`r.${ctx.col("reminders", "tenant")}`, manage)};
+$$;
+${userGrant(`${ctx.fn("get_my_reminder")}(uuid)`)}
 
 -- Removes one of the caller's reminders, with its delivery history.
 create or replace function ${ctx.fn("delete_reminder")}(reminder uuid)
@@ -477,6 +569,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
+    { name: "page_my_reminders", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_my_reminder", args: ["uuid"], returns: "jsonb" },
     { name: "delete_reminder", args: ["uuid"], returns: "boolean" },
     {
       name: "mark_reminder_sent",

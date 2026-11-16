@@ -1,10 +1,13 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createTrash, sqlTransport } from "../../src/blocks/trash/index.ts";
+import { trashListSurface } from "../../src/blocks/trash/lists.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -116,6 +119,16 @@ describe.skipIf(!live)("trash", () => {
       ).toBe(true);
 
       await s.as(member);
+      expect(
+        await smokeList({
+          surface: trashListSurface,
+          page: (options) => trash.page({ ...options, organizationId: tenant }),
+          facets: () => trash.facets({ organizationId: tenant }),
+          count: () => trash.count({ organizationId: tenant }),
+          get: (id) => trash.get(id),
+        }),
+      ).toBe(1);
+
       const listed = await trash.list({ organizationId: tenant }).orThrow();
       expect(listed).toHaveLength(1);
       expect(listed[0]).toMatchObject({

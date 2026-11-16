@@ -16,7 +16,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   agents:
     "archive_agent get_agent install_agent list_agents page_agents publish_agent purge_agent rate_agent record_skill_sync restore_agent save_agent set_agent_skills",
   prompts:
-    "create_prompt_version get_prompt list_prompt_versions list_prompts set_prompt_label",
+    "create_prompt_version get_prompt list_prompt_versions list_prompts page_prompts set_prompt_label",
   "ai-evals":
     "add_eval_items add_eval_items_from_feedback compare_eval_runs create_eval_dataset create_eval_run finish_eval_run get_eval_dataset get_eval_run list_eval_datasets list_eval_items list_eval_results list_eval_runs page_eval_datasets page_eval_runs record_eval_result",
   "ai-guardrails":
@@ -31,7 +31,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "ai-schedules":
     "claim_due_ai_tasks delete_ai_task finish_ai_task_run get_ai_task list_ai_task_runs list_ai_tasks page_ai_tasks save_ai_task schedule_ai_tasks start_ai_task_run",
   announcements:
-    "active_announcements archive_announcement dismiss_announcement list_announcements purge_announcement restore_announcement save_announcement",
+    "active_announcements archive_announcement dismiss_announcement get_announcement list_announcements page_announcements purge_announcement restore_announcement save_announcement",
   "api-keys":
     "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:
@@ -58,14 +58,14 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   billing:
     "billing_account billing_all_customers billing_all_invoices billing_all_subscriptions billing_customer billing_customer_details billing_customer_tenant billing_invoices billing_overview billing_payment_methods billing_plan_price billing_seat_count billing_status billing_subscription billing_subscription_item billing_tax_ids cancel_native_subscription create_native_subscription link_billing_account link_billing_customer prorate_change",
   bookings:
-    "add_booking_exception archive_booking available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings list_bookings_for_customer restore_booking save_booking_resource save_booking_service set_booking_availability",
+    "add_booking_exception archive_booking available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds get_booking hold_booking list_booking_resources list_booking_services list_bookings list_bookings_for_customer page_bookings restore_booking save_booking_resource save_booking_service set_booking_availability",
   "bulk-actions": "bulk_apply bulk_run bulk_step start_bulk",
   calendar:
-    "calendar_bootstrap calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar import_calendar_events list_calendar_events list_calendar_working_hours list_calendars purge_calendar_event remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
+    "calendar_bootstrap calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar get_calendar get_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars page_calendar_events page_calendars purge_calendar_event remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   cases:
     "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case page_cases record_case_effectiveness record_case_root_cause remove_case_action reopen_case restore_case_kind save_case_kind update_case",
   "care-plans":
-    "add_care_plan_action add_care_plan_goal add_care_plan_problem archive_care_plan create_care_plan due_care_plan_reviews end_care_plan_action get_care_plan get_care_plans list_care_plan_measures list_care_plans publish_care_plan record_care_plan_evaluation request_care_plan_agreement restore_care_plan review_care_plan_action start_care_plan_action update_care_plan update_care_plan_action update_care_plan_goal update_care_plan_problem",
+    "add_care_plan_action add_care_plan_goal add_care_plan_problem archive_care_plan create_care_plan due_care_plan_reviews end_care_plan_action get_care_plan get_care_plans list_care_plan_measures list_care_plans page_care_plans publish_care_plan record_care_plan_evaluation request_care_plan_agreement restore_care_plan review_care_plan_action start_care_plan_action update_care_plan update_care_plan_action update_care_plan_goal update_care_plan_problem",
   catalog:
     "add_to_collection archive_product archive_variant channel_price channel_products delete_catalog_channel delete_category delete_collection delete_discount_group delete_discount_rule delete_price delete_price_list delete_product_identifier delete_product_option delete_product_relation delete_supplier_item delete_supplier_item_mapping find_variants_by_identifier move_category product_text promote_supplier_item publish_storefront purge_product purge_variant rank_variant remove_from_collection reorder_product_options replacement_variant resolve_line_discount restore_product restore_variant save_catalog_channel save_category save_collection save_discount_group save_discount_rule save_price_list save_product save_product_identifier save_product_option save_product_relation save_supplier_item save_variant search_supplier_items set_channel_listing set_party_discount_group set_price set_product_categories set_product_options set_product_status set_product_translation set_supplier_item_mapping set_variant_discount_group set_variant_status set_variant_trade_code set_variant_translation supplier_item_from_row supplier_item_mapping variant_identifiers variant_price variant_relations",
   channels:
@@ -92,7 +92,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "archive_course complete_course_lesson course_lesson course_outline course_progress delete_course_lesson delete_course_module enroll_in_course list_course_learners list_courses purge_course restore_course revoke_course_certificate save_course save_course_lesson save_course_module start_course_lesson unenroll_from_course verify_course_certificate",
   credentials: "credential_delete credential_get credential_set",
   "custom-fields":
-    "archive_field_definition delete_field_value install_field_pack list_field_definitions purge_field_definition rank_field_definition read_field_values restore_field_definition save_field_definition set_field_value update_field_value",
+    "archive_field_definition delete_field_value get_field_definition install_field_pack list_field_definitions page_field_definitions purge_field_definition rank_field_definition read_field_values restore_field_definition save_field_definition set_field_value update_field_value",
   "data-lifecycle":
     "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows data_restore_tables due_organization_deletions erase_data_subject expired_data_exports extend_data_subject_request fail_data_export forget_data_exports fulfil_data_subject_request get_data_export get_data_subject_request list_data_exports list_data_subject_requests list_legal_holds list_retention_policies open_data_subject_request organization_credential_refs organization_deletion page_data_subject_requests place_legal_hold purge_organization refuse_data_subject_request release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy verify_data_subject_request",
   deals:
@@ -148,7 +148,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
   advisories:
-    "create_product_version get_advisory get_published_advisory import_sbom list_advisories list_advisory_products list_product_versions list_published_advisories list_sbom_components list_vex_statements list_vulnerabilities publish_advisory record_vulnerability_enrichment save_advisory save_advisory_product save_vex_statement save_vulnerability version_exposure vulnerabilities_due",
+    "create_product_version get_advisory get_published_advisory import_sbom list_advisories list_advisory_products list_product_versions list_published_advisories list_sbom_components list_vex_statements list_vulnerabilities page_advisories page_vulnerabilities publish_advisory record_vulnerability_enrichment save_advisory save_advisory_product save_vex_statement save_vulnerability version_exposure vulnerabilities_due",
   "e-prescribing":
     "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":
@@ -211,7 +211,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "oauth-server":
     "create_oauth_authorization_code create_oauth_device_code decide_oauth_device_code delete_oauth_client is_oauth_token_revoked list_oauth_grants oauth_client oauth_device_request poll_oauth_device_code purge_oauth_server redeem_oauth_authorization_code register_oauth_client revoke_oauth_grant revoke_oauth_token rotate_oauth_client_secret update_oauth_client verify_oauth_client verify_oauth_registration_token",
   observations:
-    "amend_observation archive_observation_definition ingest_observations latest_observations list_observation_definitions list_observations mark_observation_error observation_series record_observations restore_observation_definition save_observation_definition",
+    "amend_observation archive_observation_definition get_observation get_observation_definition ingest_observations latest_observations list_observation_definitions list_observations mark_observation_error observation_series page_observation_definitions page_observations record_observations restore_observation_definition save_observation_definition",
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
@@ -247,13 +247,13 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   relations:
     "ancestors converted_into descendants link relation_rollup relations_by_kind relations_of unlink",
   reminders:
-    "delete_reminder list_my_reminders list_reminder_schedule mark_reminder_sent save_reminder",
+    "delete_reminder get_my_reminder list_my_reminders list_reminder_schedule mark_reminder_sent page_my_reminders save_reminder",
   reviews:
     "delete_review get_review list_reviews my_review page_reviews publish_review reject_review reply_to_review review_queue review_summary submit_review",
   risks:
     "archive_risk assess_risk close_risk create_risk get_risk list_risk_matrices list_risks notify_due_risk_reviews restore_risk review_risk risk_heatmap save_risk_matrix set_risk_treatment update_risk",
   "saved-views":
-    "delete_view duplicate_view list_views rank_view save_view set_default_view set_view_preference",
+    "delete_view duplicate_view get_view list_views page_saved_views rank_view save_view set_default_view set_view_preference",
   scores:
     "archive_score_model compute_score get_score_model list_score_models page_score_models purge_score_model restore_score_model save_score_model score_history subject_scores top_scores",
   search:
@@ -288,17 +288,17 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "purge_streams stream_append stream_cancel stream_close stream_kv_get stream_kv_incr stream_kv_publish stream_kv_set stream_open stream_read stream_status",
   subjects:
     "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
-  tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
+  tags: "create_tag delete_tag get_tag list_tags page_tags rank_tag subject_tags tag untag update_tag",
   tasks:
-    "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
+    "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_project get_task list_task_checklist list_tasks page_projects page_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
   teams:
     "add_team_member archive_team create_team get_team list_teams purge_team remove_team_member update_team",
   templates:
     "fork_template page_templates publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":
-    "archive_time_entry get_timesheet list_time_entries list_timesheets log_time purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
+    "archive_time_entry get_time_entry get_timesheet list_time_entries list_timesheets log_time page_time_entries purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
   timeline: "list_activity record_activity",
-  trash: "list_trash purge_trash restore_trash trash",
+  trash: "get_trash list_trash page_trash purge_trash restore_trash trash",
   usage:
     "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch remove_usage_quota set_usage_quota unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_quotas_for usage_remaining usage_status",
   "vercel-marketplace":

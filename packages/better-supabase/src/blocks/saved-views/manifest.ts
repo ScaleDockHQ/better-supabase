@@ -3,6 +3,7 @@ import type { SavedViewsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { savedViewsEvents } from "./events.ts";
+import { savedViewListSurface } from "./lists.ts";
 import { createSavedViews } from "./saved-views.ts";
 
 /** The `saved-views` block's manifest (ADR 0029). */
@@ -19,6 +20,7 @@ export const savedViewsBlock: BlockOf<
   category: "work",
   entities: {
     saved_view: {
+      ...savedViewListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

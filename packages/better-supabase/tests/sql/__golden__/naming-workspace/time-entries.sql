@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_entries.sql
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@4 managed
--- @bsb-hash sha256:33147c0ee5cb6e3abd00f04f32bb225d6accb12998118a9a24c4e1b519593920
+-- @bsb-hash sha256:08b6774f93f26017ea9e0ffba0e1712059cc8c2d91e56fb72a16022828e5a8cb
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -651,6 +651,407 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_time_entries"(uuid, uuid, timestamptz, timestamptz, text, text, boolean, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_time_entries"(uuid, uuid, timestamptz, timestamptz, text, text, boolean, integer, boolean) to authenticated, service_role;
+
+-- A member's entries (the caller's by default) as a keyset page, newest first
+-- (ADR 1077). filters is { subjectType, subjectId, billable (each a value or a
+-- list), userId, from, to (the first value counts), everyone (true for all
+-- members), archived (true lists only archived entries), search (note), sort
+-- (startedAt, endedAt, seconds, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_time_entries"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_time_entries.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_everyone boolean := coalesce(nullif(coalesce(v_filters #>> '{everyone,0}', v_filters ->> 'everyone'), '') = 'true', false);
+  v_user uuid := coalesce(nullif(nullif(coalesce(v_filters #>> '{userId,0}', v_filters ->> 'userId'), ''), '')::uuid, auth.uid());
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ((coalesce(v_user = auth.uid(), false) and not v_everyone) and coalesce(better_supabase.can('tenant', page_time_entries.tenant, 'time_entries.track'), false)) or coalesce(better_supabase.can('tenant', page_time_entries.tenant, 'time_entries.read'), false)) then
+    raise exception 'not allowed to read these entries' using errcode = '42501', hint = 'TIME_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('subjectType', 'billable') then
+      raise exception 'facet is one of subjectType, billable' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'subjectType' then (x."subject_type")::text when 'billable' then (x."billable"::text)::text end) as v
+      from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startedAt', 'endedAt', 'seconds', 'createdAt') then
+    raise exception 'sort is one of startedAt, endedAt, seconds, createdAt' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."started_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."started_at" >= (v_after ->> 0)::timestamptz and ((x."started_at" > (v_after ->> 0)::timestamptz) or (x."started_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."started_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."started_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."started_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."started_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."started_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."started_at" >= (v_after ->> 0)::timestamptz and ((x."started_at" > (v_after ->> 0)::timestamptz) or (x."started_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."started_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."started_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."started_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."started_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'endedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((coalesce(x."ended_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (coalesce(x."ended_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."ended_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."ended_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."ended_at", 'infinity'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'endedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((coalesce(x."ended_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (coalesce(x."ended_at", 'infinity'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."ended_at", 'infinity'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'seconds' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0) >= (v_after ->> 0)::bigint and ((coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0) > (v_after ->> 0)::bigint) or (coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0) = (v_after ->> 0)::bigint and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'seconds' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0), x."id") < ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by coalesce(case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 0) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TIME_ENTRY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'startedAt', x."started_at", 'endedAt', x."ended_at", 'seconds', case when x."ended_at" is null then null else extract(epoch from x."ended_at" - x."started_at")::bigint end, 'billable', x."billable", 'rate', x."rate"::text, 'rateCurrency', x."rate_currency", 'note', x."note", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."time_entries" x
+      where x."tenant_id" = page_time_entries.tenant
+        and (v_everyone or x."user_id" = v_user)
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or coalesce(x."ended_at", 'infinity'::timestamptz) > (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), ''))::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."started_at" < (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), ''))::timestamptz)
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'billable' is not null and jsonb_typeof(v_filters -> 'billable') <> 'null' and not (jsonb_typeof(v_filters -> 'billable') = 'array' and jsonb_array_length(v_filters -> 'billable') = 0)) or x."billable"::text = any((case when jsonb_typeof(v_filters -> 'billable') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'billable')) else array[v_filters ->> 'billable'] end)::text[]))
+        and ((x."archived_at" is not null) = coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false))
+        and (v_search is null or x."note" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_time_entries"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_time_entries"(uuid, jsonb) to authenticated, service_role;
+
+-- One entry the caller may read, or null.
+create or replace function "better_supabase"."get_time_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."time_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."time_entries" x where x."id" = get_time_entry.entry_id;
+  if not found then
+    return null;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(v_row."user_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_entries.track'), false)) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'time_entries.read'), false)) then
+    raise exception 'not allowed to read this entry' using errcode = '42501', hint = 'TIME_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'startedAt', v_row."started_at", 'endedAt', v_row."ended_at", 'seconds', case when v_row."ended_at" is null then null else extract(epoch from v_row."ended_at" - v_row."started_at")::bigint end, 'billable', v_row."billable", 'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency", 'note', v_row."note", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_time_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_time_entry"(uuid) to authenticated, service_role;
+
 
 -- One member's week: the timesheet (status open when there is none yet),
 -- the entries that start in it and their totals.

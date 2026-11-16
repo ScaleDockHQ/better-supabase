@@ -1,4 +1,15 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -17,6 +28,7 @@ import type {
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -34,6 +46,7 @@ import {
 import { parseCvss } from "./cvss.ts";
 import { parseCycloneDx } from "./cyclonedx.ts";
 import { publicVulnerabilityFeed, vulnerabilityFeedOf } from "./feed.ts";
+import { advisoryListSurface, vulnerabilityListSurface } from "./lists.ts";
 import { renderOpenVex } from "./openvex.ts";
 import {
   ADVISORY_STATUSES,
@@ -218,6 +231,7 @@ export interface Advisories {
     readonly cvssVector?: string;
     readonly affectedPurls?: readonly string[];
   }): AsyncResult<TrackedVulnerability>;
+  /** @deprecated Use `pageVulnerabilities` (ADR 1077). */
   vulnerabilities(options?: {
     readonly kevOnly?: boolean;
     readonly limit?: number;
@@ -274,10 +288,35 @@ export interface Advisories {
       readonly note?: string;
     },
   ): AsyncResult<Advisory>;
+  /** @deprecated Use `page` (ADR 1077). */
   advisories(options?: {
     readonly status?: AdvisoryStatus;
   }): AsyncResult<Advisory[]>;
   getAdvisory(id: string): AsyncResult<AdvisoryDetail>;
+  /**
+   * One keyset page of the organization's advisories, newest first. `filters`
+   * takes `status`, `severity` and `productId`; `q` matches the title, tracking
+   * id and summary (ADR 1077).
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Advisory>>;
+  /** Counts per `status` or `severity` for the page's `q` and filters. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many advisories match the page's `q` and filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One keyset page of the tracked vulnerabilities, by id. */
+  pageVulnerabilities(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<TrackedVulnerability>>;
+  /** Counts per `severity` for the page's `q` and filters. */
+  vulnerabilityFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many vulnerabilities match the page's `q` and filters. */
+  countVulnerabilities(
+    options?: CountOptions & TenantOption,
+  ): AsyncResult<Count>;
   /**
    * What `createCsafHandler` reads for one organization. The calls need the
    * service role, so build the client over a service transport.
@@ -669,6 +708,24 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const advisoryPages = entityList<Advisory, TenantOption>({
+    entity: "advisory",
+    surface: advisoryListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_advisories",
+    rowOf: (row) => advisoryOf(row),
+  });
+
+  const vulnerabilityPages = entityList<TrackedVulnerability, TenantOption>({
+    entity: "vulnerability",
+    surface: vulnerabilityListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_vulnerabilities",
+    rowOf: (row) => vulnerabilityOf(row),
+  });
+
   const withTenant = <T>(
     run: (organizationId: string) => AsyncResult<T>,
   ): AsyncResult<T> => tenant().andThen(run);
@@ -812,6 +869,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           ),
         );
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     vulnerabilities: (list = {}) =>
       withTenant((organizationId) =>
         call(
@@ -1004,6 +1062,7 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           advisoryOf,
         ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     advisories: (list = {}) =>
       withTenant((organizationId) =>
         call(
@@ -1012,6 +1071,12 @@ export function createAdvisories(options: AdvisoriesOptions): Advisories {
           (value) => recordsOf(value, "list_advisories").map(advisoryOf),
         ),
       ),
+    page: advisoryPages.page,
+    facets: advisoryPages.facets,
+    count: advisoryPages.count,
+    pageVulnerabilities: vulnerabilityPages.page,
+    vulnerabilityFacets: vulnerabilityPages.facets,
+    countVulnerabilities: vulnerabilityPages.count,
     getAdvisory: (id) =>
       withTenant((organizationId) =>
         call(

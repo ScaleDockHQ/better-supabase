@@ -10,6 +10,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -414,6 +420,48 @@ function build(ctx: BlockSqlContext): string {
   const notFound = fail("TRASH_NOT_FOUND", "trash item not found", "P0002");
   // The root item's extra columns, such as a reason: trash() sets them, list_trash returns them.
   const extras = ctx.extraColumns("items", ["fields", "batchId", "count"]);
+
+  const trashKey = { expr: `x.${c("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const trashNewest = [
+    { expr: `x.${c("trashedAt")}`, dir: "desc", type: "timestamptz" },
+    trashKey,
+  ] as const;
+
+  const trashPage = {
+    name: "page_trash",
+    from: `(select s.*, (select count(*) from ${items} b where b.${c("batch")} = s.${c("batch")})::integer as n from ${items} s)`,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_trash.tenant`,
+      `x.${c("depth")} = 0`,
+      filterAny("subjectType", `x.${c("subjectType")}`),
+      `(v_search is null or x.${c("title")} ilike v_search)`,
+      `(${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type: `x.${c("subjectType")}`, id: `x.${c("subjectId")}`, tenant: `x.${c("tenant")}` })})`,
+    ],
+    keys: trashNewest,
+    sorts: {
+      trashedAt: trashNewest,
+      subjectType: [
+        { expr: `x.${c("subjectType")}`, dir: "asc", type: "text" },
+        trashKey,
+      ],
+      purgeAfter: [
+        {
+          expr: `coalesce(x.${c("purgeAfter")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        trashKey,
+      ],
+    },
+    facets: { subjectType: `x.${c("subjectType")}` },
+    rowJson: `jsonb_build_object('id', x.${c("id")}, 'subjectType', x.${c("subjectType")}, 'subjectId', x.${c("subjectId")}, 'title', x.${c("title")}, 'batchId', x.${c("batch")}, 'count', x.n, 'trashedBy', x.${c("trashedBy")}, 'trashedAt', x.${c("trashedAt")}, 'purgeAfter', x.${c("purgeAfter")}${extraFieldsJson("x", extras)})`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("TRASH_INVALID", message, "22023"),
+  } as const;
+
   const extra = extraFieldsArg(extras);
 
   const tables = ctx.manages
@@ -588,6 +636,63 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_trash")}(${ctx.idType}, text, integer, timestamptz)`)}
+
+-- One trashed batch per row, newest first (ADR 1077). It runs as definer like
+-- list_trash and applies the same read checks. filters is { subjectType (a
+-- value or a list), search (title), sort (trashedAt, subjectType, purgeAfter),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_trash")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_trash.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(trashPage)}
+begin
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "page_trash.tenant", read)}) then
+    ${fail("TRASH_FORBIDDEN", "not allowed to read this organization's trash")}
+  end if;
+  ${listBody(trashPage)}
+end;
+$$;
+${userGrant(`${fn("page_trash")}(${ctx.idType}, jsonb)`)}
+
+-- One trashed batch by its root item id, or null.
+create or replace function ${fn("get_trash")}(item_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+  v_tenant ${ctx.idType};
+begin
+  select x.${c("tenant")} into v_tenant from ${items} x where x.${c("id")} = get_trash.item_id and x.${c("depth")} = 0;
+  if v_tenant is null then
+    return null;
+  end if;
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "v_tenant", read)}) then
+    ${fail("TRASH_FORBIDDEN", "not allowed to read this organization's trash")}
+  end if;
+  select jsonb_build_object('id', t.${c("id")}, 'subjectType', t.${c("subjectType")}, 'subjectId', t.${c("subjectId")}, 'title', t.${c("title")}, 'batchId', t.${c("batch")}, 'count', t.n, 'trashedBy', t.${c("trashedBy")}, 'trashedAt', t.${c("trashedAt")}, 'purgeAfter', t.${c("purgeAfter")}${extraFieldsJson("t", extras)})
+    into v_row
+  from (
+    select x.*, (select count(*) from ${items} b where b.${c("batch")} = x.${c("batch")})::integer as n
+    from ${items} x
+    where x.${c("id")} = get_trash.item_id
+      and (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type: `x.${c("subjectType")}`, id: `x.${c("subjectId")}`, tenant: `x.${c("tenant")}` })})
+  ) t;
+  return v_row;
+end;
+$$;
+${userGrant(`${fn("get_trash")}(uuid)`)}
 
 -- Deletes a batch's rows for good, children first.
 create or replace function ${fn("trash_purge_batch")}(batch uuid)

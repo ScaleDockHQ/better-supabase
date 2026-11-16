@@ -9,6 +9,13 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -233,6 +240,54 @@ function build(ctx: BlockSqlContext): string {
     ? `when 'plan' then v_tenant is not null and x.${ca("targets")} && ${plans}`
     : "";
 
+  const idKey = { expr: `x.${ca("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const startKeys = [
+    { expr: `x.${ca("startsAt")}`, dir: "desc", type: "timestamptz" },
+    idKey,
+  ] as const;
+
+  const titleKeys = [
+    { expr: `lower(x.${ca("title")})`, dir: "asc", type: "text" },
+    idKey,
+  ] as const;
+
+  const announcementPage = {
+    name: "page_announcements",
+    from: a,
+    alias: "x",
+    where: [
+      filterAny("severity", `x.${ca("severity")}`),
+      filterAny("audience", `x.${ca("audience")}`),
+      archivable
+        ? `(${filterFlag("archived")} or x.${ca("archivedAt")} is null)`
+        : "true",
+      `(v_search is null or x.${ca("title")} ilike v_search${has("body") ? ` or x.${ca("body")} ilike v_search` : ""})`,
+    ],
+    keys: startKeys,
+    sorts: {
+      startsAt: startKeys,
+      title: titleKeys,
+      createdAt: [
+        {
+          expr: `x.${has("createdAt") ? ca("createdAt") : ca("startsAt")}`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        idKey,
+      ],
+    },
+    facets: {
+      severity: `x.${ca("severity")}`,
+      audience: `x.${ca("audience")}`,
+    },
+    rowJson: withExtraFields("to_jsonb(x)", "x", extras),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("ANNOUNCEMENT_INVALID", message, "22023"),
+  } as const;
+
   return `${schemaPreamble(ctx)}
 -- Announcements staff publish to everyone, to tenants, to members with a
 -- role, or (with entitlements) to tenants on a plan, between starts_at and
@@ -353,6 +408,50 @@ begin
   return (
     select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x${archivable ? `\n    where list_announcements.include_archived or x.${ca("archivedAt")} is null` : ""}
+  );
+end;
+$$;
+
+-- Announcements as a keyset page for staff (announcements.manage on the
+-- platform), newest start first (ADR 1077). filters is { severity, audience
+-- (each a value or a list), archived (true adds archived ones), search (title,
+-- body), sort (startsAt, title, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_announcements")}(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_announcements.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(announcementPage)}
+begin
+  if not ${staff} then
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
+  end if;
+  ${listBody(announcementPage)}
+end;
+$$;
+
+-- One announcement for staff, or null.
+create or replace function ${fn("get_announcement")}(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${staff} then
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
+  end if;
+  return (
+    select ${withExtraFields("to_jsonb(x)", "x", extras)}
+    from ${a} x where x.${ca("id")} = get_announcement.id
   );
 end;
 $$;
@@ -487,12 +586,16 @@ revoke execute on function ${fn("active_announcements")}(${id}) from public, ano
 revoke execute on function ${fn("dismiss_announcement")}(uuid) from public, anon;
 revoke execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) from public, anon;
 revoke execute on function ${fn("save_announcement")}(uuid, jsonb) from public, anon;
+revoke execute on function ${fn("page_announcements")}(jsonb) from public, anon;
+revoke execute on function ${fn("get_announcement")}(uuid) from public, anon;
 ${archivable ? `revoke execute on function ${fn("archive_announcement")}(uuid) from public, anon;\nrevoke execute on function ${fn("restore_announcement")}(uuid) from public, anon;\n` : ""}revoke execute on function ${fn("purge_announcement")}(uuid) from public, anon;
 grant execute on function ${fn("active_announcements")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("dismiss_announcement")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) to authenticated, service_role;
 grant execute on function ${fn("save_announcement")}(uuid, jsonb) to authenticated, service_role;
-${archivable ? `grant execute on function ${fn("archive_announcement")}(uuid) to authenticated, service_role;\ngrant execute on function ${fn("restore_announcement")}(uuid) to authenticated, service_role;\n` : ""}grant execute on function ${fn("purge_announcement")}(uuid) to authenticated, service_role;`;
+${archivable ? `grant execute on function ${fn("archive_announcement")}(uuid) to authenticated, service_role;\ngrant execute on function ${fn("restore_announcement")}(uuid) to authenticated, service_role;\n` : ""}grant execute on function ${fn("purge_announcement")}(uuid) to authenticated, service_role;
+grant execute on function ${fn("page_announcements")}(jsonb) to authenticated, service_role;
+grant execute on function ${fn("get_announcement")}(uuid) to authenticated, service_role;`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -506,6 +609,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: archivable ? ["boolean"] : [],
       returns: "jsonb",
     },
+    { name: "page_announcements", args: ["jsonb"], returns: "jsonb" },
+    { name: "get_announcement", args: ["uuid"], returns: "jsonb" },
     { name: "save_announcement", args: ["uuid", "jsonb"], returns: "jsonb" },
     ...(archivable
       ? [

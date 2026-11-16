@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 1 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -6,9 +7,11 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createCarePlans } from "../../src/blocks/care-plans/index.ts";
+import { carePlanListSurface } from "../../src/blocks/care-plans/lists.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -215,6 +218,17 @@ describe.skipIf(!live)("care-plans", () => {
           "care_plan_goal.status_changed",
         ]),
       );
+
+      await s.as(owner);
+      expect(
+        await smokeList({
+          surface: carePlanListSurface,
+          page: (options) => plans.page(options),
+          facets: () => plans.facets(),
+          count: () => plans.count(),
+          get: (id) => plans.get(id),
+        }),
+      ).toBe(1);
     } finally {
       await s.close();
     }

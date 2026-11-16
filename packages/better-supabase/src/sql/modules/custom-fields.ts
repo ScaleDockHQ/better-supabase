@@ -909,6 +909,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             ],
             returns: "jsonb",
           },
+          {
+            name: "page_field_definitions",
+            args: ["{id}", "jsonb"],
+            returns: "jsonb",
+          },
+          { name: "get_field_definition", args: ["uuid"], returns: "jsonb" },
         ]),
     ...(encrypts(ctx)
       ? [

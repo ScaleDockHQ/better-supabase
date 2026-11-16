@@ -61,7 +61,10 @@ export async function getAdvisories(): Promise<readonly AdvisoryRow[]> {
   cacheTag(ADVISORIES_TAG);
 
   const [advisories, products] = await Promise.all([
-    db.advisories.advisories().orThrow(),
+    db.advisories
+      .page({ limit: 200 })
+      .map((page) => page.items)
+      .orThrow(),
     db.advisories.products().orThrow(),
   ]);
 
@@ -87,7 +90,8 @@ export async function getVulnerabilities(): Promise<
   cacheTag(ADVISORIES_TAG);
 
   const vulnerabilities = await db.advisories
-    .vulnerabilities({ limit: 100 })
+    .pageVulnerabilities({ limit: 100 })
+    .map((page) => page.items)
     .orThrow();
 
   return vulnerabilities.map((vulnerability) => ({

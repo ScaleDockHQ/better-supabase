@@ -3,6 +3,7 @@ import type { TrashEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { trashEvents } from "./events.ts";
+import { trashListSurface } from "./lists.ts";
 import { trashSqlOptions } from "./options.ts";
 import { createTrash } from "./trash.ts";
 
@@ -15,7 +16,7 @@ export const trashBlock: BlockOf<"trash", typeof createTrash, TrashEvents> =
     events: trashEvents,
     create: createTrash,
     category: "database",
-    entities: { subject: { mutability: "state-machine" } },
+    entities: { subject: { ...trashListSurface, mutability: "state-machine" } },
     description:
       "Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.",
     recipes: ["undo-toast", "trash-bin"],

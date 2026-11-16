@@ -1,6 +1,6 @@
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:8870e4632157eaa437d41a43847217b65cc817fc15f81baca867e8b4b7d0847f
+-- @bsb-hash sha256:bc2061ff6a3fb87f5c84510fc9bff96f8b0f13f866f2bd6842fe2900fd1e407f
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -214,6 +214,358 @@ $$;
 revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
 
+-- The prompt names of a tenant (the system when tenant is null) as a keyset
+-- page (ADR 1077), with the same items as list_prompts. filters is { name,
+-- label (each a value or a list), search (name), sort (name, updatedAt,
+-- versionCount), direction, count, limit, after, offset, paged, total,
+-- totalCap }. Service role only, and it reads no template.
+create or replace function "better_supabase"."page_prompts"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_prompts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'versionCount') then
+    raise exception 'sort is one of name, updatedAt, versionCount' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 1) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.name) > ((v_after ->> 0)::text))
+      order by x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 1) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.name) < ((v_after ->> 0)::text))
+      order by x.name desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 1) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.name) > ((v_after ->> 0)::text))
+      order by x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 1) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.name) < ((v_after ->> 0)::text))
+      order by x.name desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((coalesce(x.updated_at, 'epoch'::timestamptz))::text, (x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
+      order by coalesce(x.updated_at, 'epoch'::timestamptz) asc, x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((coalesce(x.updated_at, 'epoch'::timestamptz))::text, (x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
+      order by coalesce(x.updated_at, 'epoch'::timestamptz) desc, x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'versionCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.version_count)::text, (x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
+      order by x.version_count asc, x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'versionCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PROMPT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels) as j, jsonb_build_array((x.version_count)::text, (x.name)::text) as k
+    from (
+      select * from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+        and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
+      order by x.version_count desc, x.name asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (
+    select g."name" as name,
+      max(g."version") as latest_version,
+      count(*) as version_count,
+      max(g."created_at") as updated_at,
+      coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '') and y."name" = g."name"
+      ), '{}'::jsonb) as labels
+    from "better_supabase"."prompt_versions" g
+    where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
+    group by g."name"
+  ) x
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+        and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
+        and (v_search is null or x.name ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_prompts"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_prompts"(uuid, jsonb) to service_role;
+
 -- blocks.prompts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -265,3 +617,13 @@ set search_path = ''
 as $$ select "better_supabase"."list_prompts"($1, $2, $3) $$;
 revoke execute on function "api"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "api"."list_prompts"(uuid, text, integer) to service_role;
+
+create or replace function "api"."page_prompts"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_prompts"($1, $2) $$;
+revoke execute on function "api"."page_prompts"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."page_prompts"(uuid, jsonb) to service_role;

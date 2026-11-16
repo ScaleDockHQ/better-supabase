@@ -23,7 +23,11 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { entityList, tenantOrOption } from "../../core/entity-list.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -415,7 +419,13 @@ export interface Incidents<F extends object = Record<never, never>> {
     impacts: readonly IncidentImpactInput[];
   }): AsyncResult<Incident<F>>;
   get(incidentId: string): AsyncResult<IncidentDetail<F> | undefined>;
-  /** Newest first. */
+  /** One incident, or a `not_found` error. `get` returns `undefined` instead. */
+  getIncident(incidentId: string): AsyncResult<IncidentDetail<F>>;
+  /**
+   * Newest first.
+   *
+   * @deprecated Use `page` (ADR 1077).
+   */
   list(
     input: { organizationId: string } & IncidentListOptions,
   ): AsyncResult<readonly Incident<F>[]>;
@@ -974,6 +984,11 @@ export function createIncidents<
       ).andThen((row) =>
         row === undefined ? AsyncResult.ok(undefined) : fields.row(row),
       ),
+    getIncident: (incidentId) =>
+      client
+        .get(incidentId)
+        .andThen((row) => foundOrNotFound("incident", row, incidentId)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       call(
         "list_incidents",

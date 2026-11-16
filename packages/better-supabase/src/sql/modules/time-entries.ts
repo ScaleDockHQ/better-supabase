@@ -43,6 +43,7 @@ import {
   lockedColumns,
   timeOwner,
 } from "./time-entries-owner.ts";
+import { timeEntryPageSql } from "./time-entries-pages.ts";
 import {
   dropNumericSignatures,
   rateChecks,
@@ -891,6 +892,28 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_time_entries")}(${listTypes}${employeeMode ? ", uuid" : ""}${archivable ? ", boolean" : ""})`)}
+${timeEntryPageSql({
+  idType: ctx.idType,
+  fn,
+  entries,
+  e,
+  owner: eOwner,
+  employeeMode,
+  archivable,
+  ended,
+  seconds,
+  subjectType: (alias) => rowSubject(alias).type,
+  subjectId: (alias) => rowSubject(alias).id,
+  entryJson,
+  employeeIdOfUser: (tenant, user) =>
+    staff === undefined
+      ? "null::uuid"
+      : `(select y.${staff.col("employees", "id")} from ${staff.table("employees")} y where y.${staff.col("employees", "tenant")} = ${tenant} and y.${staff.col("employees", "user")} = ${user})`,
+  myEmployee,
+  canTrack: (tenant) => ctx.can("tenant", tenant, track),
+  canRead: (tenant) => ctx.can("tenant", tenant, read),
+  forbidden,
+})}
 
 ${
   statusMode
@@ -1000,6 +1023,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "date", "text", ...owner],
       returns: "jsonb",
     },
+    { name: "page_time_entries", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_time_entry", args: ["uuid"], returns: "jsonb" },
     {
       name: "get_timesheet",
       args: ["{id}", "date", "uuid", ...owner],
