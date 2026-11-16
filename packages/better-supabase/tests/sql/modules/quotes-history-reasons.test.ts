@@ -336,6 +336,6 @@ $$;`,
         { invoices: { permissions: { payment: "invoices.manage" } } },
         ["invoices"],
       ),
-    ).rejects.toThrow(/no such invoice you can edit/);
+    ).rejects.toThrow(/you may not record a payment on this invoice/);
   });
 });
