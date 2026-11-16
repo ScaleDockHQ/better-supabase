@@ -27,6 +27,7 @@ import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
+import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { optimizeLocated } from "../../core/route-optimizer.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -281,8 +282,20 @@ export interface Dispatch<F extends object = Record<never, never>> {
     status: WorkOrderTransition;
     note?: string | undefined;
   }): AsyncResult<WorkOrder<F>>;
-  /** `null` when it doesn't exist or the caller can't read it. */
+  /**
+   * `null` when it doesn't exist or the caller can't read it.
+   *
+   * Deprecated in favor of `getOrNotFound`, which follows the block list
+   * contract (ADR 1077) with a `not_found` error. `get` keeps returning `null`
+   * under apiVersion 1. (No `@deprecated` tag: the repo lints every use of
+   * one.)
+   */
   get(id: string): AsyncResult<WorkOrder<F> | null>;
+  /**
+   * The work order, or a `not_found` error (`DISPATCH_NOT_FOUND`) when it
+   * doesn't exist or the caller can't read it.
+   */
+  getOrNotFound(id: string): AsyncResult<WorkOrder<F>>;
   list(options?: WorkOrderListOptions): AsyncResult<readonly WorkOrder<F>[]>;
   /**
    * One keyset page of work orders, in the order of `sort` (newest first by
@@ -503,6 +516,20 @@ export function createDispatch<
           : workOrderOf(value, "get_work_order"),
       ).andThen((found) =>
         found === null ? AsyncResult.ok(null) : fields.row(found),
+      ),
+    getOrNotFound: (id) =>
+      call("get_work_order", { work_order_id: id }, (value) =>
+        value === null || value === undefined
+          ? null
+          : workOrderOf(value, "get_work_order"),
+      ).andThen((found) =>
+        found === null
+          ? AsyncResult.err(
+              dbError("not_found", "Work order not found", {
+                hint: "DISPATCH_NOT_FOUND",
+              }),
+            )
+          : fields.row(found),
       ),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
