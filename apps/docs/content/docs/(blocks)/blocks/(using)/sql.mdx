@@ -1978,6 +1978,34 @@ for (const { module, action, key } of modulePermissionKeys(
 }
 ```
 
+## Functions only the service role may call
+
+`better_supabase.is_service_role()` is true for the `service_role` key and for
+a direct admin connection (`postgres` or `supabase_admin` without a token),
+and false for `anon` and `authenticated`. Use it as the guard of your own
+functions that only a server, a cron job or a migration may call, instead of
+copying `auth.jwt() ->> 'role' = 'service_role'` into each one:
+
+```sql
+create or replace function private.reset_counters(tenant uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not better_supabase.is_service_role() then
+    raise exception 'only the service role may reset counters'
+      using errcode = '42501', hint = 'COUNTERS_FORBIDDEN';
+  end if;
+  update private.counters c set value = 0 where c.organization_id = reset_counters.tenant;
+end;
+$$;
+```
+
+The block functions check the same condition inline. The prelude file that
+every module install writes defines the function.
+
 ## Memoize a value for one transaction
 
 `better_supabase.memo_get(key)` and `better_supabase.memo_set(key, value)` keep

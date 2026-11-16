@@ -227,6 +227,20 @@ export const SERVICE_CALLER =
   "coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')";
 
 /**
+ * `better_supabase.is_service_role()`, the prelude's form of `SERVICE_CALLER`
+ * for hand-written functions that only the service role or a direct admin
+ * connection may call. Block functions inline `SERVICE_CALLER` instead.
+ */
+export const IS_SERVICE_ROLE: string = `create or replace function better_supabase.is_service_role()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$ select ${SERVICE_CALLER} $$;
+revoke execute on function better_supabase.is_service_role() from public;
+grant execute on function better_supabase.is_service_role() to anon, authenticated, service_role;`;
+
+/**
  * The `organization.member_added` record for a module that adds a member, so
  * every module writes the same payload. Each value is a SQL expression.
  */

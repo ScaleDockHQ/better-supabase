@@ -8,7 +8,7 @@ import { createTable, enableRowSecurity } from "../emit/table.ts";
 import { MEMO_FUNCTIONS } from "../memo.ts";
 import { moduleContext } from "../module-context.ts";
 import { NORMALIZE_SQL } from "../normalize-sql.ts";
-import { EQUIVALENT_TRIGGERS } from "../shared.ts";
+import { EQUIVALENT_TRIGGERS, IS_SERVICE_ROLE } from "../shared.ts";
 import { subjectMergeDispatcher } from "../subject-merge-sql.ts";
 import { moduleHeader } from "./assemble.ts";
 
@@ -25,6 +25,7 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "as_column_type",
   "column_default",
   "import_run",
+  "is_service_role",
   "memo_get",
   "memo_set",
   "memo_slot_get",
@@ -111,6 +112,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`,
     MEMO_FUNCTIONS.trim(),
     EQUIVALENT_TRIGGERS.trim(),
     NORMALIZE_SQL.trim(),
+    IS_SERVICE_ROLE,
   ];
 
   if (!installed.includes("memberships")) {
