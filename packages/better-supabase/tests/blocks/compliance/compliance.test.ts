@@ -783,3 +783,35 @@ describe("compliance block", () => {
     ).toBeUndefined();
   });
 });
+
+describe("compliance pages and gets", () => {
+  it("maps the rows of each page and get", async () => {
+    const page = { items: [FRAMEWORK], hasMore: false };
+
+    const transport = fieldsTransport({
+      page_control_frameworks: () => page,
+      get_control_framework: () => FRAMEWORK,
+      page_evidence_tasks: () => ({ items: [TASK], hasMore: false }),
+      get_evidence_task: () => TASK,
+      page_compliance_policies: () => ({ items: [POLICY], hasMore: false }),
+      get_compliance_policy: () => POLICY,
+    });
+
+    const controls = createCompliance({ transport });
+    const organizationId = "org-1";
+
+    const frameworks = await controls
+      .frameworkPage({ organizationId })
+      .orThrow();
+
+    const tasks = await controls.evidenceTaskPage({ organizationId }).orThrow();
+    const policies = await controls.policyPage({ organizationId }).orThrow();
+
+    expect(frameworks.items[0]?.key).toBe("soc2");
+    expect(tasks.items[0]?.controlCode).toBe("CC6.1");
+    expect(policies.items[0]?.memberCount).toBe(4);
+    expect((await controls.getFramework("f1").orThrow()).name).toBe("SOC 2");
+    expect((await controls.getEvidenceTask("t1").orThrow()).overdue).toBe(true);
+    expect((await controls.getPolicy("p1").orThrow()).key).toBe("security");
+  });
+});

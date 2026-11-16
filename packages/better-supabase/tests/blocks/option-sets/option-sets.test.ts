@@ -123,3 +123,18 @@ describe("option-sets block", () => {
     expect(t.calls[2]?.[0]).toBe("rank_option_set_item");
   });
 });
+
+describe("option set pages", () => {
+  it("maps the rows of the page and the get", async () => {
+    const t = transport({
+      page_option_sets: () => ({ items: [SET], hasMore: false }),
+      get_option_set: () => SET,
+    });
+
+    const sets = createOptionSets({ transport: t });
+    const page = await sets.setPage({ organizationId: "o" }).orThrow();
+
+    expect(page.items[0]?.items[0]?.key).toBe("high");
+    expect((await sets.getSet("s1").orThrow()).field).toBe("priority");
+  });
+});

@@ -429,3 +429,18 @@ describe("sequences manifest", () => {
     expect(sequencesEvents.types).toContain("sequence.created");
   });
 });
+
+describe("sequence enrollment pages", () => {
+  it("maps the rows of the page and the get", async () => {
+    const { transport } = fakeTransport({
+      page_sequence_enrollments: { items: [enrollmentRow], hasMore: false },
+      get_sequence_enrollment: enrollmentRow,
+    });
+
+    const sequences = createSequences({ transport, tenant: "org" });
+    const page = await sequences.enrollmentPage().orThrow();
+
+    expect(page.items[0]?.id).toBe("e1");
+    expect((await sequences.getEnrollment("e1").orThrow()).step).toBe("intro");
+  });
+});

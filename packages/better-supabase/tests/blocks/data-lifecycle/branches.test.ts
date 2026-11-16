@@ -378,3 +378,24 @@ describe("data subject requests", () => {
     ).toBe(false);
   });
 });
+
+describe("data subject request pages", () => {
+  it("maps the rows of the page and the get", async () => {
+    const { transport } = fakeTransport({
+      page_data_subject_requests: { items: [requestRow()], hasMore: false },
+      get_data_subject_request: requestRow(),
+    });
+
+    const lifecycle = createDataLifecycle({
+      transport,
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+    });
+
+    const page = await lifecycle
+      .subjectRequestPage({ organizationId: "org-1" })
+      .orThrow();
+
+    expect(page.items[0]?.id).toBe("r1");
+    expect((await lifecycle.getSubjectRequest("r1").orThrow()).id).toBe("r1");
+  });
+});
