@@ -4,7 +4,7 @@
 -- tracks a pledge and issues numbered receipts. The member (…00a2) reads
 -- nothing.
 begin;
-select plan(22);
+select plan(26);
 
 select set_config(
   'request.jwt.claims',
@@ -135,6 +135,25 @@ select is(
   better_supabase.record_gift_payment(current_setting('test.charge')::uuid, 'stripe', 'pi_1', 'refunded') ->> 'status',
   'refunded',
   'a refund reverses the posted gift'
+);
+
+select ok(
+  jsonb_array_length(better_supabase.list_gifts('00000000-0000-4000-8000-000000000001', '{"search":"a001","paged":true}') -> 'items') > 0,
+  'q finds the gifts of a donor id'
+);
+select is(
+  jsonb_array_length(better_supabase.list_gifts('00000000-0000-4000-8000-000000000001', '{"search":"no-such-donor","paged":true}') -> 'items'),
+  0,
+  'q that matches nothing returns no gifts'
+);
+select ok(
+  jsonb_array_length(better_supabase.list_pledges('00000000-0000-4000-8000-000000000001', '{"search":"a001","paged":true}') -> 'items') > 0,
+  'q finds the pledges of a donor id'
+);
+select is(
+  jsonb_array_length(better_supabase.list_pledges('00000000-0000-4000-8000-000000000001', '{"search":"%","paged":true}') -> 'items'),
+  0,
+  'a percent sign in q is literal, not a wildcard'
 );
 
 select set_config(

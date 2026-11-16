@@ -8,9 +8,9 @@ export const GIFT_STATUSES = [
 ] as const;
 
 /**
- * `/shop/donations?status=`. The donations block filters gifts by status, fund
- * and donor and has no text search and no cursor, so the list is one filtered
- * page of at most `GIFT_PAGE_SIZE` gifts.
+ * `/shop/donations?q=&status=&after=`. The donations block searches the donor
+ * id, payment reference and note and pages back from the date received, so the
+ * only sort is newest.
  */
 export const giftList = defineBlockList({
   facets: [{ key: "status", values: GIFT_STATUSES }],

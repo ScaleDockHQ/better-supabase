@@ -11141,6 +11141,11 @@ msgid "Newest first"
 msgstr "Nieuwste eerst"
 
 #: src/features/donations/components/gift-record-list.tsx
+msgctxt "donations.2NnIcm"
+msgid "Search by payment reference or note"
+msgstr "Zoek op betaalreferentie of notitie"
+
+#: src/features/donations/components/gift-record-list.tsx
 msgctxt "donations.oC1rmr"
 msgid "No gifts found"
 msgstr "Geen giften gevonden"
@@ -31672,6 +31677,11 @@ msgstr "Nieuwste eerst"
 msgctxt "warehouse.h-T3T7"
 msgid "Oldest first"
 msgstr "Oudste eerst"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.qYC8sq"
+msgid "Search pick lists"
+msgstr "Zoek picklijsten"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.PAaa4v"

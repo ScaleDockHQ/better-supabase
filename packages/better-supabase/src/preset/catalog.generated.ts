@@ -19385,6 +19385,11 @@ export const PRESET_CATALOG: PresetCatalog = {
             "fundId",
             "pledgeId",
             "status"
+          ],
+          "search": [
+            "donorId",
+            "paymentReference",
+            "note"
           ]
         },
         "pledge": {
@@ -19398,6 +19403,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "donorType",
             "donorId",
             "status"
+          ],
+          "search": [
+            "donorId",
+            "note"
           ]
         }
       }
@@ -26113,6 +26122,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "documentType",
             "documentId",
             "mine"
+          ],
+          "search": [
+            "documentId",
+            "documentType"
           ]
         },
         "pick_wave": {
@@ -32256,6 +32269,42 @@ export const PRESET_CATALOG: PresetCatalog = {
         ]
       },
       "entityLists": {
+        "inventory_location": {
+          "sorts": [
+            "code",
+            "name"
+          ],
+          "facets": [
+            "kind",
+            "active"
+          ],
+          "filters": [
+            "kind",
+            "active"
+          ],
+          "search": [
+            "code",
+            "name"
+          ]
+        },
+        "inventory_bin": {
+          "sorts": [
+            "code"
+          ],
+          "facets": [
+            "locationId",
+            "active"
+          ],
+          "filters": [
+            "locationId",
+            "active",
+            "hold"
+          ],
+          "search": [
+            "code",
+            "name"
+          ]
+        },
         "inventory_level": {
           "sorts": [
             "available",

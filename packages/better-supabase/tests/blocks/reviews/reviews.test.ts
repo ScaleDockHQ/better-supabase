@@ -278,6 +278,44 @@ describe("reviews client", () => {
     ]);
   });
 
+  it("sends a list of statuses to the queue and leaves the single status off", async () => {
+    const fake = transport({ review_queue: () => [REVIEW] });
+
+    const reviews = createReviews({ transport: fake });
+
+    await reviews
+      .queue({ organizationId: "o", status: ["pending", "rejected"] })
+      .orThrow();
+    await reviews.queue({ organizationId: "o", status: [] }).orThrow();
+
+    expect(fake.calls).toEqual([
+      [
+        "review_queue",
+        {
+          tenant: "o",
+          status: null,
+          statuses: ["pending", "rejected"],
+          page_size: null,
+          before: null,
+          subject_type: null,
+          subject_id: null,
+        },
+      ],
+      [
+        "review_queue",
+        {
+          tenant: "o",
+          status: null,
+          statuses: [],
+          page_size: null,
+          before: null,
+          subject_type: null,
+          subject_id: null,
+        },
+      ],
+    ]);
+  });
+
   it("rejects an unknown status", async () => {
     const fake = transport({
       publish_review: () => ({ ...REVIEW, status: "hidden" }),

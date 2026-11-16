@@ -5,7 +5,9 @@ import { defineBlock } from "../define-block.ts";
 import { inventoryEvents } from "./events.ts";
 import { createInventory } from "./inventory.ts";
 import {
+  stockBinListSurface,
   stockLevelListSurface,
+  stockLocationListSurface,
   stockLotListSurface,
   stockMovementListSurface,
 } from "./lists.ts";
@@ -25,7 +27,11 @@ export const inventoryBlock: BlockOf<
   category: "commerce",
   importTarget: ["stock_count", "stock_allocation"],
   entities: {
-    inventory_location: { mutability: "read-only" },
+    inventory_location: {
+      ...stockLocationListSurface,
+      mutability: "read-only",
+    },
+    inventory_bin: { ...stockBinListSurface, mutability: "read-only" },
     inventory_level: { ...stockLevelListSurface, mutability: "read-only" },
     inventory_movement: {
       ...stockMovementListSurface,

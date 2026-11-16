@@ -1,6 +1,5 @@
 import "server-only";
 import type { Result } from "better-supabase";
-import type { GiftListOptions } from "better-supabase/blocks/donations";
 
 import { ok } from "better-supabase";
 import { moneyToJson } from "better-supabase/commerce";
@@ -8,8 +7,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import type { BlockPage } from "@/lib/block-page";
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
+import type { BlockListQuery } from "@/lib/block-status-list";
 
+import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { GiftRow } from "./gift-row";
@@ -43,41 +43,26 @@ async function donorNames(
 }
 
 /**
- * The gifts of the selected statuses, one block call per status in parallel,
- * newest first. Shared by the page and `/api/donations/list`.
+ * One page of gifts, filtered in the database: the block matches `q` against
+ * the donor id, payment reference and note, takes the selected statuses as one
+ * list filter and pages by the keyset cursor `after` holds. Shared by the page
+ * and `/api/donations/list`.
  */
 export async function loadGiftPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<GiftRow>>> {
-  const wanted = (query.facets["status"] ?? []).filter(isStatus);
-  const statuses = wanted.length > 0 ? wanted : [undefined];
+  const statuses = (query.facets["status"] ?? []).filter(isStatus);
 
-  const results = await Promise.all(
-    statuses.map((status) => {
-      const options: Mutable<GiftListOptions> = { pageSize: GIFT_PAGE_SIZE };
-
-      if (status !== undefined) {
-        options.status = status;
-      }
-
-      return db.donations.gifts(options);
-    }),
+  const result = await db.donations.giftPage(
+    pageOptionsOf(query, GIFT_PAGE_SIZE, { status: statuses }),
   );
 
-  const gifts = [];
-
-  for (const result of results) {
-    if (!result.ok) {
-      return result;
-    }
-
-    gifts.push(...result.data);
+  if (!result.ok) {
+    return result;
   }
 
-  gifts.sort((a, b) =>
-    b.receivedOn.toString().localeCompare(a.receivedOn.toString()),
-  );
+  const gifts = result.data.items;
 
   const names = await donorNames(
     db,
@@ -87,7 +72,7 @@ export async function loadGiftPage(
   );
 
   return ok({
-    nextCursor: null,
+    nextCursor: encodeCursor(result.data.nextCursor),
     items: gifts.map((gift): GiftRow => ({
       id: gift.id,
       donor: names.get(gift.donor.id) ?? gift.donor.id.slice(0, 8),

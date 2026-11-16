@@ -157,6 +157,7 @@ export async function PickOverview({ query }: { query: RecordListUrlQuery }) {
         { value: "newest", label: t("Newest first") },
         { value: "oldest", label: t("Oldest first") },
       ]}
+      searchLabel={t("Search pick lists")}
       errorTitle={t("The pick lists didn't load")}
       emptyIcon={<ClipboardListIcon />}
       emptyTitle={t("No pick lists found")}

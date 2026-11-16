@@ -1,4 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { ListSortKey, ListTemplateOptions } from "../list-template.ts";
 
 import {
   filterAny,
@@ -7,7 +8,7 @@ import {
   searchPattern,
 } from "../list-template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { columns } from "./inventory-stock.ts";
+import { columns, locationsOf } from "./inventory-stock.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** Days before a lot's expiry date that it counts as `soon`. */
@@ -205,7 +206,158 @@ export function inventoryPages(ctx: BlockSqlContext): string {
     invalid: (message: string) => fail("INVENTORY_INVALID", message, "22023"),
   } as const;
 
-  return `${levelFunctions()}${movementFunctions()}${lots ? lotFunctions() : ""}`;
+  // The lookup lists: the locations, the bins and the catalog variants a page
+  // names or selects. Row security decides what the caller sees.
+  const loc = locationsOf(ctx);
+
+  const locationIdKey = {
+    expr: `x.${loc.col("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const locationSort = (column: string): readonly ListSortKey[] => [
+    { expr: `x.${loc.col(column)}`, dir: "asc", type: "text" },
+    locationIdKey,
+  ];
+
+  const locationJson = `jsonb_build_object('id', x.${loc.col("id")}, 'code', x.${loc.col("code")}, 'name', x.${loc.col("name")}, 'kind', x.${loc.col("kind")}, 'active', ${loc.active("x")})`;
+
+  const locationPage = {
+    name: "page_stock_locations",
+    from: loc.table,
+    alias: "x",
+    where: [
+      `x.${loc.col("tenant")} = page_stock_locations.tenant`,
+      filterAny("kind", `x.${loc.col("kind")}`),
+      filterAny("active", `${loc.active("x")}::text`),
+      `(v_search is null or x.${loc.col("code")} ilike v_search or x.${loc.col("name")} ilike v_search)`,
+    ],
+    keys: locationSort("code"),
+    sorts: { code: locationSort("code"), name: locationSort("name") },
+    facets: {
+      kind: `x.${loc.col("kind")}`,
+      active: `${loc.active("x")}::text`,
+    },
+    rowJson: locationJson,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("INVENTORY_INVALID", message, "22023"),
+  } as const;
+
+  const bins = ctx.hasTable("bins");
+
+  const bn = columns(ctx, "bins");
+
+  const binSort = (column: string): readonly ListSortKey[] => [
+    { expr: `x.${bn(column)}`, dir: "asc", type: "text" },
+    { expr: `x.${bn("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const binJson = `jsonb_build_object('id', x.${bn("id")}, 'locationId', x.${bn("location")}, 'code', x.${bn("code")}, 'name', x.${bn("name")}, 'hold', x.${bn("hold")}, 'active', x.${bn("active")})`;
+
+  const binPage = {
+    name: "page_stock_bins",
+    from: bins ? ctx.table("bins") : "",
+    alias: "x",
+    where: [
+      `x.${bn("tenant")} = page_stock_bins.tenant`,
+      filterAny("locationId", `x.${bn("location")}`, "uuid"),
+      filterAny("active", `x.${bn("active")}::text`),
+      filterAny("hold", `x.${bn("hold")}::text`),
+      `(v_search is null or x.${bn("code")} ilike v_search or coalesce(x.${bn("name")}, '') ilike v_search)`,
+    ],
+    keys: binSort("code"),
+    sorts: { code: binSort("code") },
+    facets: {
+      locationId: `x.${bn("location")}::text`,
+      active: `x.${bn("active")}::text`,
+    },
+    rowJson: binJson,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("INVENTORY_INVALID", message, "22023"),
+  } as const;
+
+  const catalog = ctx.of("catalog");
+
+  const vr = columns(catalog, "variants");
+
+  const variantSort = (column: string): readonly ListSortKey[] => [
+    { expr: `x.${vr(column)}`, dir: "asc", type: "text" },
+    { expr: `x.${vr("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const variantPage = {
+    name: "page_stock_variants",
+    from: catalog.table("variants"),
+    alias: "x",
+    where: [
+      `x.${vr("tenant")} = page_stock_variants.tenant`,
+      filterAny("productId", `x.${vr("product")}`, "uuid"),
+      `(v_search is null or x.${vr("sku")} ilike v_search or coalesce(x.${vr("title")}, '') ilike v_search)`,
+    ],
+    keys: variantSort("sku"),
+    sorts: { sku: variantSort("sku"), title: variantSort("title") },
+    facets: {},
+    rowJson: `jsonb_build_object('id', x.${vr("id")}, 'productId', x.${vr("product")}, 'sku', x.${vr("sku")}, 'title', x.${vr("title")})`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("INVENTORY_INVALID", message, "22023"),
+  } as const;
+
+  return `${levelFunctions()}${movementFunctions()}${lots ? lotFunctions() : ""}${lookupFunctions()}`;
+
+  function lookupFunctions(): string {
+    const page = (
+      name: string,
+      what: string,
+      filters: string,
+      options: ListTemplateOptions,
+    ): string => `
+-- ${what} (ADR 1077). Row security decides what the caller sees. filters is
+-- { ${filters}, search, sort, direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${fn(name)}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(${name}.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(options)}
+begin
+  ${listBody(options)}
+end;
+$$;
+${userGrant(`${fn(name)}(${ctx.idType}, jsonb)`)}
+`;
+
+    return `${page(
+      "page_stock_locations",
+      "A keyset page of the stock locations, by code",
+      "kind (warehouse, store, virtual), active (true, false), each a value or a list; search (the code or name); sort (code, name)",
+      locationPage,
+    )}${
+      bins
+        ? page(
+            "page_stock_bins",
+            "A keyset page of the bins, by code",
+            "locationId, active, hold, each a value or a list; search (the code or name); sort (code)",
+            binPage,
+          )
+        : ""
+    }${page(
+      "page_stock_variants",
+      "A keyset page of the catalog variants stock is kept for, by SKU",
+      "productId (a value or a list); search (the SKU or title); sort (sku, title)",
+      variantPage,
+    )}`;
+  }
 
   function levelFunctions(): string {
     return `
