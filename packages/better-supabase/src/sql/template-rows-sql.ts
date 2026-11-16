@@ -106,6 +106,7 @@ export function templateGuardSql(options: {
   return `create or replace function ${options.fn}()
 returns trigger
 language plpgsql
+set search_path = ''
 as $$
 begin
   if tg_op = 'UPDATE' and new.${column} is distinct from old.${column} then

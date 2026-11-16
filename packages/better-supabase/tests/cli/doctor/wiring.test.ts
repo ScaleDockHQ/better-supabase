@@ -67,6 +67,26 @@ describe("BS504", () => {
   });
 });
 
+describe("BS504 and CRON_SECRET", () => {
+  const check = async (text: string): Promise<(string | undefined)[]> => {
+    const findings = await rule("BS504").check(
+      context(
+        { outbox: "outbox", queue: "queue" },
+        { sources: [{ path: "app/api/outbox/route.ts", text }] },
+      ),
+    );
+
+    return findings.map((finding) => finding.target);
+  };
+
+  it("asks for it only while an app source names it", async () => {
+    expect(await check("secret: process.env.CRON_SECRET")).toEqual([
+      "CRON_SECRET",
+    ]);
+    expect(await check('caller: "vercel-schedule"')).toEqual([]);
+  });
+});
+
 describe("BS505", () => {
   it("fails while a required provider is only a comment", async () => {
     const findings = await rule("BS505").check(
@@ -285,6 +305,31 @@ describe("BS512", () => {
     expect(
       await targets({ vercelConfig: { path: "vercel.json", text: "{" } }),
     ).toEqual([]);
+  });
+
+  it("finds a service's trigger by its route file", async () => {
+    const services = (triggers: unknown[]): Partial<DoctorContext> =>
+      vercel({
+        schedules: {
+          drain: {
+            schedule: "* * * * *",
+            service: "api",
+            function: "api/v1/internal/jobs/drain",
+          },
+        },
+        services: {
+          api: {
+            functions: {
+              "app/api/v1/internal/jobs/drain/route.ts": {
+                experimentalTriggers: triggers,
+              },
+            },
+          },
+        },
+      });
+
+    expect(await targets(services([{ type: "schedule/v1beta" }]))).toEqual([]);
+    expect(await targets(services([]))).toEqual(["schedules:drain"]);
   });
 
   it("checks pg_net and the Vault secrets while httpTick is on", async () => {

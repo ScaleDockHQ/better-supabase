@@ -9,6 +9,11 @@ export interface BlockEnvKey {
   readonly description: string;
   /** Without it the block's routes or workers fail. Default: true. */
   readonly required?: boolean;
+  /**
+   * The library never reads it: the app passes it to a route. Doctor then asks
+   * for it only while an app source names the key.
+   */
+  readonly passedByApp?: boolean;
 }
 
 /**
@@ -61,6 +66,7 @@ export const CRON_SECRET_ENV: BlockEnvKey = {
   key: "CRON_SECRET",
   description:
     "Server-only: the bearer token the cron routes require (Vercel Cron sends it).",
+  passedByApp: true,
 };
 
 /** The server connection the relay and drain routes use. */

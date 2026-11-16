@@ -97,15 +97,52 @@ function parsedJson(file: TextFile): unknown {
   }
 }
 
-/** Whether `functions[source]` has a `schedule/v1beta` trigger. */
-function hasScheduleTrigger(functions: unknown, source: string): boolean {
-  const entry = isRecord(functions) ? functions[source] : undefined;
-  const triggers = isRecord(entry) ? entry["experimentalTriggers"] : undefined;
+/**
+ * A function's route: `app/api/tick/route.ts` and `api/tick` are both
+ * `api/tick`.
+ */
+const routeOf = (source: string): string =>
+  source
+    .replace(/^\.?\//u, "")
+    .replace(/^(?:src\/)?app\//u, "")
+    .replace(/(?:\/route)?\.[cm]?[jt]sx?$/u, "");
 
-  return (
-    Array.isArray(triggers) &&
-    triggers.some((trigger) => stringAt(trigger, "type") === SCHEDULE_TRIGGER)
-  );
+/**
+ * Whether the function `source` has a `schedule/v1beta` trigger, in
+ * `services[service].functions` when the schedule names a service, else in
+ * `functions`. A key matches by its file path or by its route.
+ */
+function hasScheduleTrigger(
+  json: Readonly<Record<string, unknown>>,
+  source: string,
+  service: string | undefined,
+): boolean {
+  const services = json["services"];
+
+  const owner =
+    service === undefined
+      ? json
+      : isRecord(services)
+        ? services[service]
+        : undefined;
+
+  const functions = isRecord(owner) ? owner["functions"] : undefined;
+
+  if (!isRecord(functions)) {
+    return false;
+  }
+
+  return Object.entries(functions).some(([key, entry]) => {
+    const triggers = isRecord(entry)
+      ? entry["experimentalTriggers"]
+      : undefined;
+
+    return (
+      routeOf(key) === routeOf(source) &&
+      Array.isArray(triggers) &&
+      triggers.some((trigger) => stringAt(trigger, "type") === SCHEDULE_TRIGGER)
+    );
+  });
 }
 
 /** The `crons` and `schedules` of `vercel.json` that would misfire (BS512). */
@@ -148,12 +185,16 @@ function vercelScheduleFindings(file: TextFile): FindingInput[] {
 
   const fromSchedules = schedules.flatMap(([name, entry]): FindingInput[] => {
     const source = stringAt(entry, "function");
+    const service = stringAt(entry, "service");
 
-    return source === undefined || hasScheduleTrigger(json["functions"], source)
+    const where =
+      service === undefined ? "functions" : `services.${service}.functions`;
+
+    return source === undefined || hasScheduleTrigger(json, source, service)
       ? []
       : [
           {
-            message: `The schedule ${name} targets the function ${source}, but functions["${source}"] has no \`${SCHEDULE_TRIGGER}\` trigger, so Vercel never calls it. Add \`experimentalTriggers: [{ "type": "${SCHEDULE_TRIGGER}" }]\` to it.`,
+            message: `The schedule ${name} targets the function ${source}, but ${where}["${source}"] has no \`${SCHEDULE_TRIGGER}\` trigger, so Vercel never calls it. Add \`experimentalTriggers: [{ "type": "${SCHEDULE_TRIGGER}" }]\` to it.`,
             target: `schedules:${name}`,
           },
         ];
@@ -209,16 +250,23 @@ export const WIRING_RULES: readonly Rule[] = [
     severity: "error",
     title: "Env key a block needs is missing",
     description:
-      "An installed block reads a key that no env file lists and the shell doesn't set, so its route or worker fails at runtime. `better-supabase add` appends the keys to .env.example; set them in .env.local and every deployed environment.",
+      "An installed block reads a key that no env file lists and the shell doesn't set, so its route or worker fails at runtime. `better-supabase add` appends the keys to .env.example; set them in .env.local and every deployed environment. A key the app passes itself, such as CRON_SECRET, is skipped when no app source names it.",
     check: (context) => {
       const plan = wiringFor(configInstances(context.config));
       const listed = listedKeys(context.envFiles);
       const shell = context.shellEnv ?? {};
 
+      // A key only the app passes is needed while a source names it; with no
+      // sources to read, it stays required.
+      const unread = (key: string): boolean =>
+        context.sources.length > 0 &&
+        !context.sources.some((file) => file.text.includes(key));
+
       return plan.env
         .filter(
           (entry) =>
             entry.required !== false &&
+            !(entry.passedByApp === true && unread(entry.key)) &&
             !listed.has(entry.key) &&
             (shell[entry.key] ?? "") === "",
         )

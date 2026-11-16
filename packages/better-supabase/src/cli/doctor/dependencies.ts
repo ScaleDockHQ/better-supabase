@@ -154,10 +154,11 @@ export const DEPENDENCY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Peer outside its range",
     description:
-      "An optional peer of better-supabase is installed at a version outside the range better-supabase declares. With strict peer checks the install fails, and the subpath that needs the peer can break at runtime.",
+      "An optional peer of better-supabase that the project depends on is installed at a version outside the range better-supabase declares. With strict peer checks the install fails, and the subpath that needs the peer can break at runtime. A peer only another dependency installs is skipped.",
     check: (context) =>
       (context.peers ?? []).flatMap((peer) =>
         peer.installed !== undefined &&
+        peer.direct !== false &&
         satisfies(peer.installed, peer.range) === false
           ? [
               {

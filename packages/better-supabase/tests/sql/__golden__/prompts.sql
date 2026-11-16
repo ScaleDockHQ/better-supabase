@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:43c7052405768ee2919772d70a0b49f7243d5d9263d30c3b9f9c4c8d9f927b2e
+-- @bsb-hash sha256:da20a109a2e690dc6e93321d5a3b326d81c28c3c21efab25441e0f80fafc79bd
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -265,7 +265,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -302,7 +302,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -334,7 +334,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -366,7 +366,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -398,7 +398,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -430,7 +430,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -462,7 +462,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -494,7 +494,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -526,7 +526,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -553,7 +553,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -584,7 +584,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:43c7052405768ee2919772d70a0b49f7243d5d9263d30c3b9f9c4c8d9f927b2e
+-- @bsb-hash sha256:da20a109a2e690dc6e93321d5a3b326d81c28c3c21efab25441e0f80fafc79bd
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -848,7 +848,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -885,7 +885,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -917,7 +917,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -949,7 +949,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -981,7 +981,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -1013,7 +1013,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -1045,7 +1045,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -1077,7 +1077,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -1109,7 +1109,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -1136,7 +1136,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -1167,7 +1167,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:6543405c241876025a56c9ed741bd5f10f703c93d682b71bc989455649b1ad9f
+-- @bsb-hash sha256:14dbd1703d24dd83c3fa32d71951b4cf02ccdb79bde21d5f528508667bc923bc
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1436,7 +1436,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -1473,7 +1473,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -1505,7 +1505,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -1537,7 +1537,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -1569,7 +1569,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -1601,7 +1601,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -1633,7 +1633,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -1665,7 +1665,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -1697,7 +1697,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -1724,7 +1724,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -1755,7 +1755,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:bc2061ff6a3fb87f5c84510fc9bff96f8b0f13f866f2bd6842fe2900fd1e407f
+-- @bsb-hash sha256:a2a8d740759f36183a089b189c3a0476018ff286d1eb1ff9fd526cff366c88dc
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2019,7 +2019,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -2056,7 +2056,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -2088,7 +2088,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -2120,7 +2120,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -2152,7 +2152,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -2184,7 +2184,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -2216,7 +2216,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -2248,7 +2248,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -2280,7 +2280,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -2307,7 +2307,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -2400,7 +2400,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:fda0a2682593c726cc684172f9badc57f4bc92868397e43a8761dbae285da75d
+-- @bsb-hash sha256:c712a9cc3ef7d4e30c09da7ed9d79b71d8007bf9302884efea60bd81e467fa56
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2660,7 +2660,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -2697,7 +2697,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -2729,7 +2729,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -2761,7 +2761,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -2793,7 +2793,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -2825,7 +2825,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -2857,7 +2857,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -2889,7 +2889,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -2921,7 +2921,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -2948,7 +2948,7 @@ begin
     where coalesce(g."tenant_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -2979,7 +2979,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:d6bc7d523217278c374731beaa45206dd22bba2933c36ff4ec4cea9f4b9f4e3c
+-- @bsb-hash sha256:3ee7920d86a1e635aeb8f95f279479408b35dadb838a8860b58ae34be0823a19
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3243,7 +3243,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1
@@ -3280,7 +3280,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -3312,7 +3312,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -3344,7 +3344,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) > ((v_after ->> 0)::text))
@@ -3376,7 +3376,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.name) < ((v_after ->> 0)::text))
@@ -3408,7 +3408,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz), x.name) > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::text))
@@ -3440,7 +3440,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (coalesce(x.updated_at, 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x.updated_at, 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x.updated_at, 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x.name > (v_after ->> 1)::text))))
@@ -3472,7 +3472,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count, x.name) > ((v_after ->> 0)::bigint, (v_after ->> 1)::text))
@@ -3504,7 +3504,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
         and (v_after is null or (x.version_count <= (v_after ->> 0)::bigint and ((x.version_count < (v_after ->> 0)::bigint) or (x.version_count = (v_after ->> 0)::bigint and x.name > (v_after ->> 1)::text))))
@@ -3531,7 +3531,7 @@ begin
     where coalesce(g."org_id"::text, '') = coalesce(page_prompts.tenant::text, '')
     group by g."name"
   ) x
-      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or x.name = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
+      where (not (v_filters -> 'name' is not null and jsonb_typeof(v_filters -> 'name') <> 'null' and not (jsonb_typeof(v_filters -> 'name') = 'array' and jsonb_array_length(v_filters -> 'name') = 0)) or (x.name)::text = any((case when jsonb_typeof(v_filters -> 'name') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'name')) else array[v_filters ->> 'name'] end)::text[]))
         and (not (v_filters -> 'label' is not null and jsonb_typeof(v_filters -> 'label') <> 'null' and not (jsonb_typeof(v_filters -> 'label') = 'array' and jsonb_array_length(v_filters -> 'label') = 0)) or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))
         and (v_search is null or x.name ilike v_search)
       limit v_total_cap + 1

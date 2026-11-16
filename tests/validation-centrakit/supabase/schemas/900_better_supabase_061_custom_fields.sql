@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:d1228014e01a4f9d5bfe80b7a0bfd2e595af5930a2f2146b9f9d3d874598a5a0
+-- @bsb-hash sha256:50939af8480175f1c05725418215435e85b14e01fbd0fe56d12e4838656c8a14
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -322,7 +322,7 @@ begin
       select (case v_facet when 'entity' then (d."entity")::text when 'type' then (d."type"::text)::text end) as v
       from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -341,7 +341,7 @@ begin
     select count(*) into v_total from (
       select 1 from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -381,7 +381,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -416,7 +416,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -451,7 +451,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -486,7 +486,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -521,7 +521,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -556,7 +556,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -591,7 +591,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -626,7 +626,7 @@ begin
     from (
       select * from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true
@@ -644,7 +644,7 @@ begin
     select count(*) into v_total from (
       select 1 from "centrakit"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and true

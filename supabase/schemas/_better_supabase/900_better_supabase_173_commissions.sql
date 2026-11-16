@@ -1,6 +1,6 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:9cdd4029393742f5559b3016f7f61321a3744acd515e2da409141e00be3b61e3
+-- @bsb-hash sha256:8b5b3c2643fe6d48fb7d6aa50de3bdf139560cc2f3913db6c98f8adf1ec15b3f
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -779,7 +779,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -796,7 +796,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -822,7 +822,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."ends_on" >= (v_after ->> 0)::date and ((x."ends_on" > (v_after ->> 0)::date) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."ends_on" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -843,7 +843,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."ends_on" <= (v_after ->> 0)::date and ((x."ends_on" < (v_after ->> 0)::date) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."ends_on" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -864,7 +864,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."ends_on" >= (v_after ->> 0)::date and ((x."ends_on" > (v_after ->> 0)::date) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."ends_on" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -885,7 +885,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."ends_on" <= (v_after ->> 0)::date and ((x."ends_on" < (v_after ->> 0)::date) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."ends_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."ends_on" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -906,7 +906,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."created_at" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -927,7 +927,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."created_at" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -948,7 +948,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."total" >= (v_after ->> 0)::numeric and ((x."total" > (v_after ->> 0)::numeric) or (x."total" = (v_after ->> 0)::numeric and x."created_at" < (v_after ->> 1)::timestamptz) or (x."total" = (v_after ->> 0)::numeric and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."total" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -969,7 +969,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."total" <= (v_after ->> 0)::numeric and ((x."total" < (v_after ->> 0)::numeric) or (x."total" = (v_after ->> 0)::numeric and x."created_at" < (v_after ->> 1)::timestamptz) or (x."total" = (v_after ->> 0)::numeric and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."total" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -985,7 +985,7 @@ begin
       where x."tenant_id" = list_commission_statements.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1040,7 +1040,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1057,7 +1057,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1083,7 +1083,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."occurred_on" >= (v_after ->> 0)::date and ((x."occurred_on" > (v_after ->> 0)::date) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."occurred_on" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1104,7 +1104,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."occurred_on" <= (v_after ->> 0)::date and ((x."occurred_on" < (v_after ->> 0)::date) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."occurred_on" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1125,7 +1125,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."occurred_on" >= (v_after ->> 0)::date and ((x."occurred_on" > (v_after ->> 0)::date) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."occurred_on" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1146,7 +1146,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."occurred_on" <= (v_after ->> 0)::date and ((x."occurred_on" < (v_after ->> 0)::date) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."occurred_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."occurred_on" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1167,7 +1167,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."created_at" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1188,7 +1188,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."created_at" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1209,7 +1209,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."amount" >= (v_after ->> 0)::numeric and ((x."amount" > (v_after ->> 0)::numeric) or (x."amount" = (v_after ->> 0)::numeric and x."created_at" < (v_after ->> 1)::timestamptz) or (x."amount" = (v_after ->> 0)::numeric and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."amount" asc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1230,7 +1230,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."amount" <= (v_after ->> 0)::numeric and ((x."amount" < (v_after ->> 0)::numeric) or (x."amount" = (v_after ->> 0)::numeric and x."created_at" < (v_after ->> 1)::timestamptz) or (x."amount" = (v_after ->> 0)::numeric and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."amount" desc, x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1246,7 +1246,7 @@ begin
       where x."tenant_id" = list_commissions.tenant
         and (v_all or x."seller_id" = (select auth.uid()))
         and (not (v_filters -> 'seller' is not null and jsonb_typeof(v_filters -> 'seller') <> 'null' and not (jsonb_typeof(v_filters -> 'seller') = 'array' and jsonb_array_length(v_filters -> 'seller') = 0)) or x."seller_id" = any((case when jsonb_typeof(v_filters -> 'seller') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'seller')) else array[v_filters ->> 'seller'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;

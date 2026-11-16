@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:b0effd9b03fe665f32ebf57cab26f287b670188e9eebb03dd34a488bb9479fcb
+-- @bsb-hash sha256:6492581c2288032d41981c052b1f0d156196894e8201dc6f52b8ca87fc7c2eb4
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -322,8 +322,8 @@ begin
       select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
       from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
       limit v_total_cap + 1
     )
@@ -339,8 +339,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -365,8 +365,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."name") asc, x."id" asc
@@ -386,8 +386,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."name") desc, x."id" asc
@@ -407,8 +407,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."name") asc, x."id" asc
@@ -428,8 +428,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."name") desc, x."id" asc
@@ -449,8 +449,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by lower(x."key") asc, x."id" asc
@@ -470,8 +470,8 @@ begin
     from (
       select * from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
         and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by lower(x."key") desc, x."id" asc
@@ -486,8 +486,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."qualification_types" x
       where x."tenant_id" = page_qualification_types.tenant
-        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
-        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when x."archived_at" is null then 'active' else 'archived' end)::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or (case when x."valid_for_months" is null then 'never' else 'expires' end)::text = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
       limit v_total_cap + 1
     ) c;

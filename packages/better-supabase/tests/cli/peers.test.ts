@@ -83,5 +83,41 @@ describe("installed versions", () => {
     const pgdelta = versions.find((peer) => peer.name === "@supabase/pg-delta");
 
     expect(pgdelta?.installed).toMatch(/^1\.0\.0-alpha\./);
+    expect(pgdelta?.direct).toBeUndefined();
+  });
+
+  it("says whether the project lists the peer itself", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
+
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ devDependencies: { "@supabase/pg-delta": "1.0.0" } }),
+    );
+
+    const versions = await peerVersions(root);
+
+    expect(
+      versions.find((peer) => peer.name === "@supabase/pg-delta")?.direct,
+    ).toBe(true);
+    expect(versions.find((peer) => peer.name === "hono")?.direct).toBe(false);
+  });
+
+  it("counts a peer that a workspace package lists", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
+
+    await mkdir(join(root, "apps", "web"), { recursive: true });
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ workspaces: ["apps/*"] }),
+    );
+    await writeFile(
+      join(root, "apps", "web", "package.json"),
+      JSON.stringify({ dependencies: { hono: "4.0.0" } }),
+    );
+
+    const versions = await peerVersions(root);
+
+    expect(versions.find((peer) => peer.name === "hono")?.direct).toBe(true);
+    expect(versions.find((peer) => peer.name === "vue")?.direct).toBe(false);
   });
 });

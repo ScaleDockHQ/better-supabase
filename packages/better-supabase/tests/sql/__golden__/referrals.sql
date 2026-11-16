@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:4c7d504136c614c1bd320777885967f497ef3a887a5a23758cafe1bb01eec780
+-- @bsb-hash sha256:77ffaba4af416907e464d7e038cb77e1e099443c90f4d8ec8ccd289e2f3ded3f
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -320,7 +320,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -337,7 +337,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -363,7 +363,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -384,7 +384,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -405,7 +405,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -426,7 +426,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -442,7 +442,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -677,7 +677,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:0f1148f8a1cd7e17307f716a4500679cca4dd163eb5534da094956012f50e275
+-- @bsb-hash sha256:900641323515166920ff559a626b3c876a2e0d803c266c0df996f2dcaddba1c8
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1042,7 +1042,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1059,7 +1059,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1085,7 +1085,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1106,7 +1106,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1127,7 +1127,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1148,7 +1148,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1164,7 +1164,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1403,7 +1403,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:366ffd81ce1f1e79081c836c1e9739226e90a72c0b585e200ac4791ffe13c650
+-- @bsb-hash sha256:8b1dccb72479a19444c6b303624b5257e60db7b910f71062b3c3fecc1ad6024d
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1727,7 +1727,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1744,7 +1744,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1770,7 +1770,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1791,7 +1791,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1812,7 +1812,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1833,7 +1833,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1849,7 +1849,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2084,7 +2084,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:02fe9af0d06b53ef2aac6c0afba0ccc77cbd0487175c7840057a58a32748b905
+-- @bsb-hash sha256:b150fe0097bab832671489588c6a85f779339c11477ba2d036f1c620e4f73fb3
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2403,7 +2403,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2420,7 +2420,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2446,7 +2446,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2467,7 +2467,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2488,7 +2488,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2509,7 +2509,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2525,7 +2525,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2829,7 +2829,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:5e795b8f0b220662a6b1b5c0a4be77e6eedf57e91874738a7cfb94fce67c7b8a
+-- @bsb-hash sha256:6b74c13e2de9d590d0109ad2a96e0119b135005a827610b8656388d6c8007fc1
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3137,7 +3137,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3154,7 +3154,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3180,7 +3180,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3201,7 +3201,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3222,7 +3222,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3243,7 +3243,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3259,7 +3259,7 @@ begin
       where x."tenant_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -3494,7 +3494,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:65e8f5e3472b67cfb4ab5a1f2b2805b9b2a304f00263ce78f166b5bc0bcf2ac5
+-- @bsb-hash sha256:d37c2a12b31d3fabe27ae556b0143e7daafa62658e206e5801e25fb7c2761c50
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3813,7 +3813,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3830,7 +3830,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3856,7 +3856,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3877,7 +3877,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3898,7 +3898,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3919,7 +3919,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3935,7 +3935,7 @@ begin
       where x."org_id" = list_referrals.tenant
         and (v_all or x."referrer_id" = (select auth.uid()))
         and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
