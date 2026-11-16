@@ -1744,4 +1744,5 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "WORKFLOW_TRIGGER_KIND": "Only webhook triggers have tokens.",
   "WORKFLOW_TRIGGER_NODE": "Pass trigger_node, the id of one of the graph's trigger nodes.",
   "WORK_CENTER_NOT_FOUND": "No such work center in this organization.",
+  "WORK_ORDER_NOT_FOUND": "Work order not found.",
 };
