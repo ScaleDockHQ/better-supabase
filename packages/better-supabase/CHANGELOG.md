@@ -1,5 +1,41 @@
 # better-supabase
 
+## 0.67.1
+
+### Patch Changes
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`73b492e`](https://github.com/ScaleDockHQ/better-supabase/commit/73b492e23688aa449f51f17a3708e784a09e8b9d) Thanks [@mick340](https://github.com/mick340)! - `add --adopt` writes a block's data statements again when an upgrade step
+  since the version an earlier data migration recorded asks for it. The search
+  2 to 3 upgrade does, so the adopted migration carries `search_reindex()` again
+  and existing documents get their `facets` and `sort_key`.
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`9647baf`](https://github.com/ScaleDockHQ/better-supabase/commit/9647baf26475ae0efbe813b0d084d8252cc33723) Thanks [@mick340](https://github.com/mick340)! - `codemod naming` keeps the check constraints the app's own schema files and
+  seeds name on block tables (`alter table better_supabase.profiles add
+  constraint profiles_locale_check ...`). Its `bsb_` loop renamed them, and the
+  next schema diff renamed them back.
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`9647baf`](https://github.com/ScaleDockHQ/better-supabase/commit/9647baf26475ae0efbe813b0d084d8252cc33723) Thanks [@mick340](https://github.com/mick340)! - `better-supabase codemod` skips a folder that holds its own `.git`, such as a
+  linked git worktree inside the project, so it no longer rewrites another
+  checkout's files.
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`a866f78`](https://github.com/ScaleDockHQ/better-supabase/commit/a866f78bb8734da41b51a0cd412e62769fc5018a) Thanks [@mick340](https://github.com/mick340)! - Leave request notes are private: `list`, `requestPage` and `get` return `note`
+  only to the requester, their manager and members with `leave.approve` or
+  `leave.manage`, and `null` to other readers, and `q` no longer matches notes
+  the caller can't read. `get_leave_request` checks the caller itself instead of
+  relying on the table's read policy. A block table listed in `expose` keeps the
+  privileges the grants module writes: the block no longer adds its own
+  table-wide select grant, so `select(*, -note, -decision_note)` closes direct
+  reads of the note columns.
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`4af8d84`](https://github.com/ScaleDockHQ/better-supabase/commit/4af8d847baee444680333b8b73690dfc9e2b185a) Thanks [@mick340](https://github.com/mick340)! - Ledger version 2: `upgrade` adds `ledger_entries.effective_at` and copies it
+  from the entry's transaction, so entries posted before the column keep their
+  transaction's time instead of the upgrade time. Run `better-supabase upgrade`
+  and apply the migration.
+
+- [#1047](https://github.com/ScaleDockHQ/better-supabase/pull/1047) [`f72e672`](https://github.com/ScaleDockHQ/better-supabase/commit/f72e672af3bd997783eae3b5c66c18e278b5a22c) Thanks [@mick340](https://github.com/mick340)! - `upgrade --preserve <file>` writes the new render to `<file>.new`, keeps the
+  hand-edited file, and writes the other blocks. The path never matched the
+  planned one, so it skipped the file, wrote no `.new` and stopped the rest.
+
 ## 0.67.0
 
 ### Minor Changes
