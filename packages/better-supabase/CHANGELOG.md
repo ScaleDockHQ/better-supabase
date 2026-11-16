@@ -1,5 +1,21 @@
 # better-supabase
 
+## 0.68.0
+
+### Minor Changes
+
+- [#1053](https://github.com/ScaleDockHQ/better-supabase/pull/1053) [`74e0379`](https://github.com/ScaleDockHQ/better-supabase/commit/74e037963be820ba28cb7843ba5edc4f091e17cf) Thanks [@mick340](https://github.com/mick340)! - `audit()` takes `archive_column` and `archive_value`, so an update that sets or clears a soft-delete or status column is recorded as `<entity>.archived` or `<entity>.restored` instead of `<entity>.updated`. Block tables with an `archivedAt` column pass it on their row audit trigger. The audit module moves to version 14; run `better-supabase upgrade`.
+
+- [#1053](https://github.com/ScaleDockHQ/better-supabase/pull/1053) [`74e0379`](https://github.com/ScaleDockHQ/better-supabase/commit/74e037963be820ba28cb7843ba5edc4f091e17cf) Thanks [@mick340](https://github.com/mick340)! - Add `blocks.invoices.permissions.settle`, a second key that may record a positive payment for an invoice's whole open balance (or replay one already recorded) but not a part, so a "mark paid" permission works next to a finer "record payment" one. Without it, payments check `payment` as before.
+
+- [#1053](https://github.com/ScaleDockHQ/better-supabase/pull/1053) [`74e0379`](https://github.com/ScaleDockHQ/better-supabase/commit/74e037963be820ba28cb7843ba5edc4f091e17cf) Thanks [@mick340](https://github.com/mick340)! - Add `better_supabase.is_service_role()` to the prelude: true for the `service_role` key and a direct admin connection, so your own service-only SQL functions call one helper instead of copying the `auth.jwt() ->> 'role'` check.
+
+### Patch Changes
+
+- [#1053](https://github.com/ScaleDockHQ/better-supabase/pull/1053) [`74e0379`](https://github.com/ScaleDockHQ/better-supabase/commit/74e037963be820ba28cb7843ba5edc4f091e17cf) Thanks [@mick340](https://github.com/mick340)! - Doctor BS628 now reads only the ORDER BY clause of a list function, so a column selected after an inner `order by` and an `order by ... limit 1` that picks one row no longer report a missing cursor index.
+
+- [#1053](https://github.com/ScaleDockHQ/better-supabase/pull/1053) [`74e0379`](https://github.com/ScaleDockHQ/better-supabase/commit/74e037963be820ba28cb7843ba5edc4f091e17cf) Thanks [@mick340](https://github.com/mick340)! - Invoice actions (`record_invoice_payment`, `issue_invoice`, `update_invoice`, `set_invoice_lines`, `delete_invoice`, `archive_invoice`, `restore_invoice`, `add_invoice_charge`, `credit_invoice`, `void_invoice` and `write_off_invoice`) now answer a caller who can read the invoice but lacks the action's key with `INVOICE_FORBIDDEN` (`42501`, a `forbidden` error) instead of `INVOICE_NOT_FOUND`. A caller who can't read the invoice still gets `INVOICE_NOT_FOUND`, now with the message "no such invoice you can read" (it was "no such invoice you can edit", "delete" or "manage"); match on the hint, not the message. The permission check runs before the row lock, so a caller without access locks nothing.
+
 ## 0.67.2
 
 ### Patch Changes
