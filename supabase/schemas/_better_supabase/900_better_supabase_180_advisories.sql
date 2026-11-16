@@ -1,6 +1,6 @@
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:e00f6856b54ff51cba0e4ce9cd3b2cfba511db940854168fabb7084522f38630
+-- @bsb-hash sha256:e0e2a7172bcda41667a907a029ca9a366bba93c98f4a2bbd378a06e6d3844a26
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1450,7 +1450,7 @@ begin
       select (case v_facet when 'severity' then (coalesce(y."severity"::text, 'none'))::text end) as v
       from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
       limit v_total_cap + 1
@@ -1467,7 +1467,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
       limit v_total_cap + 1
@@ -1493,7 +1493,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (y."vuln_id", y."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1514,7 +1514,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (y."vuln_id" <= (v_after ->> 0)::text and ((y."vuln_id" < (v_after ->> 0)::text) or (y."vuln_id" = (v_after ->> 0)::text and y."id" > (v_after ->> 1)::uuid))))
@@ -1535,7 +1535,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (y."vuln_id", y."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1556,7 +1556,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (y."vuln_id" <= (v_after ->> 0)::text and ((y."vuln_id" < (v_after ->> 0)::text) or (y."vuln_id" = (v_after ->> 0)::text and y."id" > (v_after ->> 1)::uuid))))
@@ -1577,7 +1577,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (coalesce(y."cvss_score", -1), y."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
@@ -1598,7 +1598,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (coalesce(y."cvss_score", -1) <= (v_after ->> 0)::numeric and ((coalesce(y."cvss_score", -1) < (v_after ->> 0)::numeric) or (coalesce(y."cvss_score", -1) = (v_after ->> 0)::numeric and y."id" > (v_after ->> 1)::uuid))))
@@ -1619,7 +1619,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (coalesce(y."epss_score", -1), y."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
@@ -1640,7 +1640,7 @@ begin
     from (
       select * from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
         and (v_after is null or (coalesce(y."epss_score", -1) <= (v_after ->> 0)::numeric and ((coalesce(y."epss_score", -1) < (v_after ->> 0)::numeric) or (coalesce(y."epss_score", -1) = (v_after ->> 0)::numeric and y."id" > (v_after ->> 1)::uuid))))
@@ -1656,7 +1656,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."vulnerabilities" y
       where y."tenant_id" = page_vulnerabilities.tenant
-        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or (coalesce(y."severity"::text, 'none'))::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
         and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
       limit v_total_cap + 1

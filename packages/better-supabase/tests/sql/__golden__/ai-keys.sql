@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:b48184e4acddbb9c8cda8d042f26f386532987c15f395f3a48d1b15dea2ddc47
+-- @bsb-hash sha256:c7c5484f6c5598c23c7fdc4304e6bdc0e7829fe2b662e80cb92c46e3fa8232f3
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -140,7 +140,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -157,7 +157,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -183,7 +183,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -204,7 +204,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -225,7 +225,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -246,7 +246,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -267,7 +267,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -288,7 +288,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -309,7 +309,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -330,7 +330,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -346,7 +346,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -689,8 +689,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text end) as v
       from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -705,8 +705,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -730,8 +730,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -750,8 +750,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -770,8 +770,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -790,8 +790,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -810,8 +810,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -830,8 +830,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -850,8 +850,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -870,8 +870,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status" <= (v_after ->> 0)::text and ((x."status" < (v_after ->> 0)::text) or (x."status" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -885,8 +885,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -986,7 +986,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:41bd20f85a52cfe9242934c2c7130f0f5b1b8592417aba2d8b762a5039468082
+-- @bsb-hash sha256:08ab9357e24cdbbacc9eee0dfee8b5a552bccb6e8a908b3e48ec9ca52d370af2
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1125,7 +1125,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1142,7 +1142,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1168,7 +1168,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -1189,7 +1189,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -1210,7 +1210,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1231,7 +1231,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -1252,7 +1252,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1273,7 +1273,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -1294,7 +1294,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -1315,7 +1315,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -1331,7 +1331,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1701,8 +1701,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text end) as v
       from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1717,8 +1717,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1742,8 +1742,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1762,8 +1762,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1782,8 +1782,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1802,8 +1802,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1822,8 +1822,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1842,8 +1842,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1862,8 +1862,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1882,8 +1882,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status" <= (v_after ->> 0)::text and ((x."status" < (v_after ->> 0)::text) or (x."status" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1897,8 +1897,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1998,7 +1998,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:a9cba697a09b4a24133bcb786e953caff1f6374fe450951c3fe3b6e1ddf634cc
+-- @bsb-hash sha256:d29cd686a7370245d800f11367d55660ebdcd4ab67eb6941a8d283d7e1deed23
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2142,7 +2142,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -2159,7 +2159,7 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -2185,7 +2185,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -2206,7 +2206,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -2227,7 +2227,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -2248,7 +2248,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -2269,7 +2269,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -2290,7 +2290,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -2311,7 +2311,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -2332,7 +2332,7 @@ begin
     from (
       select * from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -2348,7 +2348,7 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -2691,8 +2691,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text end) as v
       from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2707,8 +2707,8 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2732,8 +2732,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2752,8 +2752,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2772,8 +2772,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2792,8 +2792,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2812,8 +2812,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2832,8 +2832,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2852,8 +2852,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2872,8 +2872,8 @@ begin
     from (
       select * from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status" <= (v_after ->> 0)::text and ((x."status" < (v_after ->> 0)::text) or (x."status" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2887,8 +2887,8 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2988,7 +2988,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:f1f25a43d6e306729436415e5d7c0e010015f6300b3415a2d9dd8aa218fe9a00
+-- @bsb-hash sha256:2d9d5d1220c855754f98ab0e0aefa8cc71670fd6b28d23ab6d572f60da987699
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3127,7 +3127,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3144,7 +3144,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3170,7 +3170,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -3191,7 +3191,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -3212,7 +3212,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -3233,7 +3233,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -3254,7 +3254,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -3275,7 +3275,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -3296,7 +3296,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -3317,7 +3317,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -3333,7 +3333,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3676,8 +3676,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text end) as v
       from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3692,8 +3692,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3717,8 +3717,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3737,8 +3737,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3757,8 +3757,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3777,8 +3777,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3797,8 +3797,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3817,8 +3817,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3837,8 +3837,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3857,8 +3857,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status" <= (v_after ->> 0)::text and ((x."status" < (v_after ->> 0)::text) or (x."status" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3872,8 +3872,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -4120,7 +4120,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:796b60b31fe13f684c1207c8e510281590ab5c9720dadda6eca1cd3c5d592bb5
+-- @bsb-hash sha256:97a3f47f760949c7476217b4341f7112a304333012c819abb748ea6429738142
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4253,7 +4253,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -4270,7 +4270,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -4296,7 +4296,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -4317,7 +4317,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -4338,7 +4338,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -4359,7 +4359,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -4380,7 +4380,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -4401,7 +4401,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -4422,7 +4422,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -4443,7 +4443,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -4459,7 +4459,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."tenant_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -4803,7 +4803,7 @@ begin
       from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -4819,7 +4819,7 @@ begin
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -4844,7 +4844,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4864,7 +4864,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4884,7 +4884,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4904,7 +4904,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4924,7 +4924,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4944,7 +4944,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4964,7 +4964,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status"::text, x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status"::text asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4984,7 +4984,7 @@ begin
       select * from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status"::text <= (v_after ->> 0)::text and ((x."status"::text < (v_after ->> 0)::text) or (x."status"::text = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status"::text desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -4999,7 +4999,7 @@ begin
       select 1 from "better_supabase"."ai_batches" x
       where x."tenant_id" = page_ai_batches.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -5099,7 +5099,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:a3c8f94623a7d144934c13a49003d8a0c462bd64c2af12487099380fcac6c56b
+-- @bsb-hash sha256:ec149695b67efbdbb74a09c1f596b3db2d523bcea6eadf91027be85c516e4ec6
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5238,7 +5238,7 @@ begin
       select (case v_facet when 'provider' then (x."provider")::text when 'enabled' then (x."enabled"::text)::text end) as v
       from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5255,7 +5255,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5281,7 +5281,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
@@ -5302,7 +5302,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") > (v_after ->> 1)::text) or (x."provider" = (v_after ->> 0)::text and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
@@ -5323,7 +5323,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -5344,7 +5344,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -5365,7 +5365,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -5386,7 +5386,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -5407,7 +5407,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -5428,7 +5428,7 @@ begin
     from (
       select * from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -5444,7 +5444,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_provider_keys" x
       where x."org_id" = page_ai_provider_keys.tenant
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
         and (v_search is null or x."provider" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5787,8 +5787,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text end) as v
       from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -5803,8 +5803,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -5828,8 +5828,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5848,8 +5848,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5868,8 +5868,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5888,8 +5888,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5908,8 +5908,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."provider" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5928,8 +5928,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."provider" <= (v_after ->> 0)::text and ((x."provider" < (v_after ->> 0)::text) or (x."provider" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."provider" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5948,8 +5948,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."status" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5968,8 +5968,8 @@ begin
     from (
       select * from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
         and (v_after is null or (x."status" <= (v_after ->> 0)::text and ((x."status" < (v_after ->> 0)::text) or (x."status" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."status" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5983,8 +5983,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."ai_batches" x
       where x."org_id" = page_ai_batches.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or (x."provider")::text = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;

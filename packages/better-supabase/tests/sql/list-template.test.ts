@@ -106,11 +106,18 @@ describe("list filters", () => {
     expect(sql).toContain("not (v_filters -> 'status' is not null");
     expect(sql).toContain("jsonb_array_elements_text(v_filters -> 'status')");
     expect(sql).toContain("array[v_filters ->> 'status']");
-    expect(sql).toContain("x.status = any(");
+    expect(sql).toContain("(x.status)::text = any(");
   });
 
   it("casts the list, not the column, so an index stays usable", () => {
+    expect(filterAny("ownerId", "x.owner", "uuid")).toContain("x.owner = any(");
     expect(filterAny("ownerId", "x.owner", "uuid")).toContain(")::uuid[])");
+  });
+
+  it("compares a text filter as text, so an enum column matches", () => {
+    expect(filterAny("active", "x.active::text")).toContain(
+      "or x.active::text = any(",
+    );
   });
 
   it("treats a missing, null or empty filter as not set", () => {

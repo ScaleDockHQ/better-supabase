@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:975856c4c39804ba2962d17070d55f05cb8524ae6fedbf881ade292d69510bdd
+-- @bsb-hash sha256:cce9351a98f50491de62c8205a9cab569710d429baf4a99c32765359524cea53
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -483,7 +483,7 @@ begin
       select (case v_facet when 'entity' then (d."entity")::text when 'type' then (d."type"::text)::text end) as v
       from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -502,7 +502,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -543,7 +543,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -579,7 +579,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -615,7 +615,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -651,7 +651,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -687,7 +687,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -723,7 +723,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -759,7 +759,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -795,7 +795,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -831,7 +831,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -867,7 +867,7 @@ begin
     from (
       select * from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
@@ -885,7 +885,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."field_definitions" d
       where d."tenant_id" = page_field_definitions.tenant
-        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or (d."entity")::text = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
         and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
         and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)

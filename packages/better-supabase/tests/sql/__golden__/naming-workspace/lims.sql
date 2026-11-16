@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:a461ac23411e583b8a6f6199d9637e832af4fbeff21ee95eae5280c3505cbf2f
+-- @bsb-hash sha256:c5899bb2f1e5e6a1c35f9a5810fab07210a94d8089a2df582d9e2c1a0a54a0fe
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -290,7 +290,7 @@ begin
       select (case v_facet when 'unit' then (coalesce(x."unit", ''))::text end) as v
       from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -307,7 +307,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -333,7 +333,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -354,7 +354,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -375,7 +375,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -396,7 +396,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -417,7 +417,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -438,7 +438,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -459,7 +459,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -480,7 +480,7 @@ begin
     from (
       select * from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -496,7 +496,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."lims_methods" x
       where x."tenant_id" = page_lims_methods.tenant
-        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or coalesce(x."unit", '') = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
+        and (not (v_filters -> 'unit' is not null and jsonb_typeof(v_filters -> 'unit') <> 'null' and not (jsonb_typeof(v_filters -> 'unit') = 'array' and jsonb_array_length(v_filters -> 'unit') = 0)) or (coalesce(x."unit", ''))::text = any((case when jsonb_typeof(v_filters -> 'unit') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'unit')) else array[v_filters ->> 'unit'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
         and (v_search is null or x."key" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -677,8 +677,8 @@ begin
       select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
       from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -694,8 +694,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -720,8 +720,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
@@ -741,8 +741,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
@@ -762,8 +762,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
@@ -783,8 +783,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
@@ -804,8 +804,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (x."received_on" = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."sequence" desc, x."id" asc
@@ -825,8 +825,8 @@ begin
     from (
       select * from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
         and (v_after is null or (x."received_on" <= (v_after ->> 0)::date and ((x."received_on" < (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (x."received_on" = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by x."received_on" desc, x."sequence" desc, x."id" asc
@@ -841,8 +841,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."lims_samples" x
       where x."tenant_id" = list_samples.tenant
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."number" ilike v_search or x."title" ilike v_search or coalesce(x."lot", '') ilike v_search)
       limit v_total_cap + 1
     ) c;

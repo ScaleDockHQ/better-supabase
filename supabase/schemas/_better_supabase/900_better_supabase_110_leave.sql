@@ -1,6 +1,6 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:1b1d38df825dc421d1e70ae5bb0d52f24f31b07752bdddbc5f52727409adfdc6
+-- @bsb-hash sha256:c23da23c3a675f5b1b9db1592d2a592a224e2bf9caa38353c748499505f2b576
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1217,7 +1217,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1245,7 +1245,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1289,7 +1289,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1328,7 +1328,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1367,7 +1367,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1406,7 +1406,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1445,7 +1445,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1484,7 +1484,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1523,7 +1523,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1562,7 +1562,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
@@ -1589,7 +1589,7 @@ begin
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
       where x."tenant_id" = page_leave_requests.tenant
         and (case when v_everyone then true when v_user_arg is not null then x."user_id" = v_user_arg else x."user_id" = auth.uid() end)
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x.leave_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x.leave_status)::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)

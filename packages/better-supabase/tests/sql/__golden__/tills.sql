@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:93e31358274dbe09efbf85189c1aaf6afce2a3c993de54d778f416e66ef07d2a
+-- @bsb-hash sha256:22e45d4b79872562a8a43d59243e6457bf7ecce58fd59e2ec15a3ea8e9c4ec79
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -284,7 +284,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -301,7 +301,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -327,7 +327,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -348,7 +348,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -369,7 +369,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -390,7 +390,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -411,7 +411,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -432,7 +432,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -448,7 +448,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -623,7 +623,7 @@ begin
       from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -640,7 +640,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -666,7 +666,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -687,7 +687,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -708,7 +708,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -729,7 +729,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -750,7 +750,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -771,7 +771,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -787,7 +787,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1172,7 +1172,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:89afe8f3e3148bd70d200ae3a41eab76a8ffacc38d0752978a5485bc07693e43
+-- @bsb-hash sha256:5deb09c38bef5b88514defbf05b59a894e79c9f8d68d4269af37a561547440c3
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1483,7 +1483,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1500,7 +1500,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1526,7 +1526,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1547,7 +1547,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -1568,7 +1568,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -1589,7 +1589,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -1610,7 +1610,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -1631,7 +1631,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -1647,7 +1647,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -1832,7 +1832,7 @@ begin
       from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -1849,7 +1849,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1875,7 +1875,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -1896,7 +1896,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -1917,7 +1917,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -1938,7 +1938,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -1959,7 +1959,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -1980,7 +1980,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -1996,7 +1996,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -2493,7 +2493,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:36ec6764ba4fb90355e4d2e53517681fd716ffc6aa7093f3c02dc770fab88a47
+-- @bsb-hash sha256:374241dcec36c4133c440c62bd584f8be0e1df7611482f9e3e678a14bc7d184f
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2781,7 +2781,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -2798,7 +2798,7 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -2824,7 +2824,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -2845,7 +2845,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -2866,7 +2866,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -2887,7 +2887,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -2908,7 +2908,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -2929,7 +2929,7 @@ begin
     from (
       select * from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -2945,7 +2945,7 @@ begin
     select count(*) into v_total from (
       select 1 from "app_private"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3120,7 +3120,7 @@ begin
       from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -3137,7 +3137,7 @@ begin
       select 1 from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -3163,7 +3163,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -3184,7 +3184,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -3205,7 +3205,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -3226,7 +3226,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -3247,7 +3247,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -3268,7 +3268,7 @@ begin
       select * from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -3284,7 +3284,7 @@ begin
       select 1 from "app_private"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -3669,7 +3669,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:d84658bbec039deed12d01faec6823ed0dfae0ab45417e81904aaa033f046593
+-- @bsb-hash sha256:1efa952c093e6ceb34a8ab5b17ebd0113c38187ea885d55dbd2179962f991c72
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3952,7 +3952,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3969,7 +3969,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -3995,7 +3995,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -4016,7 +4016,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -4037,7 +4037,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -4058,7 +4058,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -4079,7 +4079,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -4100,7 +4100,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -4116,7 +4116,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -4291,7 +4291,7 @@ begin
       from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -4308,7 +4308,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -4334,7 +4334,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -4355,7 +4355,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -4376,7 +4376,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -4397,7 +4397,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -4418,7 +4418,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -4439,7 +4439,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -4455,7 +4455,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -4947,7 +4947,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:c96cc118acf9e7fc10423206e762c66fb5d1be05cb90219c8951fd008fb06d96
+-- @bsb-hash sha256:45904b0afd4e76f0248cfe95fe21a3ec18866c811f57ca29bfc87a6e725dc34a
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5223,7 +5223,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5240,7 +5240,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5266,7 +5266,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -5287,7 +5287,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -5308,7 +5308,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -5329,7 +5329,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -5350,7 +5350,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -5371,7 +5371,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -5387,7 +5387,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."tenant_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -5562,7 +5562,7 @@ begin
       from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -5579,7 +5579,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -5605,7 +5605,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -5626,7 +5626,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -5647,7 +5647,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -5668,7 +5668,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -5689,7 +5689,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -5710,7 +5710,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -5726,7 +5726,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -6111,7 +6111,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:544173fed79d762f11153b5f32d71d279e4c95179db8a14cede2379f6559b655
+-- @bsb-hash sha256:be467fd5826ecc99a3084906ead6a68eae12c3d28a39b08d3a190c5fc722ff99
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6394,7 +6394,7 @@ begin
       select (case v_facet when 'currency' then (x."currency")::text end) as v
       from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -6411,7 +6411,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -6437,7 +6437,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -6458,7 +6458,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -6479,7 +6479,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -6500,7 +6500,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
@@ -6521,7 +6521,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
@@ -6542,7 +6542,7 @@ begin
     from (
       select * from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -6558,7 +6558,7 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."tills" x
       where x."org_id" = list_tills.tenant
-        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or v_filters ->> 'archived' = 'true' or x."archived_at" is null)
         and (v_search is null or x."name" ilike v_search)
       limit v_total_cap + 1
@@ -6733,7 +6733,7 @@ begin
       from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     )
@@ -6750,7 +6750,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -6776,7 +6776,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -6797,7 +6797,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -6818,7 +6818,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."opened_at" asc, x."id" asc
@@ -6839,7 +6839,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
@@ -6860,7 +6860,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
@@ -6881,7 +6881,7 @@ begin
       select * from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
         and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
@@ -6897,7 +6897,7 @@ begin
       select 1 from "better_supabase"."till_sessions" x
       where x."org_id" = list_till_sessions.tenant
         and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_search is null or coalesce(x."notes", '') ilike v_search)
       limit v_total_cap + 1
     ) c;

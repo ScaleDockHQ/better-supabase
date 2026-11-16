@@ -68,7 +68,8 @@ export function filterSet(key: string, filters = "v_filters"): string {
  * The predicate for a filter whose value is a list (ADR 0749): the row matches
  * when `expr` holds any of the values. A scalar is a list of one, and a
  * missing, null or empty filter matches every row. `type` is the SQL type of
- * `expr`, so an index on the column stays usable.
+ * `expr`, so an index on the column stays usable; with `text`, `expr` is cast
+ * to text, a no-op on a text column that also fits an enum or domain column.
  */
 export function filterAny(
   key: string,
@@ -76,7 +77,10 @@ export function filterAny(
   type = "text",
   filters = "v_filters",
 ): string {
-  return `(not ${filterSet(key, filters)} or ${expr} = any((${filterValues(key, filters)})::${type}[]))`;
+  const value =
+    type === "text" && !expr.endsWith("::text") ? `(${expr})::text` : expr;
+
+  return `(not ${filterSet(key, filters)} or ${value} = any((${filterValues(key, filters)})::${type}[]))`;
 }
 
 const UUID_PATTERN =

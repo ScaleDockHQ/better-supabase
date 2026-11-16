@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:3124b956e8c4affd4fd1e0af83e5e256cc7a81b113d7735199f13458d1e07649
+-- @bsb-hash sha256:e478c6a0db72a2d82c3c9fed5b3f1a65bb22a7508e446e41f011a4b7e50a368d
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -616,7 +616,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -638,7 +638,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -674,7 +674,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -705,7 +705,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -736,7 +736,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -767,7 +767,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -798,7 +798,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -829,7 +829,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -860,7 +860,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -891,7 +891,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -912,7 +912,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -971,7 +971,7 @@ begin
       from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     )
@@ -988,7 +988,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1014,7 +1014,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -1035,7 +1035,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -1056,7 +1056,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -1077,7 +1077,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -1098,7 +1098,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -1119,7 +1119,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -1135,7 +1135,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1306,7 +1306,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:b77420922c7dd37e5f432a2ab7c68133c326d63120b39fe898fb71b1b88885f5
+-- @bsb-hash sha256:58b923d489ec0d07fe36d50cc2f662f69a49eb875d4a8382f92a7813d8db916d
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2001,7 +2001,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2023,7 +2023,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2059,7 +2059,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2090,7 +2090,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2121,7 +2121,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2152,7 +2152,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2183,7 +2183,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2214,7 +2214,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2245,7 +2245,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2276,7 +2276,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2297,7 +2297,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -2356,7 +2356,7 @@ begin
       from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     )
@@ -2373,7 +2373,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -2399,7 +2399,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -2420,7 +2420,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -2441,7 +2441,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -2462,7 +2462,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -2483,7 +2483,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -2504,7 +2504,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -2520,7 +2520,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -2695,7 +2695,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:8f4597de44e7fff88afb87cc980c62de588dfa71d556eba5b18a6f1792a81673
+-- @bsb-hash sha256:f10cc9ab00c0dae06b4d8b0886b6b8011dcfe16cc96b235d6f8297d101159c7b
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3315,7 +3315,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3337,7 +3337,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3373,7 +3373,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3404,7 +3404,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3435,7 +3435,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3466,7 +3466,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3497,7 +3497,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3528,7 +3528,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3559,7 +3559,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3590,7 +3590,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3611,7 +3611,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -3670,7 +3670,7 @@ begin
       from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     )
@@ -3687,7 +3687,7 @@ begin
       select 1 from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -3713,7 +3713,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -3734,7 +3734,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -3755,7 +3755,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -3776,7 +3776,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -3797,7 +3797,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -3818,7 +3818,7 @@ begin
       select * from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -3834,7 +3834,7 @@ begin
       select 1 from "app_private"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -4005,7 +4005,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:cee0224a91cae7b295f741829700ef021f06887ae2c62b7ed490101be03d41ba
+-- @bsb-hash sha256:ce58248d319a3b4d952dca8a39a14c4151a5fb28e62b73760e5d4094c44fca90
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4620,7 +4620,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4642,7 +4642,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4678,7 +4678,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4709,7 +4709,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4740,7 +4740,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4771,7 +4771,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4802,7 +4802,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4833,7 +4833,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4864,7 +4864,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4895,7 +4895,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4916,7 +4916,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."tenant_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -4975,7 +4975,7 @@ begin
       from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     )
@@ -4992,7 +4992,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -5018,7 +5018,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -5039,7 +5039,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -5060,7 +5060,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -5081,7 +5081,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -5102,7 +5102,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -5123,7 +5123,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -5139,7 +5139,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."tenant_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -6743,7 +6743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:773c7fe5f71dcb3e959da1c2726a71fdb1d08f254d348f2639b43799897f95c2
+-- @bsb-hash sha256:55f0a4d7a38406d626409f9ee94b209325d8996a0307a9efc3ab83f14324c19c
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7358,7 +7358,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7380,7 +7380,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7416,7 +7416,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7447,7 +7447,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7478,7 +7478,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7509,7 +7509,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7540,7 +7540,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7571,7 +7571,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7602,7 +7602,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7633,7 +7633,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7654,7 +7654,7 @@ begin
     left join "better_supabase"."reaction_scores" s on s."org_id" = t."org_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
       where x."org_id" = page_posts.tenant
         and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (x."status")::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
         and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
         and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
@@ -7713,7 +7713,7 @@ begin
       from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     )
@@ -7730,7 +7730,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -7756,7 +7756,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -7777,7 +7777,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -7798,7 +7798,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."name" asc, x."id" asc
@@ -7819,7 +7819,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."name" desc, x."id" asc
@@ -7840,7 +7840,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
@@ -7861,7 +7861,7 @@ begin
       select * from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
@@ -7877,7 +7877,7 @@ begin
       select 1 from "better_supabase"."post_boards" x
       where x."org_id" = page_post_boards.tenant
         and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
-        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
       limit v_total_cap + 1
     ) c;
