@@ -6,8 +6,8 @@
 
 ## Context
 
-EX-1207 found 48 entities that only delete: their event catalog has `.deleted`
-and no `.archived`. ADR 0346 makes `archived_at` the soft delete column and
+EX-1207 found 33 entities that only delete and needed a decision: their event
+catalog has `.deleted` and no `.archived`. ADR 0346 makes `archived_at` the soft delete column and
 keeps a hard delete only as a `purge` behind its own permission. Adding an
 archive to every one of them is wrong, because a delete is the right verb when
 the row is not a record anyone needs back, and each archive costs a column, two
@@ -34,8 +34,8 @@ keeps its delete, with no archive, when its row is one of these:
 | `organization`                                  | `organizations`    | `deleteMode` already offers `soft` and `lifecycle`; the app picks the mode    |
 | the seventeen configuration and credential rows | see ADR 1052       | A state or the delete itself already revokes; an archive would be restorable  |
 
-The first five are decided here and the next six by ADR 1050 (slice 4), and all are recorded in the EX-1207 row. The other 33 entities (28 of them stay delete by decision) stay
-open and follow the order below, in slices of at most 80 files, each with its
+The first five are decided here and the next six by ADR 1050 (slice 4), and all are recorded in the EX-1207 row. Of the 33 entities, 28 stay delete by decision (these five, the six of ADR 1050
+and the seventeen of ADR 1052). The rest follow the order below, in slices of at most 80 files, each with its
 own ADR number, migration and pgTAP test:
 
 1. Records a person enters (`employee`, `expense`, `time_entry`,
@@ -51,7 +51,6 @@ own ADR number, migration and pgTAP test:
 
 ## Consequences
 
-EX-1207 stays deferred to lane Y2 until slice 1 of the order above is done, then
-becomes `fixed` when every remaining entity has an archive or a recorded reason in a
-later ADR. Slices that rename a delete method to `purge` list the old and new
+EX-1207 became `fixed` when every entity had an archive or a recorded reason in a
+later ADR (lane Y2 is done). Slices that rename a delete method to `purge` list the old and new
 names in a changeset table and in the migration guide.
