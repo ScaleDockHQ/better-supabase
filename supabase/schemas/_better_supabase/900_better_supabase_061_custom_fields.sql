@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:b30ef067b8f5d7c1ddad063503d5b27a4a1925ac2cebaca18efbdc5550552a5e
+-- @bsb-hash sha256:975856c4c39804ba2962d17070d55f05cb8524ae6fedbf881ade292d69510bdd
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -437,6 +437,507 @@ $$;
 revoke execute on function "better_supabase"."list_field_definitions"(uuid, text, boolean) from public, anon;
 grant execute on function "better_supabase"."list_field_definitions"(uuid, text, boolean) to authenticated, service_role;
 
+-- One entity's definitions as a keyset page in display order (ADR 1077).
+-- filters is { entity, type (each a value or a list), sensitive (true keeps
+-- sensitive fields), archived (true adds archived fields), search (key,
+-- label), sort (key, label, type${rank === "" ? "" : ", rank"}), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_field_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_field_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', page_field_definitions.tenant, 'custom_fields.read'), false)) then
+    raise exception 'not allowed to read custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('entity', 'type') then
+      raise exception 'facet is one of entity, type' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'entity' then (d."entity")::text when 'type' then (d."type"::text)::text end) as v
+      from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('key', 'label', 'type', 'rank') then
+    raise exception 'sort is one of key, label, type, rank' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 4) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."rank" collate "C")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity", d."rank" collate "C", d."key", d."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::text, (v_after ->> 3)::uuid))
+      order by d."entity" asc, d."rank" collate "C" asc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 4) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."rank" collate "C")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity" <= (v_after ->> 0)::text and ((d."entity" < (v_after ->> 0)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" > (v_after ->> 1)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" = (v_after ->> 1)::text and d."key" > (v_after ->> 2)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" = (v_after ->> 1)::text and d."key" = (v_after ->> 2)::text and d."id" > (v_after ->> 3)::uuid))))
+      order by d."entity" desc, d."rank" collate "C" asc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity", d."key", d."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by d."entity" asc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity" <= (v_after ->> 0)::text and ((d."entity" < (v_after ->> 0)::text) or (d."entity" = (v_after ->> 0)::text and d."key" > (v_after ->> 1)::text) or (d."entity" = (v_after ->> 0)::text and d."key" = (v_after ->> 1)::text and d."id" > (v_after ->> 2)::uuid))))
+      order by d."entity" desc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'label' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((lower(d."label"))::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (lower(d."label"), d."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(d."label") asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'label' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((lower(d."label"))::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (lower(d."label") <= (v_after ->> 0)::text and ((lower(d."label") < (v_after ->> 0)::text) or (lower(d."label") = (v_after ->> 0)::text and d."id" > (v_after ->> 1)::uuid))))
+      order by lower(d."label") desc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'type' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."type"::text)::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."type"::text, d."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by d."type"::text asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'type' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."type"::text)::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."type"::text <= (v_after ->> 0)::text and ((d."type"::text < (v_after ->> 0)::text) or (d."type"::text = (v_after ->> 0)::text and d."id" > (v_after ->> 1)::uuid))))
+      order by d."type"::text desc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'rank' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 4) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."rank" collate "C")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity", d."rank" collate "C", d."key", d."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::text, (v_after ->> 3)::uuid))
+      order by d."entity" asc, d."rank" collate "C" asc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  elsif v_sort = 'rank' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 4) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CUSTOM_FIELD_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', d."id",
+    'entity', d."entity",
+    'key', d."key",
+    'label', d."label",
+    'type', d."type",
+    'required', d."required",
+    'sensitive', d."sensitive",
+    'encrypted', d."encrypted",
+    'pack', d."pack",
+    'packVersion', d."pack_version",
+    'archivedAt', d."archived_at",
+    'rank', d."rank"
+  ) as j, jsonb_build_array((d."entity")::text, (d."rank" collate "C")::text, (d."key")::text, (d."id")::text) as k
+    from (
+      select * from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+        and (v_after is null or (d."entity" <= (v_after ->> 0)::text and ((d."entity" < (v_after ->> 0)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" > (v_after ->> 1)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" = (v_after ->> 1)::text and d."key" > (v_after ->> 2)::text) or (d."entity" = (v_after ->> 0)::text and d."rank" collate "C" = (v_after ->> 1)::text and d."key" = (v_after ->> 2)::text and d."id" > (v_after ->> 3)::uuid))))
+      order by d."entity" desc, d."rank" collate "C" asc, d."key" asc, d."id" asc
+      limit v_limit + 1 offset v_offset
+    ) d
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."field_definitions" d
+      where d."tenant_id" = page_field_definitions.tenant
+        and (not (v_filters -> 'entity' is not null and jsonb_typeof(v_filters -> 'entity') <> 'null' and not (jsonb_typeof(v_filters -> 'entity') = 'array' and jsonb_array_length(v_filters -> 'entity') = 0)) or d."entity" = any((case when jsonb_typeof(v_filters -> 'entity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'entity')) else array[v_filters ->> 'entity'] end)::text[]))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or d."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{sensitive,0}', v_filters ->> 'sensitive'), '') = 'true', false) or d."sensitive")
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or d."archived_at" is null)
+        and (v_search is null or d."key" ilike v_search or d."label" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_field_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_field_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller may read, or null.
+create or replace function "better_supabase"."get_field_definition"(id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."field_definitions"%rowtype;
+begin
+  select * into v_row from "better_supabase"."field_definitions" d where d."id" = get_field_definition.id;
+  if not found then
+    return null;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'custom_fields.read'), false)) then
+    raise exception 'not allowed to read custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'entity', v_row."entity",
+    'key', v_row."key",
+    'label', v_row."label",
+    'type', v_row."type",
+    'required', v_row."required",
+    'sensitive', v_row."sensitive",
+    'encrypted', v_row."encrypted",
+    'pack', v_row."pack",
+    'packVersion', v_row."pack_version",
+    'archivedAt', v_row."archived_at",
+    'rank', v_row."rank"
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_field_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_field_definition"(uuid) to authenticated, service_role;
+
 -- Sets a field's rank key, from rankBetween over its neighbours' keys.
 create or replace function "better_supabase"."rank_field_definition"(definition uuid, rank text)
 returns boolean
@@ -846,6 +1347,26 @@ set search_path = ''
 as $$ select "better_supabase"."list_field_definitions"($1, $2, $3) $$;
 revoke execute on function "api"."list_field_definitions"(uuid, text, boolean) from public, anon;
 grant execute on function "api"."list_field_definitions"(uuid, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."page_field_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_field_definitions"($1, $2) $$;
+revoke execute on function "api"."page_field_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_field_definitions"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_field_definition"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_field_definition"($1) $$;
+revoke execute on function "api"."get_field_definition"(uuid) from public, anon;
+grant execute on function "api"."get_field_definition"(uuid) to authenticated, service_role;
 
 create or replace function "api"."rank_field_definition"(definition uuid, rank text)
 returns boolean

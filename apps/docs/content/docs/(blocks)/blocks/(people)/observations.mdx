@@ -298,3 +298,13 @@ import { createObservations } from "better-supabase/blocks/observations";
 const observations = createObservations({ transport });
 const latest = await observations.latest("patient", patientId).orThrow();
 ```
+
+## Paging observations and definitions
+
+`page` pages observations; without a `status` filter it returns the final ones. Sorts are `observedAt` (the default) and `createdAt`. Filters are `subjectType`, `subjectId`, `definitionKey` and `status`, and the facets are `status` and `definitionKey`. `pageDefinitions({ organizationId })` pages the definitions, sorted by `title` or `key`, filtered by `valueType`, `scope` and `archived`, with `q` over the title and key. `getObservation` and `getDefinition` return one row or a `not_found` error, and `definitionFacets` and `countDefinitions` read the definitions. `list` and `definitions` are deprecated.
+
+```ts
+const page = await observations
+  .page({ filters: { subjectType: ["patient"], subjectId: [patientId] } })
+  .orThrow();
+```

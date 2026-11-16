@@ -4,6 +4,7 @@ import type { CarePlansEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCarePlans } from "./care-plans.ts";
 import { carePlansEvents } from "./events.ts";
+import { carePlanListSurface } from "./lists.ts";
 import { carePlansSqlOptions } from "./options.ts";
 import {
   carePlanActionInputSchema,
@@ -33,6 +34,7 @@ export const carePlansBlock: BlockOf<
   category: "people",
   entities: {
     care_plan: {
+      ...carePlanListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

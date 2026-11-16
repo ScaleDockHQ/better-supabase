@@ -3,7 +3,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -13,6 +24,11 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import {
   neighborsForIndex,
   rankBetweenResult,
@@ -26,6 +42,7 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
+import { tagListSurface } from "./lists.ts";
 
 export interface TagsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -132,8 +149,26 @@ export interface Tags<F extends object = Record<never, never>> {
   /**
    * The tenant's tags in rank order: every kind, the tags of `kind`, or the
    * tags on the record `on` names.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes sorts, array
+   * filters, `q` and a count (ADR 1077). The tags on one record stay on `list`
+   * through `on`.
    */
   list(params?: ListTagsParams): AsyncResult<readonly Tag<F>[]>;
+  /**
+   * One keyset page of the tenant's tags in rank order. `filters` takes `kind`
+   * as a list, `q` searches the name, slug and description, and `sort` is
+   * `rank`, `name`, `kind` or `createdAt`.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Tag<F>>>;
+  /** The values of `kind` and how many tags hold each. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many tags match the page's `q` and filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One tag, or a `not_found` error. */
+  get(tagId: string): AsyncResult<Tag<F>>;
   /**
    * Makes `tagIds` the tags on the record: attaches the missing ones and
    * detaches the others, in that order. It stops at the first failure.
@@ -189,6 +224,15 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const tags = entityList<Tag, TenantOption>({
+    entity: "tag",
+    surface: tagListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_tags",
+    rowOf: (row) => tagOf(row),
+  });
+
   const client: Tags<F> = {
     create: ({ kind, name, color, description, slug, fields: extra }) =>
       tenant().andThen((organizationId) =>
@@ -235,6 +279,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
       return call("rank_tag", { tag_id: id, rank: key.data }, () => key.data);
     },
     move: ({ id, toIndex, kind }) =>
+      // oxlint-disable-next-line typescript/no-deprecated -- move reads the tenant's tags in rank order
       hooked.list(kind === undefined ? {} : { kind }).andThen((tags) => {
         const neighbors = neighborsForIndex(tags, id, toIndex);
 
@@ -270,6 +315,21 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
           (value) => value === true,
         ),
       ),
+    page: (pageOptions) =>
+      tags
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: tags.facets,
+    count: tags.count,
+    get: (tagId) =>
+      call("get_tag", { tag_id: tagId }, (value) =>
+        value === null || value === undefined ? undefined : tagOf(value),
+      )
+        .andThen((tag) => foundOrNotFound("tag", tag, tagId))
+        .andThen(fields.row),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (params = {}) =>
       tenant().andThen((organizationId) => {
         const { kind, on } = params;
@@ -298,6 +358,7 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
       }),
     replace: ({ record, tagIds }) =>
       AsyncResult.from(async () => {
+        // oxlint-disable-next-line typescript/no-deprecated -- `on` stays on list (ADR 1077)
         const current = await hooked.list({ on: record });
 
         if (!current.ok) {

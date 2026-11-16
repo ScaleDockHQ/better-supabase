@@ -134,3 +134,13 @@ export const prompts = createPrompts({
   schema: "api",
 });
 ```
+
+## Paging prompts
+
+`page({ organizationId })` pages the prompt names of the organization by keyset. Sorts are `name` (the default), `updatedAt` and `versionCount`. Filters are `name` and `label` (the names that carry the label), and `q` searches the name. Labels are a map per prompt, so the entity declares no facet and `facets` returns an empty list. `count` returns `{ value, exact }` and `getPrompt(name)` returns one prompt with its labels or a `not_found` error. `list` stays as a deprecated alias of `page`. The SQL function is `page_prompts`.
+
+```ts
+const page = await prompts
+  .page({ organizationId, filters: { label: ["production"] }, limit: 50 })
+  .orThrow();
+```

@@ -20,12 +20,21 @@ export const GET = bsb.route<{ id: string }, true>(
 
     const [summaries, observations, definitions, orders, consents] =
       await Promise.all([
-        db.carePlans.list({ subjectType: subject.type, subjectId: subject.id }),
-        db.observations.list({
-          subjectType: subject.type,
-          subjectId: subject.id,
-        }),
-        db.observations.definitions({ organizationId }),
+        db.carePlans
+          .page({
+            filters: { subjectType: [subject.type], subjectId: [subject.id] },
+            limit: 200,
+          })
+          .map((page) => page.items),
+        db.observations
+          .page({
+            filters: { subjectType: [subject.type], subjectId: [subject.id] },
+            limit: 200,
+          })
+          .map((page) => page.items),
+        db.observations
+          .pageDefinitions({ organizationId, limit: 200 })
+          .map((page) => page.items),
         db.medications.ordersOf({ subject }),
         db.consents.list({ subject }),
       ]);

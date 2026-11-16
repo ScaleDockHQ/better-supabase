@@ -4,9 +4,20 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -18,6 +29,11 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -39,6 +55,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { timeEntryListSurface } from "./lists.ts";
 
 export interface TimeEntriesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -142,6 +159,12 @@ export interface TimeEntryListOptions {
   /** `true` lists only the archived entries; archived ones are hidden otherwise. */
   readonly archived?: boolean;
   readonly pageSize?: number;
+}
+
+/** Which members' entries `page`, `facets` and `count` read. */
+export interface TimeEntryScope {
+  /** Every member's entries; needs `time_entries.read`. */
+  readonly everyone?: boolean;
 }
 
 export type TimesheetStatus = "open" | "submitted" | "approved" | "rejected";
@@ -268,7 +291,30 @@ export interface TimeEntries<F extends object = Record<never, never>> {
    * the owner or `manage` may. A locked week or an invoiced entry refuses it.
    */
   purge(entryId: string): AsyncResult<TimeEntry<F>>;
-  /** Newest first. */
+  /**
+   * One keyset page of a member's entries (the caller's by default), newest
+   * first. `filters` takes `subjectType`, `subjectId`, `billable`, `userId`,
+   * `employeeId`, `from` and `to` (an instant) and `archived`; `everyone` reads
+   * every member's entries and needs `time_entries.read` (ADR 1077).
+   */
+  page(
+    options?: PageOptions & TenantOption & TimeEntryScope,
+  ): AsyncResult<ListPage<TimeEntry<F>>>;
+  /** Counts per `subjectType` or `billable` for the page's `q` and filters. */
+  facets(
+    options?: FacetOptions & TenantOption & TimeEntryScope,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many entries match the page's `q` and filters. */
+  count(
+    options?: CountOptions & TenantOption & TimeEntryScope,
+  ): AsyncResult<Count>;
+  /** One entry, or a `not_found` error. */
+  get(entryId: string): AsyncResult<TimeEntry<F>>;
+  /**
+   * Newest first.
+   *
+   * @deprecated Use `page` (ADR 1077).
+   */
   list(options?: TimeEntryListOptions): AsyncResult<readonly TimeEntry<F>[]>;
   /** A member's week (the caller's by default) with its entries and totals. */
   timesheet(input: {
@@ -451,7 +497,39 @@ export function createTimeEntries<
 
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const pageOf = (everyone: boolean) =>
+    entityList<TimeEntry, TenantOption>({
+      entity: "time entry",
+      surface: timeEntryListSurface,
+      call,
+      tenant: tenantOrOption(options.tenant),
+      fn: "page_time_entries",
+      rowOf: entryOf,
+      ...(everyone ? { base: { everyone: "true" } } : {}),
+    });
+
+  const own = pageOf(false);
+  const everyone = pageOf(true);
+
   const client: TimeEntries<F> = {
+    page: ({ everyone: all, ...rest } = {}) =>
+      (all === true ? everyone : own)
+        .page(rest)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: ({ everyone: all, ...rest } = {}) =>
+      (all === true ? everyone : own).facets(rest),
+    count: ({ everyone: all, ...rest } = {}) =>
+      (all === true ? everyone : own).count(rest),
+    get: (entryId) =>
+      call("get_time_entry", { entry_id: entryId }, (value) =>
+        value === null || value === undefined
+          ? undefined
+          : entryOf(value, "get_time_entry"),
+      )
+        .andThen((entry) => foundOrNotFound("time entry", entry, entryId))
+        .andThen(fields.row),
     start: (entry = {}) => {
       const invalid = rateError(entry.rate);
 
@@ -598,6 +676,7 @@ export function createTimeEntries<
       call("purge_time_entry", { entry_id: entryId }, (value) =>
         entryOf(value, "purge_time_entry"),
       ).andThen(fields.row),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

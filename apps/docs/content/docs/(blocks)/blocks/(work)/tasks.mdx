@@ -302,3 +302,17 @@ tasks: {
 `assign` replaces them. The client has no signed-in user of its own, so the caller passes the id, for
 example `ctx.user.id` in an action. It returns the assignee count and does nothing when the user is
 already assigned.
+
+## Paging tasks and projects
+
+`page({ organizationId })` pages tasks by keyset. Sorts are `number`, `title`, `dueAt` and `createdAt`. Filters are `state`, `priority`, `teamId`, `projectId`, `iterationId`, `parentId`, `assigneeId` and `open`, facets are `state` and `priority`, and `q` searches the title and the identifier. `facets`, `count` and `getTask` follow the contract; `get` keeps returning `undefined` for a missing task, and `getTask` returns a `not_found` error. Projects live in this block: `pageProjects`, `projectFacets`, `countProjects` and `getProject` page them by `status` and `q`. Iterations and checklist items have no page. `list` is deprecated. The SQL functions are `page_tasks`, `page_projects` and `get_project`.
+
+```ts
+const page = await tasks
+  .page({
+    organizationId,
+    filters: { state: ["todo", "doing"] },
+    sort: { by: "dueAt" },
+  })
+  .orThrow();
+```

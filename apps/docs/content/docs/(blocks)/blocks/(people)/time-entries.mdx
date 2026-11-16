@@ -357,3 +357,13 @@ const sheet = await time.timesheet(week).orThrow();
 // sheet.totals: { seconds, billableSeconds, amounts: [money(48_000n, "EUR")] }
 await time.submit(week, "Week 41").orThrow();
 ```
+
+## Paging time entries
+
+`page` pages the caller's own entries. Pass `everyone: true` to read every member's entries, which needs `time_entries.read`. Sorts are `startedAt` (the default), `endedAt`, `seconds` and `createdAt`. Filters are `subjectType`, `subjectId`, `billable`, `userId`, `employeeId`, `from`, `to` and `archived`, facets are `subjectType` and `billable`, and `q` searches the note. `employeeId` applies only in employee mode. `facets`, `count` and `get` return one entry or a `not_found` error. `list` is deprecated. The SQL functions are `page_time_entries` and `get_time_entry`.
+
+```ts
+const page = await time
+  .page({ everyone: true, filters: { billable: ["true"] } })
+  .orThrow();
+```

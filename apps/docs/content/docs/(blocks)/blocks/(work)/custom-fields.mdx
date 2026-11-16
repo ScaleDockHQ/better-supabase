@@ -364,3 +364,13 @@ const report = await customFields
 ```
 
 `setMany` does the same and stops at the first failure. It is deprecated and removed in 0.70.
+
+## Paging field definitions
+
+`page` pages the definitions of the tenant in display order. Sorts are `key`, `label`, `type` and `rank`. Filters are `entity`, `type`, `sensitive` and `archived`, facets are `entity` and `type`, and `q` searches the key and the label. `getDefinition(id)` returns one definition or a `not_found` error. The page needs the normalized layout. `listDefinitions` is deprecated. The SQL functions are `page_field_definitions` and `get_field_definition`; they check the scope read permission.
+
+```ts
+const page = await customFields
+  .page({ filters: { entity: ["customer"] }, limit: 100 })
+  .orThrow();
+```

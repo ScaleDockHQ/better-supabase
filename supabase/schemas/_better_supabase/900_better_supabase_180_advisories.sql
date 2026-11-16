@@ -1,6 +1,6 @@
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:0042c566ac805797dfc99fcdc48a51c34fc9aa827f87f4ac7fb6dec39109fcbc
+-- @bsb-hash sha256:e00f6856b54ff51cba0e4ce9cd3b2cfba511db940854168fabb7084522f38630
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1135,6 +1135,541 @@ $$;
 revoke execute on function "better_supabase"."list_published_advisories"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_published_advisories"(uuid) to service_role;
 
+-- The organization's advisories as a keyset page, newest first (ADR 1077). filters is { status, severity, productId (each a value or a list), search (title, tracking id, summary), sort (createdAt, trackingId, title), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_advisories"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_advisories.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_advisories.tenant is not null and coalesce(better_supabase.can('tenant', page_advisories.tenant, 'advisories.read'), false))) then
+    raise exception 'not allowed to read advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity') then
+      raise exception 'facet is one of status, severity' using errcode = '22023', hint = 'ADVISORY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (y."status"::text)::text when 'severity' then (coalesce(y."severity"::text, 'none'))::text end) as v
+      from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'trackingId', 'title') then
+    raise exception 'sort is one of createdAt, trackingId, title' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."created_at")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."created_at" >= (v_after ->> 0)::timestamptz and ((y."created_at" > (v_after ->> 0)::timestamptz) or (y."created_at" = (v_after ->> 0)::timestamptz and y."id" < (v_after ->> 1)::uuid))))
+      order by y."created_at" asc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."created_at")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."created_at", y."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by y."created_at" desc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."created_at")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."created_at" >= (v_after ->> 0)::timestamptz and ((y."created_at" > (v_after ->> 0)::timestamptz) or (y."created_at" = (v_after ->> 0)::timestamptz and y."id" < (v_after ->> 1)::uuid))))
+      order by y."created_at" asc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."created_at")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."created_at", y."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by y."created_at" desc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'trackingId' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."tracking_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."tracking_id" >= (v_after ->> 0)::text and ((y."tracking_id" > (v_after ->> 0)::text) or (y."tracking_id" = (v_after ->> 0)::text and y."id" < (v_after ->> 1)::uuid))))
+      order by y."tracking_id" asc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'trackingId' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."tracking_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."tracking_id", y."id") < ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by y."tracking_id" desc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((lower(y."title"))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (lower(y."title") >= (v_after ->> 0)::text and ((lower(y."title") > (v_after ->> 0)::text) or (lower(y."title") = (v_after ->> 0)::text and y."id" < (v_after ->> 1)::uuid))))
+      order by lower(y."title") asc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'trackingId', y."tracking_id", 'title', y."title", 'summary', y."summary", 'productId', y."product_id", 'severity', y."severity", 'status', y."status", 'revision', y."revision", 'initialReleaseAt', y."initial_release_at", 'currentReleaseAt', y."current_release_at", 'createdBy', y."created_by", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((lower(y."title"))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (lower(y."title"), y."id") < ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(y."title") desc, y."id" desc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."advisories" y
+      where y."tenant_id" = page_advisories.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or y."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or y."severity"::text = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or y."product_id" = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::uuid[]))
+        and (v_search is null or y."title" ilike v_search or y."tracking_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_advisories"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_advisories"(uuid, jsonb) to authenticated, service_role;
+
+-- The tracked vulnerabilities as a keyset page, by id (ADR 1077). filters is { severity (a value or a list), kev (true keeps exploited ones), search (id, summary), sort (vulnId, cvssScore, epssScore), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_vulnerabilities"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_vulnerabilities.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_vulnerabilities.tenant is not null and coalesce(better_supabase.can('tenant', page_vulnerabilities.tenant, 'advisories.read'), false))) then
+    raise exception 'not allowed to read advisories' using errcode = '42501', hint = 'ADVISORY_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('severity') then
+      raise exception 'facet is one of severity' using errcode = '22023', hint = 'ADVISORY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'severity' then (coalesce(y."severity"::text, 'none'))::text end) as v
+      from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('vulnId', 'cvssScore', 'epssScore') then
+    raise exception 'sort is one of vulnId, cvssScore, epssScore' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."vuln_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."vuln_id", y."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by y."vuln_id" asc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."vuln_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."vuln_id" <= (v_after ->> 0)::text and ((y."vuln_id" < (v_after ->> 0)::text) or (y."vuln_id" = (v_after ->> 0)::text and y."id" > (v_after ->> 1)::uuid))))
+      order by y."vuln_id" desc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'vulnId' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."vuln_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."vuln_id", y."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by y."vuln_id" asc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'vulnId' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((y."vuln_id")::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (y."vuln_id" <= (v_after ->> 0)::text and ((y."vuln_id" < (v_after ->> 0)::text) or (y."vuln_id" = (v_after ->> 0)::text and y."id" > (v_after ->> 1)::uuid))))
+      order by y."vuln_id" desc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'cvssScore' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((coalesce(y."cvss_score", -1))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (coalesce(y."cvss_score", -1), y."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(y."cvss_score", -1) asc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'cvssScore' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((coalesce(y."cvss_score", -1))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (coalesce(y."cvss_score", -1) <= (v_after ->> 0)::numeric and ((coalesce(y."cvss_score", -1) < (v_after ->> 0)::numeric) or (coalesce(y."cvss_score", -1) = (v_after ->> 0)::numeric and y."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(y."cvss_score", -1) desc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'epssScore' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((coalesce(y."epss_score", -1))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (coalesce(y."epss_score", -1), y."id") > ((v_after ->> 0)::numeric, (v_after ->> 1)::uuid))
+      order by coalesce(y."epss_score", -1) asc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  elsif v_sort = 'epssScore' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ADVISORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'vulnId', y."vuln_id", 'aliases', to_jsonb(y."aliases"), 'summary', y."summary", 'details', y."details", 'cvssVector', y."cvss_vector", 'cvssVersion', y."cvss_version", 'cvssScore', y."cvss_score", 'severity', y."severity", 'epssScore', y."epss_score", 'epssPercentile', y."epss_percentile", 'epssDate', y."epss_date", 'kev', y."kev", 'kevAddedOn', y."kev_added_on", 'kevDueOn', y."kev_due_on", 'kevRansomware', y."kev_ransomware", 'affectedPurls', to_jsonb(y."affected_purls"), 'references', y."reference_links", 'publishedAt', y."published_at", 'modifiedAt', y."modified_at", 'enrichedAt', y."enriched_at", 'createdAt', y."created_at", 'updatedAt', y."updated_at") as j, jsonb_build_array((coalesce(y."epss_score", -1))::text, (y."id")::text) as k
+    from (
+      select * from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+        and (v_after is null or (coalesce(y."epss_score", -1) <= (v_after ->> 0)::numeric and ((coalesce(y."epss_score", -1) < (v_after ->> 0)::numeric) or (coalesce(y."epss_score", -1) = (v_after ->> 0)::numeric and y."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(y."epss_score", -1) desc, y."id" asc
+      limit v_limit + 1 offset v_offset
+    ) y
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."vulnerabilities" y
+      where y."tenant_id" = page_vulnerabilities.tenant
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or coalesce(y."severity"::text, 'none') = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{kev,0}', v_filters ->> 'kev'), '') = 'true', false) or y."kev")
+        and (v_search is null or y."vuln_id" ilike v_search or y."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_vulnerabilities"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_vulnerabilities"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1443,3 +1978,23 @@ set search_path = ''
 as $$ select "better_supabase"."list_published_advisories"($1) $$;
 revoke execute on function "api"."list_published_advisories"(uuid) from public, anon, authenticated;
 grant execute on function "api"."list_published_advisories"(uuid) to service_role;
+
+create or replace function "api"."page_advisories"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_advisories"($1, $2) $$;
+revoke execute on function "api"."page_advisories"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_advisories"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_vulnerabilities"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_vulnerabilities"($1, $2) $$;
+revoke execute on function "api"."page_vulnerabilities"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_vulnerabilities"(uuid, jsonb) to authenticated, service_role;

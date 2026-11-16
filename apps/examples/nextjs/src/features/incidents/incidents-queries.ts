@@ -34,7 +34,8 @@ export async function getIncidents(): Promise<readonly IncidentRow[] | null> {
   }
 
   const rows = await db.incidents
-    .list({ organizationId: tenant, pageSize: 50 })
+    .page({ organizationId: tenant, limit: 50 })
+    .map((page) => page.items)
     .orThrow();
 
   return rows.map((incident) => ({

@@ -641,8 +641,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "text", "uuid", "integer"],
       returns: "jsonb",
     },
+    { name: "page_tasks", args: ["{id}", "jsonb"], returns: "jsonb" },
     ...(ctx.hasTable("projects")
       ? [
+          { name: "page_projects", args: ["{id}", "jsonb"], returns: "jsonb" },
+          { name: "get_project", args: ["uuid"], returns: "jsonb" },
           {
             name: "save_project",
             args: ["{id}", "uuid", "jsonb"],

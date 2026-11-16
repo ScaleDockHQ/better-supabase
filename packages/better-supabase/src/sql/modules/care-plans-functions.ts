@@ -3,6 +3,7 @@ import type { CarePlansSql } from "./care-plans-sql.ts";
 
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, serviceGrant, userGrant, writeExtraColumns } from "../shared.ts";
+import { carePlanPageFunction } from "./care-plans-pages.ts";
 import { carePlansSql } from "./care-plans-sql.ts";
 
 /** Statements that check `source ->> 'rank'` when it is set. */
@@ -646,5 +647,5 @@ ${userGrant(`${fn("list_care_plans")}(text, text, boolean)`)}
 export function carePlanFunctions(ctx: BlockSqlContext): string {
   const q = carePlansSql(ctx);
 
-  return `${treeFunction(q)}${planWrites(ctx, q)}${problemWrites(q)}${goalWrites(q)}${actionWrites(q)}${reads(q)}`;
+  return `${treeFunction(q)}${planWrites(ctx, q)}${problemWrites(q)}${goalWrites(q)}${actionWrites(q)}${reads(q)}${carePlanPageFunction(q)}`;
 }

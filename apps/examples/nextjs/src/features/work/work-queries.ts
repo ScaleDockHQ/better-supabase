@@ -262,7 +262,12 @@ export async function getWorkViews(): Promise<
   }
 
   const views = await db.$blocks.savedViews
-    .list({ organizationId: tenant, list: WORK_ITEM_LIST, limit: 50 })
+    .page({
+      organizationId: tenant,
+      filters: { list: [WORK_ITEM_LIST] },
+      limit: 50,
+    })
+    .map((page) => page.items)
     .orThrow();
 
   return views.map((view) => {

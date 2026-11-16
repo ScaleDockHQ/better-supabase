@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -12,8 +13,10 @@ import {
   timeEntriesMetrics,
   toWeeklyGrid,
 } from "../../src/blocks/time-entries/index.ts";
+import { timeEntryListSurface } from "../../src/blocks/time-entries/lists.ts";
 import { money } from "../../src/commerce/money.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -50,6 +53,13 @@ describe.skipIf(!live)("time-entries", () => {
 
       await s.as(ada);
       expect(await time.running().orThrow()).toBeUndefined();
+      await smokeList({
+        surface: timeEntryListSurface,
+        page: (options) => time.page(options),
+        facets: () => time.facets(),
+        count: () => time.count(),
+        get: (id) => time.get(id),
+      });
       const first = await time.start({ note: "Inbox" }).orThrow();
       expect(first.endedAt).toBeUndefined();
 

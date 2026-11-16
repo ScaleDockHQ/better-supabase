@@ -19,6 +19,7 @@ import {
 } from "../shared.ts";
 import { registryReadable } from "./attachments-app.ts";
 import { observationFunctions } from "./observations-functions.ts";
+import { observationPages } from "./observations-pages.ts";
 import { observationReads } from "./observations-reads.ts";
 import {
   defaultSet,
@@ -315,7 +316,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 -- Observations: typed measurements of a record (vital signs, scores, lab
 -- values) against definitions with a unit, a code and ranges that flag
 -- them, with amendments and entered-in-error corrections kept as history.
-${tables(ctx, layout)}${observationFunctions(ctx)}${observationReads(ctx)}${observationSubmissions(ctx)}`;
+${tables(ctx, layout)}${observationFunctions(ctx)}${observationReads(ctx)}${observationPages(ctx)}${observationSubmissions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -370,6 +371,14 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text"],
       returns: "jsonb",
     },
+    { name: "page_observations", args: ["jsonb"], returns: "jsonb" },
+    { name: "get_observation", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "page_observation_definitions",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_observation_definition", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_observations",
       args: ["text", "text", "text", "boolean", "integer"],

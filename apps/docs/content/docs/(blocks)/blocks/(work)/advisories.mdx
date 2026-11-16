@@ -190,3 +190,13 @@ does not sign documents, so its role is `csaf_publisher`.
 
 The versions are pinned in `SPEC_PINS` and listed on the
 [standards](/docs/standards) page.
+
+## Paging advisories and vulnerabilities
+
+`page` pages advisories and `pageVulnerabilities` pages the tracked vulnerabilities. Advisory sorts are `createdAt`, `trackingId` and `title`; filters are `status`, `severity` and `productId`, facets are `status` and `severity`, and `q` searches the title, the tracking id and the summary. Vulnerabilities sort by `vulnId`, `cvssScore` and `epssScore`, filter by `severity` and `kev`, facet by `severity`, and match `q` against the id and the summary. `facets`, `count`, `vulnerabilityFacets` and `countVulnerabilities` read under the same filters, and `getAdvisory` returns a `not_found` error. The array methods `advisories` and `vulnerabilities` are deprecated.
+
+```ts
+const page = await advisories
+  .page({ filters: { status: ["draft"] }, limit: 25 })
+  .orThrow();
+```

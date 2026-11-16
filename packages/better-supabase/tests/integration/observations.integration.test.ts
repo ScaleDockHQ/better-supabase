@@ -1,11 +1,17 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 4 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
 
 import { createObservations } from "../../src/blocks/observations/index.ts";
+import {
+  observationDefinitionListSurface,
+  observationListSurface,
+} from "../../src/blocks/observations/lists.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -261,6 +267,27 @@ describe.skipIf(!live)("observations", () => {
       expect(
         await observations.fromSubmission(submission.id).orThrow(),
       ).toEqual([]);
+
+      await s.asRole(nurse);
+      expect(
+        await smokeList({
+          surface: observationListSurface,
+          page: (options) => observations.page(options),
+          facets: () => observations.facets(),
+          count: () => observations.count(),
+          get: (id) => observations.getObservation(id),
+        }),
+      ).toBe(1);
+      expect(
+        await smokeList({
+          surface: observationDefinitionListSurface,
+          page: (options) =>
+            observations.pageDefinitions({ ...options, organizationId: org }),
+          facets: () => observations.definitionFacets({ organizationId: org }),
+          count: () => observations.countDefinitions({ organizationId: org }),
+          get: (id) => observations.getDefinition(id),
+        }),
+      ).toBe(1);
     } finally {
       await s.close();
     }

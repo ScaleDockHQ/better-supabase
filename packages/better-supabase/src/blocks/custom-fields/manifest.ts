@@ -4,6 +4,7 @@ import type { CustomFieldsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCustomFields } from "./custom-fields.ts";
 import { customFieldsEvents } from "./events.ts";
+import { fieldDefinitionListSurface } from "./lists.ts";
 import { customFieldsSqlOptions } from "./options.ts";
 import { customFieldsBinding } from "./record-binding.ts";
 
@@ -27,6 +28,7 @@ export const customFieldsBlock: BlockOf<
   importTarget: ["field_value"],
   entities: {
     field_definition: {
+      ...fieldDefinitionListSurface,
       mutability: "editable",
       emits: {
         create: true,

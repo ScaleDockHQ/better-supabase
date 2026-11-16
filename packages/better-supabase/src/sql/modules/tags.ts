@@ -12,6 +12,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import { declareRead } from "../reads.ts";
 import {
@@ -270,6 +276,52 @@ function build(ctx: BlockSqlContext): string {
   const extra = extraFieldsArg(extras);
   const required = insertExtraColumns(tags, extras, "create_tag.fields");
   const patching = ctx.flag("patch", false);
+
+  const tagId = { expr: `x.${id}`, dir: "asc", type: "uuid" } as const;
+
+  const nameKey = {
+    expr: `lower(x.${name})`,
+    dir: "asc",
+    type: "text",
+  } as const;
+
+  const defaultKeys = ranked
+    ? ([
+        { expr: `x.${rank} collate "C"`, dir: "asc", type: "text" },
+        nameKey,
+        tagId,
+      ] as const)
+    : ([nameKey, tagId] as const);
+
+  const tagPage = {
+    name: "page_tags",
+    from: tags,
+    alias: "x",
+    where: [
+      ctx.scope.eq(`x.${tenant}`, "page_tags.tenant"),
+      filterAny("kind", `x.${kind}::text`),
+      `(v_search is null or x.${name} ilike v_search or x.${slug} ilike v_search or x.${description} ilike v_search)`,
+    ],
+    keys: defaultKeys,
+    sorts: {
+      rank: defaultKeys,
+      name: [nameKey, tagId],
+      kind: [
+        { expr: `x.${kind}::text`, dir: "asc", type: "text" },
+        nameKey,
+        tagId,
+      ],
+      createdAt: [
+        { expr: `x.${createdAt}`, dir: "desc", type: "timestamptz" },
+        tagId,
+      ],
+    },
+    facets: { kind: `x.${kind}::text` },
+    rowJson: tagJson(ctx, "x", extras),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("TAG_INVALID", message, "22023"),
+  } as const;
 
   const derivedSlug =
     "trim(both '-' from regexp_replace(lower(create_tag.name), '[^a-z0-9]+', '-', 'g'))";
@@ -587,6 +639,54 @@ end;
 $$;
 ${userGrant(`${fn("list_tags")}(${ctx.idType}, text)`)}
 
+-- The tenant's tags as a keyset page, in rank order (ADR 1077). filters is
+-- { kind (a value or a list), search (name, slug, description), sort (rank,
+-- name, kind, createdAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${fn("page_tags")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_tags.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(tagPage)}
+begin
+  ${ctx.scope.bind("page_tags.tenant")}if not (auth.role() = 'service_role' or ${ctx.scope.can("page_tags.tenant", read)} or ${ctx.scope.can("page_tags.tenant", manage)}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
+  end if;
+  ${listBody(tagPage)}
+end;
+$$;
+${userGrant(`${fn("page_tags")}(${ctx.idType}, jsonb)`)}
+
+-- One tag, or null, for a caller who can read its tenant's tags.
+create or replace function ${fn("get_tag")}(tag_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  select t.${tenant} into v_tenant from ${tags} t where t.${id} = get_tag.tag_id;
+  if not found then
+    return null;
+  end if;
+  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", read)} or ${ctx.scope.can("v_tenant", manage)}) then
+    ${fail("TAG_FORBIDDEN", "not allowed to read tags")}
+  end if;
+  return (select ${tagJson(ctx, "t", extras)} from ${tags} t where t.${id} = get_tag.tag_id);
+end;
+$$;
+${userGrant(`${fn("get_tag")}(uuid)`)}
+
 -- The tags on one subject, for a caller who can read the tenant's tags and the subject.
 create or replace function ${fn("subject_tags")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
@@ -716,6 +816,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "tag", args: ["{id}", "text", "text", "uuid"], returns: "boolean" },
     { name: "list_tags", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_tags", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_tag", args: ["uuid"], returns: "jsonb" },
     { name: "subject_tags", args: ["{id}", "text", "text"], returns: "jsonb" },
     {
       name: "subjects_tags",

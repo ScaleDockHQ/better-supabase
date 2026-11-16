@@ -246,3 +246,13 @@ const onCustomer = await tags.list({ on: customer }).orThrow();
 ```ts
 await db.tags.replace({ record, tagIds: [vip.id, lead.id] }).orThrow();
 ```
+
+## Paging tags
+
+`page` pages tags by keyset. Sorts are `rank` (the default), `name`, `kind` and `createdAt`. The filter and facet is `kind`, and `q` searches the name, the slug and the description. `facets` and `count` read under the same filters, and `get(tagId)` returns one tag or a `not_found` error. `list` stays as a deprecated alias for the capped array. The SQL functions are `page_tags` and `get_tag`.
+
+```ts
+const page = await tags
+  .page({ filters: { kind: ["label"] }, q: "vip" })
+  .orThrow();
+```

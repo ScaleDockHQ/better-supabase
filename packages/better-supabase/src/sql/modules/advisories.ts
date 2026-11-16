@@ -534,6 +534,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_advisories", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_advisories", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_vulnerabilities", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_advisory", args: ["{id}", "uuid"], returns: "jsonb" },
     {
       name: "get_published_advisory",

@@ -61,7 +61,8 @@ async function loadTrash(): Promise<readonly TrashEntry[] | null> {
   }
 
   const items = await db.trash
-    .list({ organizationId: tenant, pageSize: 100 })
+    .page({ organizationId: tenant, limit: 100 })
+    .map((page) => page.items)
     .orThrow();
 
   return items.map((item) => ({

@@ -95,7 +95,10 @@ export const moveField = bsb.action(
   },
   async ({ entity, id, direction }, { db, auth }) => {
     const { customFields } = db;
-    const listed = await customFields.listDefinitions(entity);
+
+    const listed = await customFields
+      .page({ filters: { entity: [entity] }, limit: 200 })
+      .map((page) => page.items);
 
     if (!listed.ok) {
       return listed;

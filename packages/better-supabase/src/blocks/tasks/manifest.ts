@@ -4,6 +4,7 @@ import type { TasksEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { taskFromConversationFactory } from "./actions.ts";
 import { tasksEvents } from "./events.ts";
+import { projectListSurface, taskListSurface } from "./lists.ts";
 import { tasksSqlOptions } from "./options.ts";
 import { taskChecklistBinding } from "./record-binding.ts";
 import { taskRecurrenceSink } from "./recurrence.ts";
@@ -34,13 +35,18 @@ export const tasksBlock: BlockOf<
   category: "work",
   entities: {
     task: {
+      ...taskListSurface,
       mutability: "editable",
       expectedVersion: true,
       idempotent: ["create"],
       bulk: { actions: ["archive", "restore", "remove"] },
       emits: { create: true, update: true, delete: true },
     },
-    project: { mutability: "editable", emits: { update: false } },
+    project: {
+      ...projectListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     iteration: { mutability: "editable", emits: { update: false } },
     checklist_item: {
       mutability: "editable",

@@ -14111,6 +14111,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "announcement.restored",
           "announcement.purged"
         ]
+      },
+      "entityLists": {
+        "announcement": {
+          "sorts": [
+            "startsAt",
+            "title",
+            "createdAt"
+          ],
+          "facets": [
+            "severity",
+            "audience"
+          ],
+          "filters": [
+            "severity",
+            "audience",
+            "archived"
+          ],
+          "search": [
+            "title",
+            "body"
+          ]
+        }
       }
     },
     {
@@ -14813,6 +14835,32 @@ export const PRESET_CATALOG: PresetCatalog = {
           "booking.archived",
           "booking.restored"
         ]
+      },
+      "entityLists": {
+        "booking": {
+          "sorts": [
+            "startsAt",
+            "createdAt",
+            "customerName"
+          ],
+          "facets": [
+            "status",
+            "resourceId"
+          ],
+          "filters": [
+            "status",
+            "resourceId",
+            "serviceId",
+            "customerId",
+            "from",
+            "to",
+            "archived"
+          ],
+          "search": [
+            "customerName",
+            "customerEmail"
+          ]
+        }
       }
     },
     {
@@ -15559,6 +15607,45 @@ export const PRESET_CATALOG: PresetCatalog = {
           "calendar_event.updated",
           "calendar_event.purged"
         ]
+      },
+      "entityLists": {
+        "calendar_event": {
+          "sorts": [
+            "startsAt",
+            "title",
+            "updatedAt"
+          ],
+          "facets": [
+            "status",
+            "calendarId"
+          ],
+          "filters": [
+            "calendarId",
+            "status",
+            "subjectType",
+            "subjectId",
+            "from",
+            "to"
+          ],
+          "search": [
+            "title",
+            "location"
+          ]
+        },
+        "calendar": {
+          "sorts": [
+            "name"
+          ],
+          "facets": [
+            "ownerType"
+          ],
+          "filters": [
+            "ownerType"
+          ],
+          "search": [
+            "name"
+          ]
+        }
       }
     },
     {
@@ -16109,7 +16196,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "dueReviews()",
           "description": "Reports the care plans and actions whose review has come due."
         }
-      ]
+      ],
+      "entityLists": {
+        "care_plan": {
+          "sorts": [
+            "createdAt",
+            "title",
+            "version",
+            "startsOn",
+            "reviewOn"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "status",
+            "archived"
+          ],
+          "search": [
+            "title"
+          ]
+        }
+      }
     },
     {
       "name": "catalog",
@@ -16431,6 +16541,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "field_value.deleted",
           "field_value.viewed"
         ]
+      },
+      "entityLists": {
+        "field_definition": {
+          "sorts": [
+            "key",
+            "label",
+            "type",
+            "rank"
+          ],
+          "facets": [
+            "entity",
+            "type"
+          ],
+          "filters": [
+            "entity",
+            "type",
+            "sensitive",
+            "archived"
+          ],
+          "search": [
+            "key",
+            "label"
+          ]
+        }
       }
     },
     {
@@ -27491,6 +27625,47 @@ export const PRESET_CATALOG: PresetCatalog = {
           "update": "advisories.write",
           "publish": "advisories.publish"
         }
+      },
+      "entityLists": {
+        "advisory": {
+          "sorts": [
+            "createdAt",
+            "trackingId",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "severity"
+          ],
+          "filters": [
+            "status",
+            "severity",
+            "productId"
+          ],
+          "search": [
+            "title",
+            "trackingId",
+            "summary"
+          ]
+        },
+        "vulnerability": {
+          "sorts": [
+            "vulnId",
+            "cvssScore",
+            "epssScore"
+          ],
+          "facets": [
+            "severity"
+          ],
+          "filters": [
+            "severity",
+            "kev"
+          ],
+          "search": [
+            "vulnId",
+            "summary"
+          ]
+        }
       }
     },
     {
@@ -30090,6 +30265,43 @@ export const PRESET_CATALOG: PresetCatalog = {
           "observation.amended",
           "observation.error_marked"
         ]
+      },
+      "entityLists": {
+        "observation": {
+          "sorts": [
+            "observedAt",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "definitionKey"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "definitionKey",
+            "status"
+          ]
+        },
+        "observation_definition": {
+          "sorts": [
+            "title",
+            "key"
+          ],
+          "facets": [
+            "valueType",
+            "scope"
+          ],
+          "filters": [
+            "valueType",
+            "scope",
+            "archived"
+          ],
+          "search": [
+            "title",
+            "key"
+          ]
+        }
       }
     },
     {
@@ -32321,7 +32533,23 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/prompts"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityLists": {
+        "prompt": {
+          "sorts": [
+            "name",
+            "updatedAt",
+            "versionCount"
+          ],
+          "filters": [
+            "name",
+            "label"
+          ],
+          "search": [
+            "name"
+          ]
+        }
+      }
     },
     {
       "name": "queue",
@@ -35396,7 +35624,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "schedule()",
           "description": "Enqueues a reminders.deliver job for each reminder due in the next day."
         }
-      ]
+      ],
+      "entityLists": {
+        "reminder": {
+          "sorts": [
+            "offsetMinutes",
+            "subjectType"
+          ],
+          "facets": [
+            "method",
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "method"
+          ]
+        }
+      }
     },
     {
       "name": "reserved-slugs",
@@ -35589,6 +35834,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "saved_view.updated",
           "saved_view.deleted"
         ]
+      },
+      "entityLists": {
+        "saved_view": {
+          "sorts": [
+            "rank",
+            "name",
+            "updatedAt"
+          ],
+          "facets": [
+            "scope",
+            "kind"
+          ],
+          "filters": [
+            "list",
+            "scope",
+            "kind"
+          ],
+          "search": [
+            "name"
+          ]
+        }
       }
     },
     {
@@ -36078,6 +36344,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "subject.tagged",
           "subject.untagged"
         ]
+      },
+      "entityLists": {
+        "tag": {
+          "sorts": [
+            "rank",
+            "name",
+            "kind",
+            "createdAt"
+          ],
+          "facets": [
+            "kind"
+          ],
+          "filters": [
+            "kind"
+          ],
+          "search": [
+            "name",
+            "slug",
+            "description"
+          ]
+        }
       }
     },
     {
@@ -36421,6 +36708,33 @@ export const PRESET_CATALOG: PresetCatalog = {
           "timesheet.reopened",
           "timesheet.rejected"
         ]
+      },
+      "entityLists": {
+        "time_entry": {
+          "sorts": [
+            "startedAt",
+            "endedAt",
+            "seconds",
+            "createdAt"
+          ],
+          "facets": [
+            "subjectType",
+            "billable"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "billable",
+            "userId",
+            "employeeId",
+            "from",
+            "to",
+            "archived"
+          ],
+          "search": [
+            "note"
+          ]
+        }
       }
     },
     {
@@ -36446,6 +36760,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "subject.restored",
           "subject.purged"
         ]
+      },
+      "entityLists": {
+        "subject": {
+          "sorts": [
+            "trashedAt",
+            "subjectType",
+            "purgeAfter"
+          ],
+          "facets": [
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType"
+          ],
+          "search": [
+            "title"
+          ]
+        }
       }
     },
     {
@@ -37110,7 +37442,54 @@ export const PRESET_CATALOG: PresetCatalog = {
           "kind": "tasks.from_conversation",
           "title": "Create a task from the conversation"
         }
-      ]
+      ],
+      "entityLists": {
+        "task": {
+          "sorts": [
+            "number",
+            "title",
+            "dueAt",
+            "createdAt"
+          ],
+          "facets": [
+            "state",
+            "priority"
+          ],
+          "filters": [
+            "state",
+            "priority",
+            "teamId",
+            "projectId",
+            "iterationId",
+            "parentId",
+            "assigneeId",
+            "open"
+          ],
+          "search": [
+            "title",
+            "identifier"
+          ]
+        },
+        "project": {
+          "sorts": [
+            "name",
+            "key",
+            "createdAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "ownerId",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        }
+      }
     },
     {
       "name": "workflow-editor",

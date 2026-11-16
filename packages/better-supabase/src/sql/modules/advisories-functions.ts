@@ -3,6 +3,7 @@ import type { AdvisoriesSql } from "./advisories-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, serviceGrant, userGrant } from "../shared.ts";
+import { advisoryPageFunctions } from "./advisories-pages.ts";
 import {
   ADVISORY_SEVERITIES,
   ADVISORY_VEX_JUSTIFICATIONS,
@@ -936,5 +937,5 @@ export function advisoriesFunctions(ctx: BlockSqlContext): string {
   const q = advisoriesSql(ctx);
   const rec = recorders(q);
 
-  return `${productFunctions(q, ctx, rec)}${sbomFunctions(q, ctx)}${vulnerabilityFunctions(q, ctx, rec)}${vexFunctions(q, ctx, rec)}${advisoryFunctions(q, ctx, rec)}`;
+  return `${productFunctions(q, ctx, rec)}${sbomFunctions(q, ctx)}${vulnerabilityFunctions(q, ctx, rec)}${vexFunctions(q, ctx, rec)}${advisoryFunctions(q, ctx, rec)}${advisoryPageFunctions(q)}`;
 }

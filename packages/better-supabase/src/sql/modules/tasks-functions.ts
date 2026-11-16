@@ -19,6 +19,7 @@ import {
   linkAttachmentsSql,
   taskExtraFunctions,
 } from "./tasks-extras.ts";
+import { taskPageSql } from "./tasks-pages.ts";
 
 export interface TaskNames {
   readonly fn: (name: string) => string;
@@ -314,6 +315,8 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
     ? ` || jsonb_build_object(${sqlString(ctx.colName("projects", "budgetAmount"))}, x.${p("budgetAmount")}::text)`
     : "";
 
+  const pages = taskPageSql(ctx, n, { w, a, p, has, row, budgetText, state });
+
   const dimensionSync = booksAccounting(ctx)
     ? `
   perform ${ctx.of("accounting").fn("accounting_sync_dimension_value")}(x.${p("tenant")}, 'project', 'Project', x.${p("id")}::text, x.${p("key")} || ' ' || x.${p("name")}, x.${p("archivedAt")} is not null)
@@ -427,6 +430,8 @@ ${dimensionSync}
 end;
 $$;
 ${userGrant(`${fn("save_project")}(${ctx.idType}, uuid, jsonb)`)}
+
+${pages.projects}
 `
     : "";
 
@@ -929,6 +934,8 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
+
+${pages.tasks}
 ${cloneTask(ctx, n, fn, t, w, a, row)}${taskExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
 }
 

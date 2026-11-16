@@ -3,7 +3,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -11,6 +22,11 @@ import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -21,6 +37,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { trashListSurface } from "./lists.ts";
 
 export interface TrashOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -81,7 +98,26 @@ export interface Trash<F extends object = Record<never, never>> {
   }): AsyncResult<TrashBatch>;
   /** Restores the whole batch of a trash item. */
   restore(id: string): AsyncResult<TrashBatch>;
-  /** Newest first, one entry per batch. */
+  /**
+   * One keyset page of the organization's trash, newest first, one entry per
+   * batch. `filters` takes `subjectType`; `q` matches the title (ADR 1077).
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<TrashItem<F>>>;
+  /** Counts per `subjectType` for the page's `q` and filters. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many batches match the page's `q` and filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One trash item, or a `not_found` error. */
+  get(id: string): AsyncResult<TrashItem<F>>;
+  /**
+   * Newest first, one entry per batch.
+   *
+   * @deprecated Use `page` (ADR 1077).
+   */
   list(
     input: { organizationId: string } & TrashListOptions,
   ): AsyncResult<readonly TrashItem<F>[]>;
@@ -132,7 +168,32 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
     "trash item fields",
   );
 
+  const trashPages = entityList<TrashItem, RequiredTenantOption>({
+    entity: "trash item",
+    surface: trashListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_trash",
+    rowOf: (row) => itemOf(row, "page_trash"),
+  });
+
   const client: Trash<F> = {
+    page: (pageOptions) =>
+      trashPages
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: trashPages.facets,
+    count: trashPages.count,
+    get: (id) =>
+      call("get_trash", { item_id: id }, (value) =>
+        value === null || value === undefined
+          ? undefined
+          : itemOf(value, "get_trash"),
+      )
+        .andThen((item) => foundOrNotFound("trash item", item, id))
+        .andThen(fields.row),
     trash: ({ organizationId, subjectType, subjectId, fields: extra }) =>
       fields
         .args(extra)
@@ -152,6 +213,7 @@ export function createTrash<S extends StandardSchemaV1 | undefined = undefined>(
       call("restore_trash", { item_id: id }, (value) =>
         batchOf(value, "restore_trash"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     list: ({ organizationId, ...page }) =>
       call(
         "list_trash",

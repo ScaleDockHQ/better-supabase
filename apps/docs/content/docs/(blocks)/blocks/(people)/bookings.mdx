@@ -573,3 +573,17 @@ const { id: serviceId } = await bookings
 ## Book in one call
 
 `book({ serviceId, startsAt, customer })` holds and confirms. Without `resourceId` it picks the resource that has a free slot at `startsAt`, and fails with `not_found` when none has. `public.book({ token, resourceId, startsAt, customer })` does the same for a guest, using the access token the hold returns.
+
+## Paging bookings
+
+`page` already reads free slots, so the booking list uses `pageBookings`, `bookingFacets`, `countBookings` and `getBooking`. Sorts are `startsAt` (the default), `createdAt` and `customerName`. Filters are `status`, `resourceId`, `serviceId`, `customerId`, `from`, `to` and `archived`, facets are `status` and `resourceId`, and `q` searches the customer name and email. `getBooking(bookingId)` returns one booking or a `not_found` error. Resources and services are not entities of the block, so they have no page. `list` is deprecated. The SQL functions are `page_bookings` and `get_booking`.
+
+```ts
+const page = await bookings
+  .pageBookings({
+    organizationId,
+    filters: { status: ["confirmed"] },
+    limit: 25,
+  })
+  .orThrow();
+```

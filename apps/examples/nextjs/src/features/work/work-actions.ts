@@ -75,8 +75,9 @@ export const createWorkItem = bsb.action(
     const values = Object.entries(custom);
 
     if (values.length > 0) {
-      const definitions =
-        await db.customFields.listDefinitions(WORK_ITEM_SUBJECT);
+      const definitions = await db.customFields
+        .page({ filters: { entity: [WORK_ITEM_SUBJECT] }, limit: 200 })
+        .map((page) => page.items);
 
       if (!definitions.ok) {
         return definitions;

@@ -139,6 +139,24 @@ export function tenantOrOption(
 }
 
 /**
+ * The `tenant` of a list that has no organization (ADR 1077): a platform list
+ * such as announcements, whose SQL list function takes only `filters`.
+ */
+export function noTenant(): AsyncResult<undefined> {
+  return AsyncResult.ok(undefined);
+}
+
+/**
+ * The `tenant` of a list whose rows may belong to an organization or to the
+ * whole system (prompts): the call's `organizationId`, or none.
+ */
+export function optionalTenant(
+  organizationId?: string,
+): AsyncResult<string | undefined> {
+  return AsyncResult.ok(organizationId);
+}
+
+/**
  * The row a `get` read found, or a `not_found` error when the SQL function
  * returned nothing (the block list contract, ADR 1077).
  */
