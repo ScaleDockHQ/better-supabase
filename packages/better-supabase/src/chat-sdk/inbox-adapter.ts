@@ -432,6 +432,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     }
 
     const owner =
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
       inboxId ?? (await must(inbox.conversations.get(conversationId)))?.inboxId;
 
     return owner === undefined
@@ -500,7 +501,8 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     const conversation =
       job.inbox_id !== undefined && ticketJobs === undefined
         ? undefined
-        : await must(inbox.conversations.get(message.conversationId));
+        : // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
+          await must(inbox.conversations.get(message.conversationId));
 
     const inboxId = job.inbox_id ?? conversation?.inboxId;
 
@@ -831,6 +833,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       const limit = listOptions.limit ?? 50;
 
       const page = await must(
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
         inbox.conversations.list({
           tenant: null,
           filter: {
@@ -856,6 +859,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     },
     fetchThread: async (threadId): Promise<ThreadInfo> => {
       const { inboxId, conversationId } = remember(threadId);
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
       const conversation = await must(inbox.conversations.get(conversationId));
 
       return {

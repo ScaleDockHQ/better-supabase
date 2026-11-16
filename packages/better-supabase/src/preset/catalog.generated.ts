@@ -7221,7 +7221,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "search": {
                 "title": "title",
-                "body": []
+                "body": [
+                  "title"
+                ]
               }
             }
           }
@@ -13590,6 +13592,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "agent.installed",
           "agent.uninstalled"
         ]
+      },
+      "entityLists": {
+        "agent": {
+          "sorts": [
+            "name",
+            "updatedAt",
+            "createdAt",
+            "installCount"
+          ],
+          "facets": [
+            "visibility"
+          ],
+          "filters": [
+            "mode",
+            "visibility",
+            "includeArchived"
+          ],
+          "search": [
+            "name",
+            "description"
+          ]
+        }
       }
     },
     {
@@ -13721,7 +13745,46 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "routes": [
         "ai-chat"
-      ]
+      ],
+      "entityLists": {
+        "ai_chat": {
+          "sorts": [
+            "lastMessageAt",
+            "createdAt",
+            "title"
+          ],
+          "facets": [
+            "pinned",
+            "archived"
+          ],
+          "filters": [
+            "projectId",
+            "pinned",
+            "archived"
+          ],
+          "search": [
+            "title",
+            "messages"
+          ]
+        },
+        "ai_project": {
+          "sorts": [
+            "updatedAt",
+            "name"
+          ],
+          "facets": [
+            "pinned",
+            "archived"
+          ],
+          "filters": [
+            "pinned",
+            "archived"
+          ],
+          "search": [
+            "name"
+          ]
+        }
+      }
     },
     {
       "name": "ai-evals",
@@ -13734,7 +13797,44 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-evals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityLists": {
+        "ai_eval": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "lastRunAt"
+          ],
+          "facets": [],
+          "filters": [
+            "id"
+          ],
+          "search": [
+            "name"
+          ]
+        },
+        "ai_eval_run": {
+          "sorts": [
+            "createdAt",
+            "finishedAt"
+          ],
+          "facets": [
+            "status",
+            "model",
+            "promptName"
+          ],
+          "filters": [
+            "datasetId",
+            "status",
+            "model",
+            "promptName"
+          ],
+          "search": [
+            "promptName",
+            "model"
+          ]
+        }
+      }
     },
     {
       "name": "ai-files",
@@ -13769,7 +13869,30 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "NewAiDocument"
         }
-      ]
+      ],
+      "entityLists": {
+        "ai_file": {
+          "sorts": [
+            "createdAt",
+            "filename",
+            "size"
+          ],
+          "facets": [
+            "status",
+            "source",
+            "mediaType"
+          ],
+          "filters": [
+            "chatId",
+            "status",
+            "source",
+            "mediaType"
+          ],
+          "search": [
+            "filename"
+          ]
+        }
+      }
     },
     {
       "name": "ai-guardrails",
@@ -13788,6 +13911,44 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "guardrail.blocked"
         ]
+      },
+      "entityLists": {
+        "guardrail": {
+          "sorts": [
+            "agent",
+            "updatedAt"
+          ],
+          "facets": [
+            "stage",
+            "enabled"
+          ],
+          "filters": [
+            "agent",
+            "stage",
+            "enabled"
+          ],
+          "search": [
+            "agent"
+          ]
+        },
+        "guardrail_decision": {
+          "sorts": [
+            "createdAt",
+            "agent"
+          ],
+          "facets": [
+            "decision",
+            "stage"
+          ],
+          "filters": [
+            "agent",
+            "decision",
+            "stage"
+          ],
+          "search": [
+            "agent"
+          ]
+        }
       }
     },
     {
@@ -13809,6 +13970,42 @@ export const PRESET_CATALOG: PresetCatalog = {
           "ai_provider_key.updated",
           "ai_provider_key.deleted"
         ]
+      },
+      "entityLists": {
+        "ai_provider_key": {
+          "sorts": [
+            "provider",
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "provider",
+            "enabled"
+          ],
+          "filters": [
+            "provider",
+            "enabled"
+          ],
+          "search": [
+            "provider",
+            "name"
+          ]
+        },
+        "ai_batch": {
+          "sorts": [
+            "createdAt",
+            "provider",
+            "status"
+          ],
+          "facets": [
+            "status",
+            "provider"
+          ],
+          "filters": [
+            "status",
+            "provider"
+          ]
+        }
       }
     },
     {
@@ -13832,7 +14029,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "tick()",
           "description": "Queues a run for each due AI task and computes its next occurrence."
         }
-      ]
+      ],
+      "entityLists": {
+        "ai_scheduled_task": {
+          "sorts": [
+            "createdAt",
+            "title",
+            "nextRunAt"
+          ],
+          "facets": [
+            "enabled"
+          ],
+          "filters": [
+            "enabled",
+            "all"
+          ],
+          "search": [
+            "title",
+            "prompt"
+          ]
+        }
+      }
     },
     {
       "name": "announcements",
@@ -21938,6 +22155,47 @@ export const PRESET_CATALOG: PresetCatalog = {
           "post.restored",
           "post.purged"
         ]
+      },
+      "entityLists": {
+        "post_board": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "kind"
+          ],
+          "filters": [
+            "kind",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "description"
+          ]
+        },
+        "post": {
+          "sorts": [
+            "active",
+            "new",
+            "top"
+          ],
+          "facets": [
+            "status",
+            "boardId"
+          ],
+          "filters": [
+            "boardId",
+            "status",
+            "authorId",
+            "merged",
+            "archived"
+          ],
+          "search": [
+            "title",
+            "body"
+          ]
+        }
       }
     },
     {
@@ -31635,7 +31893,31 @@ export const PRESET_CATALOG: PresetCatalog = {
             "tasks"
           ]
         }
-      ]
+      ],
+      "entityLists": {
+        "conversation": {
+          "sorts": [
+            "lastMessageAt",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "inboxId"
+          ],
+          "filters": [
+            "inboxId",
+            "teamId",
+            "contactId",
+            "status",
+            "assignee"
+          ],
+          "search": [
+            "subject",
+            "preview",
+            "contact"
+          ]
+        }
+      }
     },
     {
       "name": "inventory",
@@ -32119,7 +32401,47 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "NewKnowledgeDocument"
         }
-      ]
+      ],
+      "entityLists": {
+        "knowledge_document": {
+          "sorts": [
+            "createdAt",
+            "title"
+          ],
+          "facets": [
+            "scope",
+            "status"
+          ],
+          "filters": [
+            "scope",
+            "status",
+            "collectionId",
+            "scopeId",
+            "subjectType",
+            "subjectId"
+          ],
+          "search": [
+            "title"
+          ]
+        },
+        "knowledge_collection": {
+          "sorts": [
+            "priority",
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "visibility"
+          ],
+          "filters": [
+            "visibility"
+          ],
+          "search": [
+            "name",
+            "description"
+          ]
+        }
+      }
     },
     {
       "name": "memory",
@@ -32170,7 +32492,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "MemoryView"
         }
-      ]
+      ],
+      "entityLists": {
+        "memory": {
+          "sorts": [
+            "createdAt",
+            "updatedAt",
+            "path",
+            "useCount",
+            "lastUsedAt"
+          ],
+          "facets": [
+            "kind",
+            "category"
+          ],
+          "filters": [
+            "kind",
+            "category"
+          ],
+          "search": [
+            "content"
+          ]
+        }
+      }
     },
     {
       "name": "messaging",
@@ -32424,6 +32768,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "message.pinned",
           "message.resolved"
         ]
+      },
+      "entityLists": {
+        "conversation": {
+          "sorts": [
+            "lastMessageAt",
+            "createdAt",
+            "title"
+          ],
+          "facets": [
+            "kind"
+          ],
+          "filters": [
+            "kind"
+          ],
+          "search": [
+            "title"
+          ]
+        }
       }
     },
     {
@@ -32615,6 +32977,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "channel.created",
           "channel.updated"
         ]
+      },
+      "entityLists": {
+        "channel": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "lastMessageAt"
+          ],
+          "facets": [
+            "visibility"
+          ],
+          "filters": [
+            "visibility",
+            "browse",
+            "includeArchived"
+          ],
+          "search": [
+            "name",
+            "topic",
+            "purpose"
+          ]
+        }
       }
     },
     {

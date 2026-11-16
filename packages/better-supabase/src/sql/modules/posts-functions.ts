@@ -10,6 +10,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { asText } from "./over-app.ts";
+import { postPageFunctions } from "./posts-pages.ts";
 import { postsSql } from "./posts-sql.ts";
 
 const KEY = "^[a-z0-9][a-z0-9_-]{0,62}$";
@@ -577,5 +578,5 @@ ${userGrant(`${fn("vote_on_post")}(uuid, integer)`)}
 
 /** The posts module's functions. */
 export function postFunctions(ctx: BlockSqlContext): string {
-  return `${boardFunctions(ctx)}${postWrites(ctx)}${postReads(ctx)}`;
+  return `${boardFunctions(ctx)}${postWrites(ctx)}${postReads(ctx)}${postPageFunctions(ctx)}`;
 }

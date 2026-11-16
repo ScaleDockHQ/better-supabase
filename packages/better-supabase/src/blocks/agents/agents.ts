@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -14,6 +25,7 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -28,6 +40,7 @@ import {
   textOf,
   instantOf,
 } from "../shared.ts";
+import { agentListSurface } from "./lists.ts";
 
 export type AgentVisibility = "private" | "organization" | "public";
 
@@ -164,6 +177,9 @@ export interface Agents<F extends object = Record<never, never>> {
   /**
    * The store (published to the tenant or public), the caller's own, or the
    * installed ones.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
    */
   list(
     input: { organizationId: string } & {
@@ -174,6 +190,21 @@ export interface Agents<F extends object = Record<never, never>> {
       readonly includeArchived?: boolean;
     },
   ): AsyncResult<readonly (Agent & F)[]>;
+  /**
+   * One keyset page of agents, newest published or updated first. `filters`
+   * takes `mode` (`["store"]` by default, `["mine"]` or `["installed"]`),
+   * `visibility` as a list and `includeArchived`; `q` searches the name and
+   * description.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Agent & F>>;
+  /** The values of each facet (`visibility`) and how many agents hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many agents match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   publish(input: {
     agentId: string;
     visibility: AgentVisibility;
@@ -429,6 +460,18 @@ export function createAgents<
         }),
     );
 
+  const agentPages = entityList<
+    readonly [unknown, Agent],
+    RequiredTenantOption
+  >({
+    entity: "agent",
+    surface: agentListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_agents",
+    rowOf: (row) => [row, agentOf(row)] as const,
+  });
+
   const client: Agents<F> = {
     create: ({ organizationId, agent }) =>
       save(organizationId, undefined, agent),
@@ -442,6 +485,17 @@ export function createAgents<
         { tenant: organizationId, slug },
         (value) => value,
       ).andThen(found),
+    page: (pageOptions) =>
+      agentPages
+        .page(pageOptions)
+        .andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({ ...page, items }),
+          ),
+        ),
+    facets: agentPages.facets,
+    count: agentPages.count,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...listOptions }) =>
       call(
         "list_agents",

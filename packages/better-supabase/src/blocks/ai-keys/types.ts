@@ -1,5 +1,16 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -153,10 +164,35 @@ export interface AiKeysOptions extends BlockTemporalOptions {
 
 export interface AiKeys {
   readonly keys: {
+    /**
+     * By provider and name.
+     *
+     * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(
       organizationId: string,
       options?: { readonly limit?: number },
     ): AsyncResult<readonly AiProviderKey[]>;
+    /**
+     * One keyset page of the tenant's keys, by provider and name. `filters`
+     * takes `provider` and `enabled` as lists; `q` searches the provider and
+     * name.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<AiProviderKey>>;
+    /**
+     * The values of each facet (`provider`, `enabled`) and how many keys hold
+     * each.
+     */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many keys match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+    /** One key by id, or a `not_found` error. */
+    get(keyId: string): AsyncResult<AiProviderKey>;
     /**
      * Adds or replaces a key (`ai_keys.manage`), and revokes the credential it
      * replaced.
@@ -188,13 +224,43 @@ export interface AiKeys {
       organizationId: string;
       batch: NewAiBatch;
     }): AsyncResult<AiBatch>;
+    /**
+     * One batch, or undefined when there is none.
+     *
+     * @deprecated Use `getBatch`, which returns a `not_found` error for an
+     * unknown id (ADR 1077).
+     */
     get(batchId: string): AsyncResult<AiBatch | undefined>;
+    /** One batch by id, or a `not_found` error. */
+    getBatch(batchId: string): AsyncResult<AiBatch>;
+    /**
+     * Newest first.
+     *
+     * @deprecated Use `page`, which pages by keyset and takes sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(
       input: { organizationId: string } & {
         readonly status?: AiBatchStatus;
         readonly limit?: number;
       },
     ): AsyncResult<readonly AiBatch[]>;
+    /**
+     * One keyset page of the tenant's batches, newest first. `filters` takes
+     * `status` and `provider` as lists.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<AiBatch>>;
+    /**
+     * The values of each facet (`status`, `provider`) and how many batches hold
+     * each.
+     */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many batches match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
     items(
       input: { batchId: string } & CursorPageOptions<string>,
     ): AsyncResult<readonly AiBatchItem[]>;

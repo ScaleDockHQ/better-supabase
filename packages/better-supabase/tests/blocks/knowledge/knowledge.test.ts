@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 3 findings. */
 import { describe, expect, it, vi } from "vitest";
 
 import type { AiFile, AiFiles } from "../../../src/blocks/ai-files/index.ts";

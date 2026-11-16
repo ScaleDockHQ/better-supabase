@@ -2257,7 +2257,7 @@ begin
         and s."archived_at" is null;
       v_found := found;
     when 'conversation' then
-      select s."tenant_id", s."title"::text, null, null, '{}'::jsonb
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."title"::text), ''), null, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."conversations" s
         where s."id" = (search_refresh.subject_id)::uuid

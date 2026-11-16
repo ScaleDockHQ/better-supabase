@@ -73,8 +73,10 @@ async function simulateDelivery(
   conversationId: string,
   messageId: string,
 ): Promise<void> {
-  const conversation = await db.inbox.conversations.get(conversationId);
-  const channel = conversation.ok ? conversation.data?.inbox?.channel : null;
+  const conversation =
+    await db.inbox.conversations.getConversation(conversationId);
+
+  const channel = conversation.ok ? conversation.data.inbox?.channel : null;
 
   if (!channel || channel === "in_app") {
     return;
@@ -215,7 +217,7 @@ export const loadThread = bsb.action(
     const { inbox } = db;
 
     const [conversation, messages] = await Promise.all([
-      inbox.conversations.get(conversationId),
+      inbox.conversations.getConversation(conversationId),
       inbox.messages.list({ conversationId, limit: 100 }),
     ]);
 
@@ -227,7 +229,7 @@ export const loadThread = bsb.action(
       return messages;
     }
 
-    const { lastMessageAt, lastReadAt } = conversation.data ?? {};
+    const { lastMessageAt, lastReadAt } = conversation.data;
 
     if (
       lastMessageAt &&
@@ -241,10 +243,7 @@ export const loadThread = bsb.action(
     }
 
     return ok({
-      conversation:
-        conversation.data === null
-          ? null
-          : toConversationRow(conversation.data),
+      conversation: toConversationRow(conversation.data),
       messages: messages.data.map(toMessageRow),
     });
   },
@@ -544,9 +543,10 @@ export const broadcast = bsb.action(
     permission: "inbox.manage",
   },
   async ({ inboxId, body }, { tenant, db }) => {
-    const listed = await db.inbox.conversations.list({
-      tenant,
-      filter: { inboxId, status: "open", limit: BROADCAST_LIMIT },
+    const listed = await db.inbox.conversations.page({
+      organizationId: tenant,
+      filters: { inboxId: [inboxId], status: ["open"] },
+      limit: BROADCAST_LIMIT,
     });
 
     if (!listed.ok) {
@@ -555,7 +555,7 @@ export const broadcast = bsb.action(
 
     let sent = 0;
 
-    for (const conversation of listed.data) {
+    for (const conversation of listed.data.items) {
       if (
         conversation.inbox?.channel === "whatsapp" &&
         !whatsappWindowOpen(toConversationRow(conversation), Date.now())
@@ -576,7 +576,7 @@ export const broadcast = bsb.action(
       sent += 1;
     }
 
-    return ok({ sent, skipped: listed.data.length - sent });
+    return ok({ sent, skipped: listed.data.items.length - sent });
   },
 );
 

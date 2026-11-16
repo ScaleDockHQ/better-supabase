@@ -8,10 +8,10 @@ import type {
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { entityList } from "../../core/entity-list.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -192,6 +192,8 @@ export function createImpersonation(
     entity: "support session",
     surface: sessionListSurface,
     call,
+    // The list is platform-wide, so the call names no organization.
+    tenant: () => AsyncResult.ok(undefined),
     fn: "page_support_sessions",
     rowOf: (row, fn) => sessionOf(row, fn),
   });

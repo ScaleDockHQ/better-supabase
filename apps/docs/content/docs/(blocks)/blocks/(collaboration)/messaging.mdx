@@ -95,6 +95,10 @@ const rows = useMessaging({ limit: 50 });
 their unread and mention counts. `unreadCounts()` returns the counts alone for
 a sidebar badge, and `markRead` moves the caller's read marker.
 
+## Paging conversations
+
+`conversationPage` pages the caller's conversations by keyset (ADR 1077), with `conversationFacets` and `conversationCount`, and `getConversation` returns a `not_found` error for an unknown id. The list takes `q`, sorts and array filters like every block list, and `conversation.list` keeps working and is deprecated. Messages stay on `messages.list`, which reads a thread in order with a `limit`, and `get` on a message keeps its optional result. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Messages and threads
 
 ```ts

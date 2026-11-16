@@ -51,16 +51,20 @@ async function loadBoard(): Promise<{ board: BoardView | null } | null> {
   }
 
   const { posts } = db;
-  const [board] = await posts.boards().orThrow();
+
+  const {
+    items: [board],
+  } = await posts.boardPage({ organizationId: tenant, limit: 1 }).orThrow();
 
   if (board === undefined) {
     return { board: null };
   }
 
-  const rows = await posts
-    .list({
-      boardId: board.id,
-      sort: board.kind === "feedback" ? "top" : "active",
+  const { items: rows } = await posts
+    .page({
+      organizationId: tenant,
+      filters: { boardId: [board.id] },
+      sort: { by: board.kind === "feedback" ? "top" : "active" },
       limit: 50,
     })
     .orThrow();

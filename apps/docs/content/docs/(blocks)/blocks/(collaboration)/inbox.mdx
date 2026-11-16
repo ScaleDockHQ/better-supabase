@@ -54,6 +54,10 @@ never sees internal notes. Inboxes with `settings.widget = true` let such a
 visitor open a conversation; other inboxes take new conversations only from
 staff and the service.
 
+## Paging conversations
+
+`conversations.page` pages conversations by keyset (ADR 1077), with `facets` and `count`, and `conversations.getConversation` returns a `not_found` error for an unknown id. `status` is `open` by default (`["all"]` reads every status). Sorts are `lastMessageAt` (the default) and `createdAt`, `inboxId`, `teamId`, `contactId`, `status` and `assignee` filter by a list of values, and `q` searches the subject, the preview and the contact. The organization comes from `organizationId` or the block's `tenant` option. `conversations.list` and `conversations.get` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Creating the client
 
 `createInbox` takes a [block transport](/docs/blocks#transports). Use the

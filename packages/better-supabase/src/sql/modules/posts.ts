@@ -231,6 +231,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "update_post", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "get_post", args: ["uuid"], returns: "jsonb" },
     { name: "list_posts", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_posts", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_post_boards", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "set_post_state", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "vote_on_post", args: ["uuid", "integer"], returns: "jsonb" },
     { name: "merge_posts", args: ["uuid", "uuid"], returns: "jsonb" },

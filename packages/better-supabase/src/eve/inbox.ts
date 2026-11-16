@@ -64,6 +64,7 @@ export function routeInbox<T extends EveChatThread>(
     }
 
     const conversation = await options.inbox.conversations
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
       .get(thread.id.slice(INBOX_PREFIX.length))
       .orThrow();
 

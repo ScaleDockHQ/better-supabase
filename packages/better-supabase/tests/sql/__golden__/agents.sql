@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:21a68b45e79ce6fbda7f2b153d7262d117531cbf74ab3be092cfd03ef3e3aae2
+-- @bsb-hash sha256:0a038f234ca7706b7ef7452283f81c9f5a06ffc780d68d1b5eb600c4ffec5816
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -356,6 +356,371 @@ $$;
 revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "better_supabase"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -558,7 +923,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:020a03c1657d212e5d3d7161c48d3e7f16f5b70ed1fecb27cc900747c5a45969
+-- @bsb-hash sha256:1fbb997ee0df2474798f2090df1ab7bcff891c7ed0adad2d871e81847dd36ae7
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -967,6 +1332,371 @@ $$;
 revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "better_supabase"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -1188,7 +1918,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:2e095414f353ac355792d76a8ac87155a1b33d0dd76d222b47ce8cdba80998c7
+-- @bsb-hash sha256:6162c133390d66324a8dd98108110659b108d5ebf339cfa6a3b3aeade08a52e1
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1548,6 +2278,371 @@ $$;
 revoke execute on function "app_private"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "app_private"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "app_private"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "app_private"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -1750,7 +2845,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:6757d8b28668429289c6221e986bc42aea7c58b0800000590f89b7f9050eb2cd
+-- @bsb-hash sha256:7c5f9d2850229cd3a939e7ae40889d00179f51ea4af58e33186d42c4bf39e6c3
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2105,6 +3200,371 @@ $$;
 revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "better_supabase"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -2359,6 +3819,16 @@ as $$ select "better_supabase"."list_agents"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "api"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+create or replace function "api"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_agents"($1, $2) $$;
+revoke execute on function "api"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
 language sql
@@ -2412,7 +3882,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:978f5b1383970acb6260cbd9f77ebc7943d8077ec4f157ead79b1c01a76806c2
+-- @bsb-hash sha256:7aeed09e89b391fe7b6547e712f2055029f5383f8d973aa83ef24cd6ed8bef42
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2756,6 +4226,371 @@ $$;
 revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "better_supabase"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_agents"(uuid, jsonb) to authenticated, service_role;
+
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -2958,7 +4793,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:684785bc3035628d513669567a450c2aafb39f22683cfd33d6f6e5b0de1da8fb
+-- @bsb-hash sha256:de2d25241f53c4e1715424a7c2e236d2bda7aec29de1fbf7afead04c37c3743d
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3312,6 +5147,371 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
 grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
+
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function "better_supabase"."page_agents"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_mode text := coalesce(nullif(coalesce(v_filters #>> '{mode,0}', v_filters ->> 'mode'), ''), 'store');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    raise exception 'mode is store, mine or installed' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'visibility') = 'array' then v_filters -> 'visibility' when jsonb_typeof(v_filters -> 'visibility') in ('string', 'number') then jsonb_build_array(v_filters -> 'visibility') else '[]'::jsonb end) s where s not in ('private', 'organization', 'public')) then
+    raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'AGENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt', 'installCount') then
+    raise exception 'sort is one of name, updatedAt, createdAt, installCount' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at"), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."updated_at") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."published_at", x."updated_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."updated_at") <= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."updated_at") < (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."updated_at") = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."updated_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by coalesce(x."install_count", 0) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'installCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)) as j, jsonb_build_array((coalesce(x."install_count", 0))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."install_count", 0) <= (v_after ->> 0)::integer and ((coalesce(x."install_count", 0) < (v_after ->> 0)::integer) or (coalesce(x."install_count", 0) = (v_after ->> 0)::integer and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."install_count", 0) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agents" x
+      where case v_mode
+        when 'mine' then x."owner_id" = auth.uid() and x."org_id" = page_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = page_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = page_agents.tenant)
+      end
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_agents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_agents"(uuid, jsonb) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)

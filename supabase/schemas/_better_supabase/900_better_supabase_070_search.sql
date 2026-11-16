@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@5 managed
--- @bsb-hash sha256:be29237000be65399d013d9e05e45e4d9e08a7e43c2a744d873689bdd7d21a02
+-- @bsb-hash sha256:ce4f68ff952470d47257641cd33b39c90153d11ecb5eea7ff39cea5c70832f30
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,7 +99,7 @@ begin
         and s."archived_at" is null;
       v_found := found;
     when 'conversation' then
-      select s."tenant_id", s."title"::text, null, null, '{}'::jsonb
+      select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."title"::text), ''), null, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."conversations" s
         where s."id" = (search_refresh.subject_id)::uuid

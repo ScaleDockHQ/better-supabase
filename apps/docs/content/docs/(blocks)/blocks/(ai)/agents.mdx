@@ -92,6 +92,23 @@ Each agent carries `installCount`, `ratingCount`, the average `rating`,
 and for the caller `installed` and `myRating`. A slug that is taken in the
 organization fails with a `conflict` error.
 
+## Paging agents
+
+`agents.page` pages agents by keyset (ADR 1077), with `facets` and `count`. `filters.mode` takes `store` (the default), `mine` or `installed`, and `includeArchived` is a flag filter (`["true"]` also reads archived agents). `visibility` filters by a list of values and is also the facet. Sorts are `updatedAt`, `createdAt`, `name` and `installCount`, and `q` searches the name and the description. `list` keeps working and is deprecated.
+
+```ts
+const mine = await agents
+  .page({
+    organizationId,
+    filters: { mode: ["mine"] },
+    sort: { by: "name" },
+    q: "support",
+  })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## AI SDK
 
 [`better-supabase/ai-sdk/agents`](/docs/ai-sdk/agents) turns an agent into

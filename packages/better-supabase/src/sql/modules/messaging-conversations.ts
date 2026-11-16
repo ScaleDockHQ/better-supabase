@@ -1,6 +1,13 @@
 import type { MessagingSql } from "./messaging-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { subjectTenant } from "../subject-check-sql.ts";
 import { subjectTypeGuard } from "../subjects.ts";
@@ -45,6 +52,62 @@ export function conversationFunctions(q: MessagingSql): string {
     asText(ctx, "conversations", `${alias}.${cv("kind")}`);
 
   const notify = ctx.has("members", "notify");
+
+  const summaryJson = (row: string): string =>
+    `to_jsonb(${row}) || jsonb_build_object(
+      'unread', (select count(*) from ${t("messages")} m, ${t("members")} k where k.${mb("conversation")} = ${row}.${cv("id")} and k.${mb("user")} = auth.uid() and m.${ms("conversation")} = ${row}.${cv("id")} and (m.${ms("thread")} is null or m.${ms("broadcast")}) and m.${ms("sentAt")} > coalesce(k.${mb("lastReadAt")}, '-infinity'::timestamptz) and m.${ms("deletedAt")} is null and m.${ms("author")} is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m.${ms("mentions")}) or m.${ms("mentionScope")} is not null) from ${t("messages")} m, ${t("members")} k where k.${mb("conversation")} = ${row}.${cv("id")} and k.${mb("user")} = auth.uid() and m.${ms("conversation")} = ${row}.${cv("id")} and (m.${ms("thread")} is null or m.${ms("broadcast")}) and m.${ms("sentAt")} > coalesce(k.${mb("lastReadAt")}, '-infinity'::timestamptz) and m.${ms("deletedAt")} is null and m.${ms("author")} is distinct from auth.uid()),
+      'lastReadAt', (select k.${mb("lastReadAt")} from ${t("members")} k where k.${mb("conversation")} = ${row}.${cv("id")} and k.${mb("user")} = auth.uid()),
+      'notify', ${notify ? `(select k.${mb("notify")} from ${t("members")} k where k.${mb("conversation")} = ${row}.${cv("id")} and k.${mb("user")} = auth.uid())` : "null"}
+    )`;
+
+  const conversationIdKey = {
+    expr: `x.${cv("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const latestKeys = [
+    {
+      expr: `coalesce(x.${cv("lastMessageAt")}, 'epoch'::timestamptz)`,
+      dir: "desc",
+      type: "timestamptz",
+    },
+    conversationIdKey,
+  ] as const;
+
+  const conversationPage = {
+    name: "page_conversations",
+    from: t("conversations"),
+    alias: "x",
+    where: [
+      ctx.scope.eq(`x.${cv("tenant")}`, "page_conversations.tenant"),
+      `exists (select 1 from ${t("members")} k where k.${mb("conversation")} = x.${cv("id")} and k.${mb("user")} = auth.uid())`,
+      `(case when not ${filterSet("kind")} then ${ctx.installed("inbox") ? `${kindOf("x")} <> 'inbox'` : "true"} else ${filterAny("kind", kindOf("x"))} end)`,
+      `(v_search is null or x.${cv("title")} ilike v_search)`,
+    ],
+    keys: latestKeys,
+    sorts: {
+      lastMessageAt: latestKeys,
+      createdAt: [
+        { expr: `x.${cv("createdAt")}`, dir: "desc", type: "timestamptz" },
+        conversationIdKey,
+      ],
+      title: [
+        {
+          expr: `lower(coalesce(x.${cv("title")}, ''))`,
+          dir: "asc",
+          type: "text",
+        },
+        conversationIdKey,
+      ],
+    },
+    facets: { kind: kindOf("x") },
+    rowJson: summaryJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("MESSAGING_INVALID", message, "22023"),
+  } as const;
 
   const subscriptions = ctx.installed("notifications")
     ? ctx.of("notifications")
@@ -456,6 +519,44 @@ as $$
   ) u
 $$;
 ${userGrant(`${fn("list_conversations")}(${id}, text[], integer)`)}
+
+-- The caller's conversations as a keyset page (ADR 1077), latest message
+-- first. filters is { kind (a value or a list; every kind but inbox when
+-- left out), search (title), sort (lastMessageAt, createdAt, title),
+-- direction, facet (kind), count, limit, after, offset, paged, total,
+-- totalCap }. Each row carries unread and mentions as list_conversations does.
+create or replace function ${fn("page_conversations")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_conversations.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(conversationPage)}
+begin
+  ${listBody(conversationPage)}
+end;
+$$;
+${userGrant(`${fn("page_conversations")}(${id}, jsonb)`)}
+
+-- One conversation the caller is a member of, as list_conversations returns it, or null.
+create or replace function ${fn("get_conversation_summary")}(conversation uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${summaryJson("c")}
+  from ${t("conversations")} c
+  where c.${cv("id")} = get_conversation_summary.conversation
+    and exists (select 1 from ${t("members")} k where k.${mb("conversation")} = c.${cv("id")} and k.${mb("user")} = auth.uid())
+$$;
+${userGrant(`${fn("get_conversation_summary")}(uuid)`)}
 
 -- Unread top-level messages and mentions per member conversation of the
 -- caller in a tenant: { conversationId: { unread, mentions } }, for badges.

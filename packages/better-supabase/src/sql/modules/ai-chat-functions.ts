@@ -14,6 +14,7 @@ import {
 } from "../shared.ts";
 import { aiChatExtras } from "./ai-chat-extras.ts";
 import { aiChatMessages } from "./ai-chat-messages.ts";
+import { aiChatPagesSql } from "./ai-chat-pages.ts";
 import { aiChatParticipants } from "./ai-chat-participants.ts";
 import { aiChatSharing } from "./ai-chat-sharing.ts";
 import {
@@ -506,6 +507,11 @@ export function aiChatFunctions(
   layout: BlockSqlLayout,
 ): string {
   return `${chats(ctx, names)}
+
+${aiChatPagesSql(ctx, names, {
+  chatJson: (row) => chatJson(ctx, names, row),
+  projectJson: (row) => projectJson(ctx, row),
+})}
 
 ${aiChatParticipants(ctx, names)}
 

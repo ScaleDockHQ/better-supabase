@@ -406,6 +406,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
         }),
       );
     },
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
     status: (batchId) => store.get(batchId),
     results: (batchId, resultOptions) =>
       store.items({ batchId, ...resultOptions }),

@@ -60,12 +60,12 @@ export async function getAgentPage(query: OpsListQuery): Promise<AgentPage> {
       ? query.filter
       : "store";
 
-  const agents = await agentsBlock(supabase)
-    .list({
+  const { items: agents } = await agentsBlock(supabase)
+    .page({
       organizationId,
-      filter,
+      filters: { mode: [filter] },
       limit: 100,
-      ...present({ search: query.q === "" ? undefined : query.q }),
+      ...present({ q: query.q === "" ? undefined : query.q }),
     })
     .orThrow();
 
@@ -392,7 +392,7 @@ export async function getToolAccess(): Promise<ToolAccessRead> {
 
   const [policies, agents] = await Promise.all([
     aiChat(supabase).approvals.policies(organizationId),
-    agentsBlock(supabase).list({ organizationId, limit: 100 }),
+    agentsBlock(supabase).page({ organizationId, limit: 100 }),
   ]);
 
   if (!policies.ok) {
@@ -401,7 +401,7 @@ export async function getToolAccess(): Promise<ToolAccessRead> {
 
   const byTool = new Map<string, string[]>();
 
-  for (const agent of agents.ok ? agents.data : []) {
+  for (const agent of agents.ok ? agents.data.items : []) {
     for (const tool of agent.tools) {
       byTool.set(tool, [...(byTool.get(tool) ?? []), agent.name]);
     }
@@ -462,7 +462,7 @@ export async function getMemory(): Promise<{
 
   const [files, facts] = await Promise.all([
     memories.core.list({ organizationId }).orThrow(),
-    memories.archival.list({ organizationId, limit: 100 }).orThrow(),
+    memories.archival.page({ organizationId, limit: 100 }).orThrow(),
   ]);
 
   return {
@@ -473,7 +473,7 @@ export async function getMemory(): Promise<{
       version: file.version,
       updatedAt: file.updatedAt.toString(),
     })),
-    facts: facts.map((fact) => ({
+    facts: facts.items.map((fact) => ({
       id: fact.id,
       content: fact.content,
       category: fact.category,

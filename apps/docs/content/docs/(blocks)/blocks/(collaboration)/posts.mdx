@@ -80,6 +80,10 @@ unless you pass `merged: true`, and archived ones unless you pass
 caller's own vote, its `replyCount` and whether the caller wrote it
 (`mine`).
 
+## Paging posts and boards
+
+`page` and `boardPage` page posts and boards by keyset (ADR 1077), each with facets and a count, and `getPost` returns a `not_found` error for an unknown id. Posts sort by `active` (the default), `new` and `top`, filter by `boardId`, `status` and `authorId` as lists and by `merged` and `archived` as flags, and `q` searches the title and the body. Boards sort by `name` and `createdAt`, filter by `kind` and `archived`, and `q` searches the name and the description. `list`, `get` and `boards` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Votes and replies
 
 ```ts

@@ -1,5 +1,16 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -9,6 +20,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import type { KnowledgeCollections } from "./collections.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral as pgVector } from "../../core/search.ts";
@@ -28,6 +40,7 @@ import {
   injectableOf,
 } from "../shared.ts";
 import { knowledgeCollections } from "./collections.ts";
+import { documentListSurface } from "./lists.ts";
 
 /** What a version 2 embedder returns: the vectors and what they cost. */
 export interface EmbedResult {
@@ -279,6 +292,29 @@ export interface Knowledge {
       document: NewKnowledgeDocument;
     }): AsyncResult<KnowledgeDocument>;
     get(documentId: string): AsyncResult<KnowledgeDocument>;
+    /**
+     * One keyset page of documents, newest first. `filters` takes `scope` and
+     * `status` as lists and `collectionId`, `scopeId`, `subjectType` and
+     * `subjectId` as one value; `q` searches the title.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<KnowledgeDocument>>;
+    /**
+     * The values of each facet (`scope`, `status`) and how many documents hold
+     * each.
+     */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many documents match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+    /**
+     * By creation time.
+     *
+     * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(
       input: { organizationId: string } & {
         readonly scope?: KnowledgeScope;
@@ -799,9 +835,21 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       }
     });
 
+  const documentPages = entityList<KnowledgeDocument, RequiredTenantOption>({
+    entity: "knowledge_document",
+    surface: documentListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_knowledge_documents",
+    rowOf: (row) => documentOf(row),
+  });
+
   const client: Knowledge = {
     collections: knowledgeCollections(call),
     documents: {
+      page: documentPages.page,
+      facets: documentPages.facets,
+      count: documentPages.count,
       create,
       get: (documentId) =>
         call(
@@ -809,6 +857,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
           { document_id: documentId },
           (value) => value,
         ).andThen(found),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ organizationId, ...listOptions }) =>
         call(
           "list_knowledge_documents",

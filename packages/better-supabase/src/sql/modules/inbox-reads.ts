@@ -1,5 +1,14 @@
 import type { InboxSql } from "./inbox-names.ts";
 
+import {
+  filterAny,
+  filterFirst,
+  filterHasInvalid,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, pageSize } from "../shared.ts";
 import { forbidden, missing } from "./inbox-names.ts";
 
@@ -35,6 +44,59 @@ grant execute on function ${signature} to authenticated, service_role;`;
         ]
       : []),
   ];
+
+  const conversationIdKey = {
+    expr: `x.${cv("id")}`,
+    dir: "desc",
+    type: "uuid",
+  } as const;
+
+  const searchedPage = [
+    ...(["subject", "preview"] as const)
+      .filter((column) => q.has("conversations", column))
+      .map((column) => `x.${cv(column)} ilike v_search`),
+    ...((["name", "email"] as const).some((column) => q.people.has(column))
+      ? [
+          `x.${cv("id")} in (select m.conversation from ${fn("inbox_contacts_json")}(null, page_inbox_conversations.tenant, v_filters ->> 'search') m)`,
+        ]
+      : []),
+  ];
+
+  const status = q.text("conversations", `x.${cv("status")}`);
+
+  const conversationPage = {
+    name: "page_inbox_conversations",
+    from: T("conversations"),
+    alias: "x",
+    where: [
+      `(page_inbox_conversations.tenant is null or x.${cv("tenant")} = page_inbox_conversations.tenant)`,
+      filterAny("inboxId", `x.${cv("inbox")}`, "uuid"),
+      filterAny("teamId", `x.${cv("team")}`, "uuid"),
+      filterAny("contactId", `x.${cv("contact")}`, "uuid"),
+      `(case when not ${filterSet("status")} then ${status} = 'open' when v_filters -> 'status' ? 'all' then true else ${filterAny("status", status)} end)`,
+      `(case v_assignee when 'me' then x.${cv("assignee")} = (select auth.uid()) when 'unassigned' then x.${cv("assignee")} is null else v_assignee is null or x.${cv("assignee")} = v_assignee::uuid end)`,
+      `(v_search is null${searchedPage.map((column) => ` or ${column}`).join("")})`,
+    ],
+    keys: [
+      { expr: `x.${cv("lastMessageAt")}`, dir: "desc", type: "timestamptz" },
+      conversationIdKey,
+    ],
+    sorts: {
+      lastMessageAt: [
+        { expr: `x.${cv("lastMessageAt")}`, dir: "desc", type: "timestamptz" },
+        conversationIdKey,
+      ],
+      createdAt: [
+        { expr: `x.${cv("createdAt")}`, dir: "desc", type: "timestamptz" },
+        conversationIdKey,
+      ],
+    },
+    facets: { status, inboxId: `x.${cv("inbox")}` },
+    rowJson: `${conversationJson}(x.${cv("id")}) || jsonb_build_object('unread', x.${cv("lastMessageAt")} > coalesce((select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = x.${cv("id")} and k.${ck("user")} = (select auth.uid())), '-infinity'::timestamptz))`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("INBOX_INVALID", message, "22023"),
+  } as const;
 
   return `${inboxContactsFunctions(q)}
 
@@ -102,6 +164,37 @@ begin
 end;
 $$;
 ${authed(`${fn("list_inbox_conversations")}(${id}, jsonb)`)}
+
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function ${fn("page_inbox_conversations")}(tenant ${id} default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  v_assignee text := ${filterFirst("assignee")};
+  ${listDeclare(conversationPage)}
+begin
+  if ${filterHasInvalid("inboxId")} or ${filterHasInvalid("teamId")} or ${filterHasInvalid("contactId")} then
+    ${fail("INBOX_INVALID", "inboxId, teamId and contactId are uuids", "22023")}
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    ${fail("INBOX_INVALID", "assignee is me, unassigned or an id", "22023")}
+  end if;
+  ${listBody(conversationPage)}
+end;
+$$;
+${authed(`${fn("page_inbox_conversations")}(${id}, jsonb)`)}
 
 create or replace function ${fn("get_conversation")}(conversation uuid)
 returns jsonb
