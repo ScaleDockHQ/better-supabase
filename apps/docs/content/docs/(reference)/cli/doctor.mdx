@@ -2570,11 +2570,12 @@ example `@vercel/queue@0.12.0` against `>=0.11.0 <0.12`. With
 `strictPeerDependencies` the install fails, and the subpath that needs the
 peer can break at runtime. Doctor reads the version from the nearest
 `node_modules` above the project root and skips peers that aren't installed.
-It also skips a peer the project's `package.json` doesn't list, such as
-`undici` or `vue` that a framework or SDK installs for itself: that copy
-follows the other package's range. A project that uses the subpath needing the
-peer lists it in its dependencies, and doctor checks it from then on. Install a version in the range, or remove
-the package if nothing imports it.
+It also skips a peer that neither the project's `package.json` nor a package
+of its workspace lists, such as `undici` or `vue` that a framework or SDK
+installs for itself: that copy follows the other package's range. A project
+that uses the subpath needing the peer lists it in its dependencies, and doctor
+checks it from then on. Install a version in the range, or remove the package
+if nothing imports it.
 [Peers](/docs/getting-started/peers) lists which subpath needs which peer.
 
 ### BS602

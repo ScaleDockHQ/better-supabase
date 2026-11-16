@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { detectWorkspace } from "./project/workspace.ts";
+
 /** An optional peer of better-supabase and the version the app has installed. */
 export interface PeerVersion {
   readonly name: string;
@@ -10,8 +12,9 @@ export interface PeerVersion {
   /** The installed version, `undefined` when the app doesn't have it. */
   readonly installed: string | undefined;
   /**
-   * Whether the project's `package.json` lists the peer in its dependencies;
-   * `undefined` when the project has no `package.json`.
+   * Whether the project's `package.json`, or one of its workspace packages,
+   * lists the peer in its dependencies; `undefined` when the project has no
+   * `package.json`.
    */
   readonly direct?: boolean;
 }
@@ -308,19 +311,26 @@ export async function declaredPeers(): Promise<Record<string, string>> {
  * Every declared peer with the version `root` resolves, or else the version the
  * better-supabase package resolves: lazy imports load from there, so a peer
  * installed only next to the package (a pnpm workspace) still loads. `direct`
- * says whether the project's own `package.json` lists it.
+ * says whether the project's own `package.json` or a package of its workspace
+ * lists it.
  */
 export async function peerVersions(root: string): Promise<PeerVersion[]> {
   const peers = await declaredPeers();
   const project = await readManifest(join(root, "package.json"));
 
-  const listed = new Set(
-    DEPENDENCY_FIELDS.flatMap((field) => {
+  const workspace =
+    project === undefined ? undefined : await detectWorkspace(root);
+
+  const listed = new Set([
+    ...DEPENDENCY_FIELDS.flatMap((field) => {
       const deps = project?.[field];
 
       return typeof deps === "object" && deps !== null ? Object.keys(deps) : [];
     }),
-  );
+    ...(workspace?.packages ?? []).flatMap((pkg) =>
+      Object.keys(pkg.project.dependencies),
+    ),
+  ]);
 
   const packageDir = dirname(
     fileURLToPath(import.meta.resolve("better-supabase/package.json")),
