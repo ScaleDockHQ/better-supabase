@@ -1271,7 +1271,7 @@
   },
   "/[locale]/(auth)/invite/[token]/page": {
     "raw": 1530601,
-    "gzip": 485179,
+    "gzip": 485189,
     "brotli": 409887
   },
   "/[locale]/(auth)/login/page": {
@@ -1291,12 +1291,12 @@
   },
   "/[locale]/(auth)/pricing/[code]/page": {
     "raw": 1510711,
-    "gzip": 478753,
+    "gzip": 478759,
     "brotli": 404626
   },
   "/[locale]/(auth)/reset-password/page": {
     "raw": 1448478,
-    "gzip": 459785,
+    "gzip": 459798,
     "brotli": 387796
   },
   "/[locale]/(auth)/send/[token]/page": {
@@ -1311,7 +1311,7 @@
   },
   "/[locale]/(auth)/signup/page": {
     "raw": 1454426,
-    "gzip": 462684,
+    "gzip": 462698,
     "brotli": 390312
   },
   "/[locale]/(auth)/waitlist/page": {
@@ -1815,14 +1815,14 @@
     "brotli": 74290
   },
   "/api/v1/[...path]/route": {
-    "raw": 1081271,
-    "gzip": 340062,
-    "brotli": 296338
+    "raw": 1087082,
+    "gzip": 343630,
+    "brotli": 299478
   },
   "/api/v1/openapi.json/route": {
-    "raw": 1167762,
-    "gzip": 369625,
-    "brotli": 322568
+    "raw": 1173516,
+    "gzip": 373061,
+    "brotli": 325617
   },
   "/api/warranty/list/route": {
     "raw": 2744689,

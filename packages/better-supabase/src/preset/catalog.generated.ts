@@ -33846,6 +33846,18 @@ export const PRESET_CATALOG: PresetCatalog = {
         ]
       },
       "entityLists": {
+        "organization_member": {
+          "sorts": [
+            "role",
+            "userId"
+          ],
+          "facets": [
+            "role"
+          ],
+          "filters": [
+            "role"
+          ]
+        },
         "invitation": {
           "sorts": [
             "expiresAt",
@@ -35919,6 +35931,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team_member.added",
           "team_member.deleted"
         ]
+      },
+      "entityLists": {
+        "team": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ],
+          "search": [
+            "name",
+            "slug",
+            "description"
+          ]
+        }
       }
     },
     {

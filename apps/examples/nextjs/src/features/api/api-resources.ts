@@ -101,7 +101,10 @@ export const apiResources = {
         path: "/{id}/teams",
         summary: "List the organization's teams",
         output: toStandardJsonSchema(v.array(Team)),
-        handler: (ctx, { id }) => ctx.db.teams.list(String(id)),
+        handler: (ctx, { id }) =>
+          ctx.db.teams
+            .teamPage({ organizationId: String(id), limit: 200 })
+            .map((page) => page.items),
       },
       roles: {
         method: "GET",
