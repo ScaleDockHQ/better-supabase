@@ -30,7 +30,11 @@ export async function getTeams(): Promise<readonly Team[]> {
   cacheLife("max");
   cacheTag(teamsTag(tenant));
 
-  return db.teams.list(tenant, { limit: 100 }).orThrow();
+  const page = await db.teams
+    .teamPage({ organizationId: tenant, limit: 100 })
+    .orThrow();
+
+  return page.items;
 }
 
 /**

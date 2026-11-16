@@ -217,7 +217,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   orders:
     "add_to_cart cancel_fulfillment cancel_order complete_refund confirm_draft_order create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order hold_order merge_carts order_from_lines order_from_quote order_status_board place_order price_cart purchase_order_from_order receive_return record_payment reject_return release_order_hold request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
-    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_member_roles update_organization",
+    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem page_organization_members remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_member_roles update_organization",
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   "option-sets":
@@ -292,7 +292,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   tasks:
     "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_task list_task_checklist list_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
   teams:
-    "add_team_member archive_team create_team list_teams purge_team remove_team_member update_team",
+    "add_team_member archive_team create_team get_team list_teams purge_team remove_team_member update_team",
   templates:
     "fork_template page_templates publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":

@@ -3,6 +3,7 @@ import type { TeamsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { teamsEvents } from "./events.ts";
+import { teamListSurface } from "./lists.ts";
 import { teamsSqlOptions } from "./options.ts";
 import { createTeams } from "./teams.ts";
 
@@ -17,6 +18,7 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
     category: "tenancy",
     entities: {
       team: {
+        ...teamListSurface,
         mutability: "editable",
         offline: { scope: "tenant" },
         emits: { create: true, update: true, purge: true },

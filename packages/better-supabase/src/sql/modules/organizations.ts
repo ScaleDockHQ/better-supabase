@@ -1016,6 +1016,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["switch_organization", id],
   ["list_my_organizations", ""],
   ["list_members", id],
+  ["page_organization_members", `${id}, jsonb`],
   ["organization_overview", id],
 ];
 
@@ -1113,7 +1114,8 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
           ? "{id}"
           : name === "switch_organization" ||
               name === "update_member_roles" ||
-              name === "page_organization_invitations"
+              name === "page_organization_invitations" ||
+              name === "page_organization_members"
             ? "jsonb"
             : name.startsWith("list_")
               ? "record"

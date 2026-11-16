@@ -1749,7 +1749,7 @@ export interface BlockNameRegistry {
       readonly "profiles": "tenant" | "vatId" | "registrationId" | "defaultRate" | "currency" | "updatedAt";
       readonly "paymentAccounts": "id" | "tenant" | "iban" | "bic" | "holder" | "label" | "isPrimary" | "updatedAt";
     };
-    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
+    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "page_organization_members" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
     readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership" | "create" | "updatePlatform" | "deletePlatform" | "updateRolePlatform" | "removeMemberPlatform";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};
@@ -2421,7 +2421,7 @@ export interface BlockNameRegistry {
       readonly "teams": "id" | "tenant" | "name" | "slug" | "description" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "members": "team" | "user" | "employee" | "tenant" | "createdAt";
     };
-    readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "list_teams" | "purge_team" | "remove_team_member" | "team_ids_of" | "update_team";
+    readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "get_team" | "list_teams" | "purge_team" | "remove_team_member" | "team_ids_of" | "update_team";
     readonly actions: "manage" | "read" | "create" | "update" | "delete" | "members";
     readonly hooks: "before_team_create" | "after_team_create";
     readonly entities: {

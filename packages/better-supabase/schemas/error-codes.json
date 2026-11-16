@@ -5597,7 +5597,7 @@
   },
   {
     "code": "TEAM_FORBIDDEN",
-    "message": "team_ids_of reads only the caller"
+    "message": "not allowed to read teams"
   },
   {
     "code": "TEAM_INVALID",

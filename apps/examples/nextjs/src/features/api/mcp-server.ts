@@ -42,7 +42,10 @@ export const bsb = createMcp(betterSupabase, {
     description: "List the teams of an organization with their member ids.",
     input: toStandardJsonSchema(v.object({ organizationId: Id })),
     annotations: { readOnlyHint: true },
-    run: ({ organizationId }, { db }) => db.teams.list(organizationId),
+    run: ({ organizationId }, { db }) =>
+      db.teams
+        .teamPage({ organizationId, limit: 200 })
+        .map((page) => page.items),
   })
   .tool({
     name: "archive_customer",

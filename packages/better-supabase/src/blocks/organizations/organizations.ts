@@ -42,6 +42,7 @@ import {
   recordsOf,
 } from "../shared.ts";
 import { invitationList, invitationRowOf } from "./invitation-list.ts";
+import { disabledAtOf, memberList, memberOf, rolesOf } from "./member-list.ts";
 import { decodeOverview } from "./overview.ts";
 
 /**
@@ -371,6 +372,10 @@ export interface Organizations<
   /** Organizations the caller belongs to. */
   mine(): AsyncResult<readonly (OrganizationMembership & F)[]>;
   members(organizationId: string): AsyncResult<readonly OrganizationMember[]>;
+  /** A page of members by role then user, from `page_organization_members`. */
+  membersPage: EntityList<OrganizationMember, TenantOption>["page"];
+  membersFacets: EntityList<OrganizationMember, TenantOption>["facets"];
+  membersCount: EntityList<OrganizationMember, TenantOption>["count"];
   /**
    * The member who holds `options.ownerRole` (default `owner`), the first when
    * several do; `undefined` when none does. It reads `members`.
@@ -537,24 +542,6 @@ function previewFrom(row: Record<string, unknown>): InvitationPreview {
     extra: extraOf(row, PREVIEW_KEYS),
   };
 }
-
-const rolesOf = (
-  row: Record<string, unknown>,
-): { readonly roles?: readonly string[] } => {
-  const roles = row["roles"];
-
-  return Array.isArray(roles) ? { roles: roles.map((role) => text(role)) } : {};
-};
-
-const disabledAtOf = (
-  row: Record<string, unknown>,
-): { readonly disabledAt?: Temporal.Instant } => {
-  const disabledAt = optionalText(row["disabled_at"]);
-
-  return disabledAt === null
-    ? {}
-    : { disabledAt: temporal().Instant.from(disabledAt) };
-};
 
 function recordOf(value: unknown, fn: string): Record<string, unknown> {
   if (!isRecord(value)) {
@@ -787,6 +774,8 @@ function organizationsClient<
     );
 
   const invitationReads = invitationList(calls.organizations, options.tenant);
+
+  const memberReads = memberList(calls.organizations, options.tenant);
 
   return {
     create({ attributes, ...createOptions }) {
@@ -1103,15 +1092,12 @@ function organizationsClient<
         "organizations",
         "list_members",
         { organization: organizationId },
-        (value) =>
-          recordsOf(value, "list_members").map((row) => ({
-            userId: text(row["user_id"]),
-            role: text(row["role"]),
-            ...rolesOf(row),
-            ...disabledAtOf(row),
-          })),
+        (value) => recordsOf(value, "list_members").map(memberOf),
       );
     },
+    membersPage: memberReads.page,
+    membersFacets: memberReads.facets,
+    membersCount: memberReads.count,
     overview: (organizationId) =>
       run(
         "organizations",

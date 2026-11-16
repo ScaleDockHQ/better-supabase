@@ -64,6 +64,7 @@ import { segmentsBlock } from "../../src/blocks/segments/manifest.ts";
 import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
 import { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
 import { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
+import { teamsBlock } from "../../src/blocks/teams/manifest.ts";
 import { templatesBlock } from "../../src/blocks/templates/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import { versionsBlock } from "../../src/blocks/versions/manifest.ts";
@@ -130,6 +131,7 @@ const BLOCKS = [
   risksBlock,
   shipmentsBlock,
   sequencesBlock,
+  teamsBlock,
   tillsBlock,
   warehouseBlock,
   warrantyBlock,
@@ -201,6 +203,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(95);
+    expect(CASES).toHaveLength(97);
   });
 });

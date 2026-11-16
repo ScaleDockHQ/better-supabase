@@ -23,6 +23,7 @@ import { createLims } from "../../src/blocks/lims/index.ts";
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
 import { createMaintenance } from "../../src/blocks/maintenance/index.ts";
 import { createManufacturing } from "../../src/blocks/manufacturing/index.ts";
+import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
@@ -33,6 +34,7 @@ import { createSegments } from "../../src/blocks/segments/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
 import { createShipments } from "../../src/blocks/shipments/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
+import { createTeams } from "../../src/blocks/teams/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
 import { createTills } from "../../src/blocks/tills/index.ts";
 import { createVersions } from "../../src/blocks/versions/index.ts";
@@ -896,6 +898,40 @@ const CASES: readonly Case[] = [
       };
     },
   },
+  {
+    label: "teams",
+    searchable: true,
+    fn: "list_teams",
+    sort: "createdAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createTeams({ transport });
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.teamPage({ ...page, organizationId }),
+        facets: (facets) => client.teamFacets({ ...facets, organizationId }),
+        count: (count) => client.teamCount({ ...count, organizationId }),
+      };
+    },
+  },
+  {
+    label: "organization members",
+    fn: "page_organization_members",
+    sort: "userId",
+    filter: "role",
+    facet: "role",
+    list: (transport) => {
+      const client = createOrganizations({ transport, tenant: "org-1" });
+
+      return {
+        page: (page) => client.membersPage(page),
+        facets: (facets) => client.membersFacets(facets),
+        count: (count) => client.membersCount(count),
+      };
+    },
+  },
 ];
 
 describe.each(CASES)("list surface client of $label", (spec) => {
@@ -1036,6 +1072,10 @@ const MISSING: readonly {
   }>;
 }[] = [
   {
+    label: "getTeam",
+    get: (transport) => createTeams({ transport }).getTeam("t1"),
+  },
+  {
     label: "getTill",
     get: (transport) => createTills(options(transport)).getTill("t1"),
   },
@@ -1070,6 +1110,7 @@ const MISSING: readonly {
 describe.each(MISSING)("$label", ({ get }) => {
   it("returns not_found for a row the function does not return", async () => {
     const transport = fieldsTransport({
+      get_team: () => null,
       get_till: () => null,
       get_lims_method: () => null,
       get_maintenance_meter: () => null,

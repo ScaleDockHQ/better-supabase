@@ -143,7 +143,66 @@ begin
   order by m.${n.user};
 end;
 $$;
-${invites}`;
+${membersPage(ctx, n, rolesValue, disabledValue)}${invites}`;
+}
+
+/**
+ * `page_organization_members`: the members of an organization as a keyset page
+ * with sorts, facets and a count (ADR 0749, 1077). It sits beside
+ * `list_members`, which the overview and upgraded apps keep.
+ */
+function membersPage(
+  ctx: BlockSqlContext,
+  n: OrganizationReadNames,
+  rolesValue: string,
+  disabledValue: string,
+): string {
+  const byRole = [
+    { expr: `m.${n.role}::text`, dir: "asc", type: "text" },
+    { expr: `m.${n.user}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const byUser = [{ expr: `m.${n.user}`, dir: "asc", type: "uuid" }] as const;
+
+  const list = {
+    name: "page_organization_members",
+    from: n.m,
+    alias: "m",
+    where: [
+      `m.${n.tenant} = page_organization_members.tenant`,
+      filterAny("role", `m.${n.role}::text`),
+    ],
+    keys: byRole,
+    sorts: { role: byRole, userId: byUser },
+    facets: { role: `m.${n.role}::text` },
+    rowJson: `jsonb_build_object('user_id', m.${n.user}, 'role', m.${n.role}::text${rolesValue === "" ? "" : `, 'roles', to_jsonb(${rolesValue.slice(2)})`}${disabledValue === "" ? "" : `, 'disabled_at', ${disabledValue.slice(2)}`})`,
+    invalid: (message: string): string =>
+      fail("ORGANIZATION_INVALID", message, "22023"),
+  } as const;
+
+  return `
+-- The members of an organization as a keyset page, by role then user. filters
+-- is { role (a value or a list), sort, direction, facet, count, limit, after,
+-- offset, paged, total, totalCap } (ADR 0749, 1077).
+create or replace function ${ctx.fn("page_organization_members")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_members.filters, '{}'::jsonb);
+  ${listDeclare(list)}
+begin
+  if not coalesce(better_supabase.member_can((select auth.uid()), tenant, ${modulePermission(ctx, "listMembers", OPERATIONS["organizations.listMembers"])}), false) then
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list members")}
+  end if;
+  ${listBody(list)}
+end;
+$$;
+`;
 }
 
 function invitationsRead(ctx: BlockSqlContext): string {
