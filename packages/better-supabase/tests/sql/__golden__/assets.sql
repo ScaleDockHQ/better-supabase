@@ -1721,7 +1721,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:306ed03ac16dcb64334f0a2f733e2d6f2d0c606b4bb448ad5eb63c5bb5a323fc
+-- @bsb-hash sha256:66329a431a4ead8a961da8d5fd6744c45192f6aa63a1f2cc429ab32196a13785
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3612,7 +3612,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_114_assets.sql
 -- better-supabase module: assets

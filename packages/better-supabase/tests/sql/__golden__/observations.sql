@@ -1567,7 +1567,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:61165a112c6292f87ce89244109d8d3c231aaf2b32248480910533747f369287
+-- @bsb-hash sha256:5733da19696c87148c700e89155dcb42345e5d26654465cb3e2d3a7b56890dab
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3342,7 +3342,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."observations" as res
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.observations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation","event_prefix":"observation"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.observation_definitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation_definition","event_prefix":"observation_definition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.observation_definitions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"observation_definition","event_prefix":"observation_definition","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_149_observations.sql
 -- better-supabase module: observations

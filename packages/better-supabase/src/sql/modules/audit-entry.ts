@@ -59,14 +59,16 @@ export function entryLoadSql(ctx: BlockSqlContext): string {
       settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
       settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
       settings ->> 'label_column' as label_column,
-      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function,
+      settings ->> 'archive_column' as archive_column, settings ->> 'archive_value' as archive_value
     into entry;
   else
     select coalesce(${a("ignore", "null")}, '{}') as ignore, coalesce(${a("keyColumns", "null")}, '{id}') as key_columns,
       coalesce(${a("redact", "null")}, '{}') as redact, ${a("category", "null::text")} as category,
       ${a("eventPrefix", "null::text")} as event_prefix, ${a("targetType", "null::text")} as target_type,
       ${a("tenantColumn", "null::text")} as tenant_column, ${a("labelColumn", "null::text")} as label_column,
-      null::jsonb as tenant_path, null::text as tenant_function
+      null::jsonb as tenant_path, null::text as tenant_function,
+      null::text as archive_column, null::text as archive_value
     into entry
     from (select 1) one
     left join ${ctx.table("registry")} a on a.${ctx.col("registry", "target")} = tg_relid::regclass;

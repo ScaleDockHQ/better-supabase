@@ -1955,7 +1955,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:13bb6d737eb6e3f5cbe08c2adef42163cf8684dce39c4fd0ffb74ea6ed0c8eab
+-- @bsb-hash sha256:5115069aaad3918441481d10d289b5b789a0cd255c5a2ac722cd0819310bd8ef
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4073,8 +4073,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task","archive_column":"archived_at"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.task_checklist_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 

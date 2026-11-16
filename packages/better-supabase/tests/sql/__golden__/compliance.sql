@@ -1817,7 +1817,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:3995b4c02b9bf888a997591c18ec126ed8e00b35458ea7dce6d05f3fdc6e69f8
+-- @bsb-hash sha256:512f0106c5a8a2742ee009fd272c3ba3f775b63c7b06f8eb9a5d8c12d0ae366d
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3672,7 +3672,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies"
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.controls deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"control","event_prefix":"control"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.control_frameworks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"control_framework","event_prefix":"control_framework"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.evidence_tasks deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"evidence_task","event_prefix":"evidence_task"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.compliance_policies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"compliance_policy","event_prefix":"compliance_policy"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.compliance_policies deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"compliance_policy","event_prefix":"compliance_policy","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance

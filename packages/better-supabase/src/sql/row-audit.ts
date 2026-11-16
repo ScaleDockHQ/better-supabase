@@ -66,13 +66,20 @@ export function rowAuditData(
 
     const label = ctx.naming.rename(entity.singular);
 
+    const archive =
+      "archivedAt" in (ctx.names.tables[logical]?.columns ?? {}) &&
+      ctx.has(logical, "archivedAt")
+        ? ctx.colName(logical, "archivedAt")
+        : undefined;
+
     lines.push(
-      `select better_supabase.audit(${sqlString(`${schema}.${name}`)}, target_type => ${sqlString(label)}, event_prefix => ${sqlString(label)}, deferred => true);`,
+      `select better_supabase.audit(${sqlString(`${schema}.${name}`)}, target_type => ${sqlString(label)}, event_prefix => ${sqlString(label)}, deferred => true${archive === undefined ? "" : `, archive_column => ${sqlString(archive)}`});`,
     );
     triggers.push(
       auditTrigger(`${schema}.${name}`, {
         target_type: label,
         event_prefix: label,
+        ...(archive === undefined ? {} : { archive_column: archive }),
       }),
     );
   }

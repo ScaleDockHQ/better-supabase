@@ -1502,7 +1502,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:f7715bb77051fb0cd91847f9071bf05d3488c251e9a22fcaf3bd1fc381dfd1ce
+-- @bsb-hash sha256:7a43d46f10def1dae081539dab97599bc16fd8747fc9c9269df67430986a9116
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3294,7 +3294,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inspection_findings"
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspections deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection","event_prefix":"inspection"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspection_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection_program","event_prefix":"inspection_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspection_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection_program","event_prefix":"inspection_program","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspection_findings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection_finding","event_prefix":"inspection_finding"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspection_members deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection_member","event_prefix":"inspection_member"}');
 

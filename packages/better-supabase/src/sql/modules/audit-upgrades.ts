@@ -109,4 +109,11 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
       "The chain option uses the shared chain tag: verify_audit_chain, audit_chain_heads, record_audit_checkpoint and list_audit_checkpoints are replaced by verify_chain, chain_heads, record_chain_checkpoint and list_chain_checkpoints, and audit_checkpoints moves into chain_checkpoints. Entry hashes stay valid.",
     sql: () => "",
   },
+  {
+    from: 13,
+    description:
+      "audit() takes archive_column and archive_value, so an update that sets or clears a soft-delete or status column is recorded as <entity>.archived or .restored; block tables with an archive column pass it.",
+    sql: () =>
+      "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean);",
+  },
 ];

@@ -1261,7 +1261,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:6932322b31d3a6182939dcc3c39461124b9069d24e81dd4101edffa9c96fb1da
+-- @bsb-hash sha256:a7517ea157c15af877084c30cf65a1f95ef1759f08b7dda19eeec4f3f26f483c
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2751,7 +2751,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."bookings" as restric
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings

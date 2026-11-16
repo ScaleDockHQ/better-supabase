@@ -923,7 +923,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:1fbb997ee0df2474798f2090df1ab7bcff891c7ed0adad2d871e81847dd36ae7
+-- @bsb-hash sha256:468157db8603a0313761a2c694cfd2b96b33059a095acf8289b1d57cfbf0c1d3
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1899,7 +1899,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_installs" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_051_agents.sql
 -- better-supabase module: agents

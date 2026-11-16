@@ -1444,7 +1444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:e12a416f5ebf805b5dccf4ef75235f42a0272a6e362d03a162d615abb76f31d7
+-- @bsb-hash sha256:969be5b91278f9408f7d400fee45d17d4005ebb26519c0e699bd10753bd6abbb
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2996,7 +2996,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment","event_prefix":"enrollment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql

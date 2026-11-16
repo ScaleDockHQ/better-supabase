@@ -909,7 +909,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:460fddf20cb3e3071a73bbba4aa1ac363205161173e93bc1a902906972965d18
+-- @bsb-hash sha256:58cd3b219505b55d9a1a78a07830773d7988f5b558bac08545b9a9369734830e
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1851,7 +1851,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores

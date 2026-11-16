@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b4e70c61a45976730e67a8630c2203165d762edbee87973b7345cb14a5e4d9e4
+-- @bsb-hash sha256:64f95e5da6d7c3f43929487e6aa79c1c967b67d91a4b6caa7de67c163053119d
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -401,7 +401,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -490,7 +490,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -798,7 +798,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -969,7 +969,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -1553,7 +1553,7 @@ begin
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
   select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
-  if v_original."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_original."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -1610,7 +1610,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
@@ -1800,7 +1800,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
-  if v_row."id" is null or not (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) then
     if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
       raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
     end if;
