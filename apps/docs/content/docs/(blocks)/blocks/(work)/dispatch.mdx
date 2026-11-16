@@ -90,7 +90,8 @@ hour. Creating, changing and scheduling need `dispatch.manage`.
 | `schedule(id, slot)`                                   | the work order in the technician's slot; moving it to another technician drops it from the old route |
 | `unschedule(id)`                                       | the work order back in the backlog and off its route                                                 |
 | `setStatus(id, status, note)`                          | the work order after the step, with `note` as the completion note or the reason                      |
-| `get(id)`                                              | the work order, or `null`                                                                            |
+| `get(id)`                                              | the work order, or `null` (deprecated, use `getOrNotFound`)                                          |
+| `getOrNotFound(id)`                                    | the work order, or a `not_found` error                                                               |
 | `list({ status, technicianId, subject, from, until })` | the organization's work orders, newest first                                                         |
 | `board({ from, to, technicianIds })`                   | the schedule board                                                                                   |
 | `technicianDay(day, technicianId)`                     | the technician's day plan                                                                            |
@@ -105,7 +106,7 @@ its page, with `create` and `cancel` writes.
 
 ## Page through work orders
 
-`list` is the capped convenience list, and `get(id)` returns one work order.
+`list` is the capped convenience list, and `getOrNotFound(id)` returns one work order or a `not_found` error (`get` returns `null` instead and is deprecated).
 `page` is the full list contract (ADR 0749, 0949). It takes `sort`, `filters`
 whose values are lists, `q`, `after` and `limit`, and returns
 `{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the default, newest

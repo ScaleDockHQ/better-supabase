@@ -88,7 +88,8 @@ fails, the block voids the label it just bought. A shipment without a
 | Method                                                         | Returns                                                    |
 | -------------------------------------------------------------- | ---------------------------------------------------------- |
 | `create(input)`                                                | the draft shipment with its packages                       |
-| `get(id)`                                                      | the shipment, or `null`                                    |
+| `get(id)`                                                      | the shipment, or `null` (deprecated, use `getOrNotFound`)  |
+| `getOrNotFound(id)`                                            | the shipment, or a `not_found` error                       |
 | `list({ status, subject, carrier })`                           | the organization's shipments, newest first                 |
 | `rates(id, { currency })`                                      | every carrier's quotes                                     |
 | `buyLabel(id, choice)`                                         | the shipment with its label                                |

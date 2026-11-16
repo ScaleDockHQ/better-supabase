@@ -294,6 +294,24 @@ describe("createDispatch", () => {
     expect((await found.get("w1").orThrow())?.id).toBe("w1");
   });
 
+  it("getOrNotFound returns the work order or a not_found error", async () => {
+    const found = createDispatch({
+      transport: fakeTransport({ get_work_order: ORDER }).transport,
+    });
+
+    expect((await found.getOrNotFound("w1").orThrow()).id).toBe("w1");
+
+    const missing = createDispatch({
+      transport: fakeTransport({ get_work_order: null }).transport,
+    });
+
+    const result = await missing.getOrNotFound("w9");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.kind).toBe("not_found");
+    expect(!result.ok && result.error.hint).toBe("WORK_ORDER_NOT_FOUND");
+  });
+
   it("lists with filters and defaults", async () => {
     const fake = fakeTransport({ list_work_orders: [ORDER, BARE] });
 

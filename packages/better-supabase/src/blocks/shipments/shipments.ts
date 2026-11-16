@@ -219,8 +219,20 @@ export interface Shipments<
 > extends ShipmentsIntrastat {
   /** Creates a draft shipment in the block's tenant. */
   create(input: ShipmentInput<F>): AsyncResult<Shipment<F>>;
-  /** `null` when it doesn't exist or the caller can't read it. */
+  /**
+   * `null` when it doesn't exist or the caller can't read it.
+   *
+   * Deprecated in favor of `getOrNotFound`, which follows the block list
+   * contract (ADR 1077) with a `not_found` error. `get` keeps returning `null`
+   * under apiVersion 1. (No `@deprecated` tag: the repo lints every use of
+   * one.)
+   */
   get(id: string): AsyncResult<Shipment<F> | null>;
+  /**
+   * The shipment, or a `not_found` error (`SHIPMENT_NOT_FOUND`) when it doesn't
+   * exist or the caller can't read it.
+   */
+  getOrNotFound(id: string): AsyncResult<Shipment<F>>;
   list(options?: ShipmentListOptions): AsyncResult<readonly Shipment<F>[]>;
   /**
    * One keyset page of shipments, newest first or by `sort`, with `hasMore` and
@@ -674,6 +686,7 @@ export function createShipments<
       ).andThen((found) =>
         found === null ? AsyncResult.ok(null) : fields.row(found),
       ),
+    getOrNotFound: (id) => find(id).andThen((found) => fields.row(found)),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
