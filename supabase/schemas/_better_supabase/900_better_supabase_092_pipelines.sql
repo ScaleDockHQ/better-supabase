@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:08facce84fb2a07ee3cad02aa02a59add2fef7527fb4af2266b3efe6701592e5
+-- @bsb-hash sha256:a0d4ee0d1f3b6eb7410ba629c53f48f947af01342cfbcb18166ee08a0e8fb798
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2144,7 +2144,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."pipeline_stage_histo
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.pipelines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pipeline","event_prefix":"pipeline"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pipelines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pipeline","event_prefix":"pipeline","archive_column":"archived_at"}');
 
 -- blocks.pipelines.api: entry points for the Data API.
 create schema if not exists "api";

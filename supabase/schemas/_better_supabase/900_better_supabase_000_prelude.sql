@@ -1,6 +1,6 @@
 -- better-supabase module: prelude
 -- @bsb-block prelude@1 managed
--- @bsb-hash sha256:28a8e16f06211a804977393841b1bf06012bc7facc35d095c7db66bf2532d775
+-- @bsb-hash sha256:35c56b8ff62c0812d61908730033315f9c50babfc17ebe780a3a49e96830e2a2
 -- The schema, the blocks table and the helper functions every block calls, each defined once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -345,3 +345,12 @@ as $$
 $$;
 revoke execute on function better_supabase.normalize_phone(text, text) from public, anon;
 grant execute on function better_supabase.normalize_phone(text, text) to authenticated, service_role;
+
+create or replace function better_supabase.is_service_role()
+returns boolean
+language sql
+stable
+set search_path = ''
+as $$ select coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') $$;
+revoke execute on function better_supabase.is_service_role() from public;
+grant execute on function better_supabase.is_service_role() to anon, authenticated, service_role;

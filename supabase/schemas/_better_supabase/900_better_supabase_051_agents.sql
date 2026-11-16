@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:7738109a29e6515828b2e689b366ca5c8bd1d5f603c7f19ae1cb071ca39d64c1
+-- @bsb-hash sha256:fc41003991e2b3185f9eabd9c768cf06268be9bc7722b8e30efce44a50d724b4
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -976,7 +976,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_installs" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent","archive_column":"archived_at"}');
 
 -- blocks.agents.api: entry points for the Data API.
 create schema if not exists "api";

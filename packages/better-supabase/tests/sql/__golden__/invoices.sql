@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:15168c767896c3ce603e5530fc08ff09731359717d90be1590abccce03c4c852
+-- @bsb-hash sha256:7f6122f347c663f47471306055d68d04cce82d0e8b6b1659392a40ff38307197
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -400,9 +400,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -486,9 +493,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -719,7 +733,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -791,9 +808,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -959,9 +983,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -1540,9 +1571,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -1594,9 +1628,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -1659,9 +1700,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "better_supabase"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -1781,9 +1829,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
@@ -4477,7 +4532,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:a5636c455604d353d513f05d91206a390d12bc1269fde8f178b21885035b7280
+-- @bsb-hash sha256:aa382aea7984c6e4e1ae79c28c9453d8fb4c52cad483fed254ba446f4af0e10c
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4915,9 +4970,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -5003,9 +5065,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -5238,7 +5307,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -5312,9 +5384,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -5509,9 +5588,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -6097,9 +6183,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -6151,9 +6240,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -6228,9 +6324,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "better_supabase"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -6372,9 +6475,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
@@ -9946,7 +10056,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_deliveries
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.invoices deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"invoice","event_prefix":"invoice","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
@@ -9965,7 +10075,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8345890df6c5fa5c13bd0d0cd452abdfd502b2e683743a832f5df8b87ba55f8a
+-- @bsb-hash sha256:cb162c1e9dd5b0f19008e2a7e6305f32b7fed2384e4385c2cdb068134f5c1dc1
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10369,9 +10479,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -10455,9 +10572,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -10688,7 +10812,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "app_private"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "app_private"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -10760,9 +10887,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -10928,9 +11062,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -11509,9 +11650,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "app_private"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "app_private"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -11563,9 +11707,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -11628,9 +11779,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "app_private"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "app_private"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -11750,9 +11908,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "app_private"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "app_private"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
@@ -14446,7 +14611,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:38f2d2301460bcde189d509837244f8d3d8cd49eb473733a747c0cc0d5c196bc
+-- @bsb-hash sha256:02a1f739fdd916417fb55d029f73c931610af8c780852cc1a6b042c3403f2496
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14845,9 +15010,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -14931,9 +15103,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -15164,7 +15343,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -15236,9 +15418,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -15404,9 +15593,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -15985,9 +16181,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -16039,9 +16238,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -16104,9 +16310,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "better_supabase"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -16226,9 +16439,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
@@ -19499,7 +19719,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:0a6d59d64903af406828e8a5741c623fa84db6d33a73aea5b0c58e3608d10b4e
+-- @bsb-hash sha256:2d27455b5610bfa9093374f2778a3a995652adb12e16bfb51650b904241481d6
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19865,9 +20085,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -19951,9 +20178,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -20183,7 +20417,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -20256,9 +20493,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -20424,9 +20668,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -21005,9 +21256,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -21059,9 +21313,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -21124,9 +21385,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "better_supabase"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -21246,9 +21514,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';
@@ -23939,7 +24214,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:6d4f89434b0e5289a5c83bf83edeb562b9f0f730be85a888c5097afd6ba989ea
+-- @bsb-hash sha256:431c56a083910aea3d4bc3cfce5bfcb0a2711741dd87e3505fa86df7d1986bb7
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24338,9 +24613,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = update_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft changes' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -24424,9 +24706,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can delete' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not delete this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = delete_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" <> 'draft' then
     raise exception 'only a draft is deleted; void an issued invoice' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
@@ -24657,7 +24946,10 @@ begin
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+    if exists (select 1 from "better_supabase"."invoices" x where x."id" = v_parent and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'invoices.read'), false))) then
+      raise exception 'you may not edit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(set_invoice_lines.lines, '[]')) <> 'array' then
     raise exception 'lines must be a list' using errcode = '22023', hint = 'LINES_INVALID';
@@ -24729,9 +25021,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not issue this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = issue_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   
   if v_row."status" <> 'draft' then
@@ -24897,9 +25196,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not record a payment on this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = record_invoice_payment.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes payments' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
@@ -25478,9 +25784,12 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
   end if;
-  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false));
-  if v_original."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_original from "better_supabase"."invoices" x where x."id" = credit_invoice.invoice;
+  if v_original."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."org_id", case when v_original."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_original."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_original."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not credit this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_original."kind" <> 'invoice' or v_original."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice is credited' using errcode = '55000', hint = 'INVOICE_NOT_CREDITABLE';
@@ -25532,9 +25841,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can manage' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not void this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = void_invoice.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
@@ -25597,9 +25913,16 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(write_off_invoice.actor::text, ''), true);
+  select * into v_row from "better_supabase"."invoices" x where x."id" = write_off_invoice.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not write off this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(write_off_invoice.reason), ''), ''), true);
   update "better_supabase"."invoices" x set "status" = 'uncollectible', "updated_at" = now()
-  where x."id" = write_off_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.manage' end), false)) and x."status" in ('issued', 'partially_paid')
+  where x."id" = write_off_invoice.invoice and x."status" in ('issued', 'partially_paid')
   returning * into v_row;
   if v_row."id" is null then
     raise exception 'only an open invoice you can manage is written off' using errcode = '55000', hint = 'INVOICE_NOT_OPEN';
@@ -25719,9 +26042,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
-  if v_row."id" is null then
-    raise exception 'no such invoice you can edit' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice;
+  if v_row."id" is null or (((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", case when v_row."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false))) is not true then
+    if v_row."id" is not null and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'invoices.read'), false)) then
+      raise exception 'you may not charge this invoice' using errcode = '42501', hint = 'INVOICE_FORBIDDEN';
+    end if;
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = add_invoice_charge.invoice for update;
+  if not found then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   if v_row."kind" <> 'invoice' or v_row."status" not in ('issued', 'partially_paid', 'paid') then
     raise exception 'only an issued invoice takes charges' using errcode = '55000', hint = 'INVOICE_NOT_CHARGEABLE';

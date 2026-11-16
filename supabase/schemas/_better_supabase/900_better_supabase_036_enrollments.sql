@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:0b1bf7ff47bd063db048684a991ad16111ef64a198883b32128116b016232fec
+-- @bsb-hash sha256:43fc9d7575cc3bd18cea0df2d2e55af7bc12f3130e5259d1362e6d1be6ed3fb4
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1552,7 +1552,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment","event_prefix":"enrollment"}');
 
 -- blocks.enrollments.api: entry points for the Data API.

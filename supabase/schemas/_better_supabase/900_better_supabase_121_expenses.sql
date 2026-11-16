@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:8a3e3a84cf18fc66a03ad9c0fdcecbd0a400d45cde5243b41b7f58a8f752e461
+-- @bsb-hash sha256:69d2aafb960e919f0ca3daee756c0de09395cc3f3d641fa6fc31fd116ab220a0
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1377,7 +1377,7 @@ create trigger "bsb_search_expense_line_index"
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_reports deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_report","event_prefix":"expense_report"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_lines deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_line","event_prefix":"expense_line"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_categories deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_category","event_prefix":"expense_category"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.expense_categories deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"expense_category","event_prefix":"expense_category","archive_column":"archived_at"}');
 
 -- blocks.expenses.api: entry points for the Data API.
 create schema if not exists "api";

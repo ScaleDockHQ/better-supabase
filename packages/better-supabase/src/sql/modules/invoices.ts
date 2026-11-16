@@ -663,6 +663,11 @@ function build(ctx: BlockSqlContext): string {
     update: finer("update", "write"),
     issue: finer("issue", "write"),
     payment: finer("payment", "write"),
+    settle: sqlString(
+      ctx.config.permissions["settle"] ??
+        ctx.config.permissions["payment"] ??
+        ctx.permissionKey("write", keys.write),
+    ),
     credit: finer("credit", "write"),
     charge: finer("charge", "write"),
     void: finer("void", "manage"),

@@ -644,7 +644,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:0d7e2823918492079c47c9abf7d51a92c93fdc833ac230a23a0d8496cd819bf9
+-- @bsb-hash sha256:f5e0544dea477e33b3fc2db494f73166135d569c62021cf6d7df909c7ef9ac62
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1328,7 +1328,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."activity_subjects" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.activities deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"activity","event_prefix":"activity"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.activities deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"activity","event_prefix":"activity","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
 -- better-supabase module: activities

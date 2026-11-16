@@ -759,8 +759,24 @@ create trigger bsb_audit after insert or update or delete on public.customers
 
 The argument takes `ignore`, `redact`, `key_columns` (the primary key by
 default), `category`, `event_prefix`, `target_type`, `tenant_column` and
-`label_column`, `tenant_path` and `tenant_function`. `audit_settings(table)`
-returns a table's settings.
+`label_column`, `tenant_path`, `tenant_function`, `archive_column` and
+`archive_value`. `audit_settings(table)` returns a table's settings.
+
+`archive_column` names a soft-delete or status column. An update that sets it
+is recorded as `<event_prefix>.archived` and one that clears it as
+`<event_prefix>.restored`, instead of `.updated`. A column counts as set when
+it isn't null and isn't `false`, such as `archived_at` or `deleted_at`; with
+`archive_value` it counts as set when it equals that value, for a status
+column:
+
+```sql
+select better_supabase.audit('public.projects', archive_column => 'archived_at');
+select better_supabase.audit('public.orders', archive_column => 'status', archive_value => 'archived');
+```
+
+Keep the column out of `ignore` and `redact`, which the trigger reads it
+through. Block tables with an `archivedAt` column pass it on their row audit
+trigger.
 
 ### Writes the secret key makes for a member
 
@@ -1977,6 +1993,40 @@ for (const { module, action, key } of modulePermissionKeys(
   if (!scopeOnly.has(key)) console.error(`${module}.${action}: ${key}`);
 }
 ```
+
+## Functions only the service role may call
+
+`better_supabase.is_service_role()` is true for the `service_role` key and for
+a direct admin connection (`postgres` or `supabase_admin` without a token),
+and false for `anon` and `authenticated`. Use it as the guard of your own
+functions that only a server, a cron job or a migration may call, instead of
+copying `auth.jwt() ->> 'role' = 'service_role'` into each one:
+
+```sql
+create or replace function private.reset_counters(tenant uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not better_supabase.is_service_role() then
+    raise exception 'only the service role may reset counters'
+      using errcode = '42501', hint = 'COUNTERS_FORBIDDEN';
+  end if;
+  update private.counters c set value = 0 where c.organization_id = reset_counters.tenant;
+end;
+$$;
+```
+
+Most block functions check the same condition inline; a few, such as the
+invoices block, accept only a `service_role` token. The prelude file that
+every module install writes defines the function.
+
+The check reads the token's `role` claim and falls back to `session_user`. A
+pgTAP test that runs `set role authenticated` without setting
+`request.jwt.claims` still connects as `postgres`, so the function returns
+true there. Set the claims (`{"role":"authenticated"}`) to test a client.
 
 ## Memoize a value for one transaction
 

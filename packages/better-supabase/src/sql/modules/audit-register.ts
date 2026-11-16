@@ -78,6 +78,7 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure);
 drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean);
+drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean);
 
 -- select better_supabase.audit('public.customers', ignore => '{updated_at}');
 -- redact => '{api_key}' masks values but keeps them in changed;
@@ -97,6 +98,10 @@ drop function if exists better_supabase.audit(regclass, text[], boolean, text[],
 -- insert, and the restricted table's rows in one more. It needs a primary
 -- key, and not deferred, tenant_path or tenant_function.
 -- replace_trigger => true drops another audit trigger on the table.
+-- archive_column names a soft-delete or status column: an update that sets it
+-- is recorded as <event_prefix>.archived and one that clears it as .restored.
+-- Set means not null and not false, or equal to archive_value when given
+-- ('archived' for a status column). Don't ignore or redact the column.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
 create or replace function better_supabase.audit(
@@ -112,7 +117,9 @@ create or replace function better_supabase.audit(
   tenant_path text default null,
   tenant_function regprocedure default null,
   deferred boolean default false,
-  statement boolean default false
+  statement boolean default false,
+  archive_column text default null,
+  archive_value text default null
 )
 returns void
 language plpgsql
@@ -187,7 +194,9 @@ ${statementChecks()}
     'tenant_column', audit.tenant_column,
     'label_column', audit.label_column,
     'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,
-    'tenant_function', audit.tenant_function::text
+    'tenant_function', audit.tenant_function::text,
+    'archive_column', audit.archive_column,
+    'archive_value', audit.archive_value
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
@@ -360,7 +369,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;

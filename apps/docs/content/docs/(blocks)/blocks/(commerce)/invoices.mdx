@@ -189,18 +189,19 @@ The block also creates `invoices_tenant_status_idx` on the tenant, status and du
 
 `write` and `manage` cover several actions. Name a key per action in `permissions` to split them; an action without its own key checks `write` or `manage` as before, and `delete` checks `update`, then `write`.
 
-| Key        | Functions                                     | Without it |
-| ---------- | --------------------------------------------- | ---------- |
-| `create`   | `create_invoice`, `invoice_from_quote`        | `write`    |
-| `update`   | `set_invoice_lines`, `update_invoice`         | `write`    |
-| `delete`   | `delete_invoice`                              | `update`   |
-| `issue`    | `issue_invoice`                               | `write`    |
-| `payment`  | `record_invoice_payment`                      | `write`    |
-| `credit`   | `credit_invoice`                              | `write`    |
-| `charge`   | `add_invoice_charge`, `remove_invoice_charge` | `write`    |
-| `void`     | `void_invoice`                                | `manage`   |
-| `writeOff` | `write_off_invoice`                           | `manage`   |
-| `reverse`  | `reverse_invoice_payment`                     | `manage`   |
+| Key        | Functions                                      | Without it |
+| ---------- | ---------------------------------------------- | ---------- |
+| `create`   | `create_invoice`, `invoice_from_quote`         | `write`    |
+| `update`   | `set_invoice_lines`, `update_invoice`          | `write`    |
+| `delete`   | `delete_invoice`                               | `update`   |
+| `issue`    | `issue_invoice`                                | `write`    |
+| `payment`  | `record_invoice_payment`                       | `write`    |
+| `settle`   | `record_invoice_payment` for the whole balance | `payment`  |
+| `credit`   | `credit_invoice`                               | `write`    |
+| `charge`   | `add_invoice_charge`, `remove_invoice_charge`  | `write`    |
+| `void`     | `void_invoice`                                 | `manage`   |
+| `writeOff` | `write_off_invoice`                            | `manage`   |
+| `reverse`  | `reverse_invoice_payment`                      | `manage`   |
 
 Members who draft invoices but may not send them or book payments:
 
@@ -219,6 +220,17 @@ blocks: {
 ```
 
 The functions check the keys themselves, so a member without `invoice.send` can't issue through the API either.
+
+`settle` is a second key that may pay an invoice in full but not in part, for a "mark paid" action next to a finer "record payment" one. `record_invoice_payment` accepts the caller with `payment`, or with `settle` when the amount is positive and equals the open balance, or the reference was already recorded, so `markPaid` and its retries work with either key:
+
+```ts title="better-supabase.config.ts"
+permissions: {
+  payment: "invoice.record_payment",
+  settle: "invoice.mark_paid",
+},
+```
+
+A caller who can read the invoice but lacks an action's key gets `INVOICE_FORBIDDEN` (`42501`), so the app can say why. A caller who can't read it gets `INVOICE_NOT_FOUND`, which keeps the invoice's existence hidden.
 
 ### Totals the app keeps
 
@@ -724,10 +736,10 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 | Hint                                 | Cause                                                                                                 |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`                  | the caller lacks `invoices.write`                                                                     |
+| `INVOICE_FORBIDDEN`                  | the caller can read the invoice but lacks the action's key, such as `payment`, `issue` or `writeOff`  |
 | `NUMBER_FIXED_FORBIDDEN`             | a fixed number outside an import run                                                                  |
 | `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
-| `INVOICE_NOT_FOUND`                  | no invoice the caller can edit (or manage, for void)                                                  |
+| `INVOICE_NOT_FOUND`                  | no invoice the caller can read                                                                        |
 | `INVOICE_NOT_DRAFT`                  | the invoice was already issued, so it no longer changes and isn't deleted                             |
 | `INVOICE_ARCHIVE_UNSUPPORTED`        | `archive` or `restore` on an invoices table without the `archivedAt` column                           |
 | `INVOICE_EMPTY`                      | an invoice without lines can't be issued                                                              |

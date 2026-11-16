@@ -1454,7 +1454,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:a15a33fa213ee2a3306d142f39c27cc963e6e3a8dacaeba82e4856c4fdddc5d7
+-- @bsb-hash sha256:76443172bdf13786d18de2ba0f0be2da5878a28bfe5230019326dc3c9889cfa6
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3668,7 +3668,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items"
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_transactions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_transaction","event_prefix":"bank_transaction"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_account","event_prefix":"bank_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_account","event_prefix":"bank_account","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_statements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_statement","event_prefix":"bank_statement"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_matches deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_match","event_prefix":"bank_match"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_rule","event_prefix":"bank_rule"}');

@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:8db4176f41bbfd3916f03ca7e7fdec0c60aa702581663a611bd0d866fc52c6f9
+-- @bsb-hash sha256:22a8ff759139e2875d41a3a1428bdbf8a574fe050cc99e921db2aee7fb3b8182
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1653,7 +1653,7 @@ create trigger "bsb_search_meeting_decision_index"
   for each row execute function "better_supabase"."search_index_row"('meeting_decision', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.meetings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting","event_prefix":"meeting"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.meetings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting","event_prefix":"meeting","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.meeting_attendees deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting_attendee","event_prefix":"meeting_attendee"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.meeting_agenda_items deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting_agenda_item","event_prefix":"meeting_agenda_item"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.meeting_decisions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting_decision","event_prefix":"meeting_decision"}');

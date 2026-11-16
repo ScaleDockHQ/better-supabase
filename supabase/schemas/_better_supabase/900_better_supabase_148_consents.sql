@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:ebe2f73ce19b0e4f4e5c761f0cee9e95a4c465fbd6fd71ed8f7957ac0c3dc5bb
+-- @bsb-hash sha256:8772fb646a43b9bacf417149ec96ab012dbef6cc66ecbc98c341f6ae530ba0b2
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2088,7 +2088,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."consent_receipts" as
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.consents deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"consent","event_prefix":"consent"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.consent_purposes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"consent_purpose","event_prefix":"consent_purpose"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.consent_purposes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"consent_purpose","event_prefix":"consent_purpose","archive_column":"archived_at"}');
 
 -- blocks.consents.api: entry points for the Data API.
 create schema if not exists "api";

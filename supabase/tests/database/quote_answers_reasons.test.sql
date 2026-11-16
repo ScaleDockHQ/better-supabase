@@ -80,7 +80,7 @@ select throws_ok(
 select throws_ok(
   format($$select better_supabase.record_invoice_payment(%L, 121, 'EUR', now(), 'bank', null, null, null, 'Paid')$$, current_setting('test.invoice')),
   'P0002',
-  'no such invoice you can edit',
+  'no such invoice you can read',
   'another organization cannot record a payment with a reason'
 );
 

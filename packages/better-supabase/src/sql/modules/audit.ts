@@ -530,6 +530,19 @@ function rowChange(
   );
 }
 
+/**
+ * Whether a row's archive column is set: not null and not false, or
+ * `archive_value`.
+ */
+const archived = (row: string): string =>
+  `(case when entry.archive_value is null then coalesce(${row} ->> entry.archive_column, 'false') <> 'false' else ${row} ->> entry.archive_column is not distinct from entry.archive_value end)`;
+
+/**
+ * The kind of an update: `archived` or `restored` when it sets or clears the
+ * table's `archive_column`, `updated` otherwise.
+ */
+const updateKind = `case when entry.archive_column is null then 'updated' when ${archived("new_row")} and not ${archived("old_row")} then 'archived' when ${archived("old_row")} and not ${archived("new_row")} then 'restored' else 'updated' end`;
+
 function triggerFunction(
   ctx: BlockSqlContext,
   tenantColumn: string,
@@ -542,7 +555,7 @@ function triggerFunction(
     "log",
     rowChange(ctx, snapshots, {
       op: "lower(tg_op)",
-      kind: "case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end",
+      kind: `case tg_op when 'INSERT' then 'created' when 'UPDATE' then ${updateKind} else 'deleted' end`,
     }),
   );
 
@@ -648,7 +661,7 @@ function statementTrigger(
       "log",
       rowChange(ctx, !restricted, {
         op: "op",
-        kind: "case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end",
+        kind: `case op when 'insert' then 'created' when 'update' then ${updateKind} else 'deleted' end`,
       }),
     ),
     restricted: restricted
@@ -992,7 +1005,7 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 13,
+  version: 14,
   names: NAMES,
   contract: () => [
     {

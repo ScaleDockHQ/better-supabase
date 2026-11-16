@@ -3425,7 +3425,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:8482161c669034d6eb710fab06ab71eec06dcd949b764b40627bd3287a871b0a
+-- @bsb-hash sha256:4e8970a8a7447199510eefe8bd552a8b146d860a855a9a31a8825ead94e4d2c8
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6763,8 +6763,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_chats deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_chat","event_prefix":"ai_chat"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_project","event_prefix":"ai_project"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_chats deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_chat","event_prefix":"ai_chat","archive_column":"archived_at"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_projects deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_project","event_prefix":"ai_project","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat

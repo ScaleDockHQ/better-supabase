@@ -207,6 +207,45 @@ export function invoiceFunctions(
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, p.routed(alias, permission))})`;
 
+  // Loads the invoice into `target` for `permission`. A caller who can read it
+  // but lacks the permission gets INVOICE_FORBIDDEN; anyone else gets
+  // INVOICE_NOT_FOUND, so the refusal never reveals a row they can't read.
+  const load = (
+    target: string,
+    id: string,
+    permission: string,
+    verb: string,
+    lock = true,
+    also = "",
+  ): string => {
+    // `is not true` fails closed when auth.role() is null (no token).
+    const check = `if ${target}.${i("id")} is null or (${can(target, permission)}${also}) is not true then
+    if ${target}.${i("id")} is not null and ${can(target, n.read)} then
+      ${fail("INVOICE_FORBIDDEN", `you may not ${verb} this invoice`, "42501")}
+    end if;
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
+  end if;`;
+
+    const read = (suffix: string): string =>
+      `select * into ${target} from ${t("invoices")} x where x.${i("id")} = ${id}${suffix};`;
+
+    // Checks before the lock, so a caller without access locks no row; the
+    // settle path depends on the balance, so it checks again under the lock.
+    return lock
+      ? `${read("")}
+  ${check}
+  ${read(" for update")}
+  ${
+    also === ""
+      ? `if not found then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
+  end if;`
+      : check
+  }`
+      : `${read("")}
+  ${check}`;
+  };
+
   const st = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("invoices", "status", value, labels, negate);
 
@@ -220,6 +259,16 @@ export function invoiceFunctions(
 
   const balance = (alias: string): string =>
     `(${alias}.${i("total")}${charges ? ` + ${charged(alias)}` : ""} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
+
+  // permissions.settle also lets a caller pay the whole open balance, or replay
+  // a payment already recorded, without the payment key.
+  const settleKey = (alias: string): string =>
+    n.settle === n.payment
+      ? ""
+      : ` or (${can(alias, n.settle)} and record_invoice_payment.amount > 0 and (record_invoice_payment.amount = ${balance(alias)} or exists (
+      select 1 from ${ledger.transactions} y
+      where y.${ledger.tx("tenant")} = ${alias}.${i("tenant")} and y.${ledger.tx("key")} = ${paymentKey("nullif(trim(record_invoice_payment.reference), '')")}
+    )))`;
 
   const amounts = [
     "number",
@@ -454,10 +503,7 @@ declare
   v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
   v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = update_invoice.invoice and ${can("x", n.update)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
-  end if;
+  ${load("v_row", "update_invoice.invoice", n.update, "edit")}
   if ${st(`v_row.${i("status")}`, ["draft"], true)} then
     ${fail("INVOICE_NOT_DRAFT", "only a draft changes", "55000")}
   end if;
@@ -497,10 +543,7 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = delete_invoice.invoice and ${can("x", n.remove)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can delete", "P0002")}
-  end if;
+  ${load("v_row", "delete_invoice.invoice", n.remove, "delete")}
   if ${st(`v_row.${i("status")}`, ["draft"], true)} then
     ${fail("INVOICE_NOT_DRAFT", "only a draft is deleted; void an issued invoice", "55000")}
   end if;${
@@ -542,10 +585,7 @@ declare
 begin${
       has("archivedAt")
         ? `
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = ${verb}_invoice.invoice and ${can("x", n.remove)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", `no such invoice you can ${verb}`, "P0002")}
-  end if;
+  ${load("v_row", `${verb}_invoice.invoice`, n.remove, verb)}
   if v_row.${i("archivedAt")} ${guard} then
     return true;
   end if;
@@ -632,10 +672,7 @@ declare
   v_row ${t("invoices")};
   v_charge uuid;
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = add_invoice_charge.invoice and ${can("x", n.charge)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
-  end if;
+  ${load("v_row", "add_invoice_charge.invoice", n.charge, "charge")}
   if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice takes charges", "55000")}
   end if;
@@ -843,7 +880,10 @@ ${updateInvoiceSql()}${lineItemsSql(
     {
       setter: "set_invoice_lines",
       guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
+    if exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.read)}) then
+      ${fail("INVOICE_FORBIDDEN", "you may not edit this invoice", "42501")}
+    end if;
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
   end if;`,
       ...lineMatrix(ctx, t, i, has),
     },
@@ -872,10 +912,7 @@ declare
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
   v_warnings jsonb;${early.declare}
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = issue_invoice.invoice and ${can("x", n.issue)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
-  end if;
+  ${load("v_row", "issue_invoice.invoice", n.issue, "issue")}
   ${invoiceTemplatesOn(ctx) ? `if v_row.${i("template")} is not null then\n    ${fail("INVOICE_TEMPLATE", "a template invoice cannot be issued", "22023")}\n  end if;` : ""}
   if ${st(`v_row.${i("status")}`, ["draft"], true)} then
     ${fail("INVOICE_NOT_DRAFT", "the invoice was already issued", "55000")}
@@ -942,10 +979,7 @@ declare
   v_reference text;
   v_was text;
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = record_invoice_payment.invoice and ${can("x", n.payment)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
-  end if;
+  ${load("v_row", "record_invoice_payment.invoice", n.payment, "record a payment on", true, settleKey("v_row"))}
   if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, afterWriteOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_PAYABLE", "only an issued invoice takes payments", "55000")}
   end if;
@@ -1110,10 +1144,7 @@ begin
   if credit_invoice.fixed_number is not null and better_supabase.import_run() is null then
     ${fail("NUMBER_FIXED_FORBIDDEN", "a fixed number is only accepted during an import", "42501")}
   end if;
-  select * into v_original from ${t("invoices")} x where x.${i("id")} = credit_invoice.invoice and ${can("x", n.credit)};
-  if v_original.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
-  end if;
+  ${load("v_original", "credit_invoice.invoice", n.credit, "credit", false)}
   if ${kd(`v_original.${i("kind")}`, ["invoice"], true)} or ${st(`v_original.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CREDITABLE", "only an issued invoice is credited", "55000")}
   end if;
@@ -1201,10 +1232,7 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
-  select * into v_row from ${t("invoices")} x where x.${i("id")} = void_invoice.invoice and ${can("x", n.void)} for update;
-  if v_row.${i("id")} is null then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can manage", "P0002")}
-  end if;
+  ${load("v_row", "void_invoice.invoice", n.void, "void")}
   if ${st(`v_row.${i("status")}`, ["draft", "issued"], true)} or v_row.${i("paidTotal")} <> 0 or v_row.${i("creditedTotal")} <> 0 then
     ${fail("INVOICE_NOT_VOIDABLE", "an invoice with payments or credits is credited, not voided", "55000")}
   end if;
@@ -1235,9 +1263,10 @@ declare
   v_row ${t("invoices")};
 begin
   ${transitionActorSql("write_off_invoice.actor", "INVOICE_ACTOR_INVALID")}
+  ${load("v_row", "write_off_invoice.invoice", n.writeOff, "write off", false)}
   ${transitionReasonSql("write_off_invoice.reason")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${writeOffReason ? `${i("writeOffReason")} = nullif(trim(write_off_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
-  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.writeOff)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
+  where x.${i("id")} = write_off_invoice.invoice and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}

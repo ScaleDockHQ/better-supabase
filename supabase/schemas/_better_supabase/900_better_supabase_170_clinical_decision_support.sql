@@ -1,6 +1,6 @@
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:81f432665b0b749932379a07b81013ae7986f149fe555f296fe319ece3c791dc
+-- @bsb-hash sha256:64da60da5555ed7a55f721b241e8dcfb842341198eb4ec5f771e4e7fa7a4225b
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -965,7 +965,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_alerts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_alert","event_prefix":"care_alert"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule","archive_column":"archived_at"}');
 
 -- blocks.clinical-decision-support.api: entry points for the Data API.
 create schema if not exists "api";

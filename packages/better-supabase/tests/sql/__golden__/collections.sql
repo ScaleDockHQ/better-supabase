@@ -1311,7 +1311,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:da6cdc281e66ff3e3151321148840bc5372c2361752cb0200f89d802df46302d
+-- @bsb-hash sha256:5e3b65c6977e21962892d771060816bec99b00bc6fbe9e5081b474537fcf05b7
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2605,7 +2605,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.subject_collections deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"subject_collection","event_prefix":"subject_collection"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.subject_collections deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"subject_collection","event_prefix":"subject_collection","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections

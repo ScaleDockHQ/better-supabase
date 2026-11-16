@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:7fe131e36f59c7469e12a26bc369ba37b64571cf5bee667ecb44e872bf9803cc
+-- @bsb-hash sha256:4fec4e3fac3a80f8a2509ebe8c4f6a8d00e576b9abec1fd7d1ebb0e57ff365f1
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1067,6 +1067,6 @@ create trigger "bsb_search_tax_code_index"
   for each row execute function "better_supabase"."search_index_row"('tax_code', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_code","event_prefix":"tax_code"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_codes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_code","event_prefix":"tax_code","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_rates deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_rate","event_prefix":"tax_rate"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.tax_returns deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"tax_return","event_prefix":"tax_return"}');

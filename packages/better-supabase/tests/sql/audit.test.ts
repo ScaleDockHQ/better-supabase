@@ -16,6 +16,8 @@ create table public.customers (
   organization_id uuid not null,
   name text,
   api_key text,
+  status text not null default 'active',
+  archived_at timestamptz,
   updated_at timestamptz not null default now()
 );
 create table public.keyless (organization_id uuid, name text);
@@ -161,6 +163,43 @@ begin
   end;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("audit(archive_column => ...)", BOOT, () => {
+  const steps = `insert into public.customers (organization_id, name) values ('${ORG}', 'a');
+update public.customers set name = 'b';
+update public.customers set archived_at = now(), status = 'archived';
+update public.customers set name = 'c';
+update public.customers set archived_at = null, status = 'active';`;
+
+  it("records setting and clearing a soft-delete column as archived and restored", async () => {
+    for (const statement of [false, true]) {
+      await expect(
+        run(`select better_supabase.audit('public.customers', archive_column => 'archived_at', statement => ${String(statement)});
+${steps}
+${COUNT("event_type = 'customers.updated'", 2)}
+${COUNT("event_type = 'customers.archived' and op = 'update'", 1)}
+${COUNT("event_type = 'customers.restored' and op = 'update'", 1)}`),
+      ).resolves.toBeUndefined();
+    }
+  });
+
+  it("compares a status column with archive_value", async () => {
+    await expect(
+      run(`select better_supabase.audit('public.customers', archive_column => 'status', archive_value => 'archived');
+${steps}
+${COUNT("event_type = 'customers.archived'", 1)}
+${COUNT("event_type = 'customers.restored'", 1)}`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps updated without an archive column", async () => {
+    await expect(
+      run(`select better_supabase.audit('public.customers');
+${steps}
+${COUNT("event_type = 'customers.updated'", 4)}`),
     ).resolves.toBeUndefined();
   });
 });

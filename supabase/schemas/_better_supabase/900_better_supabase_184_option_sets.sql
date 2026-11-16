@@ -1,6 +1,6 @@
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:65ab89b260b55884b12b86a58d72ac8d4757c090457542fbc81fcb1bd83bf20e
+-- @bsb-hash sha256:be10a52883424235a37e0c51429e7d231eae898948b330bd9f3ffeb760b6819d
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -876,7 +876,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.option_sets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"option_set","event_prefix":"option_set"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.option_sets deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"option_set","event_prefix":"option_set","archive_column":"archived_at"}');
 
 -- blocks.option-sets.api: entry points for the Data API.
 create schema if not exists "api";

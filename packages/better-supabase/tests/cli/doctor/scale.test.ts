@@ -857,6 +857,45 @@ describe("BS628 list cursor indexes", () => {
     expect(findings).toEqual([]);
   });
 
+  it("reads only the ORDER BY clause, not the columns after an inner one", async () => {
+    const findings = await check(`
+      create or replace function app.list_time_entries(tenant uuid)
+      returns jsonb language plpgsql as $$
+      declare v_rows jsonb;
+      begin
+        select coalesce(jsonb_agg(jsonb_build_object('startedAt', q.started_at) order by q.started_at desc), '[]'::jsonb), max(q.created_at), min(q.id) into v_rows
+        from (
+          select * from app.time_entries x
+          where x.organization_id = list_time_entries.tenant
+          order by x.started_at desc
+          limit 200
+        ) q;
+        return v_rows;
+      end;
+      $$;
+    `);
+
+    expect(findings).toEqual([]);
+  });
+
+  it("skips an ORDER BY that picks one row with limit 1", async () => {
+    const findings = await check(`
+      create or replace function app.list_threads(tenant uuid)
+      returns jsonb language sql as $$
+        select jsonb_agg(t.id) from app.threads t
+        left join lateral (
+          select c.profile_id from app.contacts c
+          where c.thread_id = t.id
+          order by c.is_primary desc, c.created_at, c.id
+          limit 1
+        ) contact on true
+        where t.organization_id = tenant
+      $$;
+    `);
+
+    expect(findings).toEqual([]);
+  });
+
   it("skips migrations and the files the blocks wrote", async () => {
     const list = `
       create or replace function app.list_cases()

@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:98eb618b264aac18b258565615ba7d7de3f84de9319bdff8753ccdf60ba3c053
+-- @bsb-hash sha256:f6d22211d5d225b6c8eb872e566548e16050d48e95e8081099736ad41a09b677
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3130,7 +3130,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as r
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_requests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_request","event_prefix":"leave_request"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_types deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_type","event_prefix":"leave_type"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_types deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_type","event_prefix":"leave_type","archive_column":"archived_at"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave

@@ -354,7 +354,7 @@ describe.skipIf(!live)("quotes and invoices", () => {
 
       await s.as(rep);
       expect(hint(await invoices.void({ invoiceId: issuedDeposit.id }))).toBe(
-        "INVOICE_NOT_FOUND",
+        "INVOICE_FORBIDDEN",
       );
       await s.as(owner);
 

@@ -1,6 +1,6 @@
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:11deb352095ffc53773a891e77c92c7d08185c4531eb5edffa918ae4b66e07b4
+-- @bsb-hash sha256:d9ca7c73e00ec50642c1bc45b7ed7e4cd350fa1b56557b167fa90b3be0fe432a
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1280,7 +1280,7 @@ create trigger "bsb_search_lims_sample_index"
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_samples deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_sample","event_prefix":"lims_sample"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_methods deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_method","event_prefix":"lims_method"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_methods deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_method","event_prefix":"lims_method","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.lims_results deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lims_result","event_prefix":"lims_result"}');
 
 -- blocks.lims.api: entry points for the Data API.
