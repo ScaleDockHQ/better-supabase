@@ -12,7 +12,7 @@
   "/.well-known/vercel/flags/route": {
     "raw": 1239514,
     "gzip": 395397,
-    "brotli": 345487
+    "brotli": 346360
   },
   "/.well-known/workflow/v1/flow/route": {
     "raw": 5414632,
