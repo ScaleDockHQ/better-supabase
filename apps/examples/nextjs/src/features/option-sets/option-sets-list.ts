@@ -1,12 +1,23 @@
-import { defineAdminList } from "@/lib/admin-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-/** `/settings/option-sets?q=&state=&sort=&after=`. */
-export const optionSetList = defineAdminList({
-  facets: { state: ["active", "archived"] },
-  sorts: ["newest", "oldest"],
+import { defineBlockList } from "@/lib/block-list-url";
+
+/** `/settings/option-sets?q=&subjectType=&field=&sort=&after=`. */
+export const optionSetList = defineBlockList({
+  facets: ["subjectType", "field"],
+  sorts: ["newest", "oldest", "name"],
   defaultSort: "newest",
   pageSize: 25,
 });
+
+/** The list's URL names on the option sets block's `setPage` and `setFacets`. */
+export const optionSetMap: EntityListMap = {
+  sorts: {
+    newest: { by: "createdAt", direction: "desc" },
+    oldest: { by: "createdAt", direction: "asc" },
+    name: { by: "name" },
+  },
+};
 
 /** One option set as the overview and the list route send it. */
 export interface OptionSetRow {
@@ -15,9 +26,7 @@ export interface OptionSetRow {
   readonly subjectType: string;
   readonly field: string;
   readonly isDefault: boolean;
-  readonly archived: boolean;
   readonly items: number;
-  readonly createdAt: string;
 }
 
 /** One item of an option set, as the detail page sends it. */

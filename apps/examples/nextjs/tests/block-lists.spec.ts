@@ -62,6 +62,19 @@ const CASES: readonly ListCase[] = [
     route: "/api/document-templates/list",
     queries: ["", "?sort=newest", "?active=true", "?type=invoice&q=a"],
   },
+  {
+    route: "/api/domains/list",
+    queries: [
+      "",
+      "?sort=hostname",
+      "?verified=false",
+      "?kind=custom&verified=true",
+    ],
+  },
+  {
+    route: "/api/option-sets/list",
+    queries: ["", "?sort=name", "?subjectType=task", "?field=priority&q=a"],
+  },
 ];
 
 /** Overviews whose rows link to a detail page the list's first row opens. */

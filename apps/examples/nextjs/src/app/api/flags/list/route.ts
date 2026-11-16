@@ -15,10 +15,6 @@ export const GET = bsb.route(
 
     const query = flagList.parse(request.nextUrl.searchParams);
 
-    if (!query.ok) {
-      return Response.json({ issues: ["invalid list state"] }, { status: 400 });
-    }
-
     return Response.json(
       await loadAdminList({
         session,

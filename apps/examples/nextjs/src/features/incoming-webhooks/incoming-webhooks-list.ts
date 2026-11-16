@@ -1,11 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/webhooks/incoming?q=&state=&verify=&sort=&after=`. */
-export const incomingWebhookList = defineAdminList({
-  facets: {
-    state: ["enabled", "disabled"],
-    verify: ["none", "standard-webhooks", "hmac-sha256", "shared-secret"],
-  },
+export const incomingWebhookList = defineBlockList({
+  facets: ["state", "verify"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,
