@@ -1,8 +1,11 @@
 import { existsSync } from "node:fs";
 import { posix } from "node:path";
 
-import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
-import type { ExtrasTable } from "../../config/snapshot.ts";
+import type {
+  GeneratedFile,
+  ResolvedConfig,
+  ExtrasTable,
+} from "../../config/index.ts";
 import type { EntityPage } from "../../list/index.ts";
 import type { PresetCatalogManifest } from "../../preset/index.ts";
 
@@ -248,8 +251,8 @@ export function resolveEntityPages(
 
 /**
  * The btree column lists a table already carries, by `schema.table`. The
- * indexes `gen` wrote for a page (`*_page_idx`) and partial indexes are left
- * out, so the list does not change after a run.
+ * indexes `gen` wrote for a page (`*_page_idx`), partial indexes and unique
+ * indexes are left out, so the list does not change after a run.
  */
 export type ExistingIndexes = ReadonlyMap<string, readonly string[][]>;
 
@@ -265,6 +268,7 @@ export function existingIndexesOf(
           (index) =>
             (index.method ?? "btree") === "btree" &&
             !index.partial &&
+            !index.unique &&
             !index.name.endsWith("_page_idx"),
         )
         .map((index) => [...index.columns]),
