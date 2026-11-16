@@ -580,12 +580,12 @@
     "brotli": 386270
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 1586610,
+    "raw": 1590719,
     "gzip": 511999,
     "brotli": 448389
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 1458520,
+    "raw": 1462629,
     "gzip": 469374,
     "brotli": 411235
   },
@@ -1225,12 +1225,12 @@
     "brotli": 433121
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 1370970,
+    "raw": 1371636,
     "gzip": 437407,
     "brotli": 382490
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 1554933,
+    "raw": 1555062,
     "gzip": 496796,
     "brotli": 434628
   },

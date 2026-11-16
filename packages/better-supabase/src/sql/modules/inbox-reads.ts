@@ -1,3 +1,4 @@
+import type { BlockSqlContext } from "../context.ts";
 import type { InboxSql } from "./inbox-names.ts";
 
 import {
@@ -11,6 +12,10 @@ import {
 } from "../list-template.ts";
 import { fail, pageSize } from "../shared.ts";
 import { forbidden, missing } from "./inbox-names.ts";
+import { inboxCatalogPages } from "./inbox-pages.ts";
+
+const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+const SLA_STATES = ["ok", "due", "breached", "met"] as const;
 
 /** The reads: conversation and message pages, one of each, events and counts. */
 export function inboxReadFunctions(q: InboxSql): string {
@@ -64,6 +69,38 @@ grant execute on function ${signature} to authenticated, service_role;`;
 
   const status = q.text("conversations", `x.${cv("status")}`);
 
+  const hasPriority = q.has("conversations", "priority");
+
+  const priority = hasPriority
+    ? q.text("conversations", `x.${cv("priority")}`)
+    : "null::text";
+
+  // The first response state the queue shows, from the conversation's own
+  // timestamps: met (answered, nothing inbound or resolved), breached (waited
+  // slaMinutes), due (waited half of it) or ok.
+  const hasSla =
+    q.has("conversations", "firstResponseAt") &&
+    q.has("conversations", "lastInboundAt");
+
+  const sla = hasSla
+    ? `(case when x.${cv("firstResponseAt")} is not null or x.${cv("lastInboundAt")} is null or ${status} = 'resolved' then 'met'
+      when now() - x.${cv("lastInboundAt")} >= make_interval(mins => v_sla_minutes) then 'breached'
+      when now() - x.${cv("lastInboundAt")} >= make_interval(secs => v_sla_minutes * 30) then 'due'
+      else 'ok' end)`
+    : "null::text";
+
+  const tags = q.ctx.installed("tags") ? q.ctx.of("tags") : undefined;
+
+  const tagged =
+    tags !== undefined && tags.mode !== "custom" && tags.hasTable("taggings")
+      ? tags
+      : undefined;
+
+  const tagFilter =
+    tagged === undefined
+      ? "true"
+      : `(v_tags is null or ${fn("inbox_conversation_tagged")}(x.${cv("id")}, v_tags))`;
+
   const conversationPage = {
     name: "page_inbox_conversations",
     from: T("conversations"),
@@ -76,6 +113,9 @@ grant execute on function ${signature} to authenticated, service_role;`;
       `(case when not ${filterSet("status")} then ${status} = 'open' when v_filters -> 'status' ? 'all' then true else ${filterAny("status", status)} end)`,
       `(case v_assignee when 'me' then x.${cv("assignee")} = (select auth.uid()) when 'unassigned' then x.${cv("assignee")} is null else v_assignee is null or x.${cv("assignee")} = v_assignee::uuid end)`,
       `(v_search is null${searchedPage.map((column) => ` or ${column}`).join("")})`,
+      filterAny("priority", priority),
+      filterAny("sla", sla),
+      tagFilter,
     ],
     keys: [
       { expr: `x.${cv("lastMessageAt")}`, dir: "desc", type: "timestamptz" },
@@ -91,7 +131,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
         conversationIdKey,
       ],
     },
-    facets: { status, inboxId: `x.${cv("inbox")}` },
+    facets: { status, inboxId: `x.${cv("inbox")}`, priority, sla },
     rowJson: `${conversationJson}(x.${cv("id")}) || jsonb_build_object('unread', x.${cv("lastMessageAt")} > coalesce((select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = x.${cv("id")} and k.${ck("user")} = (select auth.uid())), '-infinity'::timestamptz))`,
     defaultLimit: 50,
     maxLimit: 200,
@@ -169,9 +209,12 @@ ${authed(`${fn("list_inbox_conversations")}(${id}, jsonb)`)}
 -- activity first. filters is { inboxId, teamId, contactId (each a value or a
 -- list of uuids), status (a value or a list; 'all' reads every status, open
 -- by default), assignee ('me', 'unassigned' or an id), search (subject,
--- preview, contact name and email), sort (lastMessageAt, createdAt),
--- direction, facet (status, inboxId), count, limit, after, offset, paged,
--- total, totalCap }.
+-- preview, contact name and email), priority (low, normal, high, urgent),
+-- sla (ok, due, breached, met: the first response state, with slaMinutes the
+-- target, 60 by default), tagId (conversations tagged with any of the tags,
+-- through the tags block), sort (lastMessageAt, createdAt), direction, facet
+-- (status, inboxId, priority, sla), count, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function ${fn("page_inbox_conversations")}(tenant ${id} default null, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -183,8 +226,35 @@ declare
   v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
   v_search text := ${searchPattern()};
   v_assignee text := ${filterFirst("assignee")};
+  v_sla_minutes integer;
+  v_tags uuid[];
   ${listDeclare(conversationPage)}
 begin
+  if ${filterSet("priority")} and ${hasPriority ? filterHasInvalid("priority", PRIORITIES) : "true"} then
+    ${fail("INBOX_INVALID", hasPriority ? "priority is low, normal, high or urgent" : "this conversations table has no priority column", "22023")}
+  end if;
+  if ${filterSet("sla")} and ${hasSla ? filterHasInvalid("sla", SLA_STATES) : "true"} then
+    ${fail("INBOX_INVALID", hasSla ? "sla is ok, due, breached or met" : "this conversations table has no first response or last inbound column", "22023")}
+  end if;
+  ${
+    tagged === undefined
+      ? `if ${filterSet("tagId")} then
+    ${fail("INBOX_INVALID", "install the tags block to filter conversations by tag", "22023")}
+  end if;`
+      : `if ${filterHasInvalid("tagId")} then
+    ${fail("INBOX_INVALID", "tagId is a uuid", "22023")}
+  end if;
+  if ${filterSet("tagId")} then
+    v_tags := array(select jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'tagId') = 'array' then v_filters -> 'tagId' else jsonb_build_array(v_filters -> 'tagId') end))::uuid[];
+  end if;`
+  }
+  v_sla_minutes := 60;
+  if ${filterFirst("slaMinutes")} is not null then
+    if ${filterFirst("slaMinutes")} !~ '^[1-9][0-9]{0,5}$' then
+      ${fail("INBOX_INVALID", "slaMinutes is a whole number of minutes, at least 1", "22023")}
+    end if;
+    v_sla_minutes := ${filterFirst("slaMinutes")}::integer;
+  end if;
   if ${filterHasInvalid("inboxId")} or ${filterHasInvalid("teamId")} or ${filterHasInvalid("contactId")} then
     ${fail("INBOX_INVALID", "inboxId, teamId and contactId are uuids", "22023")}
   end if;
@@ -205,6 +275,9 @@ as $$
   select ${conversationJson}(v.${cv("id")}) from ${T("conversations")} v where v.${cv("id")} = ${q.ctx.owns("conversations") ? "conversation" : "get_conversation.conversation"};
 $$;
 ${authed(`${fn("get_conversation")}(uuid)`)}
+
+${inboxCatalogPages(q)}
+${tagged === undefined ? "" : inboxTaggedFunction(q, tagged)}
 
 -- A page of messages, oldest first: the newest sent before the given instant,
 -- or with after the oldest sent after it. Staff also get notes and each
@@ -465,4 +538,37 @@ end;
 $$;
 revoke execute on function ${fn("inbox_contacts_json")}(uuid[], ${q.id}, text) from public, anon;
 grant execute on function ${fn("inbox_contacts_json")}(uuid[], ${q.id}, text) to authenticated, service_role;`;
+}
+
+/**
+ * Whether a conversation carries any of the tags, for the `tagId` filter. The
+ * tags block's link table has no read policy for members, so this runs as its
+ * owner and answers only for staff of the conversation's tenant (or the service
+ * role).
+ */
+function inboxTaggedFunction(q: InboxSql, tagged: BlockSqlContext): string {
+  const { fn } = q;
+  const cv = q.cols("conversations");
+  const tag = (column: string): string => tagged.col("taggings", column);
+
+  return `-- Whether the conversation carries any of the tags, for staff of its
+-- tenant. The link table has no member read policy, so it runs as its owner.
+create or replace function ${fn("inbox_conversation_tagged")}(conversation uuid, tag_ids uuid[])
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from ${q.t("conversations")} v
+    join ${tagged.table("taggings")} g on g.${tag("subjectType")} = ${q.core.conversation} and g.${tag("subjectId")} = v.${cv("id")}::text
+    where v.${cv("id")} = inbox_conversation_tagged.conversation
+      and g.${tag("tag")} = any (inbox_conversation_tagged.tag_ids)
+      and (${q.service} or coalesce(${q.can(`v.${cv("tenant")}`, "read")}, false))
+  );
+$$;
+revoke execute on function ${fn("inbox_conversation_tagged")}(uuid, uuid[]) from public, anon;
+grant execute on function ${fn("inbox_conversation_tagged")}(uuid, uuid[]) to authenticated, service_role;`;
 }

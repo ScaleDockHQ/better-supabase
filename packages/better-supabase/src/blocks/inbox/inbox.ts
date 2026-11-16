@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the page, facets, count and get methods add lines past the limit. 1 finding. */
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
@@ -51,7 +52,11 @@ import {
   pageOf,
 } from "../shared.ts";
 import { inboxDrafts } from "./drafts.ts";
-import { conversationListSurface } from "./lists.ts";
+import {
+  conversationListSurface,
+  inboxListSurface,
+  templateListSurface,
+} from "./lists.ts";
 import {
   conversationOf,
   conversationsOf,
@@ -71,6 +76,10 @@ import {
 } from "./rows.ts";
 
 type ConversationList = EntityList<Conversation, RequiredTenantOption>;
+
+type InboxList = EntityList<InboxRow, RequiredTenantOption>;
+
+type TemplateList = EntityList<MessageTemplate, RequiredTenantOption>;
 
 export interface InboxOptions extends BlockTemporalOptions {
   /**
@@ -254,6 +263,16 @@ export type InboxHooks = BlockHooks<Inbox> & {
 
 export interface Inbox {
   readonly inboxes: {
+    /**
+     * Keyset `page`, `facets` and `count` of the organization's inboxes (ADR
+     * 1077), by name. Archived inboxes are hidden unless the `archived` filter
+     * is `["true"]`.
+     */
+    readonly page: InboxList["page"];
+    readonly facets: InboxList["facets"];
+    readonly count: InboxList["count"];
+    /** One inbox by id, or a `not_found` error. */
+    getInbox(inboxId: string): AsyncResult<InboxRow>;
     create(input: CreateInboxInput): AsyncResult<InboxRow>;
     update(input: { id: string; patch: InboxPatch }): AsyncResult<InboxRow>;
     /** `null` removes the member. */
@@ -480,6 +499,15 @@ export interface Inbox {
     }): AsyncResult<number>;
   };
   readonly templates: {
+    /**
+     * Keyset `page`, `facets` and `count` of the organization's message
+     * templates (ADR 1077), by name.
+     */
+    readonly page: TemplateList["page"];
+    readonly facets: TemplateList["facets"];
+    readonly count: TemplateList["count"];
+    /** One template by id, or a `not_found` error. */
+    getTemplate(templateId: string): AsyncResult<MessageTemplate>;
     upsert(input: {
       tenant: string;
       input: TemplateInput;
@@ -713,8 +741,30 @@ export function createInbox(options: InboxOptions): Inbox {
     rowOf: (row) => conversationOf(row),
   });
 
+  const inboxPages = entityList<InboxRow, RequiredTenantOption>({
+    entity: "inbox",
+    surface: inboxListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_inboxes",
+    rowOf: (row) => inboxOf(row),
+  });
+
+  const templatePages = entityList<MessageTemplate, RequiredTenantOption>({
+    entity: "template",
+    surface: templateListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_message_templates",
+    rowOf: (row) => templateOf(row),
+  });
+
   const client: Inbox = {
     inboxes: {
+      page: inboxPages.page,
+      facets: inboxPages.facets,
+      count: inboxPages.count,
+      getInbox: (inboxId) => call("get_inbox", { inbox: inboxId }, inboxOf),
       create: (input) =>
         call(
           "create_inbox",
@@ -1030,6 +1080,11 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     templates: {
+      page: templatePages.page,
+      facets: templatePages.facets,
+      count: templatePages.count,
+      getTemplate: (templateId) =>
+        call("get_message_template", { template: templateId }, templateOf),
       upsert: ({ tenant, input }) =>
         call(
           "upsert_message_template",

@@ -46,6 +46,18 @@ export const QUEUE_ASSIGNEES = [
   "unassigned",
 ] as const satisfies readonly AssigneeFilter[];
 
+/** The queue's priority filter: one priority, or `any`. */
+export const QUEUE_PRIORITIES = [
+  "any",
+  "urgent",
+  "high",
+  "normal",
+  "low",
+] as const;
+
+/** The queue's first response filter: one state, or `any`. */
+export const QUEUE_SLAS = ["any", "due", "breached", "ok", "met"] as const;
+
 /** Staff reply to a first message within this long, or the SLA badge warns. */
 export const FIRST_RESPONSE_TARGET_MINUTES = 60;
 

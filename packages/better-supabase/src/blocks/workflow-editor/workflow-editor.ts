@@ -1,4 +1,6 @@
+/* oxlint-disable eslint/max-lines -- the page, facets, count and get methods add lines past the limit. 1 finding. */
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type { TenantOption } from "../../core/entity-list.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
@@ -26,6 +28,11 @@ import type {
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -45,6 +52,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { diffGraphs, graphOf } from "./graph.ts";
+import { workflowDefinitionListSurface } from "./lists.ts";
 import { nodeKindRows } from "./node-kinds.ts";
 import { mayPublishRefusal, runAsPublisher } from "./publisher.ts";
 import {
@@ -240,6 +248,15 @@ export function createWorkflowEditor<
       isRecord(value) ? credentialOf(value) : undefined,
     );
 
+  const definitionPages = entityList<WorkflowDefinition, TenantOption>({
+    entity: "workflow definition",
+    surface: workflowDefinitionListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_workflow_definitions",
+    rowOf: (row) => definitionOf(row),
+  });
+
   const builder: WorkflowEditor<F> = {
     definitions: {
       upsert: (input) =>
@@ -262,6 +279,25 @@ export function createWorkflowEditor<
                 definitionOf(recordOf(value, "save_workflow_definition")),
             ).andThen(fields.row),
           ),
+      page: (options) =>
+        definitionPages
+          .page(options)
+          .andThen((page) =>
+            fields.rows(page.items).map((items) => ({ ...page, items })),
+          ),
+      facets: (options) => definitionPages.facets(options),
+      count: (options) => definitionPages.count(options),
+      getDefinition: (id) =>
+        call(
+          "workflow_definition_get",
+          { definition: id },
+          optionalOf(definitionOf),
+        )
+          .andThen((definition) =>
+            foundOrNotFound("workflow definition", definition, id),
+          )
+          .andThen(fields.row),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ tenant, limit, filter = {} } = {}) =>
         call(
           "workflow_definitions_list",
@@ -271,6 +307,7 @@ export function createWorkflowEditor<
         )
           .map((rows) => (limit === undefined ? rows : rows.slice(0, limit)))
           .andThen(fields.rows),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (id) =>
         call(
           "workflow_definition_get",

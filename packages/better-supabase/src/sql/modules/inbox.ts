@@ -698,6 +698,7 @@ export const INBOX: BlockSqlDefinition = {
     "data-lifecycle",
     "automations",
     "tasks",
+    "tags",
   ],
   providerFunctions: ["idsWithFor"],
   target: "schema",

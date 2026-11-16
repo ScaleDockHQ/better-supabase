@@ -30,6 +30,8 @@ import {
   HELP_INBOX_ID,
   LATER_HOURS,
   Later,
+  QUEUE_PRIORITIES,
+  QUEUE_SLAS,
   toConversationRow,
   toDraftRow,
   toMessageRow,
@@ -56,6 +58,9 @@ type DraftPage = {
 } & { tenant: string };
 
 const PAGE_SIZE = 40;
+
+/** The most rows a lookup list (inboxes, macros, teams) shows. */
+const LOOKUP_LIMIT = 100;
 const Id = v.pipe(v.string(), v.uuid());
 const Body = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(4000));
 const ConversationInput = v.object({ conversationId: Id });
@@ -99,9 +104,10 @@ function laterInstant(later: Later): Temporal.Instant {
 const Cursor = v.object({ id: Id, lastMessageAt: v.nullable(v.string()) });
 
 /**
- * The queue for the filters, newest activity first: search, status, assignee
- * and channel run in the database. `cursor` is the last row of the previous
- * page. `useInbox` loads it again after each Realtime ping.
+ * The queue for the filters, newest activity first: search, status, assignee,
+ * channel, priority and first response state run in the database. `cursor` is
+ * the last row of the previous page. `useInbox` loads it again after each
+ * Realtime ping.
  */
 export const loadConversations = bsb.action(
   {
@@ -109,12 +115,17 @@ export const loadConversations = bsb.action(
       status: ConversationStatus,
       assignee: AssigneeFilter,
       channel: v.optional(v.string(), ""),
+      priority: v.optional(v.picklist(QUEUE_PRIORITIES), "any"),
+      sla: v.optional(v.picklist(QUEUE_SLAS), "any"),
       q: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(200)), ""),
       cursor: v.optional(Cursor),
     }),
     requireTenant: true,
   },
-  async ({ status, assignee, channel, q, cursor }, { tenant, db }) => {
+  async (
+    { status, assignee, channel, priority, sla, q, cursor },
+    { tenant, db },
+  ) => {
     // An empty list is no filter, so "anyone" and no channel pass nothing.
     const options: DraftPage = {
       tenant,
@@ -123,6 +134,8 @@ export const loadConversations = bsb.action(
         status: [status],
         assignee: assignee === "anyone" ? [] : [assignee],
         channel: channel === "" ? [] : [channel],
+        priority: priority === "any" ? [] : [priority],
+        sla: sla === "any" ? [] : [sla],
       },
     };
 
@@ -130,8 +143,8 @@ export const loadConversations = bsb.action(
       options.q = q;
     }
 
-    if (cursor !== undefined) {
-      options.after = [cursor.id, cursor.lastMessageAt ?? ""];
+    if (cursor !== undefined && cursor.lastMessageAt !== null) {
+      options.after = [cursor.lastMessageAt, cursor.id];
     }
 
     const listed = await inboxReads(db).page(options);
@@ -163,23 +176,46 @@ async function queryAsCaller<T extends object>(
 /** The channel accounts of the organization, for the queue's channel filter. */
 export const loadInboxes = bsb.action(
   { requireTenant: true, permission: "inbox.read" },
-  async (_input, { session }) =>
-    queryAsCaller<InboxSummary>(
-      session,
-      `select id, name, channel from better_supabase.inboxes
-       where archived_at is null order by name`,
-    ),
+  async (_input, { tenant, db }) => {
+    const page = await db.inbox.inboxes.page({
+      organizationId: tenant,
+      limit: LOOKUP_LIMIT,
+      sort: { by: "name", direction: "asc" },
+    });
+
+    return page.ok
+      ? ok(
+          page.data.items.map(({ id, name, channel }): InboxSummary => ({
+            id,
+            name,
+            channel,
+          })),
+        )
+      : page;
+  },
 );
 
 /** The canned replies of the organization (macros), for the composer. */
 export const loadMacros = bsb.action(
   { requireTenant: true, permission: "inbox.read" },
-  async (_input, { session }) =>
-    queryAsCaller<MacroRow>(
-      session,
-      `select id, name, channel, body from better_supabase.inbox_message_templates
-       order by name`,
-    ),
+  async (_input, { tenant, db }) => {
+    const page = await db.inbox.templates.page({
+      organizationId: tenant,
+      limit: LOOKUP_LIMIT,
+      sort: { by: "name", direction: "asc" },
+    });
+
+    return page.ok
+      ? ok(
+          page.data.items.map(({ id, name, channel, body }): MacroRow => ({
+            id,
+            name,
+            channel,
+            body,
+          })),
+        )
+      : page;
+  },
 );
 
 /** The caller's draft on the conversation and the AI drafts for the team. */

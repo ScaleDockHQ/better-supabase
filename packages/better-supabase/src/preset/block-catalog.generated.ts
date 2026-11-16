@@ -1104,7 +1104,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "reactions",
         "data-lifecycle",
         "automations",
-        "tasks"
+        "tasks",
+        "tags"
       ],
       "modes": [
         "managed",

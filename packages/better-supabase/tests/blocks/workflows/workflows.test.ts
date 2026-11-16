@@ -114,6 +114,13 @@ describe("createWorkflows", () => {
       max: 10,
       before: "2026-02-01T00:00:00Z",
     });
+    await workflows.runs
+      .list({ tenant: "t1", definitionId: ["d1", "d2"] })
+      .orThrow();
+
+    await workflows.runs.list({ tenant: "t1", definitionId: "d1" }).orThrow();
+    expect(calls[1]?.args).toMatchObject({ definition_ids: ["d1", "d2"] });
+    expect(calls[2]?.args).toMatchObject({ definition_ids: ["d1"] });
     expect((await workflows.runs.get("r1").orThrow())?.id).toBe("r1");
     expect(await workflows.runs.get("nope").orThrow()).toBeUndefined();
     expect(

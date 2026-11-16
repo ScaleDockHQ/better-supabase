@@ -332,6 +332,7 @@ create table if not exists ${r} (
   constraint workflow_runs_engine_external_key unique (${cr("engine")}, ${cr("externalId")})
 );${appUniqueIndex(ctx, "runs", ["engine", "externalId"])}
 create index if not exists workflow_runs_tenant_idx on ${r} (${cr("tenant")}, ${cr("createdAt")} desc, ${cr("id")} desc);
+create index if not exists workflow_runs_definition_id_idx on ${r} ((${cr("attributes")} ->> 'bsb.definition'), ${cr("createdAt")} desc, ${cr("id")} desc);
 create index if not exists workflow_runs_actor_idx on ${r} (${cr("actor")}, ${cr("createdAt")} desc);
 create index if not exists workflow_runs_status_idx on ${r} (${cr("status")}, ${cr("completedAt")});
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -509,8 +510,11 @@ ${recordWorkflowRunSql(ctx, extras)}
 ${dispatchSql(ctx, runJson)}
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
--- (the default), test, or null for both.
+-- (the default), test, or null for both. definition_ids keeps the runs of the
+-- workflow editor's definitions with these ids (the bsb.definition attribute
+-- the editor's runs carry), where definition is the workflow function name.
 drop function if exists ${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz);
+drop function if exists ${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz, text, text, text);
 create or replace function ${fn("workflow_runs_list")}(
   tenant ${id} default null,
   definition text default null,
@@ -519,7 +523,8 @@ create or replace function ${fn("workflow_runs_list")}(
   before timestamptz default null,
   subject_type text default null,
   subject_id text default null,
-  mode text default 'live'
+  mode text default 'live',
+  definition_ids text[] default null
 )
 returns jsonb
 language sql
@@ -533,6 +538,7 @@ as $$
       and (workflow_runs_list.definition is null or y.${cr("definition")} = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or ${asText(ctx, "runs", `y.${cr("status")}`)} = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y.${cr("createdAt")} < workflow_runs_list.before)
+      and (workflow_runs_list.definition_ids is null or cardinality(workflow_runs_list.definition_ids) = 0 or y.${cr("attributes")} ->> 'bsb.definition' = any (workflow_runs_list.definition_ids))
       and (workflow_runs_list.subject_type is null or ${linked ? `y.${cr("subjectType")} = workflow_runs_list.subject_type` : "false"})
       and (workflow_runs_list.subject_id is null or ${linked ? `y.${cr("subjectId")} = workflow_runs_list.subject_id` : "false"})
       and (workflow_runs_list.mode is null or ${moded ? asText(ctx, "runs", `y.${cr("mode")}`) : "'live'"} = workflow_runs_list.mode)
@@ -540,7 +546,7 @@ as $$
     limit ${pageSize("workflow_runs_list.max", 50, 500)}
   ) x;
 $$;
-${callable(`${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz, text, text, text)`)}
+${callable(`${fn("workflow_runs_list")}(${id}, text, text, integer, timestamptz, text, text, text, text[])`)}
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function ${fn("workflow_run_get")}(run text)

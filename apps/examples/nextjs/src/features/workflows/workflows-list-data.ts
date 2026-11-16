@@ -1,4 +1,6 @@
+import type { PageOptions } from "better-supabase/blocks";
 import type { RpcClient } from "better-supabase/blocks/organizations";
+import type { WorkflowDefinition } from "better-supabase/blocks/workflow-editor";
 import type {
   WorkflowRun,
   WorkflowRunsQuery,
@@ -15,7 +17,9 @@ import type {
   RecordListPage,
   RecordListUrlQuery,
 } from "@/components/record-list/record-list-types";
+import type { Mutable } from "@/lib/block-status-list";
 
+import { organizationPager, pageEntityRows } from "@/lib/block-entity-page";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type {
@@ -27,7 +31,6 @@ import type {
 import { builderFor } from "./builder/builder-server";
 import { workflowName } from "./workflow-labels";
 import {
-  DEFINITION_STATES,
   definitionList,
   isRunSince,
   RUN_SINCE,
@@ -41,6 +44,8 @@ const DEFINITIONS_PAGE = 25;
 const RUNS_PAGE = 25;
 const RUNS_BATCH = 100;
 const RUNS_BATCHES = 5;
+const NAME_PAGE = 100;
+const NAME_PAGES = 5;
 
 const Text = v.fallback(v.nullable(v.string()), null);
 
@@ -51,62 +56,39 @@ const stateOf = (published: number | undefined, draft: boolean | undefined) =>
       : ("new" satisfies DefinitionState)
     : "published";
 
+const definitionRowOf = (
+  definition: WorkflowDefinition,
+): DefinitionListRow => ({
+  id: definition.id,
+  name: definition.name,
+  slug: definition.slug,
+  state: stateOf(definition.published, definition.draft),
+  published: definition.published ?? null,
+  updatedAt: definition.updatedAt.epochMilliseconds,
+});
+
 /**
- * One page of the tenant's definitions. The library lists up to 200 with no
- * search or sort of its own, so the list route searches, filters and sorts them
- * here (finding EX-200) and pages by offset.
+ * One page of the tenant's definitions. The block's `definitions.page`
+ * searches, filters by state, sorts and pages in the database, and `facets`
+ * counts the states under the same search.
  */
-export async function queryDefinitions(
+export function queryDefinitions(
   supabase: RpcClient,
   tenant: string,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<DefinitionListRow>> {
-  const all = await builderFor(supabase)
-    .definitions.list({ tenant, limit: 200 })
-    .orThrow();
-
-  const needle = query.q?.toLowerCase();
-
-  const rows = all
-    .map((definition): DefinitionListRow => ({
-      id: definition.id,
-      name: definition.name,
-      slug: definition.slug,
-      state: stateOf(definition.published, definition.draft),
-      published: definition.published ?? null,
-      updatedAt: definition.updatedAt.epochMilliseconds,
-    }))
-    .filter(
-      (row) =>
-        needle === undefined ||
-        `${row.name} ${row.slug}`.toLowerCase().includes(needle),
-    );
-
-  const states = query.facets["state"];
-
-  const counts = Object.fromEntries(
-    DEFINITION_STATES.map((state) => [
-      state,
-      rows.filter((row) => row.state === state).length,
-    ]),
-  );
-
-  const shown = rows
-    .filter((row) => states === undefined || states.includes(row.state))
-    .toSorted((a, b) =>
-      query.sort === "name"
-        ? a.name.localeCompare(b.name)
-        : b.updatedAt - a.updatedAt,
-    );
-
-  const offset = Math.max(0, Number(query.after ?? 0) || 0);
-  const end = offset + DEFINITIONS_PAGE;
-
-  return {
-    items: shown.slice(offset, end),
-    nextCursor: end < shown.length ? String(end) : null,
-    facetCounts: { state: counts },
-  };
+  return pageEntityRows({
+    pager: organizationPager(tenant, builderFor(supabase).definitions),
+    map: {
+      sorts: {
+        updated: { by: "updatedAt", direction: "desc" },
+        name: { by: "name", direction: "asc" },
+      },
+    },
+    query,
+    pageSize: DEFINITIONS_PAGE,
+    rowsOf: (items) => items.map(definitionRowOf),
+  });
 }
 
 const rowOf = (
@@ -135,9 +117,10 @@ const rowOf = (
 
 /**
  * One page of the tenant's runs, newest first. The library filters by one
- * status, a mode and a creation cursor; the search, several statuses, the
- * definition and the time window are applied here while scanning up to 500
- * runs. The cursor is the creation time of the last row.
+ * status, the definitions (`definitionId`, in the database), a mode and a
+ * creation cursor; the search, several statuses and the time window are applied
+ * here while scanning up to 500 runs. The cursor is the creation time of the
+ * last row.
  */
 export async function queryRuns(
   supabase: RpcClient,
@@ -197,6 +180,10 @@ export async function queryRuns(
       filter.status = status;
     }
 
+    if (definitions !== undefined) {
+      filter.definitionId = definitions;
+    }
+
     if (cursor !== undefined) {
       filter.cursor = cursor;
     }
@@ -214,9 +201,6 @@ export async function queryRuns(
 
       const matches =
         (statuses.length < 2 || statuses.includes(row.status)) &&
-        (definitions === undefined ||
-          (row.definitionId !== null &&
-            definitions.includes(row.definitionId))) &&
         (needle === undefined ||
           `${row.name} ${run.externalId}`.toLowerCase().includes(needle));
 
@@ -256,16 +240,43 @@ export interface RunDefinitionOption {
   readonly label: string;
 }
 
-/** The tenant's definitions by id, for run names and the definition facet. */
+/**
+ * The tenant's definitions by id, for run names and the definition facet: up to
+ * `NAME_PAGES` pages of `NAME_PAGE`, by name.
+ */
 export async function definitionNames(
   supabase: RpcClient,
   tenant: string,
 ): Promise<ReadonlyMap<string, string>> {
-  const all = await builderFor(supabase)
-    .definitions.list({ tenant, limit: 200 })
-    .orThrow();
+  const pager = organizationPager(tenant, builderFor(supabase).definitions);
+  const names = new Map<string, string>();
 
-  return new Map(all.map((definition) => [definition.id, definition.name]));
+  let after: readonly string[] | undefined;
+
+  for (let round = 0; round < NAME_PAGES; round += 1) {
+    const options: Mutable<PageOptions> = {
+      limit: NAME_PAGE,
+      sort: { by: "name", direction: "asc" },
+    };
+
+    if (after !== undefined) {
+      options.after = after;
+    }
+
+    const page = await pager.page(options).orThrow();
+
+    for (const definition of page.items) {
+      names.set(definition.id, definition.name);
+    }
+
+    if (!page.hasMore || page.nextCursor === null) {
+      break;
+    }
+
+    after = page.nextCursor;
+  }
+
+  return names;
 }
 
 /** The definitions overview's first page, for the server render. */

@@ -89,7 +89,11 @@ const rows = useWorkflows({ limit: 50 });
 
 `runs.get` and `requestCancel` take the row's id or the engine's run id.
 `list` returns the newest runs first; pass the last run's
-`createdAt` as `cursor` for the next page. `requestCancel` sets `cancel_requested_at`
+`createdAt` as `cursor` for the next page. `definitionId` keeps the runs of one
+or several builder definitions (`definitionId: "d1"` or `["d1", "d2"]`): the
+workflow editor stamps each run with its definition id in the `bsb.definition`
+attribute, and the database filters on it, so the filter works on any page of
+the history. `requestCancel` sets `cancel_requested_at`
 for the run's actor, a `workflows.manage` of its tenant or the service role.
 The engine does the cancelling. The Workflow SDK adapter calls
 `run.cancel()` for you.
@@ -328,19 +332,19 @@ Map `schedules`, `semaphores` or `startRequests` to `null` in `tables` to instal
 
 ## Functions
 
-| Function                                                                                      | Granted to                      | Does                                                                                   |
-| --------------------------------------------------------------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
-| `workflow_runs_list(tenant, definition, status, max, before, subject_type, subject_id, mode)` | `authenticated`, `service_role` | The runs the caller may read, newest first; `mode` defaults to `live`, null lists both |
-| `workflow_run_get(run)`                                                                       | `authenticated`, `service_role` | One run by its id or its engine's id                                                   |
-| `request_workflow_cancel(run)`                                                                | `authenticated`, `service_role` | Marks a run for cancellation                                                           |
-| `record_workflow_run(...)`                                                                    | `service_role`                  | Creates or updates a run by engine and external id                                     |
-| `purge_workflow_runs(older_than, batch)`                                                      | `service_role`                  | Deletes finished runs                                                                  |
-| `create_workflow_schedule(...)`                                                               | `authenticated`, `service_role` | Creates or replaces a schedule by tenant and name                                      |
-| `workflow_schedules_list(tenant)`                                                             | `authenticated`, `service_role` | The schedules the caller may read                                                      |
-| `pause_workflow_schedule(id, paused)`, `remove_workflow_schedule`                             | `authenticated`, `service_role` | Pauses, resumes or removes a schedule                                                  |
-| `claim_due_workflow_schedules`, `advance_workflow_schedule`                                   | `service_role`                  | The schedule tick                                                                      |
-| `acquire_workflow_semaphore`, `release_workflow_semaphore`                                    | `service_role`                  | Semaphores                                                                             |
-| `request_workflow_start`, `claim_workflow_start_requests`, `mark_*`                           | `service_role`                  | Admission control                                                                      |
+| Function                                                                                                      | Granted to                      | Does                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workflow_runs_list(tenant, definition, status, max, before, subject_type, subject_id, mode, definition_ids)` | `authenticated`, `service_role` | The runs the caller may read, newest first; `mode` defaults to `live`, null lists both; `definition_ids` keeps the runs of those builder definitions |
+| `workflow_run_get(run)`                                                                                       | `authenticated`, `service_role` | One run by its id or its engine's id                                                                                                                 |
+| `request_workflow_cancel(run)`                                                                                | `authenticated`, `service_role` | Marks a run for cancellation                                                                                                                         |
+| `record_workflow_run(...)`                                                                                    | `service_role`                  | Creates or updates a run by engine and external id                                                                                                   |
+| `purge_workflow_runs(older_than, batch)`                                                                      | `service_role`                  | Deletes finished runs                                                                                                                                |
+| `create_workflow_schedule(...)`                                                                               | `authenticated`, `service_role` | Creates or replaces a schedule by tenant and name                                                                                                    |
+| `workflow_schedules_list(tenant)`                                                                             | `authenticated`, `service_role` | The schedules the caller may read                                                                                                                    |
+| `pause_workflow_schedule(id, paused)`, `remove_workflow_schedule`                                             | `authenticated`, `service_role` | Pauses, resumes or removes a schedule                                                                                                                |
+| `claim_due_workflow_schedules`, `advance_workflow_schedule`                                                   | `service_role`                  | The schedule tick                                                                                                                                    |
+| `acquire_workflow_semaphore`, `release_workflow_semaphore`                                                    | `service_role`                  | Semaphores                                                                                                                                           |
+| `request_workflow_start`, `claim_workflow_start_requests`, `mark_*`                                           | `service_role`                  | Admission control                                                                                                                                    |
 
 ## Hooks
 

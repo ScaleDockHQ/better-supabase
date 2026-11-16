@@ -36,7 +36,7 @@ Conversations with contacts across the in-app widget and chat channels, on the m
 - Client: `inboxBlock` from `better-supabase/blocks/inbox`
 - Modes: `managed`, `custom`
 - Requires: `memberships`, `permissions`, `updated-at`, `teams`, `messaging`, `attachments`, `contacts`
-- Works with: `queue`, `notifications`, `reactions`, `data-lifecycle`, `automations`, `tasks`
+- Works with: `queue`, `notifications`, `reactions`, `data-lifecycle`, `automations`, `tasks`, `tags`
 - Entities: `inbox`
 - Tables: `inboxes`
 - Permission keys: `inbox.read`, `inbox.reply`, `inbox.assign`, `inbox.manage`

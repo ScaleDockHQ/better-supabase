@@ -2623,7 +2623,7 @@
   },
   {
     "code": "INBOX_INVALID",
-    "message": "inboxId, teamId and contactId are uuids"
+    "message": "channel and botMode name a channel and a bot mode"
   },
   {
     "code": "INBOX_KIND_INVALID",

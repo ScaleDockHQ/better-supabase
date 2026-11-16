@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:8239cf745bc877f42ac13551570556bec667bfbcdc7a633083ce4b8a99db575d
+-- @bsb-hash sha256:d4a38236d7232a7e52a3b915544fded1ac243a0a7b5fe4f255786cbecbc19e9f
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,6 +548,426 @@ as $$
 $$;
 revoke execute on function "better_supabase"."workflow_definitions_list"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
+
+-- The definitions the caller may read as a keyset page (ADR 1077), by name.
+-- filters is { state (published, draft or new; a value or a list), search
+-- (name and slug), sort (name, updatedAt, createdAt), direction, facet
+-- (state), count, limit, after, offset, paged, total, totalCap }. With
+-- tenant, the tenant's definitions and the system ones, as
+-- workflow_definitions_list returns them.
+create or replace function "better_supabase"."page_workflow_definitions"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_workflow_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state') then
+      raise exception 'facet is one of state' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then ((case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end))::text end) as v
+      from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt', 'createdAt') then
+    raise exception 'sort is one of name, updatedAt, createdAt' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WORKFLOW_LIST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'tenant', x."tenant_id",
+    'slug', x."slug",
+    'name', x."name",
+    'description', x."description",
+    'subjectTypes', to_jsonb(x."subject_types"),
+    'scope', x."scope",
+    'forkedFrom', x."forked_from",
+    'forkedFromVersion', x."forked_from_version",
+    'restricted', x."restricted",
+    'purpose', x."purpose",
+    'isDefault', x."is_default",
+    'createdBy', x."created_by",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ) || jsonb_build_object(
+      'published', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published'),
+      'draft', exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft'),
+      'upstreamVersion', (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published'),
+      'behind', coalesce((select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."forked_from" and y."status" = 'published') > x."forked_from_version", false),
+      'optedOut', case when page_workflow_definitions.tenant is null then null else exists (select 1 from "better_supabase"."workflow_opt_outs" oo where oo."tenant_id" = page_workflow_definitions.tenant and oo."definition_id" = x."id") end) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."workflow_definitions" x
+      where (page_workflow_definitions.tenant is null or x."tenant_id" = page_workflow_definitions.tenant or x."scope" = 'system')
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or (case when (select y."version" from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'published') is not null then 'published' when exists (select 1 from "better_supabase"."workflow_versions" y where y."definition_id" = x."id" and y."status" = 'draft') then 'draft' else 'new' end) = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."slug" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_workflow_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_workflow_definitions"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."workflow_definition_get"(definition uuid)
 returns jsonb
@@ -2262,6 +2682,16 @@ set search_path = ''
 as $$ select "better_supabase"."workflow_definitions_list"($1, $2) $$;
 revoke execute on function "api"."workflow_definitions_list"(uuid, text) from public, anon;
 grant execute on function "api"."workflow_definitions_list"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."page_workflow_definitions"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_workflow_definitions"($1, $2) $$;
+revoke execute on function "api"."page_workflow_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_workflow_definitions"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."workflow_definition_get"(definition uuid)
 returns jsonb
