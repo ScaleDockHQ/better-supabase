@@ -112,8 +112,8 @@ export function DomainRecordList({
   ];
 
   const labels = new Map([
-    ["verified", t("Verified")],
-    ["pending", t("Pending")],
+    ["true", t("Verified")],
+    ["false", t("Pending")],
     ["custom", t("Custom")],
     ["subdomain", t("Subdomain")],
   ]);
@@ -126,7 +126,7 @@ export function DomainRecordList({
       columns={columns}
       facets={[
         {
-          key: "state",
+          key: "verified",
           label: t("State"),
           valueLabel: (value) => labels.get(value) ?? value,
         },
@@ -136,7 +136,6 @@ export function DomainRecordList({
           valueLabel: (value) => labels.get(value) ?? value,
         },
       ]}
-      searchLabel={t("Search domains")}
       emptyIcon={<GlobeIcon />}
       emptyTitle={t("No domains found")}
       emptyDescription={

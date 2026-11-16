@@ -2,23 +2,62 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { loadAdminList } from "@/features/admin-lists/admin-list-load";
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+
 import { postgres, userClaims } from "@/features/developer/postgres";
+import { pageEntityRows } from "@/lib/block-entity-page";
+import { bsb } from "@/lib/supabase/server";
 import { bsbShell } from "@/lib/supabase/server-shell";
 
-import type { OptionItemRow } from "./option-sets-list";
+import type { OptionItemRow, OptionSetRow } from "./option-sets-list";
 
 import { OPTION_SETS_TAG } from "./option-sets-cache";
-import { optionSetList } from "./option-sets-list";
-import { optionSetSource } from "./option-sets-source";
+import { optionSetList, optionSetMap } from "./option-sets-list";
+
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
 /**
- * The first page of the organization's option sets with the count per state.
- * `bsbShell.cached()` reads with the user's token and RLS decides the rows.
+ * One page of the organization's option sets for a list query, searched,
+ * filtered and sorted by the block's `setPage` and counted by `setFacets`.
+ * Archived sets are hidden, as the block hides them by default.
+ */
+export function loadOptionSetPage(
+  db: Db,
+  organizationId: string,
+  query: RecordListUrlQuery,
+): Promise<RecordListPage<OptionSetRow>> {
+  return pageEntityRows({
+    pager: {
+      page: (options) => db.optionSets.setPage({ organizationId, ...options }),
+      facets: (options) =>
+        db.optionSets.setFacets({ organizationId, ...options }),
+    },
+    map: optionSetMap,
+    query,
+    pageSize: optionSetList.config.pageSize,
+    rowsOf: (sets) =>
+      sets.map((set): OptionSetRow => ({
+        id: set.id,
+        name: set.name,
+        subjectType: set.subjectType,
+        field: set.field,
+        isDefault: set.isDefault,
+        items: set.items.length,
+      })),
+  });
+}
+
+/**
+ * The first page of the organization's option sets with the count per record
+ * type and field. `bsb.cached()` reads with the user's token and RLS decides
+ * the rows.
  */
 export async function getOptionSets() {
   "use cache: private";
-  const { session } = await bsbShell.cached();
+  const { session, db } = await bsb.cached();
   cacheTag(OPTION_SETS_TAG);
   const tenant = tenantOf(session);
 
@@ -26,14 +65,7 @@ export async function getOptionSets() {
     return null;
   }
 
-  return loadAdminList({
-    session,
-    tenant,
-    list: optionSetList,
-    source: optionSetSource,
-    access: "user",
-    query: optionSetList.defaults,
-  });
+  return loadOptionSetPage(db, tenant, optionSetList.defaults);
 }
 
 interface SetRecord {

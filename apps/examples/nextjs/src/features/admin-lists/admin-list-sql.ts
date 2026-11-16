@@ -1,7 +1,8 @@
 import "server-only";
 import type { SqlClient } from "better-supabase/postgres";
 
-import type { AdminList, AdminListQuery } from "@/lib/admin-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
+import type { BlockList } from "@/lib/block-list-url";
 
 /** The page the list route answers with and the server renders first. */
 export interface AdminListPage<Row> {
@@ -48,7 +49,7 @@ interface Condition {
 function conditions<Raw, Out extends { readonly id: string }>(
   source: AdminListSource<Raw, Out>,
   tenant: string,
-  query: AdminListQuery,
+  query: RecordListUrlQuery,
   skipFacet?: string,
 ): Condition {
   const params: unknown[] = [tenant];
@@ -104,10 +105,10 @@ export async function runAdminList<
   Out extends { readonly id: string },
 >(
   sql: Pick<SqlClient, "queryRaw">,
-  list: AdminList,
+  list: BlockList,
   source: AdminListSource<Raw, Out>,
   tenant: string,
-  query: AdminListQuery,
+  query: RecordListUrlQuery,
 ): Promise<AdminListPage<Out>> {
   const { where, params } = conditions(source, tenant, query);
   const newest = query.sort === "newest";
@@ -133,41 +134,43 @@ export async function runAdminList<
      from ${source.from}
      where ${where}${cursorClause}
      order by ${source.timeColumn} ${direction}, ${source.idColumn} ${direction}
-     limit ${String(list.pageSize + 1)}`,
+     limit ${String(list.config.pageSize + 1)}`,
     pageParams,
   );
 
   // Each facet counts its own values with the other filters applied, so a chip
   // shows what choosing it would leave.
-  const facetQueries = list.facetKeys.map(async (key): Promise<FacetScan> => {
-    const expression = source.facetSql[key];
+  const facetQueries = list.config.facets.map(
+    async (key): Promise<FacetScan> => {
+      const expression = source.facetSql[key];
 
-    if (!expression) {
-      return { key, counts: [], capped: false };
-    }
+      if (!expression) {
+        return { key, counts: [], capped: false };
+      }
 
-    const own = conditions(source, tenant, query, key);
+      const own = conditions(source, tenant, query, key);
 
-    const rows = await sql.queryRaw<{ value: string; count: string }>(
-      `select value, count(*)::text as count
+      const rows = await sql.queryRaw<{ value: string; count: string }>(
+        `select value, count(*)::text as count
        from (select ${expression} as value from ${source.from}
              where ${own.where} limit ${String(FACET_SCAN_CAP + 1)}) scanned
        group by value`,
-      own.params,
-    );
+        own.params,
+      );
 
-    const scanned = rows.reduce((total, row) => total + Number(row.count), 0);
+      const scanned = rows.reduce((total, row) => total + Number(row.count), 0);
 
-    return { key, counts: rows, capped: scanned > FACET_SCAN_CAP };
-  });
+      return { key, counts: rows, capped: scanned > FACET_SCAN_CAP };
+    },
+  );
 
   const [rows, facets] = await Promise.all([
     pageQuery,
     Promise.all(facetQueries),
   ]);
 
-  const more = rows.length > list.pageSize;
-  const page = more ? rows.slice(0, list.pageSize) : rows;
+  const more = rows.length > list.config.pageSize;
+  const page = more ? rows.slice(0, list.config.pageSize) : rows;
   const last = page.at(-1);
 
   return {

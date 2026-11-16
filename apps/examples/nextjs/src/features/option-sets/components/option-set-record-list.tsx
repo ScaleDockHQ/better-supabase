@@ -38,16 +38,6 @@ function NameCell({ row }: SetCell) {
   );
 }
 
-function StateCell({ row }: SetCell) {
-  const t = useExtracted("optionSets");
-
-  return row.original.archived ? (
-    <Badge variant="secondary">{t("Archived")}</Badge>
-  ) : (
-    <Badge variant="success-light">{t("Active")}</Badge>
-  );
-}
-
 /** The option sets overview on the list kit. */
 export function OptionSetRecordList({
   initial,
@@ -63,7 +53,6 @@ export function OptionSetRecordList({
     { accessorKey: "subjectType", header: t("Record type"), size: 160 },
     { accessorKey: "field", header: t("Field"), size: 140 },
     { accessorKey: "items", header: t("Options"), size: 100 },
-    { accessorKey: "archived", header: t("State"), size: 120, cell: StateCell },
   ];
 
   return (
@@ -74,11 +63,11 @@ export function OptionSetRecordList({
       columns={columns}
       facets={[
         {
-          key: "state",
-          label: t("State"),
-          valueLabel: (value) =>
-            value === "archived" ? t("Archived") : t("Active"),
+          key: "subjectType",
+          label: t("Record type"),
+          valueLabel: (value) => value,
         },
+        { key: "field", label: t("Field"), valueLabel: (value) => value },
       ]}
       searchLabel={t("Search option sets")}
       emptyIcon={<ListOrderedIcon />}

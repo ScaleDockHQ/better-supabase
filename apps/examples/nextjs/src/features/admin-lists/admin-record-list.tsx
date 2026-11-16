@@ -10,11 +10,10 @@ import type {
   RecordListPage,
   RecordListSort,
 } from "@/components/record-list/record-list-types";
-import type { AdminList } from "@/lib/admin-list";
+import type { BlockList } from "@/lib/block-list-url";
 
 import { RecordListView } from "@/components/record-list/record-list-view";
-
-import { useAdminListState } from "./use-admin-list-state";
+import { useBlockListState } from "@/components/record-list/use-block-list-state";
 
 /**
  * An admin overview on the list kit: the URL holds the search, the facets, the
@@ -33,19 +32,19 @@ export function AdminRecordList<Row extends RowData & { readonly id: string }>({
   emptyDescription,
   emptyAction,
 }: {
-  list: AdminList;
+  list: BlockList;
   endpoint: string;
   initial: RecordListPage<Row>;
   columns: RecordListColumns<Row>;
   facets: readonly RecordListFacet[];
-  searchLabel: string;
+  searchLabel?: string;
   emptyIcon: React.ReactNode;
   emptyTitle: string;
   emptyDescription: string;
   emptyAction?: React.ReactNode;
 }) {
   const t = useExtracted("adminLists");
-  const state = useAdminListState(list);
+  const state = useBlockListState(list);
 
   const sorts: readonly RecordListSort[] = [
     { value: "newest", label: t("Newest first") },
@@ -60,7 +59,7 @@ export function AdminRecordList<Row extends RowData & { readonly id: string }>({
       columns={columns}
       facets={facets}
       sorts={sorts}
-      searchLabel={searchLabel}
+      {...(searchLabel === undefined ? {} : { searchLabel })}
       emptyIcon={emptyIcon}
       emptyTitle={emptyTitle}
       emptyDescription={emptyDescription}

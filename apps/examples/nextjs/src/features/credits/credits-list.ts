@@ -1,8 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/billing/credits?q=&kind=&sort=&after=`. */
-export const creditList = defineAdminList({
-  facets: { kind: ["credit.grant", "credit.purchase", "credit.usage"] },
+export const creditList = defineBlockList({
+  facets: ["kind"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

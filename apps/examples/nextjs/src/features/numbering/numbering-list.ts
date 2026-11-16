@@ -1,8 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/numbering?q=entity=&sort=&after=`. */
-export const numberingList = defineAdminList({
-  facets: { entity: [] },
+export const numberingList = defineBlockList({
+  facets: ["entity"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

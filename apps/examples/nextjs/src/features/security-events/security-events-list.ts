@@ -1,11 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/security/events?q=status=&delivery=&sort=&after=`. */
-export const securityStreamList = defineAdminList({
-  facets: {
-    status: ["enabled", "paused", "disabled"],
-    delivery: ["push", "poll"],
-  },
+export const securityStreamList = defineBlockList({
+  facets: ["status", "delivery"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

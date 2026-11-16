@@ -11,10 +11,6 @@ export const GET = bsb.route(
   async (request, { session, tenant }) => {
     const query = incomingWebhookList.parse(request.nextUrl.searchParams);
 
-    if (!query.ok) {
-      return Response.json({ issues: ["invalid list state"] }, { status: 400 });
-    }
-
     return Response.json(
       await loadAdminList({
         session,

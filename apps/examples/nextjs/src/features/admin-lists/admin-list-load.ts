@@ -1,7 +1,8 @@
 import "server-only";
 import type { AuthSession } from "better-supabase/next";
 
-import type { AdminList, AdminListQuery } from "@/lib/admin-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
+import type { BlockList } from "@/lib/block-list-url";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
 
@@ -20,10 +21,10 @@ export async function loadAdminList<
 >(options: {
   readonly session: AuthSession;
   readonly tenant: string;
-  readonly list: AdminList;
+  readonly list: BlockList;
   readonly source: AdminListSource<Raw, Out>;
   readonly access: "user" | "admin";
-  readonly query: AdminListQuery;
+  readonly query: RecordListUrlQuery;
 }) {
   const connection = postgres();
 
