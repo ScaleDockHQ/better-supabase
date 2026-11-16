@@ -32,13 +32,16 @@ export async function loadServicePrincipals(): Promise<
     return null;
   }
 
-  const listed = await db.serviceAccounts.list(tenant, { limit: 100 });
+  const listed = await db.serviceAccounts.principalPage({
+    organizationId: tenant,
+    limit: 100,
+  });
 
   if (!listed.ok) {
     throw new Error(listed.error.message);
   }
 
-  return listed.data.map((principal) => ({
+  return listed.data.items.map((principal) => ({
     id: principal.id,
     name: principal.name,
     role: principal.role,
