@@ -1,8 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/search?q=type=&sort=&after=`. */
-export const searchDocumentList = defineAdminList({
-  facets: { type: [] },
+export const searchDocumentList = defineBlockList({
+  facets: ["type"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

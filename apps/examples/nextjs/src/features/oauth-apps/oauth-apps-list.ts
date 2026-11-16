@@ -1,11 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/oauth-apps?q=type=&registration=&sort=&after=`. */
-export const oauthAppList = defineAdminList({
-  facets: {
-    type: ["public", "confidential"],
-    registration: ["dynamic", "manual"],
-  },
+export const oauthAppList = defineBlockList({
+  facets: ["type", "registration"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

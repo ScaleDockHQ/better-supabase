@@ -1,8 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/flags?q=state=&sort=&after=`. */
-export const flagList = defineAdminList({
-  facets: { state: ["on", "off", "archived"] },
+export const flagList = defineBlockList({
+  facets: ["state"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,

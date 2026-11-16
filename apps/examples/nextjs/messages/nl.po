@@ -11066,11 +11066,6 @@ msgid "Subdomain"
 msgstr "Subdomein"
 
 #: src/features/domains/components/domain-record-list.tsx
-msgctxt "domains.cAiIGl"
-msgid "Search domains"
-msgstr "Domeinen zoeken"
-
-#: src/features/domains/components/domain-record-list.tsx
 msgctxt "domains.PqbjSZ"
 msgid "No domains found"
 msgstr "Geen domeinen gevonden"
@@ -20860,13 +20855,11 @@ msgid "{type}, field {field}"
 msgstr "{type}, veld {field}"
 
 #: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
 msgctxt "optionSets.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
 
 #: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
 msgctxt "optionSets.3a5wL8"
 msgid "Active"
 msgstr "Actief"
@@ -20882,7 +20875,6 @@ msgid "Level"
 msgstr "Niveau"
 
 #: src/features/option-sets/components/option-set-detail.tsx
-#: src/features/option-sets/components/option-set-record-list.tsx
 msgctxt "optionSets.ku-mDU"
 msgid "State"
 msgstr "Status"

@@ -1,12 +1,8 @@
-import { defineAdminList } from "@/lib/admin-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** `/settings/jobs/runs?q=&status=&queue=&sort=&after=`. */
-export const jobList = defineAdminList({
-  facets: {
-    status: ["queued", "scheduled", "running", "retrying", "succeeded", "dead"],
-    // The queue names are the data's, so any value passes.
-    queue: [],
-  },
+export const jobList = defineBlockList({
+  facets: ["status", "queue"],
   sorts: ["newest", "oldest"],
   defaultSort: "newest",
   pageSize: 25,
