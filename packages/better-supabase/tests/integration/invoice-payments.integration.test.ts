@@ -230,6 +230,9 @@ describe.skipIf(!live)("invoice payments", () => {
       const refused = await pay();
       expect(hint(refused)).toBe("INVOICE_FORBIDDEN");
       expect(refused.ok ? undefined : refused.error.kind).toBe("forbidden");
+      expect(
+        hint(await invoices.writeOff({ invoiceId: invoice.id, reason: "x" })),
+      ).toBe("INVOICE_FORBIDDEN");
 
       await s.as(outsider);
       expect(hint(await pay())).toBe("INVOICE_NOT_FOUND");

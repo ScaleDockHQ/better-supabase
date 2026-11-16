@@ -217,14 +217,34 @@ export function invoiceFunctions(
     verb: string,
     lock = true,
     also = "",
-  ): string =>
-    `select * into ${target} from ${t("invoices")} x where x.${i("id")} = ${id}${lock ? " for update" : ""};
-  if ${target}.${i("id")} is null or not ${also === "" ? can(target, permission) : `(${can(target, permission)}${also})`} then
+  ): string => {
+    // `is not true` fails closed when auth.role() is null (no token).
+    const check = `if ${target}.${i("id")} is null or (${can(target, permission)}${also}) is not true then
     if ${target}.${i("id")} is not null and ${can(target, n.read)} then
       ${fail("INVOICE_FORBIDDEN", `you may not ${verb} this invoice`, "42501")}
     end if;
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
   end if;`;
+
+    const read = (suffix: string): string =>
+      `select * into ${target} from ${t("invoices")} x where x.${i("id")} = ${id}${suffix};`;
+
+    // Checks before the lock, so a caller without access locks no row; the
+    // settle path depends on the balance, so it checks again under the lock.
+    return lock
+      ? `${read("")}
+  ${check}
+  ${read(" for update")}
+  ${
+    also === ""
+      ? `if not found then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
+  end if;`
+      : check
+  }`
+      : `${read("")}
+  ${check}`;
+  };
 
   const st = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("invoices", "status", value, labels, negate);
@@ -245,7 +265,7 @@ export function invoiceFunctions(
   const settleKey = (alias: string): string =>
     n.settle === n.payment
       ? ""
-      : ` or (${can(alias, n.settle)} and (record_invoice_payment.amount = ${balance(alias)} or exists (
+      : ` or (${can(alias, n.settle)} and record_invoice_payment.amount > 0 and (record_invoice_payment.amount = ${balance(alias)} or exists (
       select 1 from ${ledger.transactions} y
       where y.${ledger.tx("tenant")} = ${alias}.${i("tenant")} and y.${ledger.tx("key")} = ${paymentKey("nullif(trim(record_invoice_payment.reference), '')")}
     )))`;
@@ -860,7 +880,10 @@ ${updateInvoiceSql()}${lineItemsSql(
     {
       setter: "set_invoice_lines",
       guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
-    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
+    if exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.read)}) then
+      ${fail("INVOICE_FORBIDDEN", "you may not edit this invoice", "42501")}
+    end if;
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
   end if;`,
       ...lineMatrix(ctx, t, i, has),
     },
@@ -1240,9 +1263,10 @@ declare
   v_row ${t("invoices")};
 begin
   ${transitionActorSql("write_off_invoice.actor", "INVOICE_ACTOR_INVALID")}
+  ${load("v_row", "write_off_invoice.invoice", n.writeOff, "write off", false)}
   ${transitionReasonSql("write_off_invoice.reason")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${writeOffReason ? `${i("writeOffReason")} = nullif(trim(write_off_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
-  where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.writeOff)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
+  where x.${i("id")} = write_off_invoice.invoice and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}

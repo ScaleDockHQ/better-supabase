@@ -221,7 +221,7 @@ blocks: {
 
 The functions check the keys themselves, so a member without `invoice.send` can't issue through the API either.
 
-`settle` is a second key that may pay an invoice in full but not in part, for a "mark paid" action next to a finer "record payment" one. `record_invoice_payment` accepts the caller with `payment`, or with `settle` when the amount equals the open balance or the reference was already recorded, so `markPaid` and its retries work with either key:
+`settle` is a second key that may pay an invoice in full but not in part, for a "mark paid" action next to a finer "record payment" one. `record_invoice_payment` accepts the caller with `payment`, or with `settle` when the amount is positive and equals the open balance, or the reference was already recorded, so `markPaid` and its retries work with either key:
 
 ```ts title="better-supabase.config.ts"
 permissions: {
@@ -736,7 +736,7 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 | Hint                                 | Cause                                                                                                 |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`                  | the caller can read the invoice but lacks the action's key, such as `payment` or `issue`              |
+| `INVOICE_FORBIDDEN`                  | the caller can read the invoice but lacks the action's key, such as `payment`, `issue` or `writeOff`  |
 | `NUMBER_FIXED_FORBIDDEN`             | a fixed number outside an import run                                                                  |
 | `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
 | `INVOICE_NOT_FOUND`                  | no invoice the caller can read                                                                        |

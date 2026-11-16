@@ -16,7 +16,8 @@ own code and called the function with a broader key.
 
 `permissions.settle` names a second key for `record_invoice_payment`. The
 function accepts a caller with `payment` as before, or with `settle` when the
-amount equals the invoice's open balance or the reference was already
+amount is positive and equals the invoice's open balance (so it never books a
+refund) or the reference was already
 recorded, so `markPaid` and its retries work with either key. Without
 `settle` the key defaults to `payment` and the function renders the same SQL
 as before. The check lives in `src/sql/modules/invoices-functions.ts`

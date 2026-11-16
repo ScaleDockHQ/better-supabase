@@ -22,6 +22,10 @@ describe("record_invoice_payment", () => {
 
     expect(body).toContain("'invoice.record_payment'");
     expect(body).not.toContain("record_invoice_payment.amount = (");
+    expect(body).toContain(") is not true then");
+    expect(body.indexOf("for update")).toBeGreaterThan(
+      body.indexOf("INVOICE_FORBIDDEN"),
+    );
   });
 
   it("lets the settle key pay the whole balance or replay a recorded payment", () => {
@@ -32,6 +36,7 @@ describe("record_invoice_payment", () => {
 
     expect(body).toContain("'invoice.mark_paid'");
     expect(body).toContain("record_invoice_payment.amount = (");
+    expect(body).toContain("record_invoice_payment.amount > 0 and");
     expect(body).toContain("INVOICE_FORBIDDEN");
   });
 });
