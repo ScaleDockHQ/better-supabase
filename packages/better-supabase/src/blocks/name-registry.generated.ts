@@ -71,7 +71,7 @@ export interface BlockNameRegistry {
       readonly "actions": "id" | "tenant" | "activity" | "task" | "createdAt";
     };
     readonly functions: "activities_of" | "amend_activity" | "archive_activity" | "complete_activity" | "log_activity" | "mark_activity_error" | "next_activity" | "open_activities" | "purge_activity" | "restore_activity" | "update_activity";
-    readonly actions: "read" | "write" | "manage" | "readRestricted";
+    readonly actions: "read" | "write" | "manage" | "readRestricted" | "purge";
     readonly hooks: "before_activity_log" | "after_activity_log";
     readonly entities: {
       readonly "activity": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at" | "archived_at" | "audience" | "restricted_roles" | "category" | "locked_at" | "amends_id" | "goal_id" | "marked_error_at" | "marked_error_by" | "marked_error_reason";
@@ -124,7 +124,7 @@ export interface BlockNameRegistry {
       readonly "skills": "id" | "agent" | "provider" | "reference" | "name" | "files" | "contentHash" | "latestVersion" | "providerRefs" | "createdAt";
     };
     readonly functions: "archive_agent" | "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "page_agents" | "publish_agent" | "purge_agent" | "rate_agent" | "record_skill_sync" | "restore_agent" | "save_agent" | "set_agent_skills";
-    readonly actions: "read" | "create" | "publish" | "moderate";
+    readonly actions: "read" | "create" | "publish" | "moderate" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at" | "archived_at";
@@ -240,7 +240,7 @@ export interface BlockNameRegistry {
       readonly "dismissals": "announcement" | "user" | "dismissedAt";
     };
     readonly functions: "active_announcements" | "archive_announcement" | "broadcast_announcement" | "dismiss_announcement" | "get_announcement" | "list_announcements" | "page_announcements" | "purge_announcement" | "restore_announcement" | "save_announcement";
-    readonly actions: "manage";
+    readonly actions: "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "announcement": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "starts_at" | "ends_at" | "dismissible" | "archived_at" | "created_by" | "created_at" | "updated_at";
@@ -575,7 +575,7 @@ export interface BlockNameRegistry {
       readonly "alerts": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "severity" | "source" | "rule" | "orderIds" | "message" | "details" | "fingerprint" | "status" | "decidedBy" | "decidedAt" | "decisionReason" | "createdAt" | "updatedAt";
     };
     readonly functions: "archive_care_rule" | "care_decision_context" | "decide_care_alert" | "delete_care_rule" | "evaluate_care_rules" | "list_care_alerts" | "list_care_rules" | "purge_care_rule" | "record_care_alerts" | "restore_care_rule" | "save_care_rule" | "sync_care_alerts";
-    readonly actions: "read" | "write" | "manage";
+    readonly actions: "read" | "write" | "manage" | "purge";
     readonly hooks: "before_care_alert_decide" | "after_care_alert_decide";
     readonly entities: {
       readonly "care_alert": "id" | "tenant_id" | "subject_type" | "subject_id" | "kind" | "severity" | "source" | "rule_id" | "order_ids" | "message" | "details" | "fingerprint" | "status" | "decided_by" | "decided_at" | "decision_reason" | "created_at" | "updated_at";
@@ -732,7 +732,7 @@ export interface BlockNameRegistry {
       readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "expiresAt" | "revokedAt";
     };
     readonly functions: "archive_course" | "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "purge_course" | "restore_course" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
-    readonly actions: "read" | "enroll" | "manage";
+    readonly actions: "read" | "enroll" | "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "course": "id" | "tenant_id" | "key" | "title" | "summary" | "status" | "issues_certificate" | "valid_for_months" | "created_by" | "created_at" | "updated_at";
@@ -767,7 +767,7 @@ export interface BlockNameRegistry {
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson" | "valueUrl" | "valueEmail" | "key" | "label" | "type" | "rank" | "createdAt" | "updatedAt";
     };
     readonly functions: "archive_field_definition" | "delete_field_definition" | "delete_field_value" | "get_field_definition" | "install_field_pack" | "list_field_definitions" | "page_field_definitions" | "purge_field_definition" | "rank_field_definition" | "read_field_values" | "restore_field_definition" | "save_field_definition" | "set_field_value" | "update_field_value";
-    readonly actions: "manage" | "read" | "sensitive";
+    readonly actions: "manage" | "read" | "sensitive" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "field_definition": "id" | "tenant_id" | "entity" | "key" | "label" | "type" | "required" | "sensitive" | "permission" | "rank" | "encrypted" | "pack" | "pack_version" | "archived_at";
@@ -953,7 +953,7 @@ export interface BlockNameRegistry {
       readonly "contracts": "id" | "tenant" | "employee" | "startsOn" | "endsOn" | "hoursPerWeek" | "salary" | "currency" | "salaryPeriod" | "note" | "createdBy" | "createdAt";
     };
     readonly functions: "add_employee_contract" | "create_employee" | "employee_contracts" | "employee_private_details" | "get_employee" | "offboard_employee" | "org_chart" | "page_employees" | "purge_employee" | "reports_of" | "save_employee_private_details" | "update_employees";
-    readonly actions: "read" | "write" | "readSensitive" | "create" | "contractsRead" | "contractsWrite" | "privateDetailsWrite";
+    readonly actions: "read" | "write" | "readSensitive" | "create" | "contractsRead" | "contractsWrite" | "privateDetailsWrite" | "purge";
     readonly hooks: "before_employee_create" | "after_employee_create" | "before_employee_update" | "after_employee_update" | "before_employee_offboard" | "after_employee_offboard" | "before_employee_purge" | "after_employee_purge";
     readonly entities: {
       readonly "employee": "id" | "tenant_id" | "user_id" | "name" | "email" | "job_title" | "team_id" | "manager_id" | "employment_type" | "status" | "start_date" | "end_date" | "offboard_reason" | "origin_type" | "origin_id" | "created_by" | "created_at" | "updated_at" | "first_name" | "last_name";
@@ -979,7 +979,7 @@ export interface BlockNameRegistry {
       readonly "steps": "enrollment" | "tenant" | "step" | "assigneeRole" | "assigneeUser" | "dueAt" | "completedBy" | "completedAt";
     };
     readonly functions: "archive_enrollment_program" | "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "purge_enrollment_program" | "reset_enrollment_step" | "restore_enrollment_program" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
-    readonly actions: "read" | "enroll" | "manage";
+    readonly actions: "read" | "enroll" | "manage" | "purge";
     readonly hooks: "before_enrollment_create" | "after_enrollment_create" | "before_enrollment_cancel" | "after_enrollment_cancel";
     readonly entities: {
       readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "archived_at" | "version" | "created_by" | "created_at" | "updated_at";
@@ -1066,7 +1066,7 @@ export interface BlockNameRegistry {
       readonly "answerKeys": "version" | "tenant" | "answers" | "createdAt";
     };
     readonly functions: "archive_form_submission" | "create_form" | "delete_form_submission" | "form_answer_matches" | "form_answer_merge" | "form_answer_split" | "form_condition_holds" | "form_condition_schema" | "form_correct_fits" | "form_field_schema" | "form_nps" | "form_resolve" | "form_schema" | "form_score" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "page_form_submissions" | "publish_form_version" | "purge_form_submission" | "restore_form_submission" | "review_form_submission" | "submit_form" | "update_form";
-    readonly actions: "read" | "manage" | "submit" | "review";
+    readonly actions: "read" | "manage" | "submit" | "review" | "purge";
     readonly hooks: "before_form_publish" | "after_form_publish" | "before_form_submission" | "after_form_submission" | "before_public_form_submission";
     readonly entities: {
       readonly "form": "id" | "tenant_id" | "key" | "title" | "description" | "status" | "current_version_id" | "created_by" | "created_at" | "updated_at";
@@ -1082,7 +1082,7 @@ export interface BlockNameRegistry {
       readonly "claimLines": "id" | "tenant" | "claim" | "award" | "product" | "units" | "amount" | "status" | "rejectionCode";
     };
     readonly functions: "approve_funding_deliveries" | "archive_funding_claim" | "build_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "purge_funding_claim" | "record_funding_claim_response" | "register_funding_delivery" | "restore_funding_claim" | "save_funding_award" | "save_funding_product";
-    readonly actions: "read" | "write" | "register" | "approve" | "claim" | "manage";
+    readonly actions: "read" | "write" | "register" | "approve" | "claim" | "manage" | "purge";
     readonly hooks: "before_funding_award_save" | "after_funding_award_save" | "before_funding_delivery_register" | "after_funding_delivery_register" | "before_funding_claim_build" | "after_funding_claim_build";
     readonly entities: {
       readonly "funding_product": "id" | "tenant_id" | "code" | "title" | "unit" | "rate" | "currency" | "valid_from" | "valid_until" | "created_at" | "updated_at";
@@ -1184,7 +1184,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "admin" | "target" | "reason" | "tenant" | "readOnly" | "metadata" | "requestedAt" | "expiresAt" | "approvedBy" | "approvedAt" | "session";
     };
     readonly functions: "active_support_session" | "apply_support_approval" | "approve_support_request" | "approved_support_request" | "end_support_session" | "expire_support_sessions" | "get_support_session" | "list_support_sessions" | "page_support_sessions" | "request_support_session" | "start_support_session" | "support_request" | "support_target_claims";
-    readonly actions: "start" | "read" | "revoke";
+    readonly actions: "start" | "read" | "revoke" | "approve";
     readonly hooks: "before_support_start" | "after_support_start" | "after_support_end";
     readonly entities: {};
     readonly primary: never;
@@ -1486,7 +1486,7 @@ export interface BlockNameRegistry {
       readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
     readonly functions: "archive_maintenance_plan" | "create_maintenance_meter" | "create_maintenance_plan" | "generate_maintenance_work_orders" | "get_calibration" | "get_maintenance_meter" | "get_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "page_maintenance_meters" | "purge_maintenance_plan" | "record_calibration" | "record_meter_reading" | "restore_maintenance_plan" | "update_maintenance_plan";
-    readonly actions: "read" | "record" | "manage";
+    readonly actions: "read" | "record" | "manage" | "purge";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
       readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "rrule" | "dtstart" | "tz" | "required_qualifications" | "archived_at" | "created_by" | "created_at" | "updated_at";
@@ -1548,7 +1548,7 @@ export interface BlockNameRegistry {
       readonly "actions": "task" | "tenant" | "meeting" | "agendaItem" | "decision" | "createdAt";
     };
     readonly functions: "add_meeting_action_item" | "archive_meeting" | "cancel_meeting" | "create_meeting" | "decide_meeting_decision" | "delete_meeting_agenda_item" | "get_meeting" | "hold_meeting" | "list_meetings" | "meeting_role" | "meeting_set_attendees" | "purge_meeting" | "record_meeting_decision" | "remove_meeting_attendee" | "restore_meeting" | "save_meeting_agenda_item" | "set_meeting_attendee" | "start_meeting" | "update_meeting";
-    readonly actions: "read" | "write" | "manage";
+    readonly actions: "read" | "write" | "manage" | "purge";
     readonly hooks: "before_meeting_create" | "after_meeting_create" | "before_meeting_hold" | "after_meeting_hold" | "after_meeting_decision";
     readonly entities: {
       readonly "meeting": "id" | "tenant_id" | "kind" | "title" | "location" | "starts_at" | "ends_at" | "status" | "started_at" | "held_at" | "archived_at" | "summary" | "created_by" | "created_at" | "updated_at";
@@ -1850,7 +1850,7 @@ export interface BlockNameRegistry {
       readonly "posts": "id" | "tenant" | "board" | "author" | "title" | "body" | "status" | "moderation" | "pinnedAt" | "lockedAt" | "archivedAt" | "mergedInto" | "replyCount" | "lastActivityAt" | "createdAt" | "updatedAt";
     };
     readonly functions: "archive_post" | "create_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "page_post_boards" | "page_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "purge_post" | "restore_post" | "save_post_board" | "set_post_state" | "update_post" | "vote_on_post";
-    readonly actions: "read" | "write" | "moderate" | "manage";
+    readonly actions: "read" | "write" | "moderate" | "manage" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "post_board": "id" | "tenant_id" | "key" | "name" | "description" | "kind" | "archived_at" | "created_by" | "created_at" | "updated_at";
@@ -1942,7 +1942,7 @@ export interface BlockNameRegistry {
       readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
     readonly functions: "clone_quote" | "create_quote" | "create_quote_variant" | "decide_quote" | "expire_quotes" | "get_quote" | "import_quote" | "list_quote_variants" | "list_quotes_for_subject" | "page_quotes" | "portal_quote" | "public_quote" | "quote_totals_by_billing_party" | "quote_updated_at" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "select_quote_variant" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
-    readonly actions: "read" | "write" | "manage";
+    readonly actions: "read" | "write" | "manage" | "send" | "accept" | "reject" | "requestChanges" | "withdraw";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept" | "before_quote_clone" | "after_quote_clone";
     readonly entities: {
       readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decider_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_amount" | "deposit_required" | "deposit_due" | "unpublished_changes" | "buyer" | "variant_of" | "variant_label" | "is_selected" | "template_id" | "source_template_id" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
@@ -2133,7 +2133,7 @@ export interface BlockNameRegistry {
       readonly "scores": "id" | "tenant" | "model" | "modelVersion" | "subjectType" | "subjectId" | "score" | "band" | "breakdown" | "current" | "computedAt";
     };
     readonly functions: "archive_score_model" | "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "page_score_models" | "purge_score_model" | "restore_score_model" | "save_score_model" | "score_history" | "subject_scores" | "top_scores";
-    readonly actions: "read" | "manage" | "compute";
+    readonly actions: "read" | "manage" | "compute" | "purge";
     readonly hooks: never;
     readonly entities: {
       readonly "score_model": "id" | "tenant_id" | "key" | "name" | "description" | "subject_type" | "rules" | "metrics" | "bands" | "enabled" | "version" | "created_by" | "created_at" | "updated_at" | "archived_at";
@@ -2422,7 +2422,7 @@ export interface BlockNameRegistry {
       readonly "members": "team" | "user" | "employee" | "tenant" | "createdAt";
     };
     readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "get_team" | "list_teams" | "purge_team" | "remove_team_member" | "team_ids_of" | "update_team";
-    readonly actions: "manage" | "read" | "create" | "update" | "delete" | "members";
+    readonly actions: "manage" | "read" | "create" | "update" | "purge" | "members";
     readonly hooks: "before_team_create" | "after_team_create";
     readonly entities: {
       readonly "team": "id" | "tenant_id" | "name" | "slug" | "description" | "status" | "created_by" | "created_at" | "updated_at";
@@ -2472,7 +2472,7 @@ export interface BlockNameRegistry {
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
     readonly functions: "approve_timesheet" | "archive_time_entry" | "get_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "page_time_entries" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
-    readonly actions: "read" | "track" | "approve" | "manage";
+    readonly actions: "read" | "track" | "approve" | "manage" | "purge";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {
       readonly "time_entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "archived_at" | "seconds" | "running_since" | "employee_id";
