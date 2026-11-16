@@ -571,6 +571,24 @@ export const LEDGER: BlockSqlDefinition = {
   before: "inventory",
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "ledger_entries gets effective_at, copied from the transaction, so entries posted before the column keep their transaction's time.",
+      sql: (ctx) => {
+        const entries = ctx.table("entries");
+        const at = ctx.col("entries", "effectiveAt");
+        const tat = ctx.col("transactions", "effectiveAt");
+
+        return `alter table ${entries} add column if not exists ${at} timestamptz not null default now();
+update ${entries} e set ${at} = t.${tat}
+from ${ctx.table("transactions")} t
+where t.${ctx.col("transactions", "id")} = e.${ctx.col("entries", "transaction")} and e.${at} is distinct from t.${tat};`;
+      },
+    },
+  ],
   names: NAMES,
   contract,
   build,

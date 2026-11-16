@@ -1,5 +1,5 @@
 -- better-supabase module: ledger
--- @bsb-block ledger@1 managed
+-- @bsb-block ledger@2 managed
 -- @bsb-hash sha256:6d8534e6085102b24e1608b35c979fd38e19512502bd0052451902097b566766
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
