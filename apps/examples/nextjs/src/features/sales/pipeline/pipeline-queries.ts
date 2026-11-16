@@ -10,8 +10,9 @@ import { CRM_TAG } from "@/features/crm/crm-cache";
 import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
-import { dealsFrom } from "../list-reads/deals-reads";
-import { pipelinesFrom } from "../list-reads/pipelines-reads";
+import type { DealPipeline } from "../list-reads/deals-reads";
+
+import { dealPipelineOf, dealsFrom } from "../list-reads/deals-reads";
 import { SALES_TAG } from "../sales-cache";
 
 export interface PipelineStageRow {
@@ -63,6 +64,26 @@ export async function loadDeals(): Promise<DealsData | undefined | null> {
   }
 
   return dealsFrom(db, tenant).orThrow();
+}
+
+/**
+ * The default deal pipeline with its stages, or `null` without an organization.
+ * `undefined` means the pipeline does not exist yet. The deals themselves are
+ * paged by the deals block.
+ */
+export async function loadDealPipeline(): Promise<
+  DealPipeline | undefined | null
+> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(SALES_TAG, CRM_TAG);
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  return dealPipelineOf(db, tenant).orThrow();
 }
 
 export interface DealDetail {
@@ -163,19 +184,6 @@ export interface PipelineRow {
   readonly stages: number;
 }
 
-export async function loadPipelines(): Promise<readonly PipelineRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  return pipelinesFrom(db, tenant).orThrow();
-}
-
 export interface PipelineDetail {
   readonly id: string;
   readonly name: string;
@@ -260,35 +268,6 @@ export interface ForecastRow {
   readonly target: Money | null;
   readonly attainment: number | null;
   readonly takenAt: string;
-}
-
-export async function loadForecasts(): Promise<readonly ForecastRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  const snapshots = await readAllPages((page) =>
-    db.forecasts.page({ organizationId: tenant, ...page }),
-  );
-
-  return snapshots.map((snapshot) => ({
-    id: snapshot.id,
-    since: snapshot.since.toString(),
-    until: snapshot.until.toString(),
-    currency: snapshot.currency,
-    dealCount: snapshot.dealCount,
-    commit: snapshot.totals.commit,
-    bestCase: snapshot.totals.bestCase,
-    won: snapshot.totals.won,
-    target: snapshot.target ?? null,
-    attainment: snapshot.totals.attainment ?? null,
-    takenAt: snapshot.takenAt.toString(),
-  }));
 }
 
 export interface ForecastDealRow {

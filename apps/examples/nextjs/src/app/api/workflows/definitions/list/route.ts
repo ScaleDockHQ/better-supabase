@@ -11,10 +11,6 @@ export const GET = bsb.route(
   async (request, { tenant, supabase }) => {
     const query = definitionList.parse(request.nextUrl.searchParams);
 
-    if (!query.ok) {
-      return Response.json({ issues: [] }, { status: 400 });
-    }
-
     return Response.json(await queryDefinitions(supabase, tenant, query.value));
   },
   { requireTenant: true, permission: "workflow_editor.read" },

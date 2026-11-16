@@ -1,22 +1,22 @@
 import type { EntityListReads } from "better-supabase/list";
 
-import type { BlockListSpec } from "@/lib/array-list";
-import type { AppDb } from "@/lib/array-reads";
+import type { AppDb, EntityListMap } from "@/lib/block-entity-page";
 
-import { arrayReads } from "@/lib/array-reads";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { blockEntityReads, organizationPager } from "@/lib/block-entity-page";
 
 import type { SegmentRow } from "../automation/automation-queries";
 
-/** The search, sort and facet of the segments list, shared with its overview. */
-export const segmentsSpec: BlockListSpec<SegmentRow> = {
-  search: (segment) => `${segment.name} ${segment.description ?? ""}`,
-  facet: (segment) => segment.subjectType,
-  defaultSort: "name",
-  sorts: {
-    name: (a, b) => a.name.localeCompare(b.name),
-    members: (a, b) => b.memberCount - a.memberCount,
-  },
+/** The segments list's sorts on the segments block's. */
+const segmentSorts: EntityListMap["sorts"] = {
+  name: { by: "name" },
+  members: { by: "memberCount", direction: "desc" },
+};
+
+/** The segments list's URL names on the segments block's page. */
+export const segmentsMap: EntityListMap = {
+  sorts: segmentSorts,
+  filters: { f: "subjectType" },
+  facets: { f: "subjectType" },
 };
 
 /** The segment as the list shows it. */
@@ -40,19 +40,19 @@ export function segmentOf(segment: {
   };
 }
 
-/** The segments of the organization. */
-export function segmentsFrom(db: AppDb, tenant: string) {
-  return readAllPagesResult((page) =>
-    db.segments.page({ organizationId: tenant, ...page }),
-  ).map((segments) => segments.map(segmentOf));
+/** The segments block's `page` and `facets` for an organization. */
+export function segmentsPager(db: AppDb, organizationId: string) {
+  return organizationPager(organizationId, {
+    page: (options) => db.segments.page(options),
+    facets: (options) => db.segments.facets(options),
+  });
 }
 
 /** The reads module of the `app.segments` entity page (ADR 0894). */
 export function segmentsReads(db: AppDb): EntityListReads<SegmentRow> {
-  return arrayReads({
-    load: (tenant) => segmentsFrom(db, tenant),
-    facet: "subjectType",
-    spec: segmentsSpec,
-    wire: (segment) => segment,
+  return blockEntityReads({
+    pager: (organizationId) => segmentsPager(db, organizationId),
+    map: { sorts: segmentSorts },
+    wire: segmentOf,
   });
 }

@@ -11,8 +11,10 @@ import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 import "server-only";
 
-import type { RecordListPage } from "@/components/record-list/record-list-types";
-import type { SimpleListQuery } from "@/lib/simple-list";
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
 
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -57,7 +59,7 @@ const stateOf = (published: number | undefined, draft: boolean | undefined) =>
 export async function queryDefinitions(
   supabase: RpcClient,
   tenant: string,
-  query: SimpleListQuery,
+  query: RecordListUrlQuery,
 ): Promise<RecordListPage<DefinitionListRow>> {
   const all = await builderFor(supabase)
     .definitions.list({ tenant, limit: 200 })
@@ -140,7 +142,7 @@ const rowOf = (
 export async function queryRuns(
   supabase: RpcClient,
   tenant: string,
-  query: SimpleListQuery,
+  query: RecordListUrlQuery,
   names: ReadonlyMap<string, string>,
 ): Promise<RecordListPage<RunListRow>> {
   const workflows = createWorkflows({

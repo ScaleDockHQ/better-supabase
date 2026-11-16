@@ -1,44 +1,52 @@
 import type { EntityListReads } from "better-supabase/list";
 
-import type { BlockListSpec } from "@/lib/array-list";
-import type { AppDb } from "@/lib/array-reads";
+import type { AppDb, EntityListMap } from "@/lib/block-entity-page";
 
-import { arrayReads } from "@/lib/array-reads";
-import { readAllPagesResult } from "@/lib/read-all-pages";
+import { blockEntityReads, organizationPager } from "@/lib/block-entity-page";
 
 import type { PipelineRow } from "../pipeline/pipeline-queries";
 
-/** The search, sort and facet of the pipelines list, shared with its overview. */
-export const pipelinesSpec: BlockListSpec<PipelineRow> = {
-  search: (pipeline) => `${pipeline.name} ${pipeline.key}`,
-  defaultSort: "name",
-  sorts: { name: (a, b) => a.name.localeCompare(b.name) },
-};
+/** The pipelines list's URL names on the pipelines block's page. */
+export const pipelinesMap: EntityListMap = { sorts: { name: { by: "name" } } };
 
-/** The deal pipelines of the organization. */
-export function pipelinesFrom(db: AppDb, tenant: string) {
-  return readAllPagesResult((page) =>
-    db.pipelines.page({
-      organizationId: tenant,
-      filters: { subjectType: ["deal"] },
-      ...page,
-    }),
-  ).map((pipelines) =>
-    pipelines.map((pipeline): PipelineRow => ({
-      id: pipeline.id,
-      name: pipeline.name,
-      key: pipeline.key,
-      isDefault: pipeline.isDefault,
-      stages: pipeline.stages.length,
-    })),
-  );
+/** The deal pipelines' `page` and `facets` for an organization. */
+export function pipelinesPager(db: AppDb, organizationId: string) {
+  return organizationPager(organizationId, {
+    page: (options) =>
+      db.pipelines.page({
+        ...options,
+        filters: { ...options.filters, subjectType: ["deal"] },
+      }),
+    facets: (options) =>
+      db.pipelines.facets({
+        ...options,
+        filters: { ...options.filters, subjectType: ["deal"] },
+      }),
+  });
+}
+
+/** The pipeline as the list shows it. */
+export function pipelineOf(pipeline: {
+  readonly id: string;
+  readonly name: string;
+  readonly key: string;
+  readonly isDefault: boolean;
+  readonly stages: readonly unknown[];
+}): PipelineRow {
+  return {
+    id: pipeline.id,
+    name: pipeline.name,
+    key: pipeline.key,
+    isDefault: pipeline.isDefault,
+    stages: pipeline.stages.length,
+  };
 }
 
 /** The reads module of the `app.pipelines` entity page (ADR 0894). */
 export function pipelinesReads(db: AppDb): EntityListReads<PipelineRow> {
-  return arrayReads({
-    load: (tenant) => pipelinesFrom(db, tenant),
-    spec: pipelinesSpec,
-    wire: (pipeline) => pipeline,
+  return blockEntityReads({
+    pager: (organizationId) => pipelinesPager(db, organizationId),
+    map: pipelinesMap,
+    wire: pipelineOf,
   });
 }

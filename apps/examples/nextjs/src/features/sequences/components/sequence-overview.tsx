@@ -1,7 +1,7 @@
 import { SendIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { BlockOverview } from "@/features/sales/components/block-overview";
 import {
@@ -9,7 +9,6 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { getSequences } from "../sequences-queries";
 import { SampleSequenceButton } from "./sequence-controls";
 
 /**
@@ -17,12 +16,15 @@ import { SampleSequenceButton } from "./sequence-controls";
  * server.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function SequenceOverview({ query }: { query: BlockListQuery }) {
+export async function SequenceOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("sequences.read");
 
-  const [t, loaded, manage] = await Promise.all([
+  const [t, manage] = await Promise.all([
     getExtracted("sequences"),
-    getSequences(),
     holds("sequences.manage"),
   ]);
 
@@ -35,18 +37,19 @@ export async function SequenceOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (sequence) => sequence.name,
-        facet: (sequence) => sequence.status,
-        defaultSort: "name",
+      pager={({ db }) => ({
+        page: (options) => db.sequences.sequencePage(options),
+        facets: (options) => db.sequences.sequenceFacets(options),
+      })}
+      map={{
         sorts: {
-          name: (a, b) => a.name.localeCompare(b.name),
-          enrolled: (a, b) =>
-            b.counts.active - a.counts.active || a.name.localeCompare(b.name),
+          name: { by: "name" },
+          updated: { by: "updatedAt", direction: "desc" },
         },
+        filters: { f: "status" },
+        facets: { f: "status" },
       }}
+      query={query}
       toRow={(sequence) => ({
         id: sequence.id,
         name: sequence.name,
@@ -84,9 +87,8 @@ export async function SequenceOverview({ query }: { query: BlockListQuery }) {
       facet={{ key: "status", label: t("Status"), values: statuses }}
       sorts={[
         { value: "name", label: t("Name") },
-        { value: "enrolled", label: t("Most enrolled") },
+        { value: "updated", label: t("Recently updated") },
       ]}
-      searchLabel={t("Search sequences")}
       errorTitle={t("The sequences didn't load")}
       emptyIcon={<SendIcon />}
       emptyTitle={t("No sequences yet")}

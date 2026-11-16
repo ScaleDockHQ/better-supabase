@@ -1,22 +1,24 @@
 import type { WorkflowRunStatus } from "better-supabase/blocks/workflows";
 
-import { defineSimpleList } from "@/lib/simple-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** The definitions overview: `/workflows?q=&state=&sort=&after=`. */
-export const definitionList = defineSimpleList({
+export const definitionList = defineBlockList({
   facets: ["state"],
   sorts: ["updated", "name"],
   defaultSort: "updated",
+  pageSize: 25,
 });
 
 /**
  * The runs overview: `/workflows/runs?q=&status=&mode=&definition=&since=`.
  * `since` is one of the `RUN_SINCE` keys.
  */
-export const runList = defineSimpleList({
+export const runList = defineBlockList({
   facets: ["status", "mode", "definition", "since"],
   sorts: ["newest"],
   defaultSort: "newest",
+  pageSize: 25,
 });
 
 export const DEFINITION_STATES = ["published", "draft", "new"] as const;

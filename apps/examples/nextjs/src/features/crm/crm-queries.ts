@@ -435,24 +435,6 @@ function quoteOf(quote: Quote): QuoteDetailData {
   };
 }
 
-/** The organization's latest quotes, newest first. */
-export async function loadQuotes(): Promise<readonly QuoteDetailData[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(CRM_TAG, CUSTOMERS_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  const page = await db.$blocks.quotes
-    .page({ organizationId: tenant, limit: 50 })
-    .orThrow();
-
-  return page.items.map(quoteOf);
-}
-
 /** One quote, `undefined` when it is gone. */
 export async function loadQuote(
   id: string,

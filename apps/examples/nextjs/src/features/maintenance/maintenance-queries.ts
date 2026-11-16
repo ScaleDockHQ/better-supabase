@@ -38,7 +38,7 @@ export interface PlanRow {
   readonly parts: readonly PlanPart[];
 }
 
-function stateOf(plan: {
+export function stateOf(plan: {
   readonly status: "active" | "paused";
   readonly due: boolean;
   readonly workOrderId?: string | undefined;
@@ -127,44 +127,5 @@ export async function loadMeters(): Promise<readonly MeterRow[] | null> {
     reading: meter.reading,
     readAt: meter.readAt?.toString() ?? null,
     assetId: meter.assetId ?? null,
-  }));
-}
-
-export interface CalibrationRow {
-  readonly id: string;
-  readonly instrument: string;
-  readonly result: "pass" | "fail" | "adjusted";
-  readonly performedAt: string;
-  readonly dueAt: string;
-  readonly reference: string | null;
-  readonly overdue: boolean;
-}
-
-export async function loadCalibrations(): Promise<
-  readonly CalibrationRow[] | null
-> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(MAINTENANCE_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  const calibrations = await db.maintenance
-    .listCalibrations({ limit: 200 })
-    .orThrow();
-
-  const now = Date.now();
-
-  return calibrations.map((row) => ({
-    id: row.id,
-    instrument: row.instrument,
-    result: row.result,
-    performedAt: row.performedAt.toString(),
-    dueAt: row.dueAt.toString(),
-    reference: row.reference ?? null,
-    overdue: row.dueAt.epochMilliseconds < now,
   }));
 }

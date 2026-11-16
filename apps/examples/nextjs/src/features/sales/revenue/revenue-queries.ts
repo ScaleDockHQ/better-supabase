@@ -8,7 +8,7 @@ import { CRM_TAG } from "@/features/crm/crm-cache";
 import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
-import { contractOf, contractsFrom } from "../list-reads/contracts-reads";
+import { contractOf } from "../list-reads/contracts-reads";
 import { SALES_TAG } from "../sales-cache";
 
 export interface ContractRow {
@@ -22,20 +22,6 @@ export interface ContractRow {
   readonly autoRenew: boolean;
   readonly ownerId: string | null;
   readonly counterpartyId: string | null;
-}
-
-/** The newest 200 contracts; the overview filters and pages them. */
-export async function loadContracts(): Promise<readonly ContractRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  return contractsFrom(db, tenant).orThrow();
 }
 
 export interface ObligationRow {
@@ -97,15 +83,6 @@ export async function loadContract(
   };
 }
 
-export interface CommissionPlanRow {
-  readonly id: string;
-  readonly name: string;
-  readonly kind: string;
-  readonly rateBps: number | null;
-  readonly tiers: number;
-  readonly archived: boolean;
-}
-
 export interface CommissionRow {
   readonly id: string;
   readonly sellerId: string;
@@ -124,58 +101,6 @@ export interface StatementRow {
   readonly endsOn: string;
   readonly status: string;
   readonly total: Money;
-}
-
-export interface CommissionsData {
-  readonly plans: readonly CommissionPlanRow[];
-  readonly commissions: readonly CommissionRow[];
-  readonly statements: readonly StatementRow[];
-}
-
-/** Plans, the newest 200 commissions and the newest 100 statements. */
-export async function loadCommissions(): Promise<CommissionsData | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  const [plans, commissions, statements] = await Promise.all([
-    db.commissions.listPlans({ limit: 100 }).orThrow(),
-    db.commissions.listCommissions({ limit: 200 }).orThrow(),
-    db.commissions.listStatements({ limit: 100 }).orThrow(),
-  ]);
-
-  return {
-    plans: plans.map((plan) => ({
-      id: plan.id,
-      name: plan.name,
-      kind: plan.kind,
-      rateBps: plan.rateBps ?? null,
-      tiers: plan.tiers?.length ?? 0,
-      archived: plan.archivedAt !== undefined,
-    })),
-    commissions: commissions.map((commission) => ({
-      id: commission.id,
-      sellerId: commission.sellerId,
-      sourceType: commission.sourceType,
-      sourceId: commission.sourceId,
-      basis: commission.basis,
-      amount: commission.amount,
-      occurredOn: commission.occurredOn.toString(),
-      status: commission.status,
-    })),
-    statements: statements.map((statement) => ({
-      id: statement.id,
-      sellerId: statement.sellerId,
-      startsOn: statement.startsOn.toString(),
-      endsOn: statement.endsOn.toString(),
-      status: statement.status,
-      total: statement.total,
-    })),
-  };
 }
 
 export interface StatementDetail extends StatementRow {
@@ -215,65 +140,6 @@ export async function loadStatement(
       amount: commission.amount,
       occurredOn: commission.occurredOn.toString(),
       status: commission.status,
-    })),
-  };
-}
-
-export interface ReferralCodeRow {
-  readonly id: string;
-  readonly code: string;
-  readonly referrerId: string;
-  readonly uses: number;
-  readonly maxUses: number | null;
-  readonly active: boolean;
-  readonly expiresAt: string | null;
-}
-
-export interface ReferralRow {
-  readonly id: string;
-  readonly codeId: string;
-  readonly referrerId: string;
-  readonly referredEmail: string | null;
-  readonly status: string;
-  readonly createdAt: string;
-}
-
-export interface ReferralsData {
-  readonly codes: readonly ReferralCodeRow[];
-  readonly referrals: readonly ReferralRow[];
-}
-
-export async function loadReferrals(): Promise<ReferralsData | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  const [codes, referrals] = await Promise.all([
-    db.referrals.listCodes({ limit: 200 }).orThrow(),
-    db.referrals.listReferrals({ limit: 200 }).orThrow(),
-  ]);
-
-  return {
-    codes: codes.map((code) => ({
-      id: code.id,
-      code: code.code,
-      referrerId: code.referrerId,
-      uses: code.uses,
-      maxUses: code.maxUses ?? null,
-      active: code.active,
-      expiresAt: code.expiresAt?.toString() ?? null,
-    })),
-    referrals: referrals.map((referral) => ({
-      id: referral.id,
-      codeId: referral.codeId,
-      referrerId: referral.referrerId,
-      referredEmail: referral.referredEmail ?? null,
-      status: referral.status,
-      createdAt: referral.createdAt.toString(),
     })),
   };
 }

@@ -8,9 +8,8 @@ import { orMissing } from "@/lib/or-missing";
 import { readAllPagesResult } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
-import { queueOf, queuesFrom } from "../list-reads/queues-reads";
-import { scoreModelsFrom } from "../list-reads/scores-reads";
-import { segmentOf, segmentsFrom } from "../list-reads/segments-reads";
+import { queueOf } from "../list-reads/queues-reads";
+import { segmentOf } from "../list-reads/segments-reads";
 import { SALES_TAG } from "../sales-cache";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -42,19 +41,6 @@ export interface SegmentRow {
   /** ISO instant, `null` before the first refresh. */
   readonly refreshedAt: string | null;
   readonly rules: number;
-}
-
-export async function loadSegments(): Promise<readonly SegmentRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  return segmentsFrom(db, tenant).orThrow();
 }
 
 export interface SegmentDetail extends SegmentRow {
@@ -122,19 +108,6 @@ export interface QueueMemberRow {
   readonly lastAssignedAt: string | null;
 }
 
-export async function loadQueues(): Promise<readonly QueueRow[] | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  return queuesFrom(db, tenant).orThrow();
-}
-
 export interface QueueDetail extends QueueRow {
   readonly memberRows: readonly QueueMemberRow[];
 }
@@ -183,20 +156,6 @@ export interface ScoreModelRow {
   readonly rules: number;
   readonly metrics: number;
   readonly bands: string;
-}
-
-export async function loadScoreModels(): Promise<
-  readonly ScoreModelRow[] | null
-> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(SALES_TAG, CRM_TAG);
-
-  if (!tenantOf(session)) {
-    return null;
-  }
-
-  return scoreModelsFrom(db).orThrow();
 }
 
 export interface ScoredRecord {

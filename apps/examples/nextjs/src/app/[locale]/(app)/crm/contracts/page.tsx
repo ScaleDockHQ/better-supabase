@@ -8,7 +8,7 @@ import {
   SalesListSkeleton,
 } from "@/features/sales/components/crm-overviews";
 import { PermissionGate } from "@/features/user/components/permission-gate";
-import { parseBlockList } from "@/lib/array-list";
+import { parseBlockList } from "@/lib/block-overview-query";
 
 // A navigation here shows the header and the list frame at once; the rows
 // render on navigation (tests/loading-sequences.spec.ts).

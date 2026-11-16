@@ -1,20 +1,24 @@
+import { AsyncResult, ok } from "better-supabase";
 import { CalendarClockIcon, GitForkIcon, HandshakeIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
+import { connection } from "next/server";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { CreateDealDialog } from "@/features/crm/components/create-deal-dialog";
 import { CreatePipelineButton } from "@/features/crm/components/create-pipeline-button";
 import { settle } from "@/features/crm/crm-queries";
+import { loadedPager } from "@/lib/loaded-pager";
 
-import { dealsSpec } from "../list-reads/deals-reads";
-import { pipelinesSpec } from "../list-reads/pipelines-reads";
+import { dealsMap, dealsPager } from "../list-reads/deals-reads";
+import { forecastsMap, forecastsPager } from "../list-reads/forecasts-list";
 import {
-  loadDeals,
-  loadForecasts,
-  loadPipelines,
-} from "../pipeline/pipeline-queries";
+  pipelineOf,
+  pipelinesMap,
+  pipelinesPager,
+} from "../list-reads/pipelines-reads";
+import { loadDealPipeline } from "../pipeline/pipeline-queries";
 import { takeForecastSnapshot } from "../sales-actions";
 import { ActionDialog } from "./action-dialog";
 import { BlockOverview } from "./block-overview";
@@ -30,13 +34,13 @@ export function DealOverviewSkeleton() {
 }
 
 /** The deals of the default pipeline as a server-paged table. */
-export async function DealOverview({ query }: { query: BlockListQuery }) {
+export async function DealOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("deals.read");
 
   const [t, loaded, fmtMoney, fmtDate, canWrite, canManage] = await Promise.all(
     [
       getExtracted("sales"),
-      settle(loadDeals),
+      settle(loadDealPipeline),
       moneyFormatter(),
       dateFormatter(),
       holds("deals.write"),
@@ -73,13 +77,16 @@ export async function DealOverview({ query }: { query: BlockListQuery }) {
     <>
       {createDeal}
       <BlockOverview
-        loaded={
-          loaded.kind === "ok"
-            ? { kind: "ok", data: loaded.data?.deals ?? [] }
-            : loaded
+        pager={({ db, tenant }) =>
+          data
+            ? dealsPager(db, tenant, data)
+            : loadedPager(
+                () => AsyncResult.from(() => Promise.resolve(ok([]))),
+                { search: () => "", sorts: {} },
+              )
         }
+        map={dealsMap}
         query={query}
-        spec={dealsSpec}
         toRow={(deal) => ({
           id: deal.id,
           identifier: deal.identifier,
@@ -136,7 +143,6 @@ export async function DealOverview({ query }: { query: BlockListQuery }) {
         sorts={[
           { value: "closing", label: t("Closing soonest") },
           { value: "amount", label: t("Largest amount") },
-          { value: "stale", label: t("Longest in stage") },
           { value: "name", label: t("Name") },
         ]}
         searchLabel={t("Search deals")}
@@ -160,27 +166,34 @@ export function PipelineOverviewSkeleton() {
   return <RecordListSkeleton rows={3} />;
 }
 
-export async function PipelineOverview({ query }: { query: BlockListQuery }) {
+export async function PipelineOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("pipelines.read");
 
-  const [t, loaded, canManage] = await Promise.all([
+  const [t, canManage] = await Promise.all([
     getExtracted("sales"),
-    settle(loadPipelines),
     holds("pipelines.manage"),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => pipelinesPager(db, tenant)}
+      map={pipelinesMap}
       query={query}
-      spec={pipelinesSpec}
-      toRow={(pipeline) => ({
-        id: pipeline.id,
-        name: pipeline.name,
-        key: pipeline.key,
-        stages: pipeline.stages,
-        isDefault: pipeline.isDefault ? "default" : "",
-      })}
+      toRow={(row) => {
+        const pipeline = pipelineOf(row);
+
+        return {
+          id: pipeline.id,
+          name: pipeline.name,
+          key: pipeline.key,
+          stages: pipeline.stages,
+          isDefault: pipeline.isDefault ? "default" : "",
+        };
+      }}
       columns={[
         {
           key: "name",
@@ -217,12 +230,15 @@ export function ForecastOverviewSkeleton() {
   return <RecordListSkeleton rows={4} />;
 }
 
-export async function ForecastOverview({ query }: { query: BlockListQuery }) {
+export async function ForecastOverview({
+  query,
+}: {
+  query: RecordListUrlQuery;
+}) {
   await requirePermission("forecasts.read");
 
-  const [t, loaded, fmtMoney, fmtDate, canSnapshot] = await Promise.all([
+  const [t, fmtMoney, fmtDate, canSnapshot] = await Promise.all([
     getExtracted("sales"),
-    settle(loadForecasts),
     moneyFormatter(),
     dateFormatter(),
     holds("forecasts.snapshot"),
@@ -230,18 +246,9 @@ export async function ForecastOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
+      pager={({ db, tenant }) => forecastsPager(db, tenant)}
+      map={forecastsMap}
       query={query}
-      spec={{
-        search: (snapshot) => `${snapshot.since} ${snapshot.until}`,
-        facet: (snapshot) => snapshot.currency,
-        defaultSort: "newest",
-        sorts: {
-          newest: (a, b) => b.takenAt.localeCompare(a.takenAt),
-          oldest: (a, b) => a.takenAt.localeCompare(b.takenAt),
-          period: (a, b) => b.since.localeCompare(a.since),
-        },
-      }}
       toRow={(snapshot) => ({
         id: snapshot.id,
         period: `${fmtDate(snapshot.since)} – ${fmtDate(snapshot.until)}`,
@@ -292,7 +299,6 @@ export async function ForecastOverview({ query }: { query: BlockListQuery }) {
         { value: "oldest", label: t("Oldest first") },
         { value: "period", label: t("Period start") },
       ]}
-      searchLabel={t("Search by date")}
       errorTitle={t("The forecasts didn't load")}
       emptyIcon={<CalendarClockIcon />}
       emptyTitle={t("No snapshots yet")}
@@ -308,6 +314,8 @@ export async function ForecastOverview({ query }: { query: BlockListQuery }) {
 // skeleton: the page's Suspense fallback is the skeleton of this view
 export async function SnapshotDialog() {
   const t = await getExtracted("sales");
+  // The default period reads the clock, which a prerender may not.
+  await connection();
   const today = new Date();
 
   const since = new Date(

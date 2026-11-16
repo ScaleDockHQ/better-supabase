@@ -48,7 +48,7 @@ async function loadSequences(): Promise<readonly SequenceCard[] | null> {
   }));
 }
 
-export async function getSequences(): Promise<Loaded<readonly SequenceCard[]>> {
+async function getSequences(): Promise<Loaded<readonly SequenceCard[]>> {
   try {
     const sequences = await loadSequences();
 

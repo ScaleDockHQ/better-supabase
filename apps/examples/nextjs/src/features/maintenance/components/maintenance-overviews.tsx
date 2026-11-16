@@ -1,7 +1,8 @@
 import { CalendarClockIcon, GaugeIcon, WrenchIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
+import { Temporal } from "temporal-polyfill";
 
-import type { BlockListQuery } from "@/lib/array-list";
+import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { settle } from "@/features/crm/crm-queries";
@@ -20,11 +21,7 @@ import {
   recordCalibration,
   recordReading,
 } from "../maintenance-actions";
-import {
-  loadCalibrations,
-  loadMeters,
-  loadPlans,
-} from "../maintenance-queries";
+import { loadMeters, stateOf } from "../maintenance-queries";
 
 export function MaintenanceListSkeleton() {
   return <RecordListSkeleton rows={5} />;
@@ -58,21 +55,13 @@ export async function priorityLabels(): Promise<Record<string, string>> {
   };
 }
 
-const PRIORITY_RANK = new Map([
-  ["urgent", 0],
-  ["high", 1],
-  ["normal", 2],
-  ["low", 3],
-]);
-
 /** The plans, searched, filtered by state, sorted and paged on the server. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function PlanOverview({ query }: { query: BlockListQuery }) {
+export async function PlanOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("maintenance.read");
 
-  const [t, loaded, fmtDate, states, kinds, priorities] = await Promise.all([
+  const [t, fmtDate, states, kinds, priorities] = await Promise.all([
     getExtracted("maintenance"),
-    settle(loadPlans),
     dateFormatter(),
     planStateLabels(),
     planKindLabels(),
@@ -81,29 +70,24 @@ export async function PlanOverview({ query }: { query: BlockListQuery }) {
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (plan) => plan.title,
-        facet: (plan) => plan.state,
-        defaultSort: "due",
-        sorts: {
-          due: (a, b) =>
-            (a.nextDueAt ?? "9999").localeCompare(b.nextDueAt ?? "9999"),
-          priority: (a, b) =>
-            (PRIORITY_RANK.get(a.priority) ?? 9) -
-            (PRIORITY_RANK.get(b.priority) ?? 9),
-          title: (a, b) => a.title.localeCompare(b.title),
-        },
+      pager={({ db }) => ({
+        page: (options) => db.maintenance.planPage(options),
+        facets: (options) => db.maintenance.planFacets(options),
+      })}
+      map={{
+        sorts: { due: { by: "nextDueAt" }, title: { by: "title" } },
+        filters: { f: "kind" },
+        facets: { f: "kind" },
       }}
+      query={query}
       toRow={(plan) => ({
         id: plan.id,
         title: plan.title,
         kind: plan.kind,
         priority: plan.priority,
-        state: plan.state,
-        nextDueAt: fmtDate(plan.nextDueAt),
-        lastDoneAt: fmtDate(plan.lastDoneAt),
+        state: stateOf(plan),
+        nextDueAt: fmtDate(plan.nextDueAt?.toString()),
+        lastDoneAt: fmtDate(plan.lastDoneAt?.toString()),
       })}
       columns={[
         {
@@ -143,10 +127,9 @@ export async function PlanOverview({ query }: { query: BlockListQuery }) {
           },
         },
       ]}
-      facet={{ key: "state", label: t("Status"), values: states }}
+      facet={{ key: "kind", label: t("Trigger"), values: kinds }}
       sorts={[
         { value: "due", label: t("Soonest due") },
-        { value: "priority", label: t("Priority") },
         { value: "title", label: t("Title") },
       ]}
       searchLabel={t("Search plans")}
@@ -162,33 +145,33 @@ export async function PlanOverview({ query }: { query: BlockListQuery }) {
 
 /** Every meter with its latest reading; a row opens the meter. */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function MeterOverview({ query }: { query: BlockListQuery }) {
+export async function MeterOverview({ query }: { query: RecordListUrlQuery }) {
   await requirePermission("maintenance.read");
 
-  const [t, loaded, fmtDate, canManage] = await Promise.all([
+  const [t, fmtDate, canManage] = await Promise.all([
     getExtracted("maintenance"),
-    settle(loadMeters),
     dateFormatter(),
     holds("maintenance.manage"),
   ]);
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (meter) => `${meter.name} ${meter.unit}`,
-        defaultSort: "name",
+      pager={({ db }) => ({
+        page: (options) => db.maintenance.meterPage(options),
+        facets: (options) => db.maintenance.meterFacets(options),
+      })}
+      map={{
         sorts: {
-          name: (a, b) => a.name.localeCompare(b.name),
-          reading: (a, b) => Number(b.reading) - Number(a.reading),
+          name: { by: "name" },
+          reading: { by: "readAt", direction: "desc" },
         },
       }}
+      query={query}
       toRow={(meter) => ({
         id: meter.id,
         name: meter.name,
         reading: `${trimmed(meter.reading)} ${meter.unit}`,
-        readAt: fmtDate(meter.readAt),
+        readAt: fmtDate(meter.readAt?.toString()),
       })}
       columns={[
         {
@@ -203,7 +186,7 @@ export async function MeterOverview({ query }: { query: BlockListQuery }) {
       ]}
       sorts={[
         { value: "name", label: t("Name") },
-        { value: "reading", label: t("Highest reading") },
+        { value: "reading", label: t("Latest reading") },
       ]}
       searchLabel={t("Search meters")}
       errorTitle={t("The meters didn't load")}
@@ -222,13 +205,12 @@ export async function MeterOverview({ query }: { query: BlockListQuery }) {
 export async function CalibrationOverview({
   query,
 }: {
-  query: BlockListQuery;
+  query: RecordListUrlQuery;
 }) {
   await requirePermission("maintenance.read");
 
-  const [t, loaded, fmtDate] = await Promise.all([
+  const [t, fmtDate] = await Promise.all([
     getExtracted("maintenance"),
-    settle(loadCalibrations),
     dateFormatter(),
   ]);
 
@@ -236,26 +218,28 @@ export async function CalibrationOverview({
 
   return (
     <BlockOverview
-      loaded={loaded}
-      query={query}
-      spec={{
-        search: (row) => `${row.instrument} ${row.reference ?? ""}`,
-        facet: (row) => row.result,
-        defaultSort: "due",
+      pager={({ db }) => ({
+        page: (options) => db.maintenance.calibrationPage(options),
+        facets: (options) => db.maintenance.calibrationFacets(options),
+      })}
+      map={{
         sorts: {
-          due: (a, b) => a.dueAt.localeCompare(b.dueAt),
-          done: (a, b) => b.performedAt.localeCompare(a.performedAt),
-          instrument: (a, b) => a.instrument.localeCompare(b.instrument),
+          due: { by: "dueAt" },
+          done: { by: "performedAt", direction: "desc" },
         },
       }}
+      query={query}
       toRow={(row) => ({
         id: row.id,
         instrument: row.instrument,
         result: row.result,
-        performedAt: fmtDate(row.performedAt),
-        dueAt: fmtDate(row.dueAt),
-        reference: row.reference,
-        state: row.overdue ? "overdue" : "current",
+        performedAt: fmtDate(row.performedAt.toString()),
+        dueAt: fmtDate(row.dueAt.toString()),
+        reference: row.reference ?? null,
+        state:
+          row.dueAt.epochMilliseconds < Temporal.Now.instant().epochMilliseconds
+            ? "overdue"
+            : "current",
       })}
       columns={[
         { key: "instrument", header: t("Instrument"), kind: "text", size: 240 },
@@ -279,11 +263,9 @@ export async function CalibrationOverview({
         },
         { key: "reference", header: t("Reference"), kind: "muted", size: 160 },
       ]}
-      facet={{ key: "result", label: t("Result"), values: results }}
       sorts={[
         { value: "due", label: t("Soonest due") },
         { value: "done", label: t("Latest first") },
-        { value: "instrument", label: t("Instrument") },
       ]}
       searchLabel={t("Search calibrations")}
       errorTitle={t("The calibrations didn't load")}

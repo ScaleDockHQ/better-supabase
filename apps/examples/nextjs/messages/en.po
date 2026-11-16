@@ -2196,14 +2196,10 @@ msgid "Reset filters"
 msgstr "Reset filters"
 
 #: src/components/record-list/block-list-view.tsx
-msgctxt "recordList.kDE93l"
-msgid "Page {page} of {pages}, {total} rows"
-msgstr "Page {page} of {pages}, {total} rows"
-
-#: src/components/record-list/block-list-view.tsx
-msgctxt "recordList.k9hDFZ"
-msgid "Previous page"
-msgstr "Previous page"
+#: src/components/record-list/record-list-view.tsx
+msgctxt "recordList.A64Z-T"
+msgid "First page"
+msgstr "First page"
 
 #: src/components/record-list/block-list-view.tsx
 #: src/components/record-list/record-list-view.tsx
@@ -2240,11 +2236,6 @@ msgstr "Shift-click adds this column to the sort"
 msgctxt "recordList.hDI-JM"
 msgid "Sort by"
 msgstr "Sort by"
-
-#: src/components/record-list/record-list-view.tsx
-msgctxt "recordList.A64Z-T"
-msgid "First page"
-msgstr "First page"
 
 #: src/features/access-requests/components/access-request-controls.tsx
 msgctxt "accessRequests.d7eaHV"
@@ -17627,11 +17618,6 @@ msgid "Oldest first"
 msgstr "Oldest first"
 
 #: src/features/lims/components/lims-overview.tsx
-msgctxt "lims.9a9-ww"
-msgid "Title"
-msgstr "Title"
-
-#: src/features/lims/components/lims-overview.tsx
 msgctxt "lims.fDZ5tn"
 msgid "Search samples"
 msgstr "Search samples"
@@ -17726,6 +17712,11 @@ msgstr "Register"
 msgctxt "lims.fANVSk"
 msgid "Sample registered"
 msgstr "Sample registered"
+
+#: src/features/lims/components/lims-overview.tsx
+msgctxt "lims.9a9-ww"
+msgid "Title"
+msgstr "Title"
 
 #: src/features/lims/components/lims-overview.tsx
 msgctxt "lims.i8jG2K"
@@ -18193,9 +18184,9 @@ msgid "Name"
 msgstr "Name"
 
 #: src/features/maintenance/components/maintenance-overviews.tsx
-msgctxt "maintenance.4VwXbW"
-msgid "Highest reading"
-msgstr "Highest reading"
+msgctxt "maintenance.w63PV9"
+msgid "Latest reading"
+msgstr "Latest reading"
 
 #: src/features/maintenance/components/maintenance-overviews.tsx
 msgctxt "maintenance.zBDAB5"
@@ -24070,11 +24061,6 @@ msgid "Soonest due"
 msgstr "Soonest due"
 
 #: src/features/rfqs/components/rfqs-overview.tsx
-msgctxt "rfqs.9a9-ww"
-msgid "Title"
-msgstr "Title"
-
-#: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.H-7v7w"
 msgid "Search requests"
 msgstr "Search requests"
@@ -24113,6 +24099,11 @@ msgstr "Create request"
 msgctxt "rfqs.rabUi9"
 msgid "Request created"
 msgstr "Request created"
+
+#: src/features/rfqs/components/rfqs-overview.tsx
+msgctxt "rfqs.9a9-ww"
+msgid "Title"
+msgstr "Title"
 
 #: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.-oxq2j"
@@ -24797,11 +24788,6 @@ msgstr "Clear"
 msgctxt "sales.dZa7bo"
 msgid "{count, plural, one {Assign # deal} other {Assign # deals}}"
 msgstr "{count, plural, one {Assign # deal} other {Assign # deals}}"
-
-#: src/features/sales/components/block-overview.tsx
-msgctxt "sales.qnf-Ea"
-msgid "{count} in total"
-msgstr "{count} in total"
 
 #: src/features/sales/components/contact-sales-panel.tsx
 msgctxt "sales.nAt_Dl"
@@ -25542,9 +25528,9 @@ msgid "Ending soonest"
 msgstr "Ending soonest"
 
 #: src/features/sales/components/crm-overviews.tsx
-msgctxt "sales.TqvuYv"
-msgid "Notice deadline"
-msgstr "Notice deadline"
+msgctxt "sales.Lxk1jF"
+msgid "Starting soonest"
+msgstr "Starting soonest"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.F_iVjh"
@@ -25567,6 +25553,11 @@ msgid "Draft a contract, or change the filters."
 msgstr "Draft a contract, or change the filters."
 
 #: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.JizYb9"
+msgid "Account health didn't load"
+msgstr "Account health didn't load"
+
+#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.TwyMau"
 msgid "Account"
 msgstr "Account"
@@ -25585,11 +25576,6 @@ msgstr "Highest score first"
 msgctxt "sales.DgHeiI"
 msgid "Search accounts"
 msgstr "Search accounts"
-
-#: src/features/sales/components/crm-overviews.tsx
-msgctxt "sales.JizYb9"
-msgid "Account health didn't load"
-msgstr "Account health didn't load"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.sncc9z"
@@ -25680,6 +25666,14 @@ msgstr "Lifecycle"
 msgctxt "sales.5Ya43Y"
 msgid "Supplier"
 msgstr "Supplier"
+
+#: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.MeKajs"
+msgid "Newest first"
+msgstr "Newest first"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.orv8wZ"
@@ -26118,11 +26112,6 @@ msgid "Largest amount"
 msgstr "Largest amount"
 
 #: src/features/sales/components/pipeline-overviews.tsx
-msgctxt "sales.gr-SEI"
-msgid "Longest in stage"
-msgstr "Longest in stage"
-
-#: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.NUh7Jr"
 msgid "Search deals"
 msgstr "Search deals"
@@ -26179,13 +26168,6 @@ msgid "Snapshot taken"
 msgstr "Snapshot taken"
 
 #: src/features/sales/components/pipeline-overviews.tsx
-#: src/features/sales/components/quote-overview.tsx
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.MeKajs"
-msgid "Newest first"
-msgstr "Newest first"
-
-#: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.h-T3T7"
 msgid "Oldest first"
 msgstr "Oldest first"
@@ -26194,11 +26176,6 @@ msgstr "Oldest first"
 msgctxt "sales.H9mMTC"
 msgid "Period start"
 msgstr "Period start"
-
-#: src/features/sales/components/pipeline-overviews.tsx
-msgctxt "sales.Spw9wt"
-msgid "Search by date"
-msgstr "Search by date"
 
 #: src/features/sales/components/pipeline-overviews.tsx
 msgctxt "sales.eYOyvu"
@@ -26340,9 +26317,9 @@ msgid "Valid until"
 msgstr "Valid until"
 
 #: src/features/sales/components/quote-overview.tsx
-msgctxt "sales.ipMocl"
-msgid "Highest total"
-msgstr "Highest total"
+msgctxt "sales.Iid4yG"
+msgid "Expiring soonest"
+msgstr "Expiring soonest"
 
 #: src/features/sales/components/quote-overview.tsx
 msgctxt "sales.Tn82fY"
@@ -26651,11 +26628,6 @@ msgid "Archived"
 msgstr "Archived"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.kzefVV"
-msgid "Search plans"
-msgstr "Search plans"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.jCxF10"
 msgid "No plans found"
 msgstr "No plans found"
@@ -26671,11 +26643,6 @@ msgid "Largest total"
 msgstr "Largest total"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.QNMLkW"
-msgid "Search statements"
-msgstr "Search statements"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.0QnWbN"
 msgid "No statements found"
 msgstr "No statements found"
@@ -26689,11 +26656,6 @@ msgstr "Build a statement from a seller's accrued commissions."
 msgctxt "sales.XsRDqK"
 msgid "Largest commission"
 msgstr "Largest commission"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.3kqd0l"
-msgid "Search commissions"
-msgstr "Search commissions"
 
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.Fn9eDV"
@@ -26786,16 +26748,6 @@ msgid "Inactive"
 msgstr "Inactive"
 
 #: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.WQyg8j"
-msgid "Most used"
-msgstr "Most used"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.acWl5A"
-msgid "Search codes"
-msgstr "Search codes"
-
-#: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.DezqbZ"
 msgid "No referral codes found"
 msgstr "No referral codes found"
@@ -26814,11 +26766,6 @@ msgstr "Referred"
 msgctxt "sales.ORGv1Q"
 msgid "Created"
 msgstr "Created"
-
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.WIMpwu"
-msgid "Search referrals"
-msgstr "Search referrals"
 
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.N4sRxX"
@@ -27660,14 +27607,9 @@ msgid "Name"
 msgstr "Name"
 
 #: src/features/sequences/components/sequence-overview.tsx
-msgctxt "sequences.-8EjeW"
-msgid "Most enrolled"
-msgstr "Most enrolled"
-
-#: src/features/sequences/components/sequence-overview.tsx
-msgctxt "sequences.kr7xJ0"
-msgid "Search sequences"
-msgstr "Search sequences"
+msgctxt "sequences.ie_Tbp"
+msgid "Recently updated"
+msgstr "Recently updated"
 
 #: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.xiZz44"
@@ -30638,14 +30580,9 @@ msgid "Oldest first"
 msgstr "Oldest first"
 
 #: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.5DCYo2"
-msgid "Most cash"
-msgstr "Most cash"
-
-#: src/features/tills/components/tills-overview.tsx
-msgctxt "tills.ZYXB_I"
-msgid "Search by till"
-msgstr "Search by till"
+msgctxt "tills.EJbFi7"
+msgid "Search notes"
+msgstr "Search notes"
 
 #: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.vuBPCO"
@@ -31689,16 +31626,6 @@ msgid "Oldest first"
 msgstr "Oldest first"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.XBefns"
-msgid "Least picked"
-msgstr "Least picked"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.qYC8sq"
-msgid "Search pick lists"
-msgstr "Search pick lists"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.PAaa4v"
 msgid "The pick lists didn't load"
 msgstr "The pick lists didn't load"
@@ -31724,11 +31651,6 @@ msgid "Name"
 msgstr "Name"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.gBOILT"
-msgid "Most open lists"
-msgstr "Most open lists"
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.fwLCPq"
 msgid "Search waves"
 msgstr "Search waves"
@@ -31747,11 +31669,6 @@ msgstr "No waves found"
 msgctxt "warehouse.HI469v"
 msgid "A wave releases several pick lists to pickers at once."
 msgstr "A wave releases several pick lists to pickers at once."
-
-#: src/features/warehouse/components/warehouse-overviews.tsx
-msgctxt "warehouse.SLiQIK"
-msgid "Search putaway rules"
-msgstr "Search putaway rules"
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.86lash"

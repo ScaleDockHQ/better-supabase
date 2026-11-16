@@ -2,13 +2,17 @@ import "server-only";
 import type { Money } from "better-supabase/commerce";
 
 import { formatMoney } from "better-supabase/commerce";
+import { tenantOf } from "better-supabase/next";
 import { getLocale } from "next-intl/server";
 import { forbidden } from "next/navigation";
 
 import type { Permission } from "@/features/user/user-permissions";
+import type { AppDb } from "@/lib/block-entity-page";
 
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { getSession } from "@/features/user/user-queries";
+import { bsb } from "@/lib/supabase/server";
 
 /** Ends the render with the 403 page when the caller lacks `permission`. */
 export async function requirePermission(permission: Permission): Promise<void> {
@@ -80,4 +84,18 @@ export async function dateFormatter(): Promise<
 
     return (value.length === 10 ? plain : instant).format(date);
   };
+}
+
+/** What an overview reads a block list with: the caller's `db` and organization. */
+export interface OverviewContext {
+  readonly db: AppDb;
+  readonly tenant: string;
+}
+
+/** The caller's `db` and active organization, `null` without one. */
+export async function overviewContext(): Promise<OverviewContext | null> {
+  const [{ db }, session] = await Promise.all([bsb.context(), getSession()]);
+  const tenant = tenantOf(session);
+
+  return tenant ? { db, tenant } : null;
 }

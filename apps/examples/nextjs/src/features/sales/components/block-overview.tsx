@@ -1,29 +1,41 @@
 import type { ReactNode } from "react";
 
-import { getExtracted, getLocale } from "next-intl/server";
+import { getLocale } from "next-intl/server";
+import { unstable_rethrow } from "next/navigation";
 
 import type { BlockColumn } from "@/components/record-list/block-list-view";
 import type { BlockRowInput } from "@/components/record-list/money-text";
-import type { Loaded } from "@/features/crm/crm-queries";
-import type { BlockListQuery, BlockListSpec } from "@/lib/array-list";
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+import type { EntityListMap, EntityPager } from "@/lib/block-entity-page";
 
 import { BlockListView } from "@/components/record-list/block-list-view";
 import { withMoneyCells } from "@/components/record-list/money-text";
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
-import { applyBlockList } from "@/lib/array-list";
+import { pageEntityRows } from "@/lib/block-entity-page";
+
+import type { OverviewContext } from "./overview-support";
+
+import { overviewContext } from "./overview-support";
 
 export type { BlockColumn };
 
+/** The rows an overview shows per page. */
+const OVERVIEW_PAGE_SIZE = 25;
+
 /**
- * The server half of a block-backed overview: it takes the loaded items, runs
- * the URL's search, facet filter, sort and page over them, and hands the client
- * grid one page of plain rows. Render it inside `<Suspense>`.
+ * The server half of a block-backed overview: the URL's search, facet filter,
+ * sort and cursor go to the block's `page` and `facets` (`pageEntityRows`), so
+ * the database filters, sorts and pages, and the client grid gets one page of
+ * plain rows. Render it inside `<Suspense>`.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
 export async function BlockOverview<Item>({
-  loaded,
+  pager,
+  map,
   query,
-  spec,
   toRow,
   columns,
   facet,
@@ -35,10 +47,12 @@ export async function BlockOverview<Item>({
   emptyDescription,
   emptyAction,
 }: {
-  loaded: Loaded<readonly Item[]>;
-  query: BlockListQuery;
-  spec: BlockListSpec<Item>;
-  toRow: (item: Item) => BlockRowInput;
+  /** The block list with the organization bound. */
+  pager: (context: OverviewContext) => EntityPager<Item>;
+  /** The URL's sort and facet names on the block's. The facet key is `f`. */
+  map: EntityListMap;
+  query: RecordListUrlQuery;
+  toRow: (item: Item) => BlockRowInput | Promise<BlockRowInput>;
   columns: readonly BlockColumn[];
   facet?: {
     readonly key: string;
@@ -46,58 +60,74 @@ export async function BlockOverview<Item>({
     readonly values: Readonly<Record<string, string>>;
   };
   sorts: readonly { readonly value: string; readonly label: string }[];
-  searchLabel: string;
+  /** Omit it for a list the block cannot search. */
+  searchLabel?: string;
   errorTitle: string;
   emptyIcon: ReactNode;
   emptyTitle: string;
   emptyDescription: string;
   emptyAction?: ReactNode;
 }) {
-  if (loaded.kind === "no-organization") {
+  const context = await overviewContext();
+
+  if (context === null) {
     return null;
   }
 
-  if (loaded.kind === "error") {
+  const locale = await getLocale();
+
+  const defaultSort = sorts[0]?.value ?? "";
+
+  // A block that cannot search or filter refuses `q` and `f`, so a stale
+  // `?q=` or `?f=` is dropped.
+  const { q: _search, ...unsearched } = query;
+  const searchable = searchLabel === undefined ? unsearched : query;
+
+  const scoped =
+    facet === undefined ? { ...searchable, facets: {} } : searchable;
+
+  let page: RecordListPage<ReturnType<typeof withMoneyCells>>;
+
+  try {
+    page = await pageEntityRows({
+      pager: pager(context),
+      map,
+      query: { ...scoped, sort: query.sort === "" ? defaultSort : query.sort },
+      pageSize: OVERVIEW_PAGE_SIZE,
+      rowsOf: async (items) =>
+        (
+          await Promise.all(items.map((item) => Promise.resolve(toRow(item))))
+        ).map((row) => withMoneyCells(row, columns, locale)),
+    });
+  } catch (error) {
+    unstable_rethrow(error);
+
     return <CrmLoadError title={errorTitle} />;
   }
 
-  const t = await getExtracted("sales");
-  const locale = await getLocale();
-  const result = applyBlockList(loaded.data, query, spec);
+  const selected = query.facets["f"]?.[0];
+  const counts = page.facetCounts?.["f"] ?? {};
 
   const facetOptions = facet
     ? Object.entries(facet.values)
-        .map(([value, label]) => ({
-          value,
-          label,
-          count: result.facetCounts[value] ?? 0,
-        }))
-        .filter((option) => option.count > 0 || option.value === query.facet)
+        .map(([value, label]) => ({ value, label, count: counts[value] ?? 0 }))
+        .filter((option) => option.count > 0 || option.value === selected)
     : undefined;
 
   return (
-    <div className="flex flex-col gap-2">
-      <BlockListView
-        rows={result.rows.map((item) =>
-          withMoneyCells(toRow(item), columns, locale),
-        )}
-        columns={columns}
-        {...(facet && facetOptions
-          ? { facetKey: facet.key, facetLabel: facet.label, facetOptions }
-          : {})}
-        sorts={sorts}
-        searchLabel={searchLabel}
-        total={result.total}
-        page={result.page}
-        pages={result.pages}
-        emptyIcon={emptyIcon}
-        emptyTitle={emptyTitle}
-        emptyDescription={emptyDescription}
-        emptyAction={emptyAction}
-      />
-      <p className="text-xs text-muted-foreground">
-        {t("{count} in total", { count: String(result.total) })}
-      </p>
-    </div>
+    <BlockListView
+      rows={page.items}
+      columns={columns}
+      {...(facet && facetOptions
+        ? { facetKey: facet.key, facetLabel: facet.label, facetOptions }
+        : {})}
+      sorts={sorts}
+      {...(searchLabel === undefined ? {} : { searchLabel })}
+      nextCursor={page.nextCursor ?? null}
+      emptyIcon={emptyIcon}
+      emptyTitle={emptyTitle}
+      emptyDescription={emptyDescription}
+      emptyAction={emptyAction}
+    />
   );
 }
