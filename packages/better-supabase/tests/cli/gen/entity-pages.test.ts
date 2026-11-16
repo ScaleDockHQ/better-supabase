@@ -8,6 +8,7 @@ import {
   entityPageIndexes,
   entityPageIndexSql,
   entityPageName,
+  existingIndexesOf,
   resolveEntityPage,
   resolveEntityPages,
 } from "../../../src/cli/gen/entity-pages.ts";
@@ -88,6 +89,38 @@ describe("resolveEntityPage", () => {
 });
 
 describe("entityPageIndexes", () => {
+  it("leaves out a btree index the table already has, and keeps its own earlier ones out of that list", () => {
+    const resolved = resolveEntityPage(config(), risks);
+    const { table } = resolved;
+
+    expect(table).toBeDefined();
+
+    const key = `${table?.schema}.${table?.name}`;
+
+    const existing = existingIndexesOf([
+      {
+        schema: table?.schema ?? "",
+        name: table?.name ?? "",
+        indexes: [
+          { name: "risks_status_idx", columns: ["tenant_id", "status"] },
+          {
+            name: "risks_tenant_id_category_page_idx",
+            columns: ["tenant_id", "category"],
+          },
+        ],
+      },
+    ] as unknown as Parameters<typeof existingIndexesOf>[0]);
+
+    expect(existing.get(key)).toStrictEqual([["tenant_id", "status"]]);
+
+    const columns = entityPageIndexes(resolved, existing).map(
+      (index) => index.columns,
+    );
+
+    expect(columns).not.toContainEqual(["tenant_id", "status"]);
+    expect(columns).toContainEqual(["tenant_id", "category"]);
+  });
+
   it("indexes each sort and facet that is a column, tenant first", () => {
     const indexes = entityPageIndexes(resolveEntityPage(config(), risks));
 

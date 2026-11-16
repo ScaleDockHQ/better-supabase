@@ -41,6 +41,7 @@ import {
 import {
   ENTITY_PAGE_INDEXES_SUFFIX,
   entityPageIndexSql,
+  existingIndexesOf,
 } from "./entity-pages.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
@@ -173,7 +174,13 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     });
   }
 
-  const pageIndexes = options.isolated ? undefined : entityPageIndexSql(config);
+  const pageIndexes = options.isolated
+    ? undefined
+    : entityPageIndexSql(
+        config,
+        true,
+        existingIndexesOf(snapshot.extras.tables),
+      );
 
   if (pageIndexes !== undefined) {
     managed.push({ suffix: ENTITY_PAGE_INDEXES_SUFFIX, sql: pageIndexes });

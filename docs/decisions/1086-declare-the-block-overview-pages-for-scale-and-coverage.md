@@ -29,6 +29,10 @@ EX-1265, EX-1267).
 - A page named `rfqs` or `tills` shares its name with the screen's message namespace, so
   `check:empty-translations` now counts that screen's messages. It found 17 empty Dutch messages,
   which are translated.
+- Three of these pages (lims samples, referral codes, RFQs) declare a facet that a block's own
+  index already covers, so `gen` wrote an identical second index and doctor reported BS200
+  duplicate indexes. `gen` now compares the btree column lists in the snapshot, ignores its own
+  `*_page_idx` indexes, and skips an index the table already has (changeset, library test).
 - The account health page (`/crm/success`) is not declared: it reads scores in memory through
   `loadedPager`, not through a block list, so there is no list function to plan.
 
