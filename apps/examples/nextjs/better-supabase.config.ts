@@ -15,6 +15,7 @@ import {
   scoresSeed,
   segmentsSeed,
 } from "./crm-seeds.ts";
+import { overviewPages } from "./overview-pages.ts";
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
 
@@ -229,6 +230,7 @@ export default defineConfig({
             ],
           },
         }),
+        ...overviewPages,
         // The open invitations of an organization (ADR 0923, 0924): the organizations block
         // names its list reads per entity, and the members page is the nav area.
         defineEntityPage({
