@@ -4930,7 +4930,13 @@ import type { ConversationRow, InboxSummary } from "../inbox-types";
 
 import { loadConversations, loadInboxes } from "../inbox-actions";
 import { unwrap } from "../inbox-load";
-import { QUEUE_ASSIGNEES, QUEUE_STATUSES, slaStateOf } from "../inbox-types";
+import {
+  QUEUE_ASSIGNEES,
+  QUEUE_PRIORITIES,
+  QUEUE_SLAS,
+  QUEUE_STATUSES,
+  slaStateOf,
+} from "../inbox-types";
 import { ChannelBadge, SlaBadge } from "./conversation-badges";
 
 const ALL_CHANNELS = "all";
@@ -4940,13 +4946,16 @@ const queueParsers = {
   status: parseAsStringLiteral(QUEUE_STATUSES).withDefault("open"),
   assignee: parseAsStringLiteral(QUEUE_ASSIGNEES).withDefault("anyone"),
   channel: parseAsString.withDefault(""),
+  priority: parseAsStringLiteral(QUEUE_PRIORITIES).withDefault("any"),
+  sla: parseAsStringLiteral(QUEUE_SLAS).withDefault("any"),
 };
 
 /**
- * The conversation queue: search, status, assignee and channel run in the
- * database (`loadConversations`), the filters live in the URL, and Realtime
- * pings reload the list without refetching the page. A row links to
- * `/inbox/<id>` and keeps the filters, so the thread opens beside the queue.
+ * The conversation queue: search, status, assignee, channel, priority and the
+ * first response state run in the database (`loadConversations`), the filters
+ * live in the URL, and Realtime pings reload the list without refetching the
+ * page. A row links to `/inbox/<id>` and keeps the filters, so the thread opens
+ * beside the queue.
  */
 export function ConversationQueue({
   organizationId,
@@ -4993,10 +5002,28 @@ export function ConversationQueue({
     { value: "unassigned", label: t("Unassigned") },
   ];
 
+  const priorityItems = [
+    { value: "any", label: t("All priorities") },
+    { value: "urgent", label: t("Urgent") },
+    { value: "high", label: t("High") },
+    { value: "normal", label: t("Normal") },
+    { value: "low", label: t("Low") },
+  ];
+
+  const slaItems = [
+    { value: "any", label: t("Any first response") },
+    { value: "due", label: t("Due") },
+    { value: "breached", label: t("Breached") },
+    { value: "ok", label: t("On track") },
+    { value: "met", label: t("Met") },
+  ];
+
   const isDefault =
     filters.status === "open" &&
     filters.assignee === "anyone" &&
     filters.channel === "" &&
+    filters.priority === "any" &&
+    filters.sla === "any" &&
     filters.q === "";
 
   return (
@@ -5093,13 +5120,63 @@ export function ConversationQueue({
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={filters.priority}
+          items={priorityItems}
+          onValueChange={(value) => {
+            const priority = QUEUE_PRIORITIES.find((item) => item === value);
+
+            if (priority !== undefined) {
+              void setFilters({ priority });
+            }
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            className="w-full"
+            aria-label={t("Priority")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {priorityItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filters.sla}
+          items={slaItems}
+          onValueChange={(value) => {
+            const sla = QUEUE_SLAS.find((item) => item === value);
+
+            if (sla !== undefined) {
+              void setFilters({ sla });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="w-full" aria-label={t("SLA")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {slaItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <QueueRows
-        key={`${filters.status}:${filters.assignee}:${filters.channel}:${filters.q}`}
+        key={`${filters.status}:${filters.assignee}:${filters.channel}:${filters.priority}:${filters.sla}:${filters.q}`}
         organizationId={organizationId}
         status={filters.status}
         assignee={filters.assignee}
         channel={filters.channel}
+        priority={filters.priority}
+        slaFilter={filters.sla}
         q={filters.q}
         initial={isDefault ? initial : null}
         onClear={() => {
@@ -5108,6 +5185,8 @@ export function ConversationQueue({
             status: "open",
             assignee: "anyone",
             channel: "",
+            priority: "any",
+            sla: "any",
           });
         }}
       />
@@ -5122,6 +5201,8 @@ function QueueRows({
   status,
   assignee,
   channel,
+  priority,
+  slaFilter,
   q,
   initial,
   onClear,
@@ -5130,6 +5211,8 @@ function QueueRows({
   status: ConversationRow["status"] | "all";
   assignee: (typeof QUEUE_ASSIGNEES)[number];
   channel: string;
+  priority: (typeof QUEUE_PRIORITIES)[number];
+  slaFilter: (typeof QUEUE_SLAS)[number];
   q: string;
   initial: readonly ConversationRow[] | null;
   onClear: () => void;
@@ -5145,7 +5228,16 @@ function QueueRows({
   const inbox = useInbox({
     organizationId,
     load: async () =>
-      unwrap(await loadConversations({ status, assignee, channel, q })),
+      unwrap(
+        await loadConversations({
+          status,
+          assignee,
+          channel,
+          priority,
+          sla: slaFilter,
+          q,
+        }),
+      ),
   });
 
   const next = useAction(loadConversations);
@@ -5200,6 +5292,14 @@ function QueueRows({
 
   if (search.channel !== "") {
     query.set("channel", search.channel);
+  }
+
+  if (search.priority !== "any") {
+    query.set("priority", search.priority);
+  }
+
+  if (search.sla !== "any") {
+    query.set("sla", search.sla);
   }
 
   const suffix = query.size === 0 ? "" : `?${query.toString()}`;
@@ -5297,6 +5397,8 @@ function QueueRows({
                   status,
                   assignee,
                   channel,
+                  priority,
+                  sla: slaFilter,
                   q,
                   cursor: { id: last.id, lastMessageAt: last.lastMessageAt },
                 })
