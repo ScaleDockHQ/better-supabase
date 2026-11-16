@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:69bfae2d874153f79cd46924b2036cda1c57169c0e7f10ba0bdcc20137140d2b
+-- @bsb-hash sha256:d755b7b66ec59bcd351f984ed2507280687dc08b676b6b4d7d64cf8d865bd2a8
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -394,6 +394,260 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_consent_purposes"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_consent_purposes"(uuid, boolean) to authenticated, service_role;
+
+-- The purposes as a keyset page: the organization's own and the system ones, by key, the newest version first (ADR 1077). filters is { key, legalBasis (each a value or a list), archived, search (key and title), sort (key, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_consent_purposes"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_consent_purposes.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or page_consent_purposes.tenant in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('legalBasis') then
+      raise exception 'facet is one of legalBasis' using errcode = '22023', hint = 'CONSENT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'legalBasis' then (x."legal_basis"::text)::text end) as v
+      from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('key', 'createdAt') then
+    raise exception 'sort is one of key, createdAt' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."key" >= (v_after ->> 0)::text and ((x."key" > (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."created_at" < (v_after ->> 1)::timestamptz) or (x."key" = (v_after ->> 0)::text and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."key" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."created_at" < (v_after ->> 1)::timestamptz) or (x."key" = (v_after ->> 0)::text and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."key" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."key" >= (v_after ->> 0)::text and ((x."key" > (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."created_at" < (v_after ->> 1)::timestamptz) or (x."key" = (v_after ->> 0)::text and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."key" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."created_at" < (v_after ->> 1)::timestamptz) or (x."key" = (v_after ->> 0)::text and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."key" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONSENT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'description', x."description", 'legalBasis', x."legal_basis", 'version', x."version", 'requiresSignature', x."requires_signature", 'validMonths', x."valid_months", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."consent_purposes" x
+      where (x."tenant_id" = page_consent_purposes.tenant or x."tenant_id" is null)
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'legalBasis' is not null and jsonb_typeof(v_filters -> 'legalBasis') <> 'null' and not (jsonb_typeof(v_filters -> 'legalBasis') = 'array' and jsonb_array_length(v_filters -> 'legalBasis') = 0)) or x."legal_basis"::text = any((case when jsonb_typeof(v_filters -> 'legalBasis') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalBasis')) else array[v_filters ->> 'legalBasis'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."key" ilike v_search or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_consent_purposes"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_consent_purposes"(uuid, jsonb) to authenticated, service_role;
+
+-- One purpose, or a not-found error. Any member of the organization reads its own and the system purposes.
+create or replace function "better_supabase"."get_consent_purpose"(purpose_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consent_purposes"%rowtype;
+begin
+  select * into v_row from "better_supabase"."consent_purposes" x where x."id" = get_consent_purpose.purpose_id;
+  if not found then
+    raise exception 'consent purpose not found' using errcode = 'P0002', hint = 'CONSENT_PURPOSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_row."tenant_id" is null or v_row."tenant_id" in (select better_supabase.member_organization_ids())) then
+    raise exception 'not a member of this organization' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_consent_purpose"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_consent_purpose"(uuid) to authenticated, service_role;
 
 -- Records a decision on a purpose for record subject_type/subject_id: status
 -- granted or refused. A representative names the contact who decided. The
@@ -1879,6 +2133,26 @@ set search_path = ''
 as $$ select "better_supabase"."list_consent_purposes"($1, $2) $$;
 revoke execute on function "api"."list_consent_purposes"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_consent_purposes"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."page_consent_purposes"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_consent_purposes"($1, $2) $$;
+revoke execute on function "api"."page_consent_purposes"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_consent_purposes"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_consent_purpose"(purpose_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_consent_purpose"($1) $$;
+revoke execute on function "api"."get_consent_purpose"(uuid) from public, anon;
+grant execute on function "api"."get_consent_purpose"(uuid) to authenticated, service_role;
 
 create or replace function "api"."record_consent"(subject_type text, subject_id text, purpose_key text, status text, given_by text default 'self', given_by_contact_id uuid default null, expires_at timestamptz default null, scope jsonb default '{}'::jsonb, evidence jsonb default '{}'::jsonb)
 returns jsonb

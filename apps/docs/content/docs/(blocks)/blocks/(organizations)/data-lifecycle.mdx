@@ -700,3 +700,15 @@ Read through a `Db` with the block installed through `.blocks()`,
 ## Reading an export as a job
 
 `startExportJob({ organizationId? })` requests an export and returns `{ jobId: "export:<id>" }`. `jobs` is the `export` source of `createJobs`, so `jobs.get("export:<id>")` returns the common `JobResult`: `pending`, `running`, or `completed` with the export as `result`. Fetch the files with `download`. A failed export reads as `failed` with `DATA_EXPORT_FAILED`. An export the caller cannot see is `not_found`.
+
+## Paging data subject requests
+
+`subjectRequestPage` pages by keyset (ADR 1077) and `getSubjectRequest(id)` returns one request, or a `not_found` error. `dataSubjectRequests` stays as a deprecated alias until 0.70. Filters are `status`, `kind`, `open` (`["true"]` leaves out the closed requests) and `overdue` (`["true"]` keeps the requests past their due date). `q` searches the subject and the requester.
+
+```ts
+const due = await dataLifecycle
+  .subjectRequestPage({ organizationId, filters: { overdue: ["true"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

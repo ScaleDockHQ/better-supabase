@@ -1,6 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { archivedListFilter } from "../archive-sql.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { entityType } from "../resolved-names.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { ALL_MEMBERS } from "./acknowledgements-shared.ts";
@@ -117,6 +124,43 @@ export function policyFunctions(ctx: BlockSqlContext): string {
 
   const policyJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'title', ${row}.${p("title")}, 'ownerId', ${field(row, "owner")}, 'requiresAcknowledgement', ${row}.${p("requiresAck")}, 'versionId', ${row}.${p("currentVersion")}, 'versionNumber', ${row}.${p("versionNumber")}, 'publishedAt', ${row}.${p("publishedAt")}, 'archivedAt', ${row}.${p("archivedAt")}, 'createdAt', ${field(row, "createdAt")}, 'updatedAt', ${field(row, "updatedAt")}, 'acknowledgedAt', ${mine(row)}, 'acknowledgedCount', ${acknowledged(row)}, 'memberCount', (select count(*) from ${memberships} pm where pm.${mt} = ${row}.${p("tenant")}))`;
+
+  const policyPage = {
+    name: "page_compliance_policies",
+    from: policies,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = page_compliance_policies.tenant`,
+      archivedListFilter("x", p("archivedAt")),
+      `(v_search is null or x.${p("title")} ilike v_search or x.${p("key")} ilike v_search)`,
+      ...(owner ? [filterAny("ownerId", `x.${p("owner")}::text`)] : []),
+      filterAny("requiresAcknowledgement", `x.${p("requiresAck")}::text`),
+    ],
+    keys: [
+      { expr: `x.${p("title")}`, dir: "asc", type: "text" },
+      { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      title: [
+        { expr: `x.${p("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+      publishedAt: [
+        {
+          expr: `coalesce(x.${p("publishedAt")}, 'infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { requiresAcknowledgement: `x.${p("requiresAck")}::text` },
+    rowJson: policyJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("COMPLIANCE_POLICY_INVALID", message, "22023"),
+  } as const;
 
   const policyRecord = (
     type: string,
@@ -319,5 +363,51 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_compliance_policies")}(${idType}, boolean)`)}
+
+-- The policies as a keyset page, by title, with the caller's acknowledgement of each current version (ADR 1077). filters is { ownerId, requiresAcknowledgement (each a value or a list), archived, search (title and key), sort (title, publishedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_compliance_policies")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_compliance_policies.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(policyPage)}
+begin
+  if not ${allowed("page_compliance_policies.tenant", read)} then
+    ${forbidden("not allowed to read policies")}
+  end if;
+  ${listBody(policyPage)}
+end;
+$$;
+${userGrant(`${fn("page_compliance_policies")}(${idType}, jsonb)`)}
+
+-- One policy, or a not-found error. Needs the compliance read permission.
+create or replace function ${fn("get_compliance_policy")}(policy_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${policies}%rowtype;
+begin
+  select * into v_row from ${policies} x where x.${p("id")} = get_compliance_policy.policy_id;
+  if not found then
+    ${fail("COMPLIANCE_POLICY_NOT_FOUND", "policy not found", "P0002")}
+  end if;
+  if not ${allowed(`v_row.${p("tenant")}`, read)} then
+    ${forbidden("not allowed to read policies")}
+  end if;
+  return ${policyJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_compliance_policy")}(uuid)`)}
 `;
 }

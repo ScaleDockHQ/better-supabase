@@ -1,11 +1,23 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -16,6 +28,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { optionSetListSurface } from "./lists.ts";
 
 export interface OptionSetItem {
   readonly id: string;
@@ -68,12 +81,33 @@ export interface OptionSetItemInput {
 }
 
 export interface OptionSets {
-  /** The organization's active sets of a subject type, with their items. */
+  /**
+   * The organization's active sets of a subject type, with their items.
+   *
+   * @deprecated Use `setPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(input: {
     organizationId: string;
     subjectType: string;
     field?: string | undefined;
   }): AsyncResult<OptionSet[]>;
+  /**
+   * One keyset page of the organization's option sets, the default set first,
+   * each with its active items. `filters` takes `subjectType`, `field` and
+   * `scopeId` as lists and `archived`.
+   */
+  setPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<OptionSet>>;
+  /** The values of each facet (`subjectType`, `field`) and their set counts. */
+  setFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many option sets match the page's filters. */
+  setCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One option set with its active items, or a `not_found` error. */
+  getSet(optionSetId: string): AsyncResult<OptionSet>;
   /**
    * The default set of a bound field, created from the binding's items (or its
    * brand's) on first use. Calling it on every start is safe.
@@ -176,7 +210,22 @@ export function createOptionSets(options: OptionSetsOptions): OptionSets {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const setList = entityList<OptionSet, RequiredTenantOption>({
+    entity: "option set",
+    surface: optionSetListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_option_sets",
+    rowOf: (row) => setOf(row),
+  });
+
   const client: OptionSets = {
+    setPage: (page) => setList.page(page),
+    setFacets: (facets) => setList.facets(facets),
+    setCount: (count) => setList.count(count),
+    getSet: (optionSetId) =>
+      call("get_option_set", { option_set_id: optionSetId }, setOf),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, subjectType, field }) =>
       call(
         "list_option_sets",

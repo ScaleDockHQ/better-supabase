@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the tests cover the deprecated list alias until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -31,6 +32,12 @@ const SET: OptionSet = {
 function fakeClient() {
   return {
     list: vi.fn(() => resolved([SET])),
+    setPage: vi.fn(() =>
+      resolved({ items: [SET], hasMore: false, nextCursor: null }),
+    ),
+    setFacets: vi.fn(() => resolved([])),
+    setCount: vi.fn(() => resolved({ value: 1, exact: true })),
+    getSet: vi.fn(() => resolved(SET)),
     ensure: vi.fn(() => resolved(SET)),
     upsert: vi.fn(() => resolved(SET)),
     saveItem: vi.fn(() => resolved(SET.items[0]!)),

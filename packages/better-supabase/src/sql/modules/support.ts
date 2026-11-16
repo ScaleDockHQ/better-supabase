@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the keyset page and get functions of the support sessions add lines past the limit. 1 finding. */
 import type { ImpersonationEvents } from "../../blocks/impersonation/events.ts";
 import type {
   BlockSqlContext,
@@ -7,6 +8,12 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SERVICE_CALLER,
@@ -890,6 +897,46 @@ function reads(ctx: BlockSqlContext): string {
   const c = (logical: string) => ctx.col("sessions", logical);
   const isPlatform = ctx.of("permissions").fn("is_platform");
 
+  const startedKey = {
+    expr: `s.${c("startedAt")}`,
+    dir: "desc",
+    type: "timestamptz",
+  } as const;
+
+  const idKey = { expr: `s.${c("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const sessionPage = {
+    name: "page_support_sessions",
+    from: sessions,
+    alias: "s",
+    where: [
+      filterAny("adminId", `s.${c("admin")}::text`),
+      filterAny("targetUserId", `s.${c("target")}::text`),
+      ...(ctx.has("sessions", "tenant")
+        ? [filterAny("tenant", `s.${c("tenant")}::text`)]
+        : []),
+      `(not ${filterFlag("active")} or (s.${c("endedAt")} is null and s.${c("expiresAt")} > now()))`,
+    ],
+    keys: [startedKey, idKey],
+    sorts: {
+      startedAt: [startedKey, idKey],
+      expiresAt: [
+        { expr: `s.${c("expiresAt")}`, dir: "desc", type: "timestamptz" },
+        idKey,
+      ],
+    },
+    facets: {
+      ...(ctx.has("sessions", "readOnly")
+        ? { readOnly: `s.${c("readOnly")}::text` }
+        : {}),
+    },
+    rowJson: sessionJson(ctx, "s"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("IMPERSONATION_INVALID", message, "22023"),
+  } as const;
+
   return `-- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
 -- The admin's session while it is active, or null. Read on every request
@@ -938,6 +985,55 @@ as $$
       or $3 = (s.${c("endedAt")} is null and s.${c("expiresAt")} > now()))
   order by s.${c("startedAt")} desc
   limit $4
+$$;
+
+-- Sessions as a keyset page, newest first, for platform staff with the view
+-- permission (ADR 1077). filters is { adminId, targetUserId, tenant (each a
+-- value or a list), active (true keeps the sessions still running), sort
+-- (startedAt, expiresAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${ctx.fn("page_support_sessions")}(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_support_sessions.filters, '{}'::jsonb);
+  ${listDeclare(sessionPage)}
+begin
+  if not (${SERVICE_CALLER}
+      or ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])})) then
+    ${fail("IMPERSONATION_FORBIDDEN", "not allowed to read support sessions")}
+  end if;
+  ${listBody(sessionPage)}
+end;
+$$;
+
+-- One support session, or a not-found error, for platform staff with the view
+-- permission.
+create or replace function ${ctx.fn("get_support_session")}(session_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${sessions}%rowtype;
+begin
+  if not (${SERVICE_CALLER}
+      or ${isPlatform}(${ctx.permission("read", OPERATIONS["impersonation.read"])})) then
+    ${fail("IMPERSONATION_FORBIDDEN", "not allowed to read support sessions")}
+  end if;
+  select * into v_row from ${sessions} s where s.${c("id")} = get_support_session.session_id;
+  if not found then
+    ${fail("IMPERSONATION_SESSION_NOT_FOUND", "support session not found", "P0002")}
+  end if;
+  return ${sessionJson(ctx, "v_row")};
+end;
 $$;`;
 }
 
@@ -998,6 +1094,8 @@ function grants(ctx: BlockSqlContext): string {
     `${ctx.fn("end_support_session")}(uuid, text)`,
     `${ctx.fn("active_support_session")}(uuid, uuid)`,
     `${ctx.fn("list_support_sessions")}(uuid, uuid, boolean, integer)`,
+    `${ctx.fn("page_support_sessions")}(jsonb)`,
+    `${ctx.fn("get_support_session")}(uuid)`,
     ...(ctx.hasTable("requests")
       ? [
           `${ctx.fn("request_support_session")}(uuid, text, boolean, jsonb, ${id}, uuid, uuid)`,
@@ -1077,6 +1175,8 @@ export const SUPPORT_SESSIONS: BlockSqlDefinition = {
       args: ["uuid", "uuid", "boolean", "integer"],
       returns: "jsonb",
     },
+    { name: "page_support_sessions", args: ["jsonb"], returns: "jsonb" },
+    { name: "get_support_session", args: ["uuid"], returns: "jsonb" },
     { name: "support_target_claims", args: ["uuid"], returns: "jsonb" },
     { name: "expire_support_sessions", args: [], returns: "jsonb" },
     ...(ctx.hasTable("requests")

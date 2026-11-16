@@ -204,6 +204,8 @@ ${defaultSet(ctx, names, bindings, brand)}${bindings.map((binding) => levelTrigg
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "list_option_sets", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_option_sets", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_option_set", args: ["uuid"], returns: "jsonb" },
     {
       name: "ensure_option_set",
       args: ["{id}", "text", "text", "text"],
