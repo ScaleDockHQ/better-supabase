@@ -2019,8 +2019,14 @@ end;
 $$;
 ```
 
-The block functions check the same condition inline. The prelude file that
+Most block functions check the same condition inline; a few, such as the
+invoices block, accept only a `service_role` token. The prelude file that
 every module install writes defines the function.
+
+The check reads the token's `role` claim and falls back to `session_user`. A
+pgTAP test that runs `set role authenticated` without setting
+`request.jwt.claims` still connects as `postgres`, so the function returns
+true there. Set the claims (`{"role":"authenticated"}`) to test a client.
 
 ## Memoize a value for one transaction
 
