@@ -1457,7 +1457,7 @@
   "/api/chat/durable/route": {
     "raw": 3571950,
     "gzip": 1085575,
-    "brotli": 920980
+    "brotli": 923296
   },
   "/api/chat/route": {
     "raw": 1920692,
