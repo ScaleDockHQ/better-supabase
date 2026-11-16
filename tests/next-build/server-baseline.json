@@ -225,7 +225,7 @@
     "brotli": 797388
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 1444447,
+    "raw": 3674758,
     "gzip": 1094343,
     "brotli": 910030
   },
@@ -945,7 +945,7 @@
     "brotli": 795552
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 1565144,
+    "raw": 3151982,
     "gzip": 952855,
     "brotli": 792044
   },
