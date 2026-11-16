@@ -7,6 +7,12 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   columnsObject,
@@ -142,6 +148,46 @@ ${lockTable(t, { read: true })}
     ? `
   delete from ${m} where ${mt} = v_row.${c("tenant")} and ${mu} = v_row.${c("id")};`
     : "";
+
+  const principalPage = {
+    name: "page_service_principals",
+    from: t,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_service_principals.tenant`,
+      filterAny("role", `x.${c("role")}::text`),
+      filterAny("isDefault", `x.${c("isDefault")}::text`),
+      filterAny("disabled", `(x.${c("disabledAt")} is not null)::text`),
+      `(v_search is null or x.${c("name")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${c("name")}`, dir: "asc", type: "text" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      name: [
+        { expr: `x.${c("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      role: `x.${c("role")}::text`,
+      isDefault: `x.${c("isDefault")}::text`,
+      disabled: `(x.${c("disabledAt")} is not null)::text`,
+    },
+    rowJson: `jsonb_build_object(
+      'id', x.${c("id")}, 'name', x.${c("name")}, 'role', x.${c("role")}, 'isDefault', x.${c("isDefault")},
+      'createdBy', x.${c("createdBy")}, 'createdAt', x.${c("createdAt")}, 'disabledAt', x.${c("disabledAt")}${extraFieldsJson("x", extras)}
+    )`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("SERVICE_PRINCIPAL_INVALID", message, "22023"),
+  } as const;
 
   return `${schemaPreamble(ctx)}
 -- Non-human members of a tenant. Each row is an auth.users row that can't
@@ -313,6 +359,26 @@ as $$
   where p.${c("tenant")} = service_principals_list.tenant
 $$;
 ${userGrant(`${fn("service_principals_list")}(${id})`)}
+
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_service_principals")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(principalPage)}
+begin
+  
+  ${listBody(principalPage)}
+end;
+$$;
+${userGrant(`${fn("page_service_principals")}(${id}, jsonb)`)}
 `;
 }
 
@@ -342,6 +408,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "boolean",
     },
     { name: "default_service_principal", args: ["{id}"], returns: "uuid" },
+    {
+      name: "page_service_principals",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
     { name: "service_principals_list", args: ["{id}"], returns: "jsonb" },
   ];
 }

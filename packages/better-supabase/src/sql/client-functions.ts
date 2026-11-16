@@ -33,7 +33,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   announcements:
     "active_announcements archive_announcement dismiss_announcement get_announcement list_announcements page_announcements purge_announcement restore_announcement save_announcement",
   "api-keys":
-    "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
+    "create_api_key list_api_keys page_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:
     "approval_requirement cancel_approval consume_approval decide_approval decide_approval_items delegate_approval get_approval get_approvals is_approved list_approval_policies list_approvals page_approvals record_approval_created remove_approval_policy request_approval request_approval_items save_approval_policy settle_approval",
   assets:
@@ -265,7 +265,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   sequences:
     "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence get_sequence_enrollment list_sequence_enrollments list_sequences page_sequence_enrollments page_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
-    "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
+    "default_service_principal disable_service_principal page_service_principals register_service_principal service_principals_list set_service_principal_role",
   sessions:
     "end_my_session end_sessions last_sign_ins list_my_sessions sessions_overview",
   settings:
@@ -281,7 +281,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "signing-keys":
     "add_signing_key delete_signing_keys note_signing_key_exp purge_signing_keys retire_signing_key signing_jwks signing_key",
   sla: "check_sla_clocks record_sla_event save_sla_policy sla_clocks_of sla_due_at start_sla_clocks",
-  sso: "add_organization_domain check_sso_provider list_organization_domains list_sso_providers organization_domain register_sso_provider remove_organization_domain scim_delete_group scim_delete_user scim_get_group scim_get_user scim_list_groups scim_list_users scim_save_group scim_save_user sso_domain_for sso_provider unregister_sso_provider update_organization_domain verify_organization_domain",
+  sso: "add_organization_domain check_sso_provider list_organization_domains list_sso_providers organization_domain page_organization_domains page_sso_providers register_sso_provider remove_organization_domain scim_delete_group scim_delete_user scim_get_group scim_get_user scim_list_groups scim_list_users scim_save_group scim_save_user sso_domain_for sso_provider unregister_sso_provider update_organization_domain verify_organization_domain",
   "state-machine":
     "list_status_history list_status_stages pause_lifecycle resume_lifecycle set_lifecycle_flag status_state transition",
   streams:

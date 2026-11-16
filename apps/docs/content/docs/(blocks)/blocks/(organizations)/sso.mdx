@@ -300,6 +300,18 @@ latest rows for an admin page, and `purge_scim_sync_log(older_than, batch)`
 deletes rows older than 90 days, or the `scim_sync_log` retention policy of
 the [data lifecycle](/docs/blocks/data-lifecycle) block, for a periodic job.
 
+## Paging domains and providers
+
+`domainPage` and `providerPage` page by keyset (ADR 1077), each with facets and a count, and `getDomain(id)` returns one domain, or a `not_found` error. `domains` and `providers` stay as deprecated aliases until 0.70. Domain filters are `verified`, `enforceSso` and `autoJoinRole`, `q` searches the domain name, and the sorts are `domain` and `verifiedAt`. Provider filters are `type` and the sort is `createdAt`. Providers have no `get`, because a provider is read by the email address it serves.
+
+```ts
+const pending = await sso
+  .domainPage({ organizationId, filters: { verified: ["false"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Functions
 
 | Function                                                     | Granted to                            | Does                                                  |

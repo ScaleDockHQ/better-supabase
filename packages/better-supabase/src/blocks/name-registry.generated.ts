@@ -251,7 +251,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "keys": "id" | "tenant" | "user" | "name" | "prefix" | "publicId" | "secretHash" | "scopes" | "kind" | "rateLimit" | "windowStart" | "windowHits" | "expiresAt" | "lastUsedAt" | "revokedAt" | "rotatedFrom" | "createdBy" | "createdAt";
     };
-    readonly functions: "api_key_tenant" | "create_api_key" | "has_scope" | "list_api_keys" | "revoke_api_key" | "rotate_api_key" | "verify_api_key";
+    readonly functions: "api_key_tenant" | "create_api_key" | "has_scope" | "list_api_keys" | "page_api_keys" | "revoke_api_key" | "rotate_api_key" | "verify_api_key";
     readonly actions: "manage" | "own";
     readonly hooks: never;
     readonly entities: {
@@ -2199,7 +2199,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "principals": "id" | "tenant" | "name" | "role" | "isDefault" | "createdBy" | "createdAt" | "disabledAt";
     };
-    readonly functions: "default_service_principal" | "disable_service_principal" | "register_service_principal" | "service_principals_list" | "set_service_principal_role";
+    readonly functions: "default_service_principal" | "disable_service_principal" | "page_service_principals" | "register_service_principal" | "service_principals_list" | "set_service_principal_role";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {};
@@ -2324,7 +2324,7 @@ export interface BlockNameRegistry {
       readonly "scimMembers": "group" | "member";
       readonly "syncLog": "id" | "tenant" | "operation" | "resourceType" | "resourceId" | "status" | "error" | "requestId" | "createdAt";
     };
-    readonly functions: "add_organization_domain" | "check_sso_provider" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "register_sso_provider" | "remove_organization_domain" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
+    readonly functions: "add_organization_domain" | "check_sso_provider" | "list_organization_domains" | "list_sso_providers" | "organization_domain" | "page_organization_domains" | "page_sso_providers" | "register_sso_provider" | "remove_organization_domain" | "scim_delete_group" | "scim_delete_user" | "scim_get_group" | "scim_get_user" | "scim_group_role" | "scim_list_groups" | "scim_list_users" | "scim_save_group" | "scim_save_user" | "scim_sync_member" | "sso_access_token_check" | "sso_domain_for" | "sso_on_auth_user" | "sso_provider" | "unregister_sso_provider" | "update_organization_domain" | "verify_organization_domain";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};

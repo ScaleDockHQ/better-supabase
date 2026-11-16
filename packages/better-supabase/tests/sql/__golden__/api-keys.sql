@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:daa7a2984547d15b85725faff4715c5e9a5bdb14e008e42a0b02423a11a4bc58
+-- @bsb-hash sha256:5f088f87bd9b7f72fe46f1c5d63319295e623fd5ac93e3c65a84c3c92615e561
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -240,6 +240,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -453,11 +983,13 @@ $$;
 
 revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;
@@ -481,7 +1013,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:3c5ca0bacc43e29149c8707537571b96884ece33f6dbfe8c5632e1eabbdea0bf
+-- @bsb-hash sha256:4fc6923497494311cede3cf55c5e5ec317366241c0fc651a45e0648dbbb89daf
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -732,6 +1264,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -963,11 +2025,13 @@ $$;
 
 revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;
@@ -994,7 +2058,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:36ae3b84f96780055f7ab09a3ef13dfff9ff8d32719a05f21bc411fbbc9f8f7f
+-- @bsb-hash sha256:d0b24e4ca8bcc33099b7159bd2f1f5d50e5dff06fadf576edd63e9f07f3c53aa
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1238,6 +2302,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "app_private"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "app_private"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -1451,11 +3045,13 @@ $$;
 
 revoke execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "app_private"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "app_private"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "app_private"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "app_private"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "app_private"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "app_private"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "app_private"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "app_private"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "app_private"."verify_api_key"(text, text) to service_role;
@@ -1479,7 +3075,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:97c5cee6d21c0437e4e36dbb91abf825d53baa950b971d3359636ef82d6888d2
+-- @bsb-hash sha256:fd33048ee3fd2ae45954d0977333bf18df8adec0fe6c9e65578ed7aaf59ab8b1
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1718,6 +3314,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -1931,11 +4057,13 @@ $$;
 
 revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;
@@ -1964,6 +4092,16 @@ set search_path = ''
 as $$ select "better_supabase"."list_api_keys"($1) $$;
 revoke execute on function "api"."list_api_keys"(uuid) from public, anon;
 grant execute on function "api"."list_api_keys"(uuid) to authenticated, service_role;
+
+create or replace function "api"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_api_keys"($1, $2) $$;
+revoke execute on function "api"."page_api_keys"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."revoke_api_key"(key uuid)
 returns boolean
@@ -2029,7 +4167,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:41a112ab9ee47f69397ae5a0f773b7a380f422cf8d13ec28924cc303a70a584f
+-- @bsb-hash sha256:683558584bed8e2e6de81175925026caef9ab9ad51b560e6186055515c497c32
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2262,6 +4400,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."tenant_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."tenant_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -2475,11 +5143,13 @@ $$;
 
 revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;
@@ -2503,7 +5173,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:28efc3ee59b891f90e5f3bed510210a76f13414b6e6084bf9684a43626dcc153
+-- @bsb-hash sha256:eeef42d27975f446deee7a35fe2fb1bd930e4dfb26b4ba4e9bbda2f98cc6d076
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2742,6 +5412,536 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_api_keys"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('revoked') then
+      raise exception 'facet is one of revoked' using errcode = '22023', hint = 'API_KEY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'revoked' then ((x."revoked_at" is not null)::text)::text end) as v
+      from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name', 'expiresAt', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, name, expiresAt, lastUsedAt' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_used_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'API_KEY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organization_id', x."org_id",
+    'user_id', x."user_id",
+    'name', x."name",
+    'prefix', x."prefix",
+    'public_id', x."public_id",
+    'scopes', to_jsonb(x."scopes"),
+    'kind', x."kind",
+    'rate_limit', x."rate_limit",
+    'expires_at', x."expires_at",
+    'last_used_at', x."last_used_at",
+    'revoked_at', x."revoked_at",
+    'rotated_from', x."rotated_from",
+    'created_by', x."created_by",
+    'created_at', x."created_at",
+    'state', case
+      when x."revoked_at" is not null and x."revoked_at" <= now() then 'revoked'
+      when x."expires_at" is not null and x."expires_at" <= now() then 'expired'
+      when x."revoked_at" is not null then 'grace'
+      else 'active'
+    end,
+    'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = x."id" order by s."created_at" desc limit 1)
+  ) as j, jsonb_build_array((x."last_used_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+        and (v_after is null or (x."last_used_at" <= (v_after ->> 0)::timestamptz and ((x."last_used_at" < (v_after ->> 0)::timestamptz) or (x."last_used_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."last_used_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."api_keys" x
+      where (case when page_api_keys.tenant is null then x."user_id" = auth.uid() else x."org_id" = page_api_keys.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_api_keys.tenant, 'api_keys.manage'), false) or x."user_id" = auth.uid()) end)
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'revoked' is not null and jsonb_typeof(v_filters -> 'revoked') <> 'null' and not (jsonb_typeof(v_filters -> 'revoked') = 'array' and jsonb_array_length(v_filters -> 'revoked') = 0)) or (x."revoked_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'revoked') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'revoked')) else array[v_filters ->> 'revoked'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."prefix" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+
 create or replace function "better_supabase"."revoke_api_key"(key uuid)
 returns boolean
 language plpgsql
@@ -2955,11 +6155,13 @@ $$;
 
 revoke execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) from public, anon;
 revoke execute on function "better_supabase"."list_api_keys"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_api_keys"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."revoke_api_key"(uuid) from public, anon;
 revoke execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) from public, anon;
 revoke execute on function "better_supabase"."verify_api_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_api_key"(text, text, text, uuid, boolean, text[], timestamptz, integer, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_api_keys"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_api_keys"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."revoke_api_key"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."rotate_api_key"(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function "better_supabase"."verify_api_key"(text, text) to service_role;

@@ -1,11 +1,27 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -21,6 +37,7 @@ import {
   toInstant,
   applyTemporal,
 } from "../shared.ts";
+import { domainListSurface, providerListSurface } from "./lists.ts";
 
 /** The DNS record that proves a domain belongs to the organization. */
 export interface DomainRecord {
@@ -86,7 +103,29 @@ export interface Sso {
     organizationId: string;
     domain: string;
   }): AsyncResult<OrganizationDomain>;
+  /**
+   * @deprecated Use `domainPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   domains(organizationId: string): AsyncResult<readonly OrganizationDomain[]>;
+  /**
+   * One keyset page of the organization's domains, with the record to publish.
+   * `filters` takes `verified`, `enforceSso` and `autoJoinRole` as lists.
+   */
+  domainPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<OrganizationDomain>>;
+  /**
+   * The values of each facet (`verified`, `enforceSso`) and how many rows hold
+   * each.
+   */
+  domainFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many domains match the page's filters. */
+  domainCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One domain with its record, or a `not_found` error. */
+  getDomain(domainId: string): AsyncResult<OrganizationDomain>;
   /** Sets auto-join and SSO enforcement; both need a verified domain. */
   updateDomain(input: {
     domainId: string;
@@ -96,7 +135,23 @@ export interface Sso {
     };
   }): AsyncResult<OrganizationDomain>;
   removeDomain(domainId: string): AsyncResult<boolean>;
+  /**
+   * @deprecated Use `providerPage`, which pages by keyset and takes sorts,
+   * array filters and a count (ADR 1077).
+   */
   providers(organizationId: string): AsyncResult<readonly SsoProvider[]>;
+  /** One keyset page of the organization's SSO providers, oldest first. */
+  providerPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<SsoProvider>>;
+  /** The values of the `type` facet and how many rows hold each. */
+  providerFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many providers match the page's filters. */
+  providerCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
   /**
    * The SSO provider for an email address, for the sign-in page. Works signed
    * out.
@@ -161,13 +216,42 @@ export function createSso(options: SsoOptions): Sso {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const domainList = entityList<OrganizationDomain, RequiredTenantOption>({
+    entity: "organization domain",
+    surface: domainListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_organization_domains",
+    rowOf: (row) => domainOf(row),
+  });
+
+  const providerList = entityList<SsoProvider, RequiredTenantOption>({
+    entity: "SSO provider",
+    surface: providerListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_sso_providers",
+    rowOf: (row) => providerOf(row),
+  });
+
   const client: Sso = {
+    domainPage: (page) => domainList.page(page),
+    domainFacets: (facets) => domainList.facets(facets),
+    domainCount: (count) => domainList.count(count),
+    getDomain: (domainId) =>
+      call("organization_domain", { id: domainId }, (value) =>
+        isRecord(value) ? domainOf(value) : undefined,
+      ).andThen((found) => foundOrNotFound("domain", found, domainId)),
+    providerPage: (page) => providerList.page(page),
+    providerFacets: (facets) => providerList.facets(facets),
+    providerCount: (count) => providerList.count(count),
     addDomain: ({ organizationId, domain }) =>
       call(
         "add_organization_domain",
         { tenant: organizationId, domain },
         domainOf,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     domains: (organizationId) =>
       call("list_organization_domains", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_organization_domains").map(domainOf),
@@ -201,6 +285,7 @@ export function createSso(options: SsoOptions): Sso {
         { id: domainId },
         (value) => value === true,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     providers: (organizationId) =>
       call("list_sso_providers", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_sso_providers").map(providerOf),

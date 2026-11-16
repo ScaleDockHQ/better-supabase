@@ -14234,6 +14234,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "api_key.revoked",
           "api_key.rotated"
         ]
+      },
+      "entityLists": {
+        "api_key": {
+          "sorts": [
+            "createdAt",
+            "name",
+            "expiresAt",
+            "lastUsedAt"
+          ],
+          "facets": [
+            "revoked"
+          ],
+          "filters": [
+            "userId",
+            "revoked"
+          ],
+          "search": [
+            "name",
+            "prefix"
+          ]
+        }
       }
     },
     {
@@ -35873,6 +35894,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "service_principal.role_changed",
           "service_principal.disabled"
         ]
+      },
+      "entityLists": {
+        "service_principal": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "role",
+            "isDefault",
+            "disabled"
+          ],
+          "filters": [
+            "role",
+            "isDefault",
+            "disabled"
+          ],
+          "search": [
+            "name"
+          ]
+        }
       }
     },
     {
@@ -36096,6 +36138,37 @@ export const PRESET_CATALOG: PresetCatalog = {
           "scim_group.updated",
           "scim_group.deleted"
         ]
+      },
+      "entityLists": {
+        "sso_domain": {
+          "sorts": [
+            "domain",
+            "verifiedAt"
+          ],
+          "facets": [
+            "verified",
+            "enforceSso"
+          ],
+          "filters": [
+            "verified",
+            "enforceSso",
+            "autoJoinRole"
+          ],
+          "search": [
+            "domain"
+          ]
+        },
+        "sso_provider": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "type"
+          ],
+          "filters": [
+            "type"
+          ]
+        }
       }
     },
     {

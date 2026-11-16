@@ -4,6 +4,12 @@ import type { ScimSqlNames } from "./sso-scim-sql.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   memberAddedRecord,
   SERVICE_CALLER,
   schemaPreamble,
@@ -203,6 +209,66 @@ function build(ctx: BlockSqlContext): string {
 
   const withRecord = (row: string): string =>
     `${domainJson(row)} || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${recordName(`${row}.${cd("domain")}`)}, 'value', 'better-supabase-domain-verification=' || ${row}.${cd("token")}))`;
+
+  const domainPage = {
+    name: "page_organization_domains",
+    from: d,
+    alias: "x",
+    where: [
+      `x.${cd("tenant")} = page_organization_domains.tenant`,
+      filterAny("verified", `(x.${cd("verifiedAt")} is not null)::text`),
+      filterAny("enforceSso", `x.${cd("enforceSso")}::text`),
+      filterAny("autoJoinRole", `x.${cd("autoJoinRole")}::text`),
+      `(v_search is null or x.${cd("domain")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${cd("domain")}`, dir: "asc", type: "text" },
+      { expr: `x.${cd("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      domain: [
+        { expr: `x.${cd("domain")}`, dir: "asc", type: "text" },
+        { expr: `x.${cd("id")}`, dir: "asc", type: "uuid" },
+      ],
+      verifiedAt: [
+        { expr: `x.${cd("verifiedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${cd("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      verified: `(x.${cd("verifiedAt")} is not null)::text`,
+      enforceSso: `x.${cd("enforceSso")}::text`,
+    },
+    rowJson: withRecord("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("SSO_INVALID", message, "22023"),
+  } as const;
+
+  const providerPage = {
+    name: "page_sso_providers",
+    from: p,
+    alias: "x",
+    where: [
+      `x.${cp("tenant")} = page_sso_providers.tenant`,
+      filterAny("type", `x.${cp("type")}::text`),
+    ],
+    keys: [
+      { expr: `x.${cp("createdAt")}`, dir: "asc", type: "timestamptz" },
+      { expr: `x.${cp("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${cp("createdAt")}`, dir: "asc", type: "timestamptz" },
+        { expr: `x.${cp("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { type: `x.${cp("type")}::text` },
+    rowJson: providerJson("x", "x.*"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("SSO_INVALID", message, "22023"),
+  } as const;
 
   const memberEvent = (type: string, extra = ""): string =>
     ctx.record({
@@ -469,6 +535,27 @@ begin
 end;
 $$;
 
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_organization_domains")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(domainPage)}
+begin
+  if not (${SERVICE_CALLER}) and not ${can("page_organization_domains.tenant")} then
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's domains")}
+  end if;
+  ${listBody(domainPage)}
+end;
+$$;
+
 -- One domain with its record, for the service role or a manager.
 create or replace function ${fn("organization_domain")}(id uuid)
 returns jsonb
@@ -688,6 +775,27 @@ begin
 end;
 $$;
 
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_sso_providers")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(providerPage)}
+begin
+  if not (${SERVICE_CALLER}) and not ${can("page_sso_providers.tenant")} then
+    ${fail("SSO_FORBIDDEN", "You may not manage this organization's SSO")}
+  end if;
+  ${listBody(providerPage)}
+end;
+$$;
+
 -- The SSO provider for an email address, for the sign-in page: null unless
 -- its domain is verified and has a provider.
 create or replace function ${fn("sso_domain_for")}(email text)
@@ -813,6 +921,8 @@ revoke execute on function ${fn("register_sso_provider")}(${id}, uuid, text[], t
 revoke execute on function ${fn("sso_provider")}(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("unregister_sso_provider")}(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("list_sso_providers")}(${id}) from public, anon;
+revoke execute on function ${fn("page_organization_domains")}(${id}, jsonb) from public, anon;
+revoke execute on function ${fn("page_sso_providers")}(${id}, jsonb) from public, anon;
 revoke execute on function ${fn("sso_domain_for")}(text) from public;
 revoke execute on function ${fn("sso_access_token_check")}(jsonb) from public, anon, authenticated;
 revoke execute on function ${fn("scim_list_users")}(${id}) from public, anon, authenticated;
@@ -836,6 +946,8 @@ grant execute on function ${fn("register_sso_provider")}(${id}, uuid, text[], te
 grant execute on function ${fn("sso_provider")}(uuid, uuid) to service_role;
 grant execute on function ${fn("unregister_sso_provider")}(uuid, uuid) to service_role;
 grant execute on function ${fn("list_sso_providers")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("page_organization_domains")}(${id}, jsonb) to authenticated, service_role;
+grant execute on function ${fn("page_sso_providers")}(${id}, jsonb) to authenticated, service_role;
 grant execute on function ${fn("sso_domain_for")}(text) to anon, authenticated, service_role;
 grant execute on function ${fn("sso_access_token_check")}(jsonb) to service_role, supabase_auth_admin;
 grant execute on function ${fn("scim_list_users")}(${id}) to service_role;
@@ -888,6 +1000,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_sso_providers", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "page_organization_domains",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "page_sso_providers", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "sso_domain_for", args: ["text"], returns: "jsonb" },
     { name: "sso_access_token_check", args: ["jsonb"], returns: "jsonb" },
     { name: "sso_on_auth_user", args: [], returns: "trigger" },

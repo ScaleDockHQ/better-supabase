@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it, vi } from "vitest";
 
 import type {
@@ -179,5 +180,56 @@ describe("createServiceAccounts", () => {
       ["default_service_principal", { tenant: "org-1" }],
       ["service_principals_list", { tenant: "org-1" }],
     ]);
+  });
+});
+
+describe("service principal pages", () => {
+  it("maps the rows of a page", async () => {
+    const { transport: t } = transport((_fn, args) => {
+      const sent = JSON.stringify(args);
+
+      if (sent.includes('"count":true')) {
+        return { value: 1, exact: true };
+      }
+
+      if (sent.includes('"facet"')) {
+        return { facet: "role", values: [] };
+      }
+
+      return {
+        items: [
+          {
+            id: "sp-1",
+            name: "Automations",
+            role: "member",
+            isDefault: true,
+            createdBy: null,
+            createdAt: AT,
+            disabledAt: null,
+            fields: {},
+          },
+        ],
+        hasMore: false,
+      };
+    });
+
+    const principals = createServiceAccounts({ transport: t, admin: admin() });
+
+    const page = await principals
+      .principalPage({ organizationId: "org-1" })
+      .orThrow();
+
+    expect(page.items[0]).toMatchObject({ id: "sp-1", isDefault: true });
+
+    expect(
+      (await principals.principalCount({ organizationId: "org-1" }).orThrow())
+        .value,
+    ).toBe(1);
+
+    expect(
+      await principals
+        .principalFacets({ organizationId: "org-1", facets: ["role"] })
+        .orThrow(),
+    ).toHaveLength(1);
   });
 });

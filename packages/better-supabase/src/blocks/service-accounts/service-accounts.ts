@@ -3,8 +3,19 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -17,6 +28,7 @@ import {
   rowFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -29,6 +41,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { principalListSurface } from "./lists.ts";
 
 /** The `app_metadata` key that marks an `auth.users` row as a service principal. */
 export const SERVICE_PRINCIPAL_CLAIM = "bsb_service_principal";
@@ -152,11 +165,49 @@ export interface ServiceAccounts<F extends object = Record<never, never>> {
   ) => AsyncResult<boolean>;
   /** The organization's default principal, or `null`. */
   readonly defaultFor: (organizationId: string) => AsyncResult<string | null>;
-  /** The organization's principals, through the read policy. */
+  /**
+   * One keyset page of the organization's principals, through the read policy.
+   * `filters` takes `role`, `isDefault` and `disabled` as lists.
+   */
+  readonly principalPage: (
+    options: PageOptions & RequiredTenantOption,
+  ) => AsyncResult<ListPage<ServicePrincipal<F>>>;
+  /**
+   * The values of each facet (`role`, `isDefault`, `disabled`) and how many
+   * rows hold each.
+   */
+  readonly principalFacets: (
+    options: FacetOptions & RequiredTenantOption,
+  ) => AsyncResult<readonly FacetResult[]>;
+  /** How many principals match the page's filters. */
+  readonly principalCount: (
+    options: CountOptions & RequiredTenantOption,
+  ) => AsyncResult<Count>;
+  /**
+   * The organization's principals, through the read policy.
+   *
+   * @deprecated Use `principalPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   readonly list: (
     organizationId: string,
     options?: { readonly limit?: number },
   ) => AsyncResult<readonly ServicePrincipal<F>[]>;
+}
+
+function principalOf(value: unknown) {
+  const row = recordOf(value, "service_principals");
+
+  return {
+    id: textOf(row["id"]),
+    name: textOf(row["name"]),
+    role: textOf(row["role"]),
+    isDefault: row["isDefault"] === true,
+    createdBy: nullableText(row["createdBy"]),
+    createdAt: requiredInstant(row["createdAt"], "createdAt"),
+    disabledAt: nullableInstant(row["disabledAt"]),
+    fields: rowFields(row["fields"]),
+  };
 }
 
 export function createServiceAccounts<
@@ -174,7 +225,31 @@ export function createServiceAccounts<
 
   const { admin } = options;
 
+  const principals = entityList<
+    ReturnType<typeof principalOf>,
+    RequiredTenantOption
+  >({
+    entity: "service principal",
+    surface: principalListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_service_principals",
+    rowOf: (row) => principalOf(row),
+  });
+
+  const finished = <
+    T extends { readonly items: readonly ReturnType<typeof principalOf>[] },
+  >(
+    page: AsyncResult<T>,
+  ) =>
+    page.andThen((found) =>
+      readAllFields(fields, found.items).map((items) => ({ ...found, items })),
+    );
+
   const client: ServiceAccounts<F> = {
+    principalPage: (page) => finished(principals.page(page)),
+    principalFacets: (facets) => principals.facets(facets),
+    principalCount: (count) => principals.count(count),
     create: ({ organizationId, name, role, ...extra }) =>
       AsyncResult.from(async () => {
         const checked =
@@ -257,18 +332,12 @@ export function createServiceAccounts<
       call("default_service_principal", { tenant: organizationId }, (value) =>
         nullableText(value),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (organizationId, options) =>
       call("service_principals_list", { tenant: organizationId }, (value) => {
-        const rows = recordsOf(value, "service_principals_list").map((row) => ({
-          id: textOf(row["id"]),
-          name: textOf(row["name"]),
-          role: textOf(row["role"]),
-          isDefault: row["isDefault"] === true,
-          createdBy: nullableText(row["createdBy"]),
-          createdAt: requiredInstant(row["createdAt"], "createdAt"),
-          disabledAt: nullableInstant(row["disabledAt"]),
-          fields: rowFields(row["fields"]),
-        }));
+        const rows = recordsOf(value, "service_principals_list").map(
+          principalOf,
+        );
 
         return options?.limit === undefined
           ? rows

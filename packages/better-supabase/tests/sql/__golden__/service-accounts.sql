@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:f9938783ace844d7b1c4f27f46136260816a62440d510b733e26b1b4e29175cb
+-- @bsb-hash sha256:d6ba8e931b0d8033d8f6353d30de883552537bbd2075c43645b94c4743249b20
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -193,6 +193,251 @@ $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
 
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -230,7 +475,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:c92237997babb9a926ca87c22e30949604211bb54f3b7113f5b1343d4e1260a0
+-- @bsb-hash sha256:eb520f0b90eb84b347e29f55a4d1841a5d5fa8fc86e9581f0e0a3d229516180a
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -452,6 +697,251 @@ $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
 
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -489,7 +979,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:a4382861c912fd2830749d04a5dc630597bfaf6b37f34f61441bbbcc75207b89
+-- @bsb-hash sha256:2bb36a63249301024e2728723381bac9c05730ddc2bdb6172fb50e0ad9a299f5
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -686,6 +1176,251 @@ $$;
 revoke execute on function "app_private"."service_principals_list"(uuid) from public, anon;
 grant execute on function "app_private"."service_principals_list"(uuid) to authenticated, service_role;
 
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -723,7 +1458,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:a3a9a4e28c7992846182383c9af15ce62a61f4b46ff727995a68994835d6b81b
+-- @bsb-hash sha256:56d9cfb7cd9121cffb87ad9840072c3f5cb2abbf097cea5acc1c5d56b80428f2
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -915,6 +1650,251 @@ $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
 
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -986,6 +1966,16 @@ as $$ select "better_supabase"."service_principals_list"($1) $$;
 revoke execute on function "api"."service_principals_list"(uuid) from public, anon;
 grant execute on function "api"."service_principals_list"(uuid) to authenticated, service_role;
 
+create or replace function "api"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_service_principals"($1, $2) $$;
+revoke execute on function "api"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block-data service-accounts
@@ -1003,7 +1993,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:eb5706c1a96952b64e80420a5d230e5fd21eef5cef0bd9f6e77c340effade917
+-- @bsb-hash sha256:0e5c3a859e84324fed5659df833aaf867725f8001efd01f62408d962b079b5ea
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1192,6 +2182,251 @@ $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
 
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."tenant_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1229,7 +2464,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:1194ae1a986e1b57d6ff5edb40ebeee3e62a66e27b7f817a980d846b0a4d7bdd
+-- @bsb-hash sha256:d2229d70f4ac50adedc8c3dde0c178d606d4b58f09c25d1d56f764f87b932d4c
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1420,6 +2655,251 @@ as $$
 $$;
 revoke execute on function "better_supabase"."service_principals_list"(uuid) from public, anon;
 grant execute on function "better_supabase"."service_principals_list"(uuid) to authenticated, service_role;
+
+-- The tenant's principals the caller may read, as a keyset page, by name (ADR 1077). filters is { role, isDefault, disabled (each a value or a list), search, sort (name, createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_service_principals"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_service_principals.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('role', 'isDefault', 'disabled') then
+      raise exception 'facet is one of role, isDefault, disabled' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'role' then (x."role"::text)::text when 'isDefault' then (x."is_default"::text)::text when 'disabled' then ((x."disabled_at" is not null)::text)::text end) as v
+      from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SERVICE_PRINCIPAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+      'id', x."id", 'name', x."name", 'role', x."role", 'isDefault', x."is_default",
+      'createdBy', x."created_by", 'createdAt', x."created_at", 'disabledAt', x."disabled_at"
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."service_principals" x
+      where x."org_id" = page_service_principals.tenant
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or x."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (not (v_filters -> 'disabled' is not null and jsonb_typeof(v_filters -> 'disabled') <> 'null' and not (jsonb_typeof(v_filters -> 'disabled') = 'array' and jsonb_array_length(v_filters -> 'disabled') = 0)) or (x."disabled_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'disabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'disabled')) else array[v_filters ->> 'disabled'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_service_principals"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_service_principals"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

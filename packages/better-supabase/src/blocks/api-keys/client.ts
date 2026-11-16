@@ -94,6 +94,7 @@ export function createApiKeysController(
       const refresh = async (): Promise<void> => {
         ticket += 1;
         const request = ticket;
+        // oxlint-disable-next-line typescript/no-deprecated -- the controller reads every key of one organization at once until it moves to pages (ADR 1077)
         const result = await client.list(organizationId ?? undefined);
 
         if (request !== ticket) {

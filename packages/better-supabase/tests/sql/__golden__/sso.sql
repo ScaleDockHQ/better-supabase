@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:0fe3f338fb5ee4a94a04765c34cb59123922c3ea5d58c3e78fdb3de702d70728
+-- @bsb-hash sha256:4bf45c2d1dd56eee7e40f7dd9128d6dbb44b847a26d9de46d6522124963fedea
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -206,6 +206,233 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "better_supabase"."sso_domains" x where x."tenant_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -439,6 +666,168 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
     from "better_supabase"."sso_providers" x where x."tenant_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -863,6 +1252,8 @@ revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid,
 revoke execute on function "better_supabase"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."sso_domain_for"(text) from public;
 revoke execute on function "better_supabase"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -886,6 +1277,8 @@ grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, 
 grant execute on function "better_supabase"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."scim_list_users"(uuid) to service_role;
@@ -914,7 +1307,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:2e512cd93dbd749e8968d7fe412dc5e630297fc579e737d8aef81a484a527862
+-- @bsb-hash sha256:70175c26dbde4c3335395ac854faca5bccb07c11320746a2a961d73d222c4a0d
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1153,6 +1546,233 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "better_supabase"."sso_domains" x where x."tenant_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -1434,6 +2054,168 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
     from "better_supabase"."sso_providers" x where x."tenant_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -1914,6 +2696,8 @@ revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid,
 revoke execute on function "better_supabase"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."sso_domain_for"(text) from public;
 revoke execute on function "better_supabase"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -1937,6 +2721,8 @@ grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, 
 grant execute on function "better_supabase"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."scim_list_users"(uuid) to service_role;
@@ -1965,7 +2751,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:4e4e52b22cd5548a0f30a302d4d6858fff59b056e3452f25c997c571403f063f
+-- @bsb-hash sha256:46ab1973694ed51bcd172a1f71743b2687542e49685556e5c3295491a360e1ad
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2175,6 +2961,233 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "app_private"."sso_domains" x where x."tenant_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -2408,6 +3421,168 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
     from "app_private"."sso_providers" x where x."tenant_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -2832,6 +4007,8 @@ revoke execute on function "app_private"."register_sso_provider"(uuid, uuid, tex
 revoke execute on function "app_private"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "app_private"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "app_private"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "app_private"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "app_private"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "app_private"."sso_domain_for"(text) from public;
 revoke execute on function "app_private"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "app_private"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -2855,6 +4032,8 @@ grant execute on function "app_private"."register_sso_provider"(uuid, uuid, text
 grant execute on function "app_private"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "app_private"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "app_private"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "app_private"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "app_private"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "app_private"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "app_private"."scim_list_users"(uuid) to service_role;
@@ -2883,7 +4062,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:8fefa3d86e474f24c3ed0f68f296c94cc5b211ac870443ebafde9b04ae266039
+-- @bsb-hash sha256:0473234546111ebbb12cf7a6985d8af011cceb23511b995da9cfad0b913a8530
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3088,6 +4267,233 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "better_supabase"."sso_domains" x where x."tenant_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -3321,6 +4727,168 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
     from "better_supabase"."sso_providers" x where x."tenant_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -3745,6 +5313,8 @@ revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid,
 revoke execute on function "better_supabase"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."sso_domain_for"(text) from public;
 revoke execute on function "better_supabase"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -3768,6 +5338,8 @@ grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, 
 grant execute on function "better_supabase"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."scim_list_users"(uuid) to service_role;
@@ -3906,6 +5478,26 @@ as $$ select "better_supabase"."list_sso_providers"($1) $$;
 revoke execute on function "api"."list_sso_providers"(uuid) from public, anon;
 grant execute on function "api"."list_sso_providers"(uuid) to authenticated, service_role;
 
+create or replace function "api"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_organization_domains"($1, $2) $$;
+revoke execute on function "api"."page_organization_domains"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_sso_providers"($1, $2) $$;
+revoke execute on function "api"."page_sso_providers"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."sso_domain_for"(email text)
 returns jsonb
 language sql
@@ -4019,7 +5611,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:911469b7b53ee945e63b42627da3a485786f2573e1866a9aa2836a7788d4f002
+-- @bsb-hash sha256:890594efd7cc65c4272de1bc07a72150a464fa085de27fceb2de68dbb5beaeaf
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4214,6 +5806,233 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "better_supabase"."sso_domains" x where x."tenant_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'domain', x."domain", 'verified_at', x."verified_at", 'auto_join_role', x."auto_join_role", 'enforce_sso', x."enforce_sso", 'created_by', x."created_by", 'created_at', x."created_at") || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."tenant_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -4447,6 +6266,168 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'metadata_url', x."metadata_url", 'domains', x."domains", 'created_at', x."created_at") order by x."created_at"), '[]'::jsonb)
     from "better_supabase"."sso_providers" x where x."tenant_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'metadata_url', x."metadata_url", 'domains', x."domains", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'metadata_url', x."metadata_url", 'domains', x."domains", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'metadata_url', x."metadata_url", 'domains', x."domains", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'metadata_url', x."metadata_url", 'domains', x."domains", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."tenant_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -4871,6 +6852,8 @@ revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid,
 revoke execute on function "better_supabase"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."sso_domain_for"(text) from public;
 revoke execute on function "better_supabase"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -4894,6 +6877,8 @@ grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, 
 grant execute on function "better_supabase"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."scim_list_users"(uuid) to service_role;
@@ -4922,7 +6907,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:612d5e33b9d3b9341719893dd426e630812e54caf520eb794ef1dc18a6f4b676
+-- @bsb-hash sha256:848ab0f48a70279ed5dd5ac39210080b28ddc167db1f5c9be6c8a871ce96778f
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5127,6 +7112,233 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
     from "better_supabase"."sso_domains" x where x."org_id" = list_organization_domains.tenant
   );
+end;
+$$;
+
+-- An organization's claimed domains as a keyset page, with the record to publish (ADR 1077). filters is { verified, enforceSso, autoJoinRole (each a value or a list), search, sort (domain, verifiedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_organization_domains"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_domains.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_organization_domains.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('verified', 'enforceSso') then
+      raise exception 'facet is one of verified, enforceSso' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'verified' then ((x."verified_at" is not null)::text)::text when 'enforceSso' then (x."enforce_sso"::text)::text end) as v
+      from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('domain', 'verifiedAt') then
+    raise exception 'sort is one of domain, verifiedAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."domain" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'domain' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."domain")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."domain" <= (v_after ->> 0)::text and ((x."domain" < (v_after ->> 0)::text) or (x."domain" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."domain" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."verified_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'verifiedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) as j, jsonb_build_array((x."verified_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+        and (v_after is null or (x."verified_at" <= (v_after ->> 0)::timestamptz and ((x."verified_at" < (v_after ->> 0)::timestamptz) or (x."verified_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."verified_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_domains" x
+      where x."org_id" = page_organization_domains.tenant
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or (x."verified_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (not (v_filters -> 'enforceSso' is not null and jsonb_typeof(v_filters -> 'enforceSso') <> 'null' and not (jsonb_typeof(v_filters -> 'enforceSso') = 'array' and jsonb_array_length(v_filters -> 'enforceSso') = 0)) or x."enforce_sso"::text = any((case when jsonb_typeof(v_filters -> 'enforceSso') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enforceSso')) else array[v_filters ->> 'enforceSso'] end)::text[]))
+        and (not (v_filters -> 'autoJoinRole' is not null and jsonb_typeof(v_filters -> 'autoJoinRole') <> 'null' and not (jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' and jsonb_array_length(v_filters -> 'autoJoinRole') = 0)) or x."auto_join_role"::text = any((case when jsonb_typeof(v_filters -> 'autoJoinRole') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'autoJoinRole')) else array[v_filters ->> 'autoJoinRole'] end)::text[]))
+        and (v_search is null or x."domain" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -5360,6 +7572,168 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
     from "better_supabase"."sso_providers" x where x."org_id" = list_sso_providers.tenant
   );
+end;
+$$;
+
+-- An organization's SSO providers as a keyset page, oldest first (ADR 1077). filters is { type (a value or a list), sort (createdAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sso_providers"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sso_providers.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', page_sso_providers.tenant, 'sso.manage'), false) then
+    raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type') then
+      raise exception 'facet is one of type' using errcode = '22023', hint = 'SSO_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."type"::text)::text end) as v
+      from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SSO_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x.*) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."sso_providers" x
+      where x."org_id" = page_sso_providers.tenant
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."type"::text = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 
@@ -5784,6 +8158,8 @@ revoke execute on function "better_supabase"."register_sso_provider"(uuid, uuid,
 revoke execute on function "better_supabase"."sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_sso_providers"(uuid) from public, anon;
+revoke execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) from public, anon;
+revoke execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."sso_domain_for"(text) from public;
 revoke execute on function "better_supabase"."sso_access_token_check"(jsonb) from public, anon, authenticated;
 revoke execute on function "better_supabase"."scim_list_users"(uuid) from public, anon, authenticated;
@@ -5807,6 +8183,8 @@ grant execute on function "better_supabase"."register_sso_provider"(uuid, uuid, 
 grant execute on function "better_supabase"."sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."unregister_sso_provider"(uuid, uuid) to service_role;
 grant execute on function "better_supabase"."list_sso_providers"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."page_organization_domains"(uuid, jsonb) to authenticated, service_role;
+grant execute on function "better_supabase"."page_sso_providers"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."sso_domain_for"(text) to anon, authenticated, service_role;
 grant execute on function "better_supabase"."sso_access_token_check"(jsonb) to service_role, supabase_auth_admin;
 grant execute on function "better_supabase"."scim_list_users"(uuid) to service_role;

@@ -49,18 +49,18 @@ export async function loadSsoSettings(): Promise<SsoSettingsData | null> {
   const { sso } = db;
 
   const [domains, providers] = await Promise.all([
-    sso.domains(tenant).orThrow(),
-    sso.providers(tenant).orThrow(),
+    sso.domainPage({ organizationId: tenant, limit: 100 }).orThrow(),
+    sso.providerPage({ organizationId: tenant, limit: 100 }).orThrow(),
   ]);
 
   return {
-    connections: providers.map((provider) => ({
+    connections: providers.items.map((provider) => ({
       createdAt: provider.createdAt.toString(),
       domains: provider.domains,
       id: provider.id,
       metadataUrl: provider.metadataUrl ?? null,
     })),
-    domains: domains.map((domain) => ({
+    domains: domains.items.map((domain) => ({
       autoJoinRole: roleOf(domain.autoJoinRole),
       domain: domain.domain,
       enforceSso: domain.enforceSso,

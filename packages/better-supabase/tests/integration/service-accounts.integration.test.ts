@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -177,6 +178,17 @@ describe.skipIf(!live)("service principals", () => {
         .orThrow();
 
       expect(listed.map((row) => row.name)).toEqual(["Automations"]);
+
+      const principalPage = await createServiceAccounts({
+        transport: sqlTransport(s.sql),
+        admin: admin(s),
+      })
+        .principalPage({ organizationId: tenant, q: "autom" })
+        .orThrow();
+
+      expect(principalPage.items.map((row) => row.name)).toEqual([
+        "Automations",
+      ]);
 
       const direct = await createServiceAccounts({
         transport: sqlTransport(s.sql),

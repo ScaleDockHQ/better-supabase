@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
@@ -153,6 +154,16 @@ describe.skipIf(!live)("sso", () => {
       const sso = createSso({ transport: sqlTransport(s.sql) });
       const [listed] = await sso.domains(tenant).orThrow();
       expect(listed).toMatchObject({ domain: name, enforceSso: false });
+
+      const domainPage = await sso
+        .domainPage({ organizationId: tenant, q: name.slice(0, 4) })
+        .orThrow();
+
+      expect(domainPage.items.map((row) => row.id)).toEqual([added.id]);
+      expect(
+        (await sso.domainCount({ organizationId: tenant }).orThrow()).value,
+      ).toBe(1);
+      expect((await sso.getDomain(added.id).orThrow()).domain).toBe(name);
       expect(
         await sso
           .updateDomain({
@@ -283,6 +294,12 @@ describe.skipIf(!live)("sso", () => {
       expect((await sso.providers(tenant).orThrow()).map((p) => p.id)).toEqual([
         provider,
       ]);
+
+      expect(
+        (
+          await sso.providerPage({ organizationId: tenant }).orThrow()
+        ).items.map((p) => p.id),
+      ).toEqual([provider]);
 
       await s.service();
 
