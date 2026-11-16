@@ -117,7 +117,7 @@
   "/[locale]/(app)/assistant/evals/page": {
     "raw": 3147672,
     "gzip": 954531,
-    "brotli": 792480
+    "brotli": 794484
   },
   "/[locale]/(app)/assistant/guardrails/page": {
     "raw": 3148791,
@@ -422,7 +422,7 @@
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3141580,
     "gzip": 953198,
-    "brotli": 790365
+    "brotli": 792412
   },
   "/[locale]/(app)/documents/page": {
     "raw": 3147621,
@@ -1236,27 +1236,27 @@
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 5184335,
-    "gzip": 1563714,
+    "gzip": 1567672,
     "brotli": 1297300
   },
   "/[locale]/(app)/workflows/page": {
     "raw": 5188524,
-    "gzip": 1565325,
+    "gzip": 1569286,
     "brotli": 1298748
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
     "raw": 5189373,
-    "gzip": 1565827,
+    "gzip": 1569780,
     "brotli": 1299155
   },
   "/[locale]/(app)/workflows/runs/page": {
     "raw": 5187233,
-    "gzip": 1565466,
+    "gzip": 1569425,
     "brotli": 1298942
   },
   "/[locale]/(app)/workflows/templates/page": {
     "raw": 5182199,
-    "gzip": 1562724,
+    "gzip": 1566682,
     "brotli": 1296428
   },
   "/[locale]/(auth)/book/[token]/page": {
