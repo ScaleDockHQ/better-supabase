@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:c9a4d7ad5119082e6609739ffaf48eb1b30c26d937b7c8e32d01ec93a6ebe82e
+-- @bsb-hash sha256:c1a35e87bd7a843ee55b7d73350de816d7e8cff62d91103926a903c79d838c1e
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,8 +696,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -717,6 +720,7 @@ begin
     from "better_supabase"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -726,8 +730,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -777,7 +781,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:4c5630dffbe319ae4d4349ec391f69ac5365b2c0f4f84b72af223192eb104651
+-- @bsb-hash sha256:2533d0c7be91eda2e148c3e4c342dec790d73c5e32ab5e3607715e0d59393940
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1570,8 +1574,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -1591,6 +1598,7 @@ begin
     from "better_supabase"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -1600,8 +1608,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -1654,7 +1662,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:8949b40161ae7da9b1cdb6bf63551b01b6ba29d974b5b0b7ea889d007e8761c5
+-- @bsb-hash sha256:a33f9757bebbb7319326cfd94d16cd7a21f78028d23da99c3247ea79dc22a2fd
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2354,8 +2362,11 @@ $$;
 revoke execute on function "app_private"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "app_private"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "app_private"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -2375,6 +2386,7 @@ begin
     from "app_private"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -2384,8 +2396,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "app_private"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "app_private"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "app_private"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -2435,7 +2447,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:1061b7f48e401c68586a48974b289da1f840571a896ba5e2acfe840bcb192880
+-- @bsb-hash sha256:e30bc7fad76050bf0cc85622d280163dc15bc87e8b2294341ac601da03282ed4
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3130,8 +3142,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -3151,6 +3166,7 @@ begin
     from "better_supabase"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -3160,8 +3176,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -3275,15 +3291,15 @@ as $$ select "better_supabase"."my_review"($1, $2, $3) $$;
 revoke execute on function "api"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "api"."my_review"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+create or replace function "api"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."review_queue"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."review_queue"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."review_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb
@@ -3320,7 +3336,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:35d759a4c2ded4f460482a3afd26361060cec1cd479a6030dcef6d4c8f600962
+-- @bsb-hash sha256:826cf9559283699048732af1433f5bc84aa2cc0c43212b278ff3515d7e5abb5c
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4011,8 +4027,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -4032,6 +4051,7 @@ begin
     from "better_supabase"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = better_supabase.try_column_type(review_queue.status, (null::"better_supabase"."reviews")."status"))
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select better_supabase.try_column_type(s, (null::"better_supabase"."reviews")."status") from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -4041,8 +4061,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -4092,7 +4112,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:5a0df075d8c7b20312ef3568ab3d0d5aaf86b9d26a5eb9fbfa432b362c0220fc
+-- @bsb-hash sha256:f3148df2d6a6b7a14ab23290e3f0e4fd6e62a94be98919a4d05fb7daeb7639c5
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4787,8 +4807,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -4808,6 +4831,7 @@ begin
     from "better_supabase"."reviews" x
     where x."org_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -4817,8 +4841,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller

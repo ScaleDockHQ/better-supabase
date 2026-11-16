@@ -180,7 +180,7 @@ The warehouse block calls ports that your own packages implement, such as a rout
 
 ## Paging a list
 
-`listPickLists` is the capped convenience list. `pickListPage` is the full contract for pick lists (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `pickedAt`, and the default order is createdAt (newest first); filters are `waveId`, `status`, `documentType`, `documentId`, `mine`; facets are `status`, `documentType`. `mine` is `["true"]` and limits the list to the lists assigned to the caller.
+`listPickLists` is the capped convenience list. `pickListPage` is the full contract for pick lists (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `pickedAt`, and the default order is createdAt (newest first); filters are `waveId`, `status`, `documentType`, `documentId`, `mine`; facets are `status`, `documentType`; `q` searches the document id and the document type. `mine` is `["true"]` and limits the list to the lists assigned to the caller.
 
 ```ts
 const first = await warehouse

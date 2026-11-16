@@ -3,7 +3,7 @@ import { loadGiftPage } from "../../../../features/donations/donations-queries";
 import { bsb } from "../../../../lib/supabase/server";
 
 /**
- * `GET /api/donations/list?status=`: the gifts of the selected statuses. The
+ * `GET /api/donations/list?q=&status=&after=`: one page of gifts. The
  * overview calls it for every URL state but the default the server renders.
  */
 export const GET = bsb.route(async (request, { db }) => {

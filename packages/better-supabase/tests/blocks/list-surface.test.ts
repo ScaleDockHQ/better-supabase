@@ -209,6 +209,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(101);
+    expect(CASES).toHaveLength(103);
   });
 });

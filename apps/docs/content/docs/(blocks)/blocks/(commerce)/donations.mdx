@@ -241,9 +241,9 @@ their payloads.
 
 `gifts` and `pledges` stay as the capped convenience lists.
 
-`giftPage` pages gifts (ADR 0749). Sorts are `receivedOn` and `createdAt`, and the default order is `receivedOn`, latest first. Filters are `donorType`, `donorId`, `fundId`, `pledgeId` and `status`, and facets are `status` and `fundId`. Each filter takes a list of values and a row matches any of them. `giftFacets` counts the values of each facet under the same filters, and `giftCount` returns `{ value, exact }`.
+`giftPage` pages gifts (ADR 0749). Sorts are `receivedOn` and `createdAt`, and the default order is `receivedOn`, latest first. Filters are `donorType`, `donorId`, `fundId`, `pledgeId` and `status`, facets are `status` and `fundId`, and `q` searches the donor id, the payment reference and the note. Each filter takes a list of values and a row matches any of them. `giftFacets` counts the values of each facet under the same filters, and `giftCount` returns `{ value, exact }`.
 
-`pledgePage` pages pledges (ADR 0749). Sorts are `createdAt`, and the default order is `createdAt`, newest first. Filters are `donorType`, `donorId` and `status`, and facets are `status`. Each filter takes a list of values and a row matches any of them. `pledgeFacets` counts the values of each facet under the same filters, and `pledgeCount` returns `{ value, exact }`.
+`pledgePage` pages pledges (ADR 0749). Sorts are `createdAt`, and the default order is `createdAt`, newest first. Filters are `donorType`, `donorId` and `status`, facets are `status`, and `q` searches the donor id and the note. Each filter takes a list of values and a row matches any of them. `pledgeFacets` counts the values of each facet under the same filters, and `pledgeCount` returns `{ value, exact }`.
 
 ```ts
 const first = await donations

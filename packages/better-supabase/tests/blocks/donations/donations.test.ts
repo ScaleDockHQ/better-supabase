@@ -1405,6 +1405,27 @@ describe("gift fields", () => {
     ).toEqual(["spring"]);
   });
 
+  it("sends q to the gift and pledge lists", async () => {
+    const t = fieldsTransport({
+      list_gifts: () => ({ items: [GIFT], hasMore: false }),
+      list_pledges: () => ({ items: [PLEDGE], hasMore: false }),
+    });
+
+    const donations = createDonations({ transport: t, tenant: "org-1" });
+
+    await donations.giftPage({ q: "ref-9" }).orThrow();
+    await donations.pledgePage({ q: "donor-1" }).orThrow();
+
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { search: "ref-9", paged: true },
+    });
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { search: "donor-1", paged: true },
+    });
+  });
+
   it("reads keyset pages of gifts and pledges", async () => {
     const t = fieldsTransport({
       list_gifts: () => ({ items: [GIFT], hasMore: false }),

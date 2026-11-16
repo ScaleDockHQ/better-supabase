@@ -9,6 +9,7 @@ export const giftListSurface: EntityListSurface = {
   sorts: ["receivedOn", "createdAt"],
   facets: ["status", "fundId"],
   filters: ["donorType", "donorId", "fundId", "pledgeId", "status"],
+  search: ["donorId", "paymentReference", "note"],
 };
 
 /**
@@ -19,4 +20,5 @@ export const pledgeListSurface: EntityListSurface = {
   sorts: ["createdAt"],
   facets: ["status"],
   filters: ["donorType", "donorId", "status"],
+  search: ["donorId", "note"],
 };

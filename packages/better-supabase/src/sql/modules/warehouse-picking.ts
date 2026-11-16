@@ -10,6 +10,7 @@ import {
   listBody,
   listDeclare,
   pageFunction,
+  searchPattern,
 } from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
@@ -540,6 +541,7 @@ function readFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
       filterAny("documentType", `x.${p("documentType")}`),
       filterAny("documentId", `x.${p("documentId")}`),
       `((v_all and not ${filterFlag("mine")}) or coalesce(x.${p("assignee")} = auth.uid(), false))`,
+      `(v_search is null or x.${p("documentId")} ilike v_search or x.${p("documentType")} ilike v_search)`,
     ],
     keys: [
       { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
@@ -591,7 +593,8 @@ $$;
 ${userGrant(`${fn("get_pick_list")}(uuid)`)}
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId (each a value or a list of them), mine: true, sort,
+-- documentType, documentId (each a value or a list of them), mine: true, search
+-- (the document id or type), sort,
 -- direction, facet, count, limit, after, offset, paged, total, totalCap } (ADR
 -- 0749). Readers see all of them; everyone else sees the lists assigned to them.
 create or replace function ${fn("list_pick_lists")}(tenant ${idType}, filters jsonb default '{}')
@@ -604,6 +607,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list_list_pick_lists)}
   v_all boolean := ${q.allowed("list_pick_lists.tenant", q.read)};
 begin
