@@ -257,6 +257,24 @@ describe("createShipments", () => {
     expect(await shipments.get("s9").orThrow()).toBeNull();
   });
 
+  it("getOrNotFound returns the shipment or a not_found error", async () => {
+    const found = createShipments({
+      transport: fakeTransport({ get_shipment: DRAFT }).transport,
+    });
+
+    expect((await found.getOrNotFound("s1").orThrow()).id).toBe("s1");
+
+    const missing = createShipments({
+      transport: fakeTransport({ get_shipment: null }).transport,
+    });
+
+    const result = await missing.getOrNotFound("s9");
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.kind).toBe("not_found");
+    expect(!result.ok && result.error.hint).toBe("SHIPMENT_NOT_FOUND");
+  });
+
   it("lists with filters and defaults", async () => {
     const fake = fakeTransport({ list_shipments: [DRAFT, LABELED] });
 

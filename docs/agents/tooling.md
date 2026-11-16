@@ -208,3 +208,8 @@ bump is one commit series:
   `apps/examples/nextjs/perf-results/example-perf`, outside the `test-results/`
   folder Playwright clears at the start of a run, so `pnpm example:perf-report`
   keeps its numbers. Run the specs with `--workers=1` for timing (EX-1507).
+- `pnpm fix` on a checkout without `.next/types` treated the `as Route` cast in
+  `apps/examples/nextjs/src/i18n/routing.ts` as unnecessary (`Route` is `string`
+  until Next writes the typed routes) and removed it, which broke typecheck. The
+  example's `oxlint.config.ts` turns that rule off for the file. Don't commit
+  with `LEFTHOOK=0`; if `pnpm fix` rewrites an unrelated file, fix the rule.
