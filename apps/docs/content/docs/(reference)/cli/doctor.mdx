@@ -2826,6 +2826,9 @@ file. See [Entity pages](/docs/cli/gen#entity-pages).
 continues by `created_at` and `id`, and the same file has no btree index that
 contains both columns. The cursor then sorts the tenant on every page. Add an
 index on `(tenant, created_at, id)` in the same direction as the order.
+Doctor reads each `order by` clause up to the end of its query level, so a
+column named after an inner `order by` doesn't count, and an `order by ...
+limit 1` that picks one row isn't a cursor.
 
 ### BS629
 

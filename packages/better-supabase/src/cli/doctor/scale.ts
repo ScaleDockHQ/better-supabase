@@ -672,8 +672,10 @@ const SCALE_CHECKS: readonly Rule[] = [
           }
 
           const usesCursor =
-            /order by [^;]*created_at[^;]*\bid\b/i.test(flat) ||
-            /\(\s*[\w.]+\s*,\s*[\w.]+\s*\)\s*</.test(flat);
+            orderByClauses(flat).some(
+              (clause) =>
+                /\bcreated_at\b/i.test(clause) && /\bid\b/i.test(clause),
+            ) || /\(\s*[\w.]+\s*,\s*[\w.]+\s*\)\s*</.test(flat);
 
           if (!usesCursor) {
             continue;
@@ -706,3 +708,45 @@ export const SCALE_RULES: readonly Rule[] = [
   ...EDGE_FUNCTION_RULES,
   ...TENANT_TRIGGER_RULES,
 ];
+
+/**
+ * The ORDER BY clauses of a statement, each cut where its query level ends: at
+ * a closing parenthesis of the enclosing query, a `;`, or a `limit`, `offset`,
+ * `fetch` or `for` at its own depth. A `limit 1` clause picks one row, not a
+ * page, so it is left out.
+ */
+function orderByClauses(flat: string): string[] {
+  const clauses: string[] = [];
+
+  for (const match of flat.matchAll(/\border by\b/gi)) {
+    let depth = 0;
+    let end = match.index + match[0].length;
+
+    for (; end < flat.length; end += 1) {
+      const char = flat[end];
+
+      if (char === "(") {
+        depth += 1;
+      } else if (char === ")") {
+        if (depth === 0) {
+          break;
+        }
+
+        depth -= 1;
+      } else if (char === ";") {
+        break;
+      } else if (
+        depth === 0 &&
+        /^\s(?:limit|offset|fetch|for)\b/i.test(flat.slice(end, end + 8))
+      ) {
+        break;
+      }
+    }
+
+    if (!/^\s*limit\s+1\b/i.test(flat.slice(end))) {
+      clauses.push(flat.slice(match.index, end));
+    }
+  }
+
+  return clauses;
+}
