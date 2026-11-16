@@ -295,6 +295,12 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "page_consent_purposes",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_consent_purpose", args: ["uuid"], returns: "jsonb" },
+    {
       name: "record_consent",
       args: [
         "text",

@@ -97,3 +97,21 @@ The brand is read when the set is first created. Changing the column later does 
 ## Events
 
 `option_set.created`, `option_set.updated`, `option_set_item.created`, `option_set_item.updated` and `option_set_item.archived`. The payloads are in [events](/docs/extending/events).
+
+## Paging option sets
+
+`setPage` pages by keyset (ADR 1077) and `getSet(id)` returns one set, or a `not_found` error. `list` stays as a deprecated alias until 0.70. Filters are `subjectType`, `field`, `scopeId` and `archived`, and `q` searches the name, key and field.
+
+```ts
+const sets = await optionSets
+  .setPage({
+    organizationId,
+    filters: { subjectType: ["task"] },
+    q: "priority",
+  })
+  .orThrow();
+
+const facets = await optionSets.setFacets({ organizationId }).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

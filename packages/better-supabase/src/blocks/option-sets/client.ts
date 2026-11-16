@@ -78,6 +78,7 @@ export function createOptionSetsController(
           }
         }
 
+        // oxlint-disable-next-line typescript/no-deprecated -- the controller reads the whole set list, which `list` still returns until 0.70 (ADR 1077).
         const result = await client.list({ organizationId, subjectType });
 
         if (run !== state.run()) {

@@ -4,6 +4,7 @@ import type { DataLifecycleEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDataLifecycle } from "./data-lifecycle.ts";
 import { dataLifecycleEvents } from "./events.ts";
+import { subjectRequestListSurface } from "./lists.ts";
 import { dataLifecycleSqlOptions } from "./options.ts";
 
 /** The `data-lifecycle` block's manifest (ADR 0029). */
@@ -24,6 +25,7 @@ export const dataLifecycleBlock: BlockOf<
     organization: { mutability: "state-machine" },
     legal_hold: { mutability: "state-machine" },
     data_subject_request: {
+      ...subjectRequestListSurface,
       mutability: "state-machine",
       emits: { create: false },
       personalData: ["requester", "details"],

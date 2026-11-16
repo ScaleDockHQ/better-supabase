@@ -275,3 +275,15 @@ const welcome = await sequences
   })
   .orThrow();
 ```
+
+## Paging enrollments
+
+`enrollmentPage` pages the enrollments of every sequence by keyset (ADR 1077) and `getEnrollment(id)` returns one, or a `not_found` error. `enrollments` stays as a deprecated alias until 0.70. Filters are `sequenceId`, `subjectType`, `subjectId` and `status`, and the sort is `enrolledAt`. The list has no text search.
+
+```ts
+const active = await sequences
+  .enrollmentPage({ filters: { sequenceId: [id], status: ["active"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

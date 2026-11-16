@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -13,6 +24,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -26,6 +38,11 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import {
+  evidenceTaskListSurface,
+  frameworkListSurface,
+  policyListSurface,
+} from "./lists.ts";
 
 export interface ComplianceOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -293,7 +310,28 @@ export interface Compliance<F extends object = Record<never, never>> {
     organizationId: string;
     input: ControlFrameworkInput;
   }): AsyncResult<ControlFramework>;
+  /**
+   * @deprecated Use `frameworkPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   frameworks(organizationId: string): AsyncResult<readonly ControlFramework[]>;
+  /**
+   * One keyset page of the control frameworks. `filters` takes `kind` as a
+   * list. Each call names the organization.
+   */
+  frameworkPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<ControlFramework>>;
+  /** The values of each facet (`kind`) and how many rows hold each. */
+  frameworkFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rows match the page's filters. */
+  frameworkCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One framework by id, or a `not_found` error. */
+  getFramework(frameworkId: string): AsyncResult<ControlFramework>;
   /**
    * Imports an OSCAL catalog (JSON) as a framework with a control per catalog
    * control. The framework key defaults to the catalog uuid. Needs
@@ -339,10 +377,32 @@ export interface Compliance<F extends object = Record<never, never>> {
     controlId: string;
     input: EvidenceTaskInput;
   }): AsyncResult<EvidenceTask>;
-  /** The earliest due first. */
+  /**
+   * The earliest due first.
+   *
+   * @deprecated Use `evidenceTaskPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   evidenceTasks(
     input: { organizationId: string } & EvidenceTaskListOptions,
   ): AsyncResult<readonly EvidenceTask[]>;
+  /**
+   * One keyset page of the evidence tasks. `filters` takes `controlId` and
+   * `assigneeId` as lists and `overdue`. Each call names the organization.
+   */
+  evidenceTaskPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<EvidenceTask>>;
+  /** The values of each facet (`controlId`) and how many rows hold each. */
+  evidenceTaskFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rows match the page's filters. */
+  evidenceTaskCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One evidence task by id, or a `not_found` error. */
+  getEvidenceTask(evidenceTaskId: string): AsyncResult<EvidenceTask>;
   /** The status rollup per framework. */
   posture(input: {
     organizationId: string;
@@ -370,9 +430,32 @@ export interface Compliance<F extends object = Record<never, never>> {
   archivePolicy(policyId: string): AsyncResult<Policy>;
   /** Brings an archived policy back and assigns it to every member again. */
   restorePolicy(policyId: string): AsyncResult<Policy>;
+  /**
+   * @deprecated Use `policyPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   policies(
     input: { organizationId: string } & PolicyListOptions,
   ): AsyncResult<readonly Policy[]>;
+  /**
+   * One keyset page of the policies. `filters` takes `ownerId` and
+   * `requiresAcknowledgement` as lists and `archived`. Each call names the
+   * organization.
+   */
+  policyPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Policy>>;
+  /**
+   * The values of each facet (`requiresAcknowledgement`) and how many rows hold
+   * each.
+   */
+  policyFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rows match the page's filters. */
+  policyCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One policy by id, or a `not_found` error. */
+  getPolicy(policyId: string): AsyncResult<Policy>;
 }
 
 const KINDS: readonly ControlFrameworkKind[] = [
@@ -567,7 +650,55 @@ export function createCompliance<
       many("list_compliance_policies", policyOf),
     );
 
+  const frameworkList = entityList<ControlFramework, RequiredTenantOption>({
+    entity: "control framework",
+    surface: frameworkListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_control_frameworks",
+    rowOf: (row, fn) => frameworkOf(row, fn),
+  });
+
+  const evidenceTaskList = entityList<EvidenceTask, RequiredTenantOption>({
+    entity: "evidence task",
+    surface: evidenceTaskListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_evidence_tasks",
+    rowOf: (row, fn) => taskOf(row, fn),
+  });
+
+  const policyList = entityList<Policy, RequiredTenantOption>({
+    entity: "compliance policy",
+    surface: policyListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_compliance_policies",
+    rowOf: (row, fn) => policyOf(row, fn),
+  });
+
   const client: Compliance<F> = {
+    frameworkPage: (page) => frameworkList.page(page),
+    frameworkFacets: (facets) => frameworkList.facets(facets),
+    frameworkCount: (count) => frameworkList.count(count),
+    getFramework: (frameworkId) =>
+      call("get_control_framework", { framework_id: frameworkId }, (value) =>
+        frameworkOf(value, "get_control_framework"),
+      ),
+    evidenceTaskPage: (page) => evidenceTaskList.page(page),
+    evidenceTaskFacets: (facets) => evidenceTaskList.facets(facets),
+    evidenceTaskCount: (count) => evidenceTaskList.count(count),
+    getEvidenceTask: (evidenceTaskId) =>
+      call("get_evidence_task", { task_id: evidenceTaskId }, (value) =>
+        taskOf(value, "get_evidence_task"),
+      ),
+    policyPage: (page) => policyList.page(page),
+    policyFacets: (facets) => policyList.facets(facets),
+    policyCount: (count) => policyList.count(count),
+    getPolicy: (policyId) =>
+      call("get_compliance_policy", { policy_id: policyId }, (value) =>
+        policyOf(value, "get_compliance_policy"),
+      ),
     saveFramework: ({ organizationId, input }) =>
       call(
         "save_control_framework",
@@ -581,6 +712,7 @@ export function createCompliance<
         },
         (value) => frameworkOf(value, "save_control_framework"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     frameworks: (organizationId) =>
       call(
         "list_control_frameworks",
@@ -692,6 +824,7 @@ export function createCompliance<
         },
         (value) => taskOf(value, "save_evidence_task"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     evidenceTasks: ({ organizationId, ...list }) =>
       call(
         "list_evidence_tasks",
@@ -741,6 +874,7 @@ export function createCompliance<
         { policy_id: policyId },
         policy("restore_compliance_policy"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     policies: ({ organizationId, ...list }) =>
       listPolicies(organizationId, list.includeArchived ?? false),
   };

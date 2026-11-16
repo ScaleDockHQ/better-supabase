@@ -927,7 +927,7 @@
   "/[locale]/(app)/settings/members/page": {
     "raw": 1564404,
     "gzip": 498245,
-    "brotli": 435767
+    "brotli": 435975
   },
   "/[locale]/(app)/settings/numbering/page": {
     "raw": 1529304,

@@ -318,3 +318,15 @@ contributes: {
   consents: () => [{ key: "newsletter", title: "Newsletter", legalBasis: "consent" }],
 }
 ```
+
+## Paging purposes
+
+`purposePage` pages by keyset (ADR 1077) and `getPurpose(id)` returns one purpose, or a `not_found` error. `purposes` stays as a deprecated alias until 0.70. Filters are `key`, `legalBasis` and `archived`, and `q` searches the key and title. The consent records themselves keep `list`, which filters by subject.
+
+```ts
+const purposes = await consents
+  .purposePage({ filters: { legalBasis: ["consent"] }, q: "marketing" })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

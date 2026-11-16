@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:7af4ccc62cc38a8144d1321d102d0d62c6187e6c0803250e85cd129dd615e9be
+-- @bsb-hash sha256:89fdca5cb5da272f8ee70791422c995f2a49ee19fca20f2ed717bc9c6ff35657
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -911,6 +911,216 @@ $$;
 revoke execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "better_supabase"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "better_supabase"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
 -- are claimed for 10 minutes and returned for the caller to send. Call
@@ -1104,7 +1314,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:695cd13fb0acab43aa73e3d6663f4eba26809055f5ab20c33caa11b387091e3c
+-- @bsb-hash sha256:2e3a68b4c40abf1ec43b818d4afa1b0d8df9f84698d4195d524d25e7ab120c28
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2073,6 +2283,216 @@ $$;
 revoke execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "better_supabase"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "better_supabase"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
 -- are claimed for 10 minutes and returned for the caller to send. Call
@@ -2317,7 +2737,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:ceeb14b141b4f80ff5a2cb49538bbdb2162fa854c09618e93be0717479b608d8
+-- @bsb-hash sha256:377ddaa15063b9d1f3cfc90a74997a03f20e498020b1d3687e68ae4b9e570866
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3232,6 +3652,216 @@ $$;
 revoke execute on function "app_private"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "app_private"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "app_private"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "app_private"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
 -- are claimed for 10 minutes and returned for the caller to send. Call
@@ -3425,7 +4055,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:b06168f7deb0f79ebaead79ae16fbff90850506727d9b596cf31dbe7a8416a47
+-- @bsb-hash sha256:0747982ba94a40c60a351cf3872b73b02182fdefe4bb547e183c346c90a11a8c
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4335,6 +4965,216 @@ $$;
 revoke execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "better_supabase"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "better_supabase"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
 -- are claimed for 10 minutes and returned for the caller to send. Call
@@ -4591,6 +5431,26 @@ as $$ select "better_supabase"."list_sequence_enrollments"($1, $2) $$;
 revoke execute on function "api"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_sequence_enrollments"($1, $2) $$;
+revoke execute on function "api"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_sequence_enrollment"($1) $$;
+revoke execute on function "api"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "api"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 create or replace function "api"."run_due_sequences"(max_count integer default 50)
 returns jsonb
 language sql
@@ -4635,7 +5495,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:63678a4983f13facb5eb5115eb6f3b51e34dcec6d2f2182345607bd5cefd46a9
+-- @bsb-hash sha256:6ef307f0bfcbc31a18aa5347effdc769613e98fba7dbd2182f9de99e956edf00
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5537,6 +6397,216 @@ $$;
 revoke execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
 
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."tenant_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "better_supabase"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "better_supabase"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_sequence_enrollment"(uuid) to authenticated, service_role;
+
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps
 -- are claimed for 10 minutes and returned for the caller to send. Call
@@ -5730,7 +6800,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:fd838b129d4d8ce0a90e63b0a3e4ec66ed48f859be6da68d4d03e917eab28d11
+-- @bsb-hash sha256:8d30f636d09a99531c6063503117553821ac2c4ecaa039053fa65d1575e9e46b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6639,6 +7709,216 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_sequence_enrollments"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_sequence_enrollments.tenant is not null and coalesce(better_supabase.can('tenant', page_sequence_enrollments.tenant, 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end))::text end) as v
+      from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('enrolledAt') then
+    raise exception 'sort is one of enrolledAt' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at" >= (v_after ->> 0)::timestamptz and ((x."enrolled_at" > (v_after ->> 0)::timestamptz) or (x."enrolled_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."enrolled_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'enrolledAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'SEQUENCE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."sequence_member_json"(x."id") as j, jsonb_build_array((x."enrolled_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."enrolled_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."enrolled_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."enrollments" x
+      where x."org_id" = page_sequence_enrollments.tenant and x."sequence_id" is not null
+        and (not (v_filters -> 'sequenceId' is not null and jsonb_typeof(v_filters -> 'sequenceId') <> 'null' and not (jsonb_typeof(v_filters -> 'sequenceId') = 'array' and jsonb_array_length(v_filters -> 'sequenceId') = 0)) or x."sequence_id"::text = any((case when jsonb_typeof(v_filters -> 'sequenceId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sequenceId')) else array[v_filters ->> 'sequenceId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."status" = 'cancelled' then 'exited' when x."status" = 'completed' then 'completed' when x."paused_at" is not null then 'paused' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_sequence_enrollments"(uuid, jsonb) to authenticated, service_role;
+
+-- One sequence recipient, or a not-found error.
+create or replace function "better_supabase"."get_sequence_enrollment"(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments"%rowtype;
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = get_sequence_enrollment.enrollment_id;
+  if not found then
+    raise exception 'sequence enrollment not found' using errcode = 'P0002', hint = 'SEQUENCE_ENROLLMENT_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.read'), false))) or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'sequences.enroll'), false)))) then
+    raise exception 'not allowed to read sequences' using errcode = '42501', hint = 'SEQUENCE_FORBIDDEN';
+  end if;
+  return "better_supabase"."sequence_member_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."get_sequence_enrollment"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_sequence_enrollment"(uuid) to authenticated, service_role;
 
 -- Runs the steps that are due, oldest first: wait steps finish, task steps
 -- create a work item for whoever enrolled the recipient, and email steps

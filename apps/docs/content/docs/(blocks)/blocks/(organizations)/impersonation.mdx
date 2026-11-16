@@ -28,3 +28,15 @@ await impersonation.end(sessionId).orThrow();
 ```
 
 `start` opens a session without a request, as the admin who is calling. The [Impersonation guide](/docs/auth/impersonation) has the setup and the full reference.
+
+## Paging support sessions
+
+`sessionPage` pages the sessions of every tenant by keyset (ADR 1077) and `getSession(id)` returns one, or a `not_found` error. The list is platform-wide, so it takes no organization, and the SQL function checks the platform admin role. `list` stays as a deprecated alias until 0.70. Filters are `adminId`, `targetUserId`, `tenant` and `active` (`["true"]` keeps the sessions that have not ended or expired). The list has no text search.
+
+```ts
+const sessions = await impersonation
+  .sessionPage({ filters: { active: ["true"] }, sort: { by: "startedAt" } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

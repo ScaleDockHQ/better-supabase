@@ -5,7 +5,14 @@ import type { ItemTemplate, OptionBinding } from "./option-sets-bindings.ts";
 import { rankKeys } from "../../core/rank-keys.ts";
 import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { archivedListFilter } from "../archive-sql.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant } from "../shared.ts";
 import { byField, templateRows } from "./option-sets-bindings.ts";
@@ -336,6 +343,39 @@ export function setFunctions(
     "null;",
   );
 
+  const setIdKey = { expr: `x.${s("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const setPage = {
+    name: "page_option_sets",
+    from: t("sets"),
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = page_option_sets.tenant`,
+      filterAny("subjectType", `x.${s("subjectType")}`),
+      filterAny("field", `x.${s("field")}`),
+      filterAny("scopeId", `x.${s("scope")}`),
+      archivedListFilter("x", s("archivedAt")),
+      `(v_search is null or x.${s("name")} ilike v_search or x.${s("key")} ilike v_search or x.${s("field")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${s("isDefault")}::text`, dir: "desc", type: "text" },
+      { expr: `x.${s("createdAt")}`, dir: "asc", type: "timestamptz" },
+      setIdKey,
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${s("createdAt")}`, dir: "asc", type: "timestamptz" },
+        setIdKey,
+      ],
+      name: [{ expr: `x.${s("name")}`, dir: "asc", type: "text" }, setIdKey],
+    },
+    facets: { subjectType: `x.${s("subjectType")}`, field: `x.${s("field")}` },
+    rowJson: setJson("x", "false"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("OPTION_SET_INVALID", message, "22023"),
+  } as const;
+
   return `
 -- The option sets of a tenant with their active items, ordered by rank.
 -- filters is { subjectType, field, scopeId, includeArchived }.
@@ -363,6 +403,50 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_option_sets")}(${idType}, jsonb)`)}
+
+-- The option sets of a tenant as a keyset page, the default set first (ADR
+-- 1077). filters is { subjectType, field, scopeId (each a value or a list),
+-- archived, search (name, key and field), sort (createdAt, name), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_option_sets")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_option_sets.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(setPage)}
+begin
+  ${guard("page_option_sets.tenant", names.read, "OPTION_SET_FORBIDDEN", "not allowed to read option sets")}
+  ${listBody(setPage)}
+end;
+$$;
+${userGrant(`${fn("page_option_sets")}(${idType}, jsonb)`)}
+
+-- One option set with its active items, or a not-found error.
+create or replace function ${fn("get_option_set")}(option_set_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("sets")}%rowtype;
+begin
+  select * into v_row from ${t("sets")} x where x.${s("id")} = get_option_set.option_set_id;
+  if not found then
+    ${fail("OPTION_SET_NOT_FOUND", "option set not found", "P0002")}
+  end if;
+  ${guard(`v_row.${s("tenant")}`, names.read, "OPTION_SET_FORBIDDEN", "not allowed to read option sets")}
+  return ${setJson("v_row", "false")};
+end;
+$$;
+${userGrant(`${fn("get_option_set")}(uuid)`)}
 
 -- The default option set of a field, created from its template on first use.
 -- Returns it with its items.

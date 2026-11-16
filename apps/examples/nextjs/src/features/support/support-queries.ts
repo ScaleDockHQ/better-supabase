@@ -27,7 +27,9 @@ export async function getSupportSessions(): Promise<
   const { db } = await bsb.cached();
   cacheTag(SUPPORT_TAG);
 
-  const sessions = await db.impersonation.list({ limit: 50 }).orThrow();
+  const { items: sessions } = await db.impersonation
+    .sessionPage({ limit: 50 })
+    .orThrow();
 
   return sessions.map((row) => ({
     id: row.id,

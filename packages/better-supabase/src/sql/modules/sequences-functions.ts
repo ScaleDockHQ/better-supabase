@@ -7,6 +7,7 @@ import {
   filterSet,
   listBody,
   listDeclare,
+  searchPattern,
 } from "../list-template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { sequenceSql } from "./sequences-sql.ts";
@@ -535,6 +536,35 @@ ${userGrant(`${fn("delete_sequence")}(uuid)`)}
 function enrolling(ctx: BlockSqlContext): string {
   const q = sequenceSql(ctx);
   const { fn, s, r, e, mail, parties } = q;
+
+  const enrollmentPage = {
+    name: "page_sequence_enrollments",
+    from: q.enrollments,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = page_sequence_enrollments.tenant and x.${r("sequence")} is not null`,
+      filterAny("sequenceId", `x.${r("sequence")}::text`),
+      filterAny("subjectType", `x.${e("subjectType")}`),
+      filterAny("subjectId", `x.${e("subjectId")}`),
+      filterAny("status", q.runStatus("x")),
+    ],
+    keys: [
+      { expr: `x.${e("enrolledAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${e("id")}`, dir: "desc", type: "uuid" },
+    ],
+    sorts: {
+      enrolledAt: [
+        { expr: `x.${e("enrolledAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${e("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { status: q.runStatus("x") },
+    rowJson: `${fn("sequence_member_json")}(x.${e("id")})`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("SEQUENCE_INVALID", message, "22023"),
+  } as const;
+
   const a = (column: string): string => mail!.col("accounts", column);
 
   const person =
@@ -753,6 +783,52 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_sequence_enrollments")}(${ctx.idType}, jsonb)`)}
+
+-- An organization's sequence recipients as a keyset page, newest first (ADR 1077). filters is { sequenceId, subjectType, subjectId, status (each a value or a list), sort (enrolledAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_sequence_enrollments")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequence_enrollments.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(enrollmentPage)}
+begin
+  if not (${q.allowed("page_sequence_enrollments.tenant", q.read)} or ${q.allowed("page_sequence_enrollments.tenant", q.enroll)}) then
+    ${q.forbidden("not allowed to read sequences")}
+  end if;
+  ${listBody(enrollmentPage)}
+end;
+$$;
+${userGrant(`${fn("page_sequence_enrollments")}(${ctx.idType}, jsonb)`)}
+
+-- One sequence recipient, or a not-found error.
+create or replace function ${fn("get_sequence_enrollment")}(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${q.enrollments}%rowtype;
+begin
+  select * into v_row from ${q.enrollments} x where x.${e("id")} = get_sequence_enrollment.enrollment_id;
+  if not found then
+    ${fail("SEQUENCE_ENROLLMENT_NOT_FOUND", "sequence enrollment not found", "P0002")}
+  end if;
+  if not (${q.allowed(`v_row.${e("tenant")}`, q.read)} or ${q.allowed(`v_row.${e("tenant")}`, q.enroll)}) then
+    ${q.forbidden("not allowed to read sequences")}
+  end if;
+  return ${fn("sequence_member_json")}(v_row.${e("id")});
+end;
+$$;
+${userGrant(`${fn("get_sequence_enrollment")}(uuid)`)}
 `;
 }
 

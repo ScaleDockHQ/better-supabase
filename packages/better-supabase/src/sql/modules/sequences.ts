@@ -189,6 +189,12 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb"],
       returns: "jsonb",
     },
+    {
+      name: "page_sequence_enrollments",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_sequence_enrollment", args: ["uuid"], returns: "jsonb" },
     { name: "run_due_sequences", args: ["integer"], returns: "jsonb" },
     {
       name: "sequence_step_sent",

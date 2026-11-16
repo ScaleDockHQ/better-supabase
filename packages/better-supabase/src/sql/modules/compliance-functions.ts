@@ -3,6 +3,13 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -135,6 +142,74 @@ export function complianceFunctions(ctx: BlockSqlContext): string {
   const taskJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'controlId', ${row}.${t("control")}, 'title', ${row}.${t("title")}, 'assigneeId', ${field("tasks", row, "assignee")}, 'intervalDays', ${row}.${t("intervalDays")}, 'dueOn', ${row}.${t("dueOn")}, 'lastCollectedAt', ${field("tasks", row, "lastCollectedAt")}, 'active', ${row}.${t("active")}, 'overdue', ${overdue(row)}, 'createdAt', ${field("tasks", row, "createdAt")}, 'updatedAt', ${field("tasks", row, "updatedAt")})`;
 
+  const frameworkPage = {
+    name: "page_control_frameworks",
+    from: frameworks,
+    alias: "x",
+    where: [
+      `x.${f("tenant")} = page_control_frameworks.tenant`,
+      `(v_search is null or x.${f("name")} ilike v_search or x.${f("key")} ilike v_search)`,
+      ...(has("frameworks", "kind")
+        ? [filterAny("kind", `x.${f("kind")}::text`)]
+        : []),
+    ],
+    keys: [
+      { expr: `x.${f("name")}`, dir: "asc", type: "text" },
+      { expr: `x.${f("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      name: [
+        { expr: `x.${f("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${f("id")}`, dir: "asc", type: "uuid" },
+      ],
+      key: [
+        { expr: `x.${f("key")}`, dir: "asc", type: "text" },
+        { expr: `x.${f("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      kind: has("frameworks", "kind") ? `x.${f("kind")}::text` : "'standard'",
+    },
+    rowJson: frameworkJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("COMPLIANCE_INVALID", message, "22023"),
+  } as const;
+
+  const taskPage = {
+    name: "page_evidence_tasks",
+    from: tasks,
+    alias: "x",
+    where: [
+      `x.${t("tenant")} = page_evidence_tasks.tenant`,
+      filterAny("controlId", `x.${t("control")}::text`),
+      ...(assignee
+        ? [filterAny("assigneeId", `x.${t("assignee")}::text`)]
+        : []),
+      `(not ${filterFlag("overdue")} or ${overdue("x")})`,
+      `(v_search is null or x.${t("title")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${t("dueOn")}`, dir: "asc", type: "date" },
+      { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      dueOn: [
+        { expr: `x.${t("dueOn")}`, dir: "asc", type: "date" },
+        { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+      ],
+      title: [
+        { expr: `x.${t("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { controlId: `x.${t("control")}::text` },
+    rowJson: `${taskJson("x")} || jsonb_build_object('controlCode', (select y.${k("code")} from ${controls} y where y.${k("id")} = x.${t("control")}), 'controlTitle', (select y.${k("title")} from ${controls} y where y.${k("id")} = x.${t("control")}))`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("COMPLIANCE_INVALID", message, "22023"),
+  } as const;
+
   const attachmentCheck =
     attachments === undefined
       ? `if add_control_evidence.attachment_id is not null then
@@ -215,6 +290,48 @@ as $$
   where x.${f("tenant")} = list_control_frameworks.tenant
 $$;
 ${userGrant(`${fn("list_control_frameworks")}(${idType})`)}
+
+-- The frameworks as a keyset page, by name (ADR 1077). Row level security decides what the caller reads. filters is { kind (a value or a list), search (name and key), sort (name, key), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_control_frameworks")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_control_frameworks.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(frameworkPage)}
+begin
+  
+  ${listBody(frameworkPage)}
+end;
+$$;
+${userGrant(`${fn("page_control_frameworks")}(${idType}, jsonb)`)}
+
+-- One framework, or a not-found error. Row level security decides what the caller reads.
+create or replace function ${fn("get_control_framework")}(framework_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${frameworks}%rowtype;
+begin
+  select * into v_row from ${frameworks} x where x.${f("id")} = get_control_framework.framework_id;
+  if not found then
+    ${fail("CONTROL_FRAMEWORK_NOT_FOUND", "framework not found", "P0002")}
+  end if;
+  
+  return ${frameworkJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_control_framework")}(uuid)`)}
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
@@ -497,6 +614,48 @@ as $$
     and (not coalesce(list_evidence_tasks.overdue_only, false) or ${overdue("x")})
 $$;
 ${userGrant(`${fn("list_evidence_tasks")}(${idType}, uuid, uuid, boolean)`)}
+
+-- The evidence tasks as a keyset page, the earliest due first (ADR 1077). Row level security decides what the caller reads. filters is { controlId, assigneeId (each a value or a list), overdue (true keeps the overdue tasks), search (title), sort (dueOn, title), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_evidence_tasks")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_evidence_tasks.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(taskPage)}
+begin
+  
+  ${listBody(taskPage)}
+end;
+$$;
+${userGrant(`${fn("page_evidence_tasks")}(${idType}, jsonb)`)}
+
+-- One evidence task, or a not-found error. Row level security decides what the caller reads.
+create or replace function ${fn("get_evidence_task")}(task_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${tasks}%rowtype;
+begin
+  select * into v_row from ${tasks} x where x.${t("id")} = get_evidence_task.task_id;
+  if not found then
+    ${fail("EVIDENCE_TASK_NOT_FOUND", "evidence task not found", "P0002")}
+  end if;
+  
+  return ${taskJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_evidence_task")}(uuid)`)}
 
 -- The status rollup per framework: how many controls pass, fail, haven't
 -- started or are out of scope, and how many evidence tasks are overdue.

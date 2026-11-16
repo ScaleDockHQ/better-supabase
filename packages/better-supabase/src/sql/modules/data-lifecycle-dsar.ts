@@ -5,7 +5,14 @@ import type {
 } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, fail, lockTable } from "../shared.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import { SERVICE_CALLER, fail, lockTable, userGrant } from "../shared.ts";
 import { lifecycleJson } from "./data-lifecycle-app.ts";
 import { eraseSql } from "./data-lifecycle-erase.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -88,6 +95,12 @@ export const DSAR_CONTRACT: readonly BlockSqlContractFunction[] = [
     args: ["{id}", "text", "boolean"],
     returns: "jsonb",
   },
+  {
+    name: "page_data_subject_requests",
+    args: ["{id}", "jsonb"],
+    returns: "jsonb",
+  },
+  { name: "get_data_subject_request", args: ["uuid"], returns: "jsonb" },
 ];
 
 const kindList = DSAR_KINDS.map((kind) => sqlString(kind)).join(", ");
@@ -129,6 +142,39 @@ export function dsarSql(ctx: BlockSqlContext): string {
     "DSAR_FORBIDDEN",
     "You may not handle data subject requests here",
   );
+
+  const requestPage = {
+    name: "page_data_subject_requests",
+    from: t,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_data_subject_requests.tenant`,
+      filterAny("status", `x.${c("status")}::text`),
+      filterAny("kind", `x.${c("kind")}::text`),
+      `(not ${filterFlag("open")} or x.${c("closedAt")} is null)`,
+      `(not ${filterFlag("overdue")} or (x.${c("closedAt")} is null and x.${c("dueAt")} < now()))`,
+      `(v_search is null or x.${c("subjectId")} ilike v_search or x.${c("requester")}::text ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${c("dueAt")}`, dir: "asc", type: "timestamptz" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      dueAt: [
+        { expr: `x.${c("dueAt")}`, dir: "asc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      receivedAt: [
+        { expr: `x.${c("receivedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${c("status")}::text`, kind: `x.${c("kind")}::text` },
+    rowJson: `${json("x", "x.*")} || jsonb_build_object('overdue', x.${c("closedAt")} is null and x.${c("dueAt")} < now())`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("DSAR_INVALID", message, "22023"),
+  } as const;
 
   const missing = fail("DSAR_NOT_FOUND", "request not found", "P0002");
 
@@ -385,6 +431,52 @@ revoke execute on function ${fn("verify_data_subject_request")}(uuid, text) from
 revoke execute on function ${fn("extend_data_subject_request")}(uuid, text) from public, anon;
 revoke execute on function ${fn("fulfil_data_subject_request")}(uuid, text) from public, anon;
 revoke execute on function ${fn("refuse_data_subject_request")}(uuid, text) from public, anon;
+-- The organization's data subject requests as a keyset page, the nearest due date first (ADR 1077). filters is { status, kind (each a value or a list), open (true leaves out fulfilled and refused ones), overdue (true keeps the open ones past their due date), search (subject id and requester), sort (dueAt, receivedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_data_subject_requests")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_data_subject_requests.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(requestPage)}
+begin
+  if not ${allowed("page_data_subject_requests.tenant")} then
+    ${forbidden}
+  end if;
+  ${listBody(requestPage)}
+end;
+$$;
+${userGrant(`${fn("page_data_subject_requests")}(${id}, jsonb)`)}
+
+-- One data subject request, or a not-found error. Needs the export permission.
+create or replace function ${fn("get_data_subject_request")}(request_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${t}%rowtype;
+begin
+  select * into v_row from ${t} x where x.${c("id")} = get_data_subject_request.request_id;
+  if not found then
+    ${fail("DSAR_NOT_FOUND", "data subject request not found", "P0002")}
+  end if;
+  if not ${allowed(`v_row.${c("tenant")}`)} then
+    ${forbidden}
+  end if;
+  return ${json("v_row", "v_row")} || jsonb_build_object('overdue', v_row.${c("closedAt")} is null and v_row.${c("dueAt")} < now());
+end;
+$$;
+${userGrant(`${fn("get_data_subject_request")}(uuid)`)}
+
 revoke execute on function ${fn("list_data_subject_requests")}(${id}, text, boolean) from public, anon;
 grant execute on function ${fn("open_data_subject_request")}(${id}, text, text, text, text, text) to authenticated, service_role;
 grant execute on function ${fn("verify_data_subject_request")}(uuid, text) to authenticated, service_role;

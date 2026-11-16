@@ -1,4 +1,15 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { RecordRef } from "../../schema/types.ts";
@@ -6,6 +17,7 @@ import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import {
@@ -21,6 +33,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { purposeListSurface } from "./lists.ts";
 
 const LEGAL_BASES = [
   "consent",
@@ -208,10 +221,32 @@ export interface Consents {
   archivePurpose(purposeId: string): AsyncResult<ConsentPurpose>;
   /** Takes new consents for an archived purpose again; needs `consents.manage`. */
   restorePurpose(purposeId: string): AsyncResult<ConsentPurpose>;
-  /** The organization's purposes and the system ones, newest version first. */
+  /**
+   * The organization's purposes and the system ones, newest version first.
+   *
+   * @deprecated Use `purposePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   purposes(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly ConsentPurpose[]>;
+  /**
+   * One keyset page of the purposes (the organization's own and the system
+   * ones). `filters` takes `key` and `legalBasis` as lists and `archived`; `q`
+   * searches the key and title. The organization comes from `organizationId` or
+   * `options.tenant`.
+   */
+  purposePage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ConsentPurpose>>;
+  /** The values of each facet (`legalBasis`) and how many purposes hold each. */
+  purposeFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many purposes match the page's filters. */
+  purposeCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One purpose by id, or a `not_found` error. */
+  getPurpose(purposeId: string): AsyncResult<ConsentPurpose>;
   /**
    * Records a decision on the current version of a purpose. It ends the grant
    * it replaces. Needs `consents.record`, or a guest who is the record or acts
@@ -407,6 +442,15 @@ export function createConsents(options: ConsentsOptions): Consents {
   const purpose = (fn: string) => (value: unknown) => purposeOf(value, fn);
   const consent = (fn: string) => (value: unknown) => consentOf(value, fn);
 
+  const purposeList = entityList<ConsentPurpose, TenantOption>({
+    entity: "consent purpose",
+    surface: purposeListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_consent_purposes",
+    rowOf: (row, fn) => purpose(fn)(row),
+  });
+
   const savePurpose = (
     organizationId: string | null,
     input: ConsentPurposeInput,
@@ -445,6 +489,16 @@ export function createConsents(options: ConsentsOptions): Consents {
         { purpose_id: purposeId },
         purpose("restore_consent_purpose"),
       ),
+    purposePage: (page = {}) => purposeList.page(page),
+    purposeFacets: (facets = {}) => purposeList.facets(facets),
+    purposeCount: (count = {}) => purposeList.count(count),
+    getPurpose: (purposeId) =>
+      call(
+        "get_consent_purpose",
+        { purpose_id: purposeId },
+        purpose("get_consent_purpose"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     purposes: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
