@@ -21,6 +21,7 @@ import {
   nodeKindsDdl,
   nodeKindsSql,
 } from "./workflow-editor-nodes.ts";
+import { definitionPageSql } from "./workflow-editor-pages.ts";
 import { builderPublisherSql } from "./workflow-editor-publisher.ts";
 import {
   builderRuntimeSql,
@@ -657,6 +658,8 @@ as $$
     };
 $$;
 ${callable(`${fn("workflow_definitions_list")}(${id}, text)`)}
+
+${definitionPageSql(s)}
 
 create or replace function ${fn("workflow_definition_get")}(definition uuid)
 returns jsonb

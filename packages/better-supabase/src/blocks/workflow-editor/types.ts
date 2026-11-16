@@ -2,6 +2,7 @@ import type { ExtraFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AuthorizationHooks } from "../../core/contracts/authorization-hooks.ts";
+import type { EntityList, TenantOption } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -499,6 +500,12 @@ export type WorkflowBuilderHooks<F extends object = Record<never, never>> =
     readonly alerts?: BlockHooks<WorkflowEditor<F>["alerts"]>;
   };
 
+/** What `definitions.page`, `facets` and `count` take and return. */
+export type DefinitionList<F extends object> = EntityList<
+  WorkflowDefinition<F>,
+  TenantOption
+>;
+
 export interface WorkflowEditor<F extends object = Record<never, never>> {
   readonly definitions: {
     upsert(input: DefinitionInput<F>): AsyncResult<WorkflowDefinition<F>>;
@@ -506,12 +513,26 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * The tenant's definitions; with a tenant, the system definitions too,
      * marked `optedOut` when it opted out. `subjectType` keeps the ones that
      * run on that record type.
+     *
+     * @deprecated Use `page`, which searches, sorts, filters by state and
+     * pages by keyset in the database (ADR 1077).
      */
     list(input?: {
       tenant?: string | undefined;
       limit?: number;
       filter?: { readonly subjectType?: string } | undefined;
     }): AsyncResult<readonly WorkflowDefinition<F>[]>;
+    /**
+     * Keyset `page`, `facets` and `count` of the definitions (ADR 1077), by
+     * name unless `sort` says otherwise. Pass `organizationId` for the tenant's
+     * definitions and the system ones.
+     */
+    readonly page: DefinitionList<F>["page"];
+    readonly facets: DefinitionList<F>["facets"];
+    readonly count: DefinitionList<F>["count"];
+    /** One definition by id, or a `not_found` error. */
+    getDefinition(id: string): AsyncResult<WorkflowDefinition<F>>;
+    /** @deprecated Use `getDefinition`, which returns `not_found` (ADR 1077). */
     get(id: string): AsyncResult<WorkflowDefinition<F> | undefined>;
     remove(id: string): AsyncResult<boolean>;
     /**

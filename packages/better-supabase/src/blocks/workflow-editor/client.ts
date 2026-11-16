@@ -53,6 +53,7 @@ export function createWorkflowEditorController(
         const run = state.run();
 
         const [listed, library] = await Promise.all([
+          // oxlint-disable-next-line typescript/no-deprecated -- the editor loads the capped list until 0.70 (ADR 1077)
           options.client.definitions.list({ tenant: tenant ?? undefined }),
           options.client.steps.list(),
         ]);

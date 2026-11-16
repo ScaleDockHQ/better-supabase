@@ -63,6 +63,7 @@ export function workflowsContract(
         "text",
         "text",
         "text",
+        "text[]",
       ],
       returns: "jsonb",
     },

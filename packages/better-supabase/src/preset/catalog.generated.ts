@@ -1197,7 +1197,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "reactions",
         "data-lifecycle",
         "automations",
-        "tasks"
+        "tasks",
+        "tags"
       ],
       "manifest": "inbox",
       "scopes": [
@@ -32128,6 +32129,25 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "entityLists": {
+        "inbox": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "channel",
+            "botMode"
+          ],
+          "filters": [
+            "channel",
+            "botMode",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "address"
+          ]
+        },
         "conversation": {
           "sorts": [
             "lastMessageAt",
@@ -32135,19 +32155,44 @@ export const PRESET_CATALOG: PresetCatalog = {
           ],
           "facets": [
             "status",
-            "inboxId"
+            "inboxId",
+            "priority",
+            "sla"
           ],
           "filters": [
             "inboxId",
             "teamId",
             "contactId",
             "status",
-            "assignee"
+            "assignee",
+            "priority",
+            "sla",
+            "slaMinutes",
+            "tagId"
           ],
           "search": [
             "subject",
             "preview",
             "contact"
+          ]
+        },
+        "template": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "channel",
+            "language"
+          ],
+          "filters": [
+            "channel",
+            "language",
+            "inboxId"
+          ],
+          "search": [
+            "name",
+            "body"
           ]
         }
       }
@@ -37523,6 +37568,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "workflow_definition.published",
           "workflow_alert.triggered"
         ]
+      },
+      "entityLists": {
+        "workflow_definition": {
+          "sorts": [
+            "name",
+            "updatedAt",
+            "createdAt"
+          ],
+          "facets": [
+            "state"
+          ],
+          "filters": [
+            "state"
+          ],
+          "search": [
+            "name",
+            "slug"
+          ]
+        }
       }
     },
     {
