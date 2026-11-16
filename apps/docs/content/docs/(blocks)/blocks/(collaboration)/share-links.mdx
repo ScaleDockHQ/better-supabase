@@ -48,6 +48,10 @@ With the [rate-limit](/docs/blocks/sql) module installed, each wrong password co
 
 The functions other modules serve a link through (calendar feeds, booking pages, public forms, drive links, shared AI chats and leave feeds) take no password, so they don't open a link that has one.
 
+## Paging
+
+`share-links` does not take the block list contract. `list` reads the links to one subject, which is a short list the caller manages, so it takes the `subject`, `includeRevoked` and a `limit`, and does not offer `q`, sorts, facets or a cursor (ADR 1077).
+
 ## Download and upload links
 
 `downloadAllowed: false` makes a view-only link: `resolve` and `list` return `downloadAllowed: false`. The block serves no files itself, so the page or block that serves the subject's files checks the flag before it offers a download; the drive does this in `drive_link`. It defaults to `true`.

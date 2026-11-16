@@ -33,9 +33,13 @@ export async function loadDealConversations(
     return [];
   }
 
-  const [conversations, { bindings }] = await Promise.all([
+  const [{ items: conversations }, { bindings }] = await Promise.all([
     db.inbox.conversations
-      .list({ tenant, filter: { status: "all", limit: CONVERSATION_WINDOW } })
+      .page({
+        organizationId: tenant,
+        filters: { status: ["all"] },
+        limit: CONVERSATION_WINDOW,
+      })
       .orThrow(),
     recordPages.deal.load(dealId, { bindings: ["relations"] }),
   ]);

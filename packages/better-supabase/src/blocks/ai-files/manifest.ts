@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { createAiFiles } from "./ai-files.ts";
+import { fileListSurface } from "./lists.ts";
 import { aiFilesSqlOptions } from "./options.ts";
 
 /** The `ai-files` block's manifest (ADR 0029). */
@@ -19,6 +20,11 @@ export const aiFilesBlock: BlockOf<
   create: createAiFiles,
   category: "ai",
   entities: {
+    ai_file: {
+      ...fileListSurface,
+      mutability: "append-only",
+      emits: { create: false, delete: false },
+    },
     ai_document: {
       mutability: "editable",
       emits: { create: false, update: false, delete: false },

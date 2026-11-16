@@ -88,6 +88,10 @@ client) lets `ingest.file` read uploads.
 | `ingest`      | `text`, `file`, `queue`                                           |
 | (top level)   | `process`, `embedJob`, `drain`, `search`, `reembed`               |
 
+## Paging documents and collections
+
+`documents.page` and `collections.page` page by keyset (ADR 1077), each with `facets` and `count`, and `documents.get` and `collections.get` return a `not_found` error for an unknown id. Documents sort by `createdAt` and `title`, filter by `scope`, `status`, `collectionId`, `scopeId`, `subjectType` and `subjectId`, and `q` searches the title. Collections sort by `priority` (the default), `name` and `createdAt`, filter by `visibility`, and `q` searches the name and the description. `documents.list` and `collections.list` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Ingest and embed
 
 ```ts

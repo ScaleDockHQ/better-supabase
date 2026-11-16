@@ -1,6 +1,17 @@
 import type { FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -215,7 +226,30 @@ export interface AiFiles<F extends object = Record<never, never>> {
     get(fileId: string): AsyncResult<AiFile & F>;
     /** The file a `supabase-storage://` URL names, when the caller may read it. */
     resolve(url: string | URL): AsyncResult<AiFile & F>;
+    /**
+     * The files of a chat, oldest first.
+     *
+     * @deprecated Use `page` with `filters: { chatId: [id] }`, which pages by
+     * keyset and takes `q`, sorts, array filters and a count (ADR 1077).
+     */
     list(chatId: string): AsyncResult<readonly (AiFile & F)[]>;
+    /**
+     * One keyset page of the tenant's files, oldest first. `filters` takes
+     * `status`, `source` and `mediaType` as lists and `chatId` as one id; `q`
+     * searches the filename.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<AiFile & F>>;
+    /**
+     * The values of each facet (`status`, `source`, `mediaType`) and how many
+     * files hold each.
+     */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many files match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
     /** A signed download URL that expires after `downloadTtl`. */
     sign(file: AiFile | string): AsyncResult<string>;
     /** The bytes of a ready file, refusing more than `maxBytes`. */

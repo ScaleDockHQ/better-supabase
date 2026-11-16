@@ -634,6 +634,7 @@ export function supabaseMemory(
                 : "";
 
             const page = await memory.archival
+              // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
               .list({
                 organizationId: where.organizationId,
                 ns: where.namespace,

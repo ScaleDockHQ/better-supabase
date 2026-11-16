@@ -218,6 +218,10 @@
     "message": "a final advisory can"
   },
   {
+    "code": "AGENT_INVALID",
+    "message": "mode is store, mine or installed"
+  },
+  {
     "code": "AGENT_MANDATE_EXPIRED",
     "message": "the mandate expired"
   },
@@ -238,8 +242,16 @@
     "message": "the mandate was already used or revoked"
   },
   {
+    "code": "AI_CHAT_INVALID",
+    "message": "projectId is a uuid"
+  },
+  {
     "code": "AI_CHAT_NOT_FOUND",
     "message": "no chat"
+  },
+  {
+    "code": "AI_FILE_INVALID",
+    "message": "chatId is a uuid"
   },
   {
     "code": "AI_FILE_NOT_FOUND",
@@ -2606,6 +2618,10 @@
     "message": "metadata must be an object"
   },
   {
+    "code": "INBOX_INVALID",
+    "message": "inboxId, teamId and contactId are uuids"
+  },
+  {
     "code": "INBOX_KIND_INVALID",
     "message": "kind is message or note"
   },
@@ -3282,6 +3298,10 @@
   },
   {
     "code": "JSON_SCHEMA_INVALID"
+  },
+  {
+    "code": "KNOWLEDGE_DOCUMENT_INVALID",
+    "message": "collectionId and scopeId are uuids"
   },
   {
     "code": "LEAD_SCORING_FORBIDDEN",

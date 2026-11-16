@@ -129,11 +129,13 @@ export async function getEvalWorkspace(
 
   const [items, runs, versions] = await Promise.all([
     evals.items.list({ datasetId: dataset.id, limit: 100 }).orThrow(),
-    evals.runs.list({ datasetId: dataset.id, limit: 20 }).orThrow(),
+    evals.runs
+      .page({ organizationId, filters: { datasetId: [dataset.id] }, limit: 20 })
+      .orThrow(),
     promptsBlock(access).versions({ name, organizationId }).orThrow(),
   ]);
 
-  const rows: EvalRunRow[] = runs.map((run) => ({
+  const rows: EvalRunRow[] = runs.items.map((run) => ({
     id: run.id,
     promptVersion: run.promptVersion,
     model: run.model,

@@ -4,6 +4,7 @@ import type { AgentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAgents } from "./agents.ts";
 import { agentsEvents } from "./events.ts";
+import { agentListSurface } from "./lists.ts";
 import { agentsSqlOptions } from "./options.ts";
 
 /** The `agents` block's manifest (ADR 0029). */
@@ -17,6 +18,7 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
     category: "ai",
     entities: {
       agent: {
+        ...agentListSurface,
         mutability: "editable",
         emits: {
           create: true,

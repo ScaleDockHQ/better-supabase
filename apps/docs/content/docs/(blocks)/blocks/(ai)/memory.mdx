@@ -103,6 +103,10 @@ await db.memory.core
   .orThrow();
 ```
 
+## Paging archival facts
+
+`archival.page` pages the facts of one namespace by keyset (ADR 1077), with `facets` and `count`, and `archival.get` returns a `not_found` error for an unknown id. Pass `ns` to read a namespace other than the caller's own. Sorts are `createdAt` (newest first), `updatedAt`, `path`, `useCount` and `lastUsedAt`, `kind` and `category` filter by a list of values, and `q` searches the content. `archival.list` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Core memory
 
 ```ts

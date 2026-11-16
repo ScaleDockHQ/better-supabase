@@ -23,6 +23,7 @@ import {
   knowledgeCollectionsSql,
   upgradeCollectionGrants,
 } from "./knowledge-collections.ts";
+import { knowledgeDocumentPage } from "./knowledge-pages.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -693,6 +694,8 @@ as $$
   ) x
 $$;
 ${userGrant(`${fn("list_knowledge_documents")}(${id}, text, uuid, integer, uuid, text, text)`)}
+
+${knowledgeDocumentPage(ctx, { id, d, collected, subjectColumns, createdAt, documentJson })}
 
 create or replace function ${fn("delete_knowledge_document")}(document_id uuid)
 returns boolean

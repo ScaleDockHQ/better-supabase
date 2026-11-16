@@ -52,6 +52,10 @@ the reply as the expected output. It reads thumbs down by default (`rating: -1`)
 skips replies already in the dataset and only takes the dataset tenant's chats.
 Without `ai-chat` it fails with `AI_EVAL_FEEDBACK_UNAVAILABLE`.
 
+## Paging datasets and runs
+
+`datasets.page` and `runs.page` page by keyset (ADR 1077), each with `facets` and `count`, and `datasets.getDataset` and `runs.getRun` return a `not_found` error for an unknown id. Datasets sort by `name`, `createdAt` and `lastRunAt`, and `q` searches the name. Runs sort by `createdAt` (newest first) and `finishedAt`, filter by `datasetId`, `status`, `model` and `promptName`, and `q` searches the prompt name and the model. Datasets have no facet. `datasets.get`, `datasets.list`, `runs.get` and `runs.list` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## List the datasets
 
 ```ts

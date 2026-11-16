@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -18,6 +29,11 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { assertCron, nextCronRun } from "../../core/cron.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { runStateOf } from "../../core/run-state.ts";
@@ -35,6 +51,7 @@ import {
   instantOf,
   injectableOf,
 } from "../shared.ts";
+import { taskListSurface } from "./lists.ts";
 
 /** A task run's state, in the words ai-chat and workflow runs share. */
 export type AiTaskRunStatus = Extract<
@@ -178,8 +195,27 @@ export interface AiSchedules<F extends object = Record<never, never>> {
   }): AsyncResult<AiTask & F>;
   remove(taskId: string): AsyncResult<boolean>;
   /**
+   * One keyset page of the caller's tasks, newest first. `filters` takes
+   * `enabled` as a list and `all` (`["true"]` reads every task the caller can
+   * see in the tenant); `q` searches the title and the prompt.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<AiTask & F>>;
+  /** The values of the `enabled` facet and how many tasks hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many tasks match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One task by id with its last run, or a `not_found` error. */
+  get(taskId: string): AsyncResult<AiTask & F>;
+  /**
    * The caller's tasks, or every task in the tenant with `all` and
    * `ai_schedules.manage`.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
    */
   list(
     input: { organizationId: string } & {
@@ -533,7 +569,35 @@ export function createAiSchedules<
         }),
     );
 
+  const taskPages = entityList<
+    readonly [unknown, AiTask],
+    RequiredTenantOption
+  >({
+    entity: "ai_scheduled_task",
+    surface: taskListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_tasks",
+    rowOf: (row) => [row, taskOf(row)] as const,
+  });
+
   const client: AiSchedules<F> = {
+    page: (pageOptions) =>
+      taskPages
+        .page(pageOptions)
+        .andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({ ...page, items }),
+          ),
+        ),
+    facets: taskPages.facets,
+    count: taskPages.count,
+    get: (taskId) =>
+      call("get_ai_task", { id: taskId }, (value) => value ?? undefined)
+        .andThen((row) => foundOrNotFound("ai_scheduled_task", row, taskId))
+        .andThen((row) =>
+          AsyncResult.from(() => withFields(fields, row, taskOf(row))),
+        ),
     create: ({ organizationId, task }) =>
       schedule(task, task.timezone).andThen((nextRunAt) =>
         save(organizationId, undefined, task, nextRunAt),
@@ -548,6 +612,7 @@ export function createAiSchedules<
       save(organizationId, taskId, { enabled: true }, undefined),
     remove: (taskId) =>
       call("delete_ai_task", { id: taskId }, (value) => value === true),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, limit, ...listOptions }) =>
       call(
         "list_ai_tasks",

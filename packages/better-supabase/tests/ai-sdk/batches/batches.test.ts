@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the fake store implements the deprecated batch methods until 0.70 (ADR 1077). 2 findings. */
 import type { Experimental_BatchItemResult } from "ai";
 
 import { describe, expect, it, vi } from "vitest";
@@ -74,7 +75,12 @@ function fakeStore(due: AiBatch[] = []) {
       return AsyncResult.ok(current);
     },
     get: () => AsyncResult.ok(current),
+    getBatch: () => AsyncResult.ok(current),
     list: () => AsyncResult.ok([current]),
+    page: () =>
+      AsyncResult.ok({ items: [current], hasMore: false, nextCursor: null }),
+    facets: () => AsyncResult.ok([]),
+    count: () => AsyncResult.ok({ value: 1, exact: true }),
     items: () => AsyncResult.ok([]),
     due: () => AsyncResult.ok(due),
     update: ({ batchId: id, patch }) => {

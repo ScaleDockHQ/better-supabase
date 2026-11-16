@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 1 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
@@ -282,5 +283,41 @@ describe("skills, remaining paths", () => {
       .orThrow();
 
     expect(calls.at(-1)?.fn).toBe("record_skill_sync");
+  });
+});
+
+describe("agents page", () => {
+  it("maps the rows of a page and sends the mode filter", async () => {
+    const { transport, calls } = fakeTransport({
+      page_agents: () => ({
+        items: [agentRow()],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const agents = createAgents({ transport });
+
+    const page = await agents
+      .page({ organizationId: "o1", filters: { mode: ["mine"] }, q: "writ" })
+      .orThrow();
+
+    expect(page.items.map((agent) => agent.slug)).toEqual(["writer"]);
+    expect(calls[0]?.args).toMatchObject({
+      tenant: "o1",
+      filters: { mode: ["mine"], search: "writ", paged: true },
+    });
+  });
+
+  it("refuses a filter the agent does not declare", async () => {
+    const { transport } = fakeTransport({});
+    const agents = createAgents({ transport });
+
+    const result = await agents.page({
+      organizationId: "o1",
+      filters: { color: ["red"] },
+    });
+
+    expect(result.ok).toBe(false);
   });
 });

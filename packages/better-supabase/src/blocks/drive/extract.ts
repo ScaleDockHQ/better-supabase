@@ -225,42 +225,45 @@ export function createDriveText(options: DriveTextOptions): DriveText {
 
     const subject = { type: subjectType, id: source.nodeId };
 
-    return knowledge.documents
-      .list({
-        organizationId: source.organizationId,
-        scope: "subject",
-        subject,
-      })
-      .andThen(async (documents) => {
-        for (const document of documents) {
-          const removed = await knowledge.documents.remove(document.id);
-
-          if (!removed.ok) {
-            return removed;
-          }
-        }
-
-        if (content === undefined || content.trim() === "") {
-          return ok(undefined);
-        }
-
-        const created = await knowledge.ingest.text({
+    return (
+      knowledge.documents
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
+        .list({
           organizationId: source.organizationId,
-          document: {
-            title: source.name,
-            scope: "subject",
-            subject,
-            source: source.name,
-            metadata: {
-              nodeId: source.nodeId,
-              attachmentId: source.attachmentId,
-            },
-            text: content,
-          },
-        });
+          scope: "subject",
+          subject,
+        })
+        .andThen(async (documents) => {
+          for (const document of documents) {
+            const removed = await knowledge.documents.remove(document.id);
 
-        return created.ok ? ok(undefined) : created;
-      });
+            if (!removed.ok) {
+              return removed;
+            }
+          }
+
+          if (content === undefined || content.trim() === "") {
+            return ok(undefined);
+          }
+
+          const created = await knowledge.ingest.text({
+            organizationId: source.organizationId,
+            document: {
+              title: source.name,
+              scope: "subject",
+              subject,
+              source: source.name,
+              metadata: {
+                nodeId: source.nodeId,
+                attachmentId: source.attachmentId,
+              },
+              text: content,
+            },
+          });
+
+          return created.ok ? ok(undefined) : created;
+        })
+    );
   };
 
   const store = (

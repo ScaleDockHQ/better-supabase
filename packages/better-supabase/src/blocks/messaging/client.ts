@@ -520,6 +520,7 @@ export function createConversationsController(
         ticket += 1;
         const request = ticket;
 
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
         const result = await options.client.conversations({
           ...(options.kinds === undefined ? {} : { kinds: options.kinds }),
           ...(options.limit === undefined ? {} : { limit: options.limit }),

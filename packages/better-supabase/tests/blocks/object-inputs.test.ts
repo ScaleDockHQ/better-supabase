@@ -174,6 +174,7 @@ const POSITIONAL = new Set<string>([
   "mail-sync/providers.ts:post",
   "medications/medications.ts:get",
   "medications/medications.ts:search",
+  "memory/memory.ts:call",
   "memberships/extension.ts:beforeMutation",
   "memberships/extension.ts:context",
   "memberships/extension.ts:transformQuery",

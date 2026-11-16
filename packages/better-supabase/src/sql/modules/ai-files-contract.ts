@@ -39,6 +39,7 @@ export function contract(
     { name: "get_ai_file", args: ["uuid"], returns: "jsonb" },
     { name: "get_ai_file_by_path", args: ["text", "text"], returns: "jsonb" },
     { name: "list_ai_files", args: ["uuid"], returns: "jsonb" },
+    { name: "page_ai_files", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "delete_ai_file", args: ["uuid"], returns: "jsonb" },
     {
       name: "store_ai_file",

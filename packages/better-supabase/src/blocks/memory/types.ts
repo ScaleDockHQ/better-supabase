@@ -1,5 +1,12 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -44,6 +51,12 @@ export interface MemorySaveOptions {
   readonly confidence?: number;
   /** When the fact stops showing up in lists and searches. */
   readonly expiresAt?: Temporal.Instant;
+}
+
+/** What the archival `page`, `facets` and `count` add: the namespace to read. */
+export interface MemoryListScope {
+  readonly organizationId: string | null;
+  readonly ns?: MemoryNamespace | undefined;
 }
 
 export interface MemoryRecord {
@@ -237,6 +250,26 @@ export interface Memory {
         ns?: MemoryNamespace | undefined;
       } & { readonly k?: number; readonly signal?: AbortSignal },
     ): AsyncResult<readonly MemoryHit[]>;
+    /**
+     * One keyset page of a namespace's memories, archival facts newest first
+     * (`filters.kind` reads core files too). `filters` takes `kind` and
+     * `category` as lists; `q` searches the content.
+     */
+    page(
+      input: PageOptions & MemoryListScope,
+    ): AsyncResult<ListPage<MemoryRecord>>;
+    /** The values of the `kind` and `category` facets and their counts. */
+    facets(
+      input: FacetOptions & MemoryListScope,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many memories match the page's filters. */
+    count(input: CountOptions & MemoryListScope): AsyncResult<Count>;
+    /** One memory the caller can read by id, or a `not_found` error. */
+    get(memoryId: string): AsyncResult<MemoryRecord>;
+    /**
+     * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(
       input: {
         organizationId: string | null;

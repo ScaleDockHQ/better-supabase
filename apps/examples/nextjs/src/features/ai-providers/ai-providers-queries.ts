@@ -47,7 +47,8 @@ export async function getProviderKeys(): Promise<ProviderKeysRead> {
     return { ok: true, keys: [] };
   }
 
-  const result = await aiProviders(supabase).keys.list(organizationId, {
+  const result = await aiProviders(supabase).keys.page({
+    organizationId,
     limit: 100,
   });
 
@@ -57,7 +58,7 @@ export async function getProviderKeys(): Promise<ProviderKeysRead> {
 
   return {
     ok: true,
-    keys: result.data.map((key) => {
+    keys: result.data.items.map((key) => {
       const settings = v.safeParse(KeySettings, key.settings);
 
       return {

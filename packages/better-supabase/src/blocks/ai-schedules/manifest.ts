@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { createAiSchedules } from "./ai-schedules.ts";
+import { taskListSurface } from "./lists.ts";
 import { aiSchedulesSqlOptions } from "./options.ts";
 
 /** The `ai-schedules` block's manifest (ADR 0029). */
@@ -26,7 +27,9 @@ export const aiSchedulesBlock: BlockOf<
   consumes: { notifier: "optional" },
   create: createAiSchedules,
   category: "ai",
-  entities: { ai_scheduled_task: { mutability: "read-only" } },
+  entities: {
+    ai_scheduled_task: { ...taskListSurface, mutability: "read-only" },
+  },
   concerns: ["lifecycle"],
   description:
     "Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.",

@@ -128,6 +128,7 @@ export function createAiChatsController(
         let page: AiChatPage | undefined;
 
         for (let loaded = 0; loaded < pages; loaded += 1) {
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
           const result: Result<AiChatPage> = await chats.list(
             page?.next === undefined ? query : { ...query, cursor: page.next },
           );
@@ -177,6 +178,7 @@ export function createAiChatsController(
             ticket += 1;
             const run = ticket;
             pages += 1;
+            // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
             const result = await chats.list({ ...query, cursor: next });
 
             if (run !== ticket) {

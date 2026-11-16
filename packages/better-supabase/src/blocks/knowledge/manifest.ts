@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { createKnowledge } from "./knowledge.ts";
+import { collectionListSurface, documentListSurface } from "./lists.ts";
 import { knowledgeSqlOptions } from "./options.ts";
 
 /** The `knowledge` block's manifest (ADR 0029). */
@@ -19,8 +20,14 @@ export const knowledgeBlock: BlockOf<
   category: "ai",
   entities: {
     knowledge_document: {
+      ...documentListSurface,
       mutability: "append-only",
       emits: { create: false, delete: false },
+    },
+    knowledge_collection: {
+      ...collectionListSurface,
+      mutability: "editable",
+      emits: { create: false, update: false, delete: false },
     },
   },
   concerns: ["lifecycle"],

@@ -54,6 +54,10 @@ matches exactly or by a `.*` prefix. The actor is the event's `actorId`,
 the record's timeline. `describe` can set the summary, actor, subject and
 data, or return `null` to skip an event.
 
+## Paging
+
+`timeline` does not take the block list contract. A timeline merges the entries of one subject from several sources (comments, audit, deliveries and workflow runs), so `list` reads the newest entries in time order with its own options and does not offer `q`, sorts, facets or a count (ADR 1077). The merge has no single column to sort or filter by.
+
 ## Reading the feed
 
 `createTimeline({ transport, tenant })` builds the client, or

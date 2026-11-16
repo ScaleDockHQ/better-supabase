@@ -1,8 +1,16 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { ListTemplateOptions } from "../list-template.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ChannelsSql } from "./channels-names.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   SERVICE_CALLER,
@@ -29,6 +37,55 @@ function channelJson(q: ChannelsSql, ch: string, c: string): string {
       'role', (select k.${mb("role")} from ${members} k where k.${mb("conversation")} = ${c}.${cv("id")} and k.${mb("user")} = auth.uid()),
       'memberCount', (select count(*) from ${members} k where k.${mb("conversation")} = ${c}.${cv("id")})
     )`;
+}
+
+/** The `page_channels` list: keys, sorts, facets and the row (ADR 1077). */
+function channelPage(q: ChannelsSql): ListTemplateOptions {
+  const { ctx, cv, mb, members, conversations } = q;
+  const ch = (column: string): string => q.ch(column);
+  const idKey = { expr: `x.${ch("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const nameKeys = [
+    { expr: `x.${ch("name")}`, dir: "asc", type: "text" },
+    idKey,
+  ] as const;
+
+  const created = ctx.has("channels", "createdAt")
+    ? `x.${ch("createdAt")}`
+    : ctx.has("channels", "updatedAt")
+      ? `x.${ch("updatedAt")}`
+      : "'epoch'::timestamptz";
+
+  return {
+    name: "page_channels",
+    from: q.t("channels"),
+    alias: "x",
+    where: [
+      ctx.scope.eq(`x.${ch("tenant")}`, "page_channels.tenant"),
+      `exists (select 1 from ${conversations} c where c.${cv("id")} = x.${ch("id")} and (${filterFlag("includeArchived")} or c.${cv("archivedAt")} is null))`,
+      `(${filterFlag("browse")} or exists (select 1 from ${members} k where k.${mb("conversation")} = x.${ch("id")} and k.${mb("user")} = auth.uid()))`,
+      filterAny("visibility", `x.${ch("visibility")}::text`),
+      `(v_search is null or x.${ch("name")} ilike v_search or x.${ch("topic")} ilike v_search or x.${ch("purpose")} ilike v_search)`,
+    ],
+    keys: nameKeys,
+    sorts: {
+      name: nameKeys,
+      createdAt: [{ expr: created, dir: "desc", type: "timestamptz" }, idKey],
+      lastMessageAt: [
+        {
+          expr: `coalesce((select c.${cv("lastMessageAt")} from ${conversations} c where c.${cv("id")} = x.${ch("id")}), 'epoch'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        idKey,
+      ],
+    },
+    facets: { visibility: `x.${ch("visibility")}` },
+    rowJson: `(select ${channelJson(q, "x", "c")} from ${conversations} c where c.${cv("id")} = x.${ch("id")})`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("CHANNEL_INVALID", message, "22023"),
+  };
 }
 
 /** Whether the channels table has the columns that link a channel to a record. */
@@ -327,6 +384,29 @@ as $$
 $$;
 ${userGrant(`${fn("list_channels")}(${id}, boolean, boolean)`)}
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_channels")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(channelPage(q))}
+begin
+  ${listBody(channelPage(q))}
+end;
+$$;
+${userGrant(`${fn("page_channels")}(${id}, jsonb)`)}
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function ${fn("get_channel")}(channel uuid)
 returns jsonb
@@ -411,6 +491,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "boolean", "boolean"],
       returns: "jsonb",
     },
+    { name: "page_channels", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_channel", args: ["uuid"], returns: "jsonb" },
     { name: "find_channel", args: ["{id}", "text"], returns: "jsonb" },
     { name: "channels_for_record", args: ["text", "text"], returns: "jsonb" },

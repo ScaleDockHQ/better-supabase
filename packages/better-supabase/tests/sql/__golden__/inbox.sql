@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:7e0b84882be357571986323d988761e03fe1a4e7981737fc84030500addd058d
+-- @bsb-hash sha256:a6919dd2fffc8ee7d5a847a1964ef1e6161e8efe7cc0a785ebe4354cbdfeba30
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1420,6 +1420,262 @@ $$;
 revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "better_supabase"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -2445,7 +2701,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:4a11c5a619afb6459c8c804125476d41036d351f2ed049a5e9294c829aeddc1e
+-- @bsb-hash sha256:02a3aeff5199dac4205e766464d9487dbcabb47a1f77d535b8c3d2ed62ae438e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3977,6 +4233,262 @@ $$;
 revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "better_supabase"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -5028,7 +5540,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:0c7994d8ea1f54302df6dc2403ff455565565e17f4bcc5d88537306e8c5ed040
+-- @bsb-hash sha256:916cad0a423fecb9466d1c9613f44e9b0a6f492e78cf698bc1d272b64f68af68
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6452,6 +6964,262 @@ $$;
 revoke execute on function "app_private"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "app_private"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "app_private"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "app_private"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "app_private"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -7477,7 +8245,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:0fd045dd38acd5a300980a8c6429cfdcf3bc9686015af9c443c8ed23897a0c32
+-- @bsb-hash sha256:b2bec29cd118be01e1eca5e75ac719b5cc094b6b0ccde83c4182a5e5d6e458d3
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8896,6 +9664,262 @@ $$;
 revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "better_supabase"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -10065,6 +11089,16 @@ as $$ select "better_supabase"."list_inbox_conversations"($1, $2) $$;
 revoke execute on function "api"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_inbox_conversations"($1, $2) $$;
+revoke execute on function "api"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -10343,7 +11377,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:1088eedeb75437837869eb683bf7f6394f095164d74a4a915b88c1a80ccc38ac
+-- @bsb-hash sha256:62aed015da10ac80cd522a0fd2a39096831d4df25b7522f2b073ede46f271077
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11742,6 +12776,262 @@ $$;
 revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "better_supabase"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."tenant_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status"::text = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
 language sql
@@ -12772,7 +14062,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:3b75169a0ed304d344a380466258c0ad957fef814ff63d0c5f19a5169a622fee
+-- @bsb-hash sha256:25145b6d9d3a07416bb9aef57918aef811655e2366b08c3acf98fc14025045ed
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14190,6 +15480,262 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
+
+-- The conversations the caller reads as a keyset page (ADR 1077), newest
+-- activity first. filters is { inboxId, teamId, contactId (each a value or a
+-- list of uuids), status (a value or a list; 'all' reads every status, open
+-- by default), assignee ('me', 'unassigned' or an id), search (subject,
+-- preview, contact name and email), sort (lastMessageAt, createdAt),
+-- direction, facet (status, inboxId), count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function "better_supabase"."page_inbox_conversations"(tenant uuid default null, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_inbox_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_assignee text := nullif(coalesce(v_filters #>> '{assignee,0}', v_filters ->> 'assignee'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then v_filters -> 'inboxId' when jsonb_typeof(v_filters -> 'inboxId') in ('string', 'number') then jsonb_build_array(v_filters -> 'inboxId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'teamId') = 'array' then v_filters -> 'teamId' when jsonb_typeof(v_filters -> 'teamId') in ('string', 'number') then jsonb_build_array(v_filters -> 'teamId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'contactId') = 'array' then v_filters -> 'contactId' when jsonb_typeof(v_filters -> 'contactId') in ('string', 'number') then jsonb_build_array(v_filters -> 'contactId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'inboxId, teamId and contactId are uuids' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_assignee is not null and v_assignee not in ('me', 'unassigned') and v_assignee !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+    raise exception 'assignee is me, unassigned or an id' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'inboxId') then
+      raise exception 'facet is one of status, inboxId' using errcode = '22023', hint = 'INBOX_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'inboxId' then (x."inbox_id")::text end) as v
+      from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt') then
+    raise exception 'sort is one of lastMessageAt, createdAt' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INBOX_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."inbox_conversation_json"(x."id") || jsonb_build_object('unread', x."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz)) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inbox_conversations" x
+      where (page_inbox_conversations.tenant is null or x."org_id" = page_inbox_conversations.tenant)
+        and (not (v_filters -> 'inboxId' is not null and jsonb_typeof(v_filters -> 'inboxId') <> 'null' and not (jsonb_typeof(v_filters -> 'inboxId') = 'array' and jsonb_array_length(v_filters -> 'inboxId') = 0)) or x."inbox_id" = any((case when jsonb_typeof(v_filters -> 'inboxId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'inboxId')) else array[v_filters ->> 'inboxId'] end)::uuid[]))
+        and (not (v_filters -> 'teamId' is not null and jsonb_typeof(v_filters -> 'teamId') <> 'null' and not (jsonb_typeof(v_filters -> 'teamId') = 'array' and jsonb_array_length(v_filters -> 'teamId') = 0)) or x."team_id" = any((case when jsonb_typeof(v_filters -> 'teamId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'teamId')) else array[v_filters ->> 'teamId'] end)::uuid[]))
+        and (not (v_filters -> 'contactId' is not null and jsonb_typeof(v_filters -> 'contactId') <> 'null' and not (jsonb_typeof(v_filters -> 'contactId') = 'array' and jsonb_array_length(v_filters -> 'contactId') = 0)) or x."contact_id" = any((case when jsonb_typeof(v_filters -> 'contactId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contactId')) else array[v_filters ->> 'contactId'] end)::uuid[]))
+        and (case when not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then x."status" = 'open' when v_filters -> 'status' ? 'all' then true else (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) end)
+        and (case v_assignee when 'me' then x."assignee_id" = (select auth.uid()) when 'unassigned' then x."assignee_id" is null else v_assignee is null or x."assignee_id" = v_assignee::uuid end)
+        and (v_search is null or x."subject" ilike v_search or x."last_message_preview" ilike v_search or x."id" in (select m.conversation from "better_supabase"."inbox_contacts_json"(null, page_inbox_conversations.tenant, v_filters ->> 'search') m))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_inbox_conversations"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_conversation"(conversation uuid)
 returns jsonb
