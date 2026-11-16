@@ -47,6 +47,6 @@ EX-1265, EX-1267).
 ## Consequences
 
 EX-607, EX-1265 and EX-1267 are fixed. Twenty scale files exist for the overviews, and they pass
-on the local seed (72 assertions). The generated routes grow the Next.js server baselines by the
-numbers CI reports. The next entity added to a tabbed page needs one more entry in
+on the local seed (72 assertions). The 20 generated routes add server baseline entries, taken from a local production build because
+CI has no number for a new route; existing entries are unchanged. The next entity added to a tabbed page needs one more entry in
 `overview-pages.ts`.
