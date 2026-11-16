@@ -121,13 +121,13 @@
     "security-definer-functions": 108
   },
   "compliance": {
-    "security-definer-functions": 84
+    "security-definer-functions": 96
   },
   "connectors": {
     "security-definer-functions": 66
   },
   "consents": {
-    "security-definer-functions": 90
+    "security-definer-functions": 102
   },
   "contacts": {
     "security-definer-functions": 206
@@ -156,7 +156,7 @@
     "security-definer-functions": 48
   },
   "data-lifecycle": {
-    "security-definer-functions": 120
+    "security-definer-functions": 132
   },
   "deadlines": {
     "security-definer-functions": 78,
@@ -244,7 +244,7 @@
     "security-definer-functions": 30
   },
   "impersonation": {
-    "security-definer-functions": 68
+    "security-definer-functions": 80
   },
   "imports": {
     "security-definer-functions": 150
@@ -366,7 +366,7 @@
     "security-definer-functions": 12
   },
   "option-sets": {
-    "security-definer-functions": 49,
+    "security-definer-functions": 61,
     "row-triggers": 1
   },
   "orders": {
@@ -479,7 +479,7 @@
     "security-definer-functions": 60
   },
   "sequences": {
-    "security-definer-functions": 97,
+    "security-definer-functions": 109,
     "row-triggers": 1
   },
   "service-accounts": {

@@ -6839,7 +6839,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "search": {
                 "title": "title",
-                "body": []
+                "body": [
+                  "title",
+                  "key"
+                ]
               }
             }
           }
@@ -16576,6 +16579,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "data_subject_request.fulfilled",
           "data_subject_request.refused"
         ]
+      },
+      "entityLists": {
+        "data_subject_request": {
+          "sorts": [
+            "dueAt",
+            "receivedAt"
+          ],
+          "facets": [
+            "status",
+            "kind"
+          ],
+          "filters": [
+            "status",
+            "kind",
+            "open",
+            "overdue"
+          ],
+          "search": [
+            "subjectId",
+            "requester"
+          ]
+        }
       }
     },
     {
@@ -20827,6 +20852,59 @@ export const PRESET_CATALOG: PresetCatalog = {
           "compliance_policy.published",
           "control_framework.imported"
         ]
+      },
+      "entityLists": {
+        "control_framework": {
+          "sorts": [
+            "name",
+            "key"
+          ],
+          "facets": [
+            "kind"
+          ],
+          "filters": [
+            "kind"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        },
+        "evidence_task": {
+          "sorts": [
+            "dueOn",
+            "title"
+          ],
+          "facets": [
+            "controlId"
+          ],
+          "filters": [
+            "controlId",
+            "assigneeId",
+            "overdue"
+          ],
+          "search": [
+            "title"
+          ]
+        },
+        "compliance_policy": {
+          "sorts": [
+            "title",
+            "publishedAt"
+          ],
+          "facets": [
+            "requiresAcknowledgement"
+          ],
+          "filters": [
+            "ownerId",
+            "requiresAcknowledgement",
+            "archived"
+          ],
+          "search": [
+            "title",
+            "key"
+          ]
+        }
       }
     },
     {
@@ -21968,6 +22046,20 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status"
           ],
           "filters": [
+            "status"
+          ]
+        },
+        "sequence_enrollment": {
+          "sorts": [
+            "enrolledAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "sequenceId",
+            "subjectType",
+            "subjectId",
             "status"
           ]
         }
@@ -29766,7 +29858,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "expire()",
           "description": "Marks the grants past their valid-until date expired."
         }
-      ]
+      ],
+      "entityLists": {
+        "consent_purpose": {
+          "sorts": [
+            "key",
+            "createdAt"
+          ],
+          "facets": [
+            "legalBasis"
+          ],
+          "filters": [
+            "key",
+            "legalBasis",
+            "archived"
+          ],
+          "search": [
+            "key",
+            "title"
+          ]
+        }
+      }
     },
     {
       "name": "observations",
@@ -34903,6 +35015,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "option_set_item.archived",
           "option_set_item.restored"
         ]
+      },
+      "entityLists": {
+        "option_set": {
+          "sorts": [
+            "createdAt",
+            "name"
+          ],
+          "facets": [
+            "subjectType",
+            "field"
+          ],
+          "filters": [
+            "subjectType",
+            "field",
+            "scopeId",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "key",
+            "field"
+          ]
+        }
       }
     },
     {
@@ -36038,6 +36173,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "support_session.ended",
           "support_session.denied"
         ]
+      },
+      "entityLists": {
+        "support_session": {
+          "sorts": [
+            "startedAt",
+            "expiresAt"
+          ],
+          "facets": [
+            "readOnly"
+          ],
+          "filters": [
+            "adminId",
+            "targetUserId",
+            "tenant",
+            "active"
+          ]
+        }
       }
     },
     {

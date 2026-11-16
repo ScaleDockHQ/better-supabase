@@ -3,6 +3,7 @@ import type { OptionSetsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { optionSetsEvents } from "./events.ts";
+import { optionSetListSurface } from "./lists.ts";
 import { createOptionSets } from "./option-sets.ts";
 import { optionSetsSqlOptions } from "./options.ts";
 
@@ -20,6 +21,7 @@ export const optionSetsBlock: BlockOf<
   category: "work",
   entities: {
     option_set: {
+      ...optionSetListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

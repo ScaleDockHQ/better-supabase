@@ -4,6 +4,7 @@ import type { ConsentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createConsents } from "./consents.ts";
 import { consentsEvents } from "./events.ts";
+import { purposeListSurface } from "./lists.ts";
 import { consentPurposeInputSchema } from "./schemas.ts";
 
 /** The `consents` block's manifest (ADR 0029). */
@@ -34,6 +35,7 @@ export const consentsBlock: BlockOf<
       erase: "delete",
     },
     consent_purpose: {
+      ...purposeListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

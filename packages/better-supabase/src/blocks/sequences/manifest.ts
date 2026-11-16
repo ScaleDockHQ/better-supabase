@@ -3,7 +3,7 @@ import type { SequencesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { sequencesEvents } from "./events.ts";
-import { sequenceListSurface } from "./lists.ts";
+import { enrollmentListSurface, sequenceListSurface } from "./lists.ts";
 import { sequencesSqlOptions } from "./options.ts";
 import { sequenceInputSchema } from "./schemas.ts";
 import { createSequences } from "./sequences.ts";
@@ -37,6 +37,10 @@ export const sequencesBlock: BlockOf<
       ...sequenceListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
+    },
+    sequence_enrollment: {
+      ...enrollmentListSurface,
+      mutability: "state-machine",
     },
   },
   concerns: ["lifecycle"],

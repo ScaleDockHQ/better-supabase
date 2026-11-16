@@ -1,11 +1,23 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { JobRef, JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { jobRef, jobResultOf } from "../../core/jobs.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -23,6 +35,7 @@ import {
   textOf,
   toInstant,
 } from "../shared.ts";
+import { subjectRequestListSurface } from "./lists.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -300,7 +313,30 @@ export interface DataLifecycle {
     requestId: string;
     reason: string;
   }): AsyncResult<DataSubjectRequest>;
-  /** The organization's requests, the nearest due date first. */
+  /**
+   * One keyset page of the data subject requests. `filters` takes `status` and
+   * `kind` as lists, `open` and `overdue`; `q` searches the subject id and
+   * requester.
+   */
+  subjectRequestPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<DataSubjectRequest>>;
+  /** The values of each facet (`status`, `kind`) and how many rows hold each. */
+  subjectRequestFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rows match the page's filters. */
+  subjectRequestCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One data subject request by id, or a `not_found` error. */
+  getSubjectRequest(requestId: string): AsyncResult<DataSubjectRequest>;
+  /**
+   * The organization's requests, the nearest due date first.
+   *
+   * @deprecated Use `subjectRequestPage`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   dataSubjectRequests(input: {
     readonly organizationId: string;
     readonly status?: DataSubjectRequestStatus | undefined;
@@ -494,7 +530,24 @@ export function createDataLifecycle(
       ),
   };
 
+  const subjectRequestList = entityList<
+    DataSubjectRequest,
+    RequiredTenantOption
+  >({
+    entity: "data subject request",
+    surface: subjectRequestListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_data_subject_requests",
+    rowOf: (row) => requestOf(row),
+  });
+
   const client: DataLifecycle = {
+    subjectRequestPage: (page) => subjectRequestList.page(page),
+    subjectRequestFacets: (facets) => subjectRequestList.facets(facets),
+    subjectRequestCount: (count) => subjectRequestList.count(count),
+    getSubjectRequest: (requestId) =>
+      call("get_data_subject_request", { request_id: requestId }, requestOf),
     startExportJob: (request = {}) =>
       call(
         "request_data_export",
@@ -669,6 +722,7 @@ export function createDataLifecycle(
       ),
     refuseDataSubjectRequest: ({ requestId, reason }) =>
       call("refuse_data_subject_request", { id: requestId, reason }, requestOf),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     dataSubjectRequests: ({ organizationId, ...filter }) =>
       call(
         "list_data_subject_requests",

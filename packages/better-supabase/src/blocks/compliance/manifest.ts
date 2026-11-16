@@ -5,6 +5,11 @@ import { defineBlock } from "../define-block.ts";
 import { createCompliance } from "./compliance.ts";
 import { complianceEvents } from "./events.ts";
 import {
+  evidenceTaskListSurface,
+  frameworkListSurface,
+  policyListSurface,
+} from "./lists.ts";
+import {
   controlFrameworkInputSchema,
   controlInputSchema,
   evidenceTaskInputSchema,
@@ -31,9 +36,21 @@ export const complianceBlock: BlockOf<
   category: "admin",
   entities: {
     control: { mutability: "editable", emits: { create: true, update: true } },
-    control_framework: { mutability: "editable", emits: { update: false } },
-    evidence_task: { mutability: "editable", emits: { update: false } },
-    compliance_policy: { mutability: "editable", emits: { update: false } },
+    control_framework: {
+      ...frameworkListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
+    evidence_task: {
+      ...evidenceTaskListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
+    compliance_policy: {
+      ...policyListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
   },
   concerns: ["lifecycle", "search"],
   description:

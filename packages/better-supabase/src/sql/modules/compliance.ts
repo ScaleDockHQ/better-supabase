@@ -384,6 +384,14 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "list_control_frameworks", args: ["{id}"], returns: "jsonb" },
     {
+      name: "page_control_frameworks",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_control_framework", args: ["uuid"], returns: "jsonb" },
+    { name: "page_evidence_tasks", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_evidence_task", args: ["uuid"], returns: "jsonb" },
+    {
       name: "save_control",
       args: [
         "uuid",
@@ -440,6 +448,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "boolean"],
       returns: "jsonb",
     },
+    {
+      name: "page_compliance_policies",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_compliance_policy", args: ["uuid"], returns: "jsonb" },
     ...OSCAL_CONTRACT,
   ];
 }

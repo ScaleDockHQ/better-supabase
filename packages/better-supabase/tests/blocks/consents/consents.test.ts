@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the tests cover the deprecated array aliases until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -314,5 +315,25 @@ describe("createConsents", () => {
     expect(bare?.consent).toMatchObject({ scope: {} });
     expect(bare?.consent.validUntil).toBeUndefined();
     expect(bare?.evidence).toEqual({});
+  });
+});
+
+describe("consent purpose pages", () => {
+  it("maps the rows of the page and the get", async () => {
+    const { transport, call } = fakeTransport({
+      page_consent_purposes: { items: [PURPOSE], hasMore: false },
+      get_consent_purpose: PURPOSE,
+    });
+
+    const consents = createConsents({ transport, tenant: "org" });
+    const page = await consents.purposePage().orThrow();
+
+    expect(page.items[0]?.key).toBe("marketing.email");
+    expect((await consents.getPurpose("p1").orThrow()).validMonths).toBe(12);
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "get_consent_purpose",
+      { purpose_id: "p1" },
+    );
   });
 });
