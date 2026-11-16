@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:593293b0c3f65d926d20cd8601514c18b560c6ba06cd34cc9f4ed400070f7441
+-- @bsb-hash sha256:0e9a967131606c9df2f37f62064615018e5c9472b122f0c7d08c4a7b60b534aa
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1372,8 +1372,8 @@ create trigger "bsb_search_post_index"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board","archive_column":"archived_at"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post","archive_column":"archived_at"}');
 
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";

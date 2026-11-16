@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:9a1780774d0310f0f2a78e3029fd508d964d3fa4ca797396e4d3b07f9829f955
+-- @bsb-hash sha256:b340504d5661d9b3466249ebd43eacac3dd6d16411eb758d25ee4c288b7efb25
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1868,7 +1868,7 @@ create trigger "bsb_search_booking_index"
   for each row execute function "better_supabase"."search_index_row"('booking', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bookings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"booking","event_prefix":"booking","archive_column":"archived_at"}');
 
 -- blocks.bookings.api: entry points for the Data API.
 create schema if not exists "api";

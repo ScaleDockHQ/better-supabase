@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:d1d2eea910dd0b1bfc7490d07d8e932c7280965b63d321c0c912e6ccf841106c
+-- @bsb-hash sha256:1f8823d548cf93882ca6f9ddc69bd00fdad1e3f60078fe5f512f14f97426e17a
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1990,7 +1990,7 @@ create trigger "bsb_search_maintenance_plan_index"
   for each row execute function "better_supabase"."search_index_row"('maintenance_plan', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_plan","event_prefix":"maintenance_plan"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_plan","event_prefix":"maintenance_plan","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_plan_parts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_plan_part","event_prefix":"maintenance_plan_part"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_meters deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_meter","event_prefix":"maintenance_meter"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_meter_readings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"maintenance_meter_reading","event_prefix":"maintenance_meter_reading"}');

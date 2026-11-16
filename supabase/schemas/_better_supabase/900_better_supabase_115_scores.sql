@@ -1,6 +1,6 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:2b13b9481018a8fa461a9c4154c3f1b106683e2e0db055503fb3668a5ee0645b
+-- @bsb-hash sha256:596e9ab2d2777cc83e0b291c2980b2f23004efa86e1e07027ad5dadb50e7a136
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -942,7 +942,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model","archive_column":"archived_at"}');
 
 -- blocks.scores.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:a6a708173674c0341558ca138bd6c1c4acf793330ea74f0f0bcc37a97155274d
+-- @bsb-hash sha256:04e33536626e38255594aafcc3e94cd965023c4280adef4bb1f4f7cc799e0173
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3420,7 +3420,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.inboxes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inbox","event_prefix":"inbox"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inboxes deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inbox","event_prefix":"inbox","archive_column":"archived_at"}');
 
 -- blocks.inbox.api: entry points for the Data API.
 create schema if not exists "api";

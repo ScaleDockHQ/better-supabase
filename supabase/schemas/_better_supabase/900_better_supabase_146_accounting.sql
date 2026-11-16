@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:7684aa759e936f5814153e5aea9bb7d5c30301eb7f5636e699564b00c7345e58
+-- @bsb-hash sha256:b8c4b5472dc6f763e347534be13fa0c7d3c8389ce22e3ef482ae356ab2c48b48
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4118,7 +4118,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_li
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_account","event_prefix":"accounting_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_accounts deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_account","event_prefix":"accounting_account","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_journals deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_journal","event_prefix":"accounting_journal"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_periods deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_period","event_prefix":"accounting_period"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_entries deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_entry","event_prefix":"accounting_entry"}');

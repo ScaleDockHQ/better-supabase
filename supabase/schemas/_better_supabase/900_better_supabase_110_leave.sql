@@ -1,6 +1,6 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c23da23c3a675f5b1b9db1592d2a592a224e2bf9caa38353c748499505f2b576
+-- @bsb-hash sha256:58c12e7626d40b2449216a9b3704c2c8c23a0ce7568938d631bbcba9278fa19e
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1738,7 +1738,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as r
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_requests deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_request","event_prefix":"leave_request"}');
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_types deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_type","event_prefix":"leave_type"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_types deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_type","event_prefix":"leave_type","archive_column":"archived_at"}');
 
 -- blocks.leave.api: entry points for the Data API.
 create schema if not exists "api";

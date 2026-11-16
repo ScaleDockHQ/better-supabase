@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:07e7d011b0cb5e6cb0a546bd08ad328baa0756a43de27718032e9b50730f7585
+-- @bsb-hash sha256:742f5cbf1b8246ec206274a9dd1ddd0c22803705d57791582c3a29524ad053c3
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -644,7 +644,7 @@ grant execute on function "better_supabase"."page_announcements"(jsonb) to authe
 grant execute on function "better_supabase"."get_announcement"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.announcements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"announcement","event_prefix":"announcement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.announcements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"announcement","event_prefix":"announcement","archive_column":"archived_at"}');
 
 -- blocks.announcements.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:8b5b3c2643fe6d48fb7d6aa50de3bdf139560cc2f3913db6c98f8adf1ec15b3f
+-- @bsb-hash sha256:64c09e28f526dec262709a22154e362e2710cbff2b7c00d48d29adb98b6950c5
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1612,7 +1612,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."commission_statement
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-create constraint trigger bsb_audit after insert or update or delete on better_supabase.commission_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission_plan","event_prefix":"commission_plan"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.commission_plans deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission_plan","event_prefix":"commission_plan","archive_column":"archived_at"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.commission_assignments deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission_assignment","event_prefix":"commission_assignment"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.commissions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission","event_prefix":"commission"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.commission_statements deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"commission_statement","event_prefix":"commission_statement"}');
