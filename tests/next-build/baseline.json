@@ -840,9 +840,9 @@
     "brotli": 389888
   },
   "/[locale]/(app)/settings/api-keys/page": {
-    "raw": 1396579,
-    "gzip": 448750,
-    "brotli": 392615
+    "raw": 1402505,
+    "gzip": 452102,
+    "brotli": 395424
   },
   "/[locale]/(app)/settings/audit/page": {
     "raw": 1375341,

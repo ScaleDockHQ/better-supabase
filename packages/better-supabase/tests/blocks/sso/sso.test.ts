@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../../src/blocks/sso/index.ts";
@@ -476,5 +477,68 @@ describe("createSsoAdmin", () => {
       kind: "not_found",
       hint: "SSO_PROVIDER_NOT_FOUND",
     });
+  });
+});
+
+function replyFor(args: Record<string, unknown>, item: unknown): unknown {
+  const sent = JSON.stringify(args);
+
+  if (sent.includes('"count":true')) {
+    return { value: 1, exact: true };
+  }
+
+  return sent.includes('"facet"')
+    ? { facet: "x", values: [] }
+    : { items: [item], hasMore: false };
+}
+
+describe("SSO pages", () => {
+  it("maps the rows of the pages and the one domain", async () => {
+    const { transport } = fakeTransport({
+      page_organization_domains: (args: Record<string, unknown>) =>
+        replyFor(args, domainRow()),
+      page_sso_providers: (args: Record<string, unknown>) =>
+        replyFor(args, providerRow()),
+      organization_domain: domainRow(),
+    });
+
+    const sso = createSso({ transport });
+
+    const domains = await sso.domainPage({ organizationId: "org-1" }).orThrow();
+
+    const providers = await sso
+      .providerPage({ organizationId: "org-1" })
+      .orThrow();
+
+    expect(domains.items[0]?.domain).toBe("acme.test");
+
+    expect(
+      (await sso.domainCount({ organizationId: "org-1" }).orThrow()).value,
+    ).toBe(1);
+
+    expect(
+      (await sso.providerCount({ organizationId: "org-1" }).orThrow()).value,
+    ).toBe(1);
+
+    expect(
+      await sso
+        .domainFacets({ organizationId: "org-1", facets: ["verified"] })
+        .orThrow(),
+    ).toHaveLength(1);
+
+    expect(
+      await sso
+        .providerFacets({ organizationId: "org-1", facets: ["type"] })
+        .orThrow(),
+    ).toHaveLength(1);
+    expect(providers.items[0]?.type).toBe("saml");
+    expect((await sso.getDomain("d1").orThrow()).id).toBe("d1");
+  });
+
+  it("returns not_found for a domain the caller cannot read", async () => {
+    const { transport } = fakeTransport({ organization_domain: null });
+    const found = await createSso({ transport }).getDomain("d9");
+
+    expect(!found.ok && found.error.kind).toBe("not_found");
   });
 });

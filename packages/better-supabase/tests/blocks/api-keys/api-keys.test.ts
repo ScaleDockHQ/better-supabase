@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 4 findings. */
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
@@ -582,5 +583,40 @@ describe("tenant_id in results", () => {
       .orThrow();
 
     expect(listed?.organizationId).toBe(ORG);
+  });
+});
+
+describe("API key pages", () => {
+  it("maps the rows of a page, its facets and its count", async () => {
+    const { transport, calls } = fakeTransport((_fn, args) => {
+      const sent = JSON.stringify(args);
+
+      if (sent.includes('"count":true')) {
+        return { value: 1, exact: true };
+      }
+
+      return sent.includes('"facet"')
+        ? { facet: "revoked", values: [] }
+        : { items: [row()], hasMore: false };
+    });
+
+    const keys = createApiKeys({ transport });
+    const page = await keys.keyPage({ organizationId: ORG, q: "ci" }).orThrow();
+
+    expect(page.items[0]).toMatchObject({ name: "CI", state: "active" });
+    expect((await keys.keyCount({ organizationId: ORG }).orThrow()).value).toBe(
+      1,
+    );
+
+    const facets = await keys
+      .keyFacets({ organizationId: ORG, facets: ["revoked"] })
+      .orThrow();
+
+    expect(facets[0]?.facet).toBe("revoked");
+    expect(calls[0]?.[1]).toBe("page_api_keys");
+    expect(calls[0]?.[2]["tenant"]).toBe(ORG);
+
+    await keys.keyPage().orThrow();
+    expect(calls.at(-1)?.[2]["tenant"]).toBeUndefined();
   });
 });
