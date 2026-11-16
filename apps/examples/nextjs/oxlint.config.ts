@@ -39,6 +39,14 @@ export default defineConfig({
   },
   overrides: [
     {
+      // `Route` is the typed-routes union only where `next dev` or `next
+      // build` has written `.next/types`; on a clean checkout it is `string`
+      // and the cast looks redundant, so `ultracite fix` stripped it and
+      // typecheck then failed (1 finding).
+      files: ["src/i18n/routing.ts"],
+      rules: { "typescript/no-unnecessary-type-assertion": "off" },
+    },
+    {
       // Examples read env where they create the client, the way the
       // generated templates do, so they stay copyable.
       files: ["**/*.{ts,tsx}"],
