@@ -10,6 +10,7 @@ import type { CliEnv } from "../env.ts";
 import type { Paint } from "../style.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
+import { appCheckNames } from "../codemod-naming.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
 import { databaseUrl, loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
@@ -72,9 +73,10 @@ const SKIPPED_DIRS: ReadonlySet<string> = new Set([
 const ENV_FILE = /^(?:\.env(?:\.[\w.-]+)?|turbo\.jsonc?)$/;
 
 /**
- * Source and env files under `path`, skipping dependencies, build output and
- * `.d.ts` files. SQL stays as it is: a rename of installed objects is one new
- * migration.
+ * Source and env files under `path`, skipping dependencies, build output,
+ * nested checkouts (a folder with its own `.git`, such as a linked worktree)
+ * and `.d.ts` files. SQL stays as it is: a rename of installed objects is one
+ * new migration.
  */
 async function sourceFiles(path: string): Promise<string[]> {
   const info = await stat(path).catch(() => undefined);
@@ -93,7 +95,10 @@ async function sourceFiles(path: string): Promise<string[]> {
     const full = join(path, entry.name);
 
     if (entry.isDirectory()) {
-      if (!SKIPPED_DIRS.has(entry.name)) {
+      if (
+        !SKIPPED_DIRS.has(entry.name) &&
+        !(await stat(join(full, ".git")).catch(() => undefined))
+      ) {
         files.push(...(await sourceFiles(full)));
       }
     } else if (
@@ -413,18 +418,19 @@ export async function runCodemod(
     );
   }
 
+  // A pushed migration is never rewritten.
+  const ownSql = projectInput.sql.filter(
+    (file) => !/(?:^|[\\/])migrations[\\/]/.test(file.path),
+  );
+
   const context = {
     configLoaded: configError === undefined,
     tenantColumns: tenantColumnsOf(config),
+    appChecks: appCheckNames(ownSql.map((file) => file.text).join("\n")),
   };
 
   if (codemod.sql !== undefined) {
-    for (const file of projectInput.sql) {
-      // A pushed migration is never rewritten.
-      if (/(?:^|[\\/])migrations[\\/]/.test(file.path)) {
-        continue;
-      }
-
+    for (const file of ownSql) {
       const text = codemod.sql(file.text, context);
 
       if (text !== file.text) {

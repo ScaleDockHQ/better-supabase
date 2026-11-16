@@ -155,18 +155,39 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
 }
 
 /**
+ * The names of the check constraints `sql` declares with `constraint <name>
+ * check`.
+ */
+export function appCheckNames(sql: string): Set<string> {
+  return new Set(
+    Array.from(
+      sql.matchAll(/\bconstraint\s+(?:"([^"]+)"|([a-z_][\w$]*))\s+check\b/giu),
+      (match) => match[1] ?? match[2]!.toLowerCase(),
+    ),
+  );
+}
+
+/**
  * One loop that gives every check constraint of the block schemas the `bsb_`
  * prefix (ADR 0273), when `projectSql` creates a table in one of them. The old
  * names are the ones Postgres chose, which the files never write, so the loop
  * reads them from the catalog.
  */
-function generatedCheckRenames(projectSql: string | undefined): string[] {
+function generatedCheckRenames(
+  projectSql: string | undefined,
+  appChecks: ReadonlySet<string> = new Set(),
+): string[] {
   if (projectSql === undefined || !/\bbetter_supabase\b/.test(projectSql)) {
     return [];
   }
 
+  const kept =
+    appChecks.size === 0
+      ? ""
+      : ` and k.conname <> all (array[${[...appChecks].map(literal).join(", ")}])`;
+
   return [
-    `declare\n    c record;\n  begin\n    for c in\n      select n.nspname as schema_name, r.relname as table_name, k.conname as name\n      from pg_catalog.pg_constraint k\n        join pg_catalog.pg_class r on r.oid = k.conrelid\n        join pg_catalog.pg_namespace n on n.oid = r.relnamespace\n      where n.nspname in ('better_supabase', 'workflow') and k.contype = 'c' and k.conname !~ '^bsb_' and length(k.conname) <= 59\n    loop\n      execute format('alter table %I.%I rename constraint %I to %I', c.schema_name, c.table_name, c.name, 'bsb_' || c.name);\n    end loop;\n  end;`,
+    `declare\n    c record;\n  begin\n    for c in\n      select n.nspname as schema_name, r.relname as table_name, k.conname as name\n      from pg_catalog.pg_constraint k\n        join pg_catalog.pg_class r on r.oid = k.conrelid\n        join pg_catalog.pg_namespace n on n.oid = r.relnamespace\n      where n.nspname in ('better_supabase', 'workflow') and k.contype = 'c' and k.conname !~ '^bsb_' and length(k.conname) <= 59${kept}\n    loop\n      execute format('alter table %I.%I rename constraint %I to %I', c.schema_name, c.table_name, c.name, 'bsb_' || c.name);\n    end loop;\n  end;`,
   ];
 }
 
@@ -336,7 +357,7 @@ export function renameMigrationSql(
 
   statements.push(
     ...generatedPolicyRenames(projectSql),
-    ...generatedCheckRenames(projectSql),
+    ...generatedCheckRenames(projectSql, context?.appChecks),
   );
 
   if (statements.length === 0) {

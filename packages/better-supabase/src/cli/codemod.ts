@@ -50,6 +50,12 @@ export interface MigrationContext {
    * only on that table.
    */
   readonly tenantColumns: TenantColumnSkip;
+  /**
+   * The check constraints the app's schema files and seeds name, which the
+   * `bsb_` loop leaves alone. Migrations stay out: a diff wrote the old block
+   * names there too.
+   */
+  readonly appChecks?: ReadonlySet<string>;
 }
 
 /** A rewrite of one source file, with the project's context already read. */

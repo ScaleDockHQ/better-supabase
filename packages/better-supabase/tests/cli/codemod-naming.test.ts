@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appCheckNames,
   NAMING_RENAMES,
   namingCodemod,
   renameEnvNames,
@@ -312,6 +313,35 @@ create policy notes_read on public.notes for select using (true);
 
   it("writes nothing without the project's SQL", () => {
     expect(renameMigrationSql([])).toBeUndefined();
+  });
+});
+
+describe("generated check names", () => {
+  it("keeps the check constraints the app's own SQL names", () => {
+    const migration = renameMigrationSql(
+      [],
+      "create table better_supabase.x (a int);",
+      {
+        configLoaded: true,
+        tenantColumns: { global: new Set(), byTable: new Map() },
+        appChecks: new Set(["profiles_locale_check", "Teams_Icon"]),
+      },
+    );
+
+    expect(migration).toContain("rename constraint %I to %I");
+    expect(migration).toContain(
+      "k.conname <> all (array['profiles_locale_check', 'Teams_Icon'])",
+    );
+  });
+});
+
+describe("appCheckNames", () => {
+  it("reads the names of the checks a schema file declares", () => {
+    expect(
+      appCheckNames(
+        'alter table better_supabase.profiles add constraint profiles_locale_check check (true);\ncreate table t (a int constraint "Teams_Icon" check (a > 0), b int constraint t_b_fk references u);',
+      ),
+    ).toEqual(new Set(["profiles_locale_check", "Teams_Icon"]));
   });
 });
 
