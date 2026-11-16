@@ -69,7 +69,7 @@ async function savedPrompts(
 
   for (let pages = 0; pages < 10; pages += 1) {
     const page = await prompts
-      .list({ organizationId, limit: 200, ...present({ after }) })
+      .page({ organizationId, limit: 200, ...present({ after }) })
       .orThrow();
 
     for (const item of page.items) {

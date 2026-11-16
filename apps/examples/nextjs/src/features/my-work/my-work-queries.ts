@@ -103,7 +103,10 @@ async function loadReminders(): Promise<readonly MyReminder[] | null> {
     return null;
   }
 
-  const reminders = await db.reminders.listForCaller({ limit: 100 }).orThrow();
+  const reminders = await db.reminders
+    .page({ limit: 100 })
+    .map((page) => page.items)
+    .orThrow();
 
   return reminders.map((reminder) => ({
     id: reminder.id,
