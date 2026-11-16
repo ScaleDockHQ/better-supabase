@@ -14722,7 +14722,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "key": "CRON_SECRET",
-          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it).",
+          "passedByApp": true
         },
         {
           "key": "DATABASE_URL",
@@ -32664,7 +32665,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "env": [
         {
           "key": "CRON_SECRET",
-          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it).",
+          "passedByApp": true
         },
         {
           "key": "DATABASE_URL",
@@ -34348,7 +34350,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "env": [
         {
           "key": "CRON_SECRET",
-          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it)."
+          "description": "Server-only: the bearer token the cron routes require (Vercel Cron sends it).",
+          "passedByApp": true
         },
         {
           "key": "APP_URL",

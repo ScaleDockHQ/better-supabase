@@ -2474,7 +2474,10 @@ billing, and no env file lists it and the shell doesn't set it. The route or
 worker that reads it then fails at runtime. `better-supabase add` and `init`
 append the keys to `.env.example`; set them in `.env.local` and in every
 deployed environment. Optional keys, like `AI_GATEWAY_API_KEY` (the OIDC token
-works on Vercel), are never reported.
+works on Vercel), are never reported. `CRON_SECRET` is one the app passes to
+the route itself, so doctor asks for it only while a file in `doctor.sources`
+names it: an app that authenticates its cron routes another way, such as
+`caller: "vercel-schedule"`, doesn't need the key.
 
 ### BS505
 

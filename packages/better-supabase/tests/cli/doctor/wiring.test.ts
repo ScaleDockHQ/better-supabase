@@ -67,6 +67,26 @@ describe("BS504", () => {
   });
 });
 
+describe("BS504 and CRON_SECRET", () => {
+  const check = async (text: string): Promise<(string | undefined)[]> => {
+    const findings = await rule("BS504").check(
+      context(
+        { outbox: "outbox", queue: "queue" },
+        { sources: [{ path: "app/api/outbox/route.ts", text }] },
+      ),
+    );
+
+    return findings.map((finding) => finding.target);
+  };
+
+  it("asks for it only while an app source names it", async () => {
+    expect(await check("secret: process.env.CRON_SECRET")).toEqual([
+      "CRON_SECRET",
+    ]);
+    expect(await check('caller: "vercel-schedule"')).toEqual([]);
+  });
+});
+
 describe("BS505", () => {
   it("fails while a required provider is only a comment", async () => {
     const findings = await rule("BS505").check(

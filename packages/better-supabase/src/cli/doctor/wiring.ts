@@ -250,16 +250,23 @@ export const WIRING_RULES: readonly Rule[] = [
     severity: "error",
     title: "Env key a block needs is missing",
     description:
-      "An installed block reads a key that no env file lists and the shell doesn't set, so its route or worker fails at runtime. `better-supabase add` appends the keys to .env.example; set them in .env.local and every deployed environment.",
+      "An installed block reads a key that no env file lists and the shell doesn't set, so its route or worker fails at runtime. `better-supabase add` appends the keys to .env.example; set them in .env.local and every deployed environment. A key the app passes itself, such as CRON_SECRET, is skipped when no app source names it.",
     check: (context) => {
       const plan = wiringFor(configInstances(context.config));
       const listed = listedKeys(context.envFiles);
       const shell = context.shellEnv ?? {};
 
+      // A key only the app passes is needed while a source names it; with no
+      // sources to read, it stays required.
+      const unread = (key: string): boolean =>
+        context.sources.length > 0 &&
+        !context.sources.some((file) => file.text.includes(key));
+
       return plan.env
         .filter(
           (entry) =>
             entry.required !== false &&
+            !(entry.passedByApp === true && unread(entry.key)) &&
             !listed.has(entry.key) &&
             (shell[entry.key] ?? "") === "",
         )
