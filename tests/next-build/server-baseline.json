@@ -67,7 +67,7 @@
   "/[locale]/(app)/assistant/[id]/page": {
     "raw": 3699721,
     "gzip": 1106615,
-    "brotli": 918956
+    "brotli": 921265
   },
   "/[locale]/(app)/assistant/activity/page": {
     "raw": 5323524,
@@ -127,7 +127,7 @@
   "/[locale]/(app)/assistant/page": {
     "raw": 3702259,
     "gzip": 1107640,
-    "brotli": 919812
+    "brotli": 922117
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
     "raw": 3139420,
@@ -147,7 +147,7 @@
   "/[locale]/(app)/assistant/tour/page": {
     "raw": 3690821,
     "gzip": 1102666,
-    "brotli": 915437
+    "brotli": 917742
   },
   "/[locale]/(app)/assistant/usage/page": {
     "raw": 3702358,
@@ -1637,7 +1637,7 @@
   "/api/jobs/drain/route": {
     "raw": 4771421,
     "gzip": 1435096,
-    "brotli": 1207312
+    "brotli": 1210396
   },
   "/api/jobs/list/route": {
     "raw": 1214643,
@@ -1737,7 +1737,7 @@
   "/api/queues/block-ticks/route": {
     "raw": 4770606,
     "gzip": 1434716,
-    "brotli": 1206981
+    "brotli": 1210063
   },
   "/api/queues/schedules/route": {
     "raw": 329117,
@@ -1847,7 +1847,7 @@
   "/api/workflows/definitions/list/route": {
     "raw": 4840758,
     "gzip": 1456561,
-    "brotli": 1223203
+    "brotli": 1226289
   },
   "/api/workflows/hooks/[token]/route": {
     "raw": 3245754,
@@ -1857,12 +1857,12 @@
   "/api/workflows/runs/list/route": {
     "raw": 4840761,
     "gzip": 1456565,
-    "brotli": 1223211
+    "brotli": 1226298
   },
   "/api/workflows/tick/route": {
     "raw": 4724390,
     "gzip": 1419871,
-    "brotli": 1193714
+    "brotli": 1196795
   },
   "/manifest.webmanifest/route": {
     "raw": 182438,

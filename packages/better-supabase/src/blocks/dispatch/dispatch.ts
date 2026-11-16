@@ -292,7 +292,7 @@ export interface Dispatch<F extends object = Record<never, never>> {
    */
   get(id: string): AsyncResult<WorkOrder<F> | null>;
   /**
-   * The work order, or a `not_found` error (`WORK_ORDER_NOT_FOUND`) when it
+   * The work order, or a `not_found` error (`DISPATCH_NOT_FOUND`) when it
    * doesn't exist or the caller can't read it.
    */
   getOrNotFound(id: string): AsyncResult<WorkOrder<F>>;
@@ -526,7 +526,7 @@ export function createDispatch<
         found === null
           ? AsyncResult.err(
               dbError("not_found", "Work order not found", {
-                hint: "WORK_ORDER_NOT_FOUND",
+                hint: "DISPATCH_NOT_FOUND",
               }),
             )
           : fields.row(found),

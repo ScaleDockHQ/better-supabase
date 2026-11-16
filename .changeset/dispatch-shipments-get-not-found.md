@@ -3,7 +3,7 @@
 ---
 
 `dispatch` and `shipments` get `getOrNotFound(id)`, which returns the row or a
-`not_found` error (`WORK_ORDER_NOT_FOUND`, `SHIPMENT_NOT_FOUND`) as the block
+`not_found` error (`DISPATCH_NOT_FOUND`, `SHIPMENT_NOT_FOUND`) as the block
 list contract asks (ADR 1077). `get(id)` keeps returning `null` for a missing
 row, so apiVersion 1 does not change, and is marked `@deprecated`.
 

@@ -309,7 +309,7 @@ describe("createDispatch", () => {
 
     expect(result.ok).toBe(false);
     expect(!result.ok && result.error.kind).toBe("not_found");
-    expect(!result.ok && result.error.hint).toBe("WORK_ORDER_NOT_FOUND");
+    expect(!result.ok && result.error.hint).toBe("DISPATCH_NOT_FOUND");
   });
 
   it("lists with filters and defaults", async () => {
