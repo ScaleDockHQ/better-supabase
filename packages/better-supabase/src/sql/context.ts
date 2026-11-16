@@ -429,6 +429,11 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * writes a repair for an older install only when this is true.
    */
   readonly rerunnable: boolean;
+  /**
+   * Whether `expose` lists the logical table, so the `grants` module writes its
+   * Data API privileges and the module grants none of its own.
+   */
+  exposed(table: string): boolean;
   /** The wildcard grants the authorization provider honours (ADR 0372). */
   readonly wildcards: "all" | "prefix" | "none";
   /** A trigger name with the module's prefix, quoted. */
@@ -643,6 +648,8 @@ export interface BlockSqlContextSource {
   readonly permissionCatalog?: readonly string[];
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
+  /** The tables `expose` lists, as `schema.table`. */
+  readonly exposed?: readonly string[];
   /** The wildcard grants the provider honours (ADR 0372); unset is `all`. */
   readonly permissionWildcards?: "all" | "prefix" | "none";
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
@@ -1378,6 +1385,11 @@ export function createModuleContext(
     permissionKey,
     wildcards: source.permissionWildcards ?? "all",
     rerunnable: source.rerunnable === true,
+    exposed(table) {
+      const parts = owned.tableName(table);
+
+      return source.exposed?.includes(`${parts.schema}.${parts.name}`) === true;
+    },
     permission: (action, fallback) =>
       sqlString(permissionKey(action, fallback)),
     trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),

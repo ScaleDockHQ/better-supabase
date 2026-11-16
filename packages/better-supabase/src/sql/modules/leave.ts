@@ -23,6 +23,7 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
+import { managerMatch } from "./approvals-tenant.ts";
 import { managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
@@ -234,12 +235,40 @@ function build(ctx: BlockSqlContext): string {
   const typeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}${auto ? `, 'autoApprove', ${row}.${ty("autoApprove")}` : ""}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
+  const approve = ctx.permission("approve", permissions.approve);
+
+  const mineRow = (row: string): string =>
+    owner.employee
+      ? `${fn("leave_is_mine")}(${row}.${q("tenant")}, ${row}.${q("employee")})`
+      : `${row}.${q("user")} = auth.uid()`;
+
+  // A request's note is the requester's, their manager's and the deciders'
+  // to read; another member with the read permission gets null.
+  const noteReader = (row: string): string => {
+    const tenant = `${row}.${q("tenant")}`;
+
+    const manager = owner.employee
+      ? "false"
+      : managerMatch(ctx, {
+          requester: `${row}.${q("user")}`,
+          tenant,
+          user: "auth.uid()",
+        });
+
+    return `(${SERVICE_CALLER} or coalesce(${mineRow(row)}, false)${manager === "false" ? "" : ` or ${manager}`} or ${ctx.can("tenant", tenant, approve)} or ${ctx.can("tenant", tenant, manage)})`;
+  };
+
+  const noteJson = (row: string): string =>
+    ctx.has("requests", "note")
+      ? `case when ${noteReader(row)} then ${row}.${q("note")} end`
+      : "null";
+
   const requestJson = (
     row: string,
     approval: string,
     statusSql = status(row, approval),
   ): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${statusSql}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${noteJson(row)}, 'status', ${statusSql}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -264,7 +293,6 @@ function build(ctx: BlockSqlContext): string {
       : `${alias}.${q("cancelledAt")} is null and ${alias}.${q("approvedAt")} is null and ${approval}.${a("status")} = 'pending'`;
 
   const approvalRow = approvals === undefined ? "" : "v_approval";
-  const approve = ctx.permission("approve", permissions.approve);
 
   const decision = (column: string, value: string): string =>
     ctx.has("requests", column) ? `, ${q(column)} = ${value}` : "";
@@ -775,7 +803,7 @@ ${userGrant(`${fn("split_leave_request")}(uuid, date, date)`)}
       filterAny("typeId", `x.${q("type")}::text`),
       `(v_from is null or x.${q("endsOn")} >= v_from)`,
       `(v_to is null or x.${q("startsOn")} <= v_to)`,
-      `(v_search is null${ctx.has("requests", "note") ? ` or x.${q("note")} ilike v_search` : ""} or exists (select 1 from ${types} st where st.${ty("id")}::text = x.${q("type")}::text and st.${ty("name")} ilike v_search))`,
+      `(v_search is null${ctx.has("requests", "note") ? ` or (x.${q("note")} ilike v_search and ${noteReader("x")})` : ""} or exists (select 1 from ${types} st where st.${ty("id")}::text = x.${q("type")}::text and st.${ty("name")} ilike v_search))`,
       ...(leaveConfidential(ctx)
         ? [
             `(v_confidential or ${owner.employee ? `${ctx.fn("leave_is_mine")}(x.${q("tenant")}, x.${q("employee")})` : `x.${q("user")} = auth.uid()`} or not exists (select 1 from ${types} lc where lc.${ty("id")}::text = x.${q("type")}::text and lc.${ctx.col("types", "confidential")}))`,
@@ -850,13 +878,14 @@ end;
 $$;
 ${userGrant(`${fn("page_leave_requests")}(${idType}, jsonb)`)}
 
--- One request by id. Security invoker: the read policy of the requests table
--- decides what the caller sees.
+-- One request by id, when the caller may read it: their own, or any with the
+-- read permission. It reads the table as its owner, so an app that revokes
+-- the note column from authenticated still gets it here.
 create or replace function ${fn("get_leave_request")}(request_id uuid)
 returns jsonb
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -864,7 +893,7 @@ declare
   v_row ${requests}%rowtype;${approvalVar}
 begin
   select * into v_row from ${requests} x where x.${q("id")} = get_leave_request.request_id;
-  if not found then
+  if not found or not (${SERVICE_CALLER} or coalesce(${mineRow("v_row")}, false) or (${ctx.can("tenant", `v_row.${q("tenant")}`, read)}${leaveConfidentialFilter(ctx, `v_row.${q("type")}`, leaveConfidentialReader(ctx, `v_row.${q("tenant")}`))})) then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;${loadApproval}
   return ${requestJson("v_row", approvalRow)};

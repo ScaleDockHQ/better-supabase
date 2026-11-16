@@ -10,7 +10,9 @@ const MAX_IDENTIFIER = 63;
 /**
  * `lockTable` for a logical table. On a table the app has, the app's own grants
  * stay, so its code that writes the table keeps working: row level security
- * goes on and the module adds its read and service grants.
+ * goes on and the module adds its read and service grants. A table `expose`
+ * lists keeps the privileges the `grants` module writes, so a column list such
+ * as `select(*, -note)` holds: the module only turns on row level security.
  */
 export function lockModuleTable(
   ctx: BlockSqlContext,
@@ -19,12 +21,16 @@ export function lockModuleTable(
 ): string {
   const table = ctx.table(logical);
 
-  if (!ctx.appOwned.includes(logical)) {
-    return lockTable(table, options);
-  }
-
   if (ctx.appViews.includes(logical)) {
     return "";
+  }
+
+  if (ctx.exposed(logical)) {
+    return `alter table ${table} enable row level security;`;
+  }
+
+  if (!ctx.appOwned.includes(logical)) {
+    return lockTable(table, options);
   }
 
   return `alter table ${table} enable row level security;
