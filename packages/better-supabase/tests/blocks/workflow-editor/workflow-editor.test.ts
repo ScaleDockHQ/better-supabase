@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated definitions list and get until 0.70 (ADR 1077). 3 findings. */
 import { describe, expect, it, vi } from "vitest";
 
 import type { BuilderStartCall } from "../../../src/blocks/workflow-editor/workflow-editor.ts";

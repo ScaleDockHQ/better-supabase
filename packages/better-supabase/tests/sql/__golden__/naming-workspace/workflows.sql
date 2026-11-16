@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:bdd8ffbd1f234893ae47898afa8ea0fc0d8a55c71a393f7643aa484155991c84
+-- @bsb-hash sha256:ff265999c90e15833e83320dcfff4c609b7a050a270b848aa6711bc199068936
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,6 +27,7 @@ create table "better_supabase"."workflow_runs" (
   constraint workflow_runs_engine_external_key unique ("engine", "external_id")
 );
 create index workflow_runs_tenant_idx on "better_supabase"."workflow_runs" ("tenant_id", "created_at" desc, "id" desc);
+create index workflow_runs_definition_id_idx on "better_supabase"."workflow_runs" (("attributes" ->> 'bsb.definition'), "created_at" desc, "id" desc);
 create index workflow_runs_actor_idx on "better_supabase"."workflow_runs" ("actor_id", "created_at" desc);
 create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("status", "completed_at");
 -- The record a run belongs to (subject_type and subject_id, both or
@@ -360,7 +361,9 @@ grant execute on function "better_supabase"."set_workflow_run_engine"(uuid, text
 
 -- The runs the caller may read, newest first: max rows created before before.
 -- subject_type and subject_id narrow to one record's runs; mode is live
--- (the default), test, or null for both.
+-- (the default), test, or null for both. definition_ids keeps the runs of the
+-- workflow editor's definitions with these ids (the bsb.definition attribute
+-- the editor's runs carry), where definition is the workflow function name.
 
 create or replace function "better_supabase"."workflow_runs_list"(
   tenant uuid default null,
@@ -370,7 +373,8 @@ create or replace function "better_supabase"."workflow_runs_list"(
   before timestamptz default null,
   subject_type text default null,
   subject_id text default null,
-  mode text default 'live'
+  mode text default 'live',
+  definition_ids text[] default null
 )
 returns jsonb
 language sql
@@ -406,6 +410,7 @@ as $$
       and (workflow_runs_list.definition is null or y."definition" = workflow_runs_list.definition)
       and (workflow_runs_list.status is null or y."status" = workflow_runs_list.status)
       and (workflow_runs_list.before is null or y."created_at" < workflow_runs_list.before)
+      and (workflow_runs_list.definition_ids is null or cardinality(workflow_runs_list.definition_ids) = 0 or y."attributes" ->> 'bsb.definition' = any (workflow_runs_list.definition_ids))
       and (workflow_runs_list.subject_type is null or y."subject_type" = workflow_runs_list.subject_type)
       and (workflow_runs_list.subject_id is null or y."subject_id" = workflow_runs_list.subject_id)
       and (workflow_runs_list.mode is null or y."mode" = workflow_runs_list.mode)
@@ -413,8 +418,8 @@ as $$
     limit least(greatest(coalesce(workflow_runs_list.max, 50), 1), 500)
   ) x;
 $$;
-revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) from public, anon;
-grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."workflow_runs_list"(uuid, text, text, integer, timestamptz, text, text, text, text[]) to authenticated, service_role;
 
 -- One run by its id or its engine's id, when the caller may read it.
 create or replace function "better_supabase"."workflow_run_get"(run text)

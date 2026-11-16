@@ -115,7 +115,13 @@ export interface WorkflowSchedule {
 
 export interface WorkflowRunsQuery extends CursorPageOptions<Temporal.Instant> {
   readonly tenant?: string;
+  /** The workflow function name. */
   readonly definition?: string;
+  /**
+   * The workflow editor's definitions: runs started from any of these ids (the
+   * `bsb.definition` attribute). Use it instead of scanning pages.
+   */
+  readonly definitionId?: string | readonly string[];
   readonly status?: WorkflowRunStatus;
   /** One record's runs. */
   readonly subject?: WorkflowSubject;
@@ -582,6 +588,12 @@ export function createWorkflows<
             subject_type: query.subject?.type,
             subject_id: query.subject?.id,
             mode: query.mode === "all" ? null : (query.mode ?? "live"),
+            definition_ids:
+              query.definitionId === undefined
+                ? undefined
+                : typeof query.definitionId === "string"
+                  ? [query.definitionId]
+                  : [...query.definitionId],
           },
           (value) => recordsOf(value, "workflow_runs_list"),
         ).andThen(async (rows) => {

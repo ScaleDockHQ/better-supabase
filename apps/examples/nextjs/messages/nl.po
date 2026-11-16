@@ -15082,6 +15082,7 @@ msgid "Channel account"
 msgstr "Kanaalaccount"
 
 #: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.8lCjAM"
 msgid "Priority"
 msgstr "Prioriteit"
@@ -15277,6 +15278,56 @@ msgid "Unassigned"
 msgstr "Niet toegewezen"
 
 #: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.uCkn4-"
+msgid "All priorities"
+msgstr "Alle prioriteiten"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.yN7aqf"
+msgid "Urgent"
+msgstr "Dringend"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.myq2ZL"
+msgid "Normal"
+msgstr "Normaal"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KrNis5"
+msgid "Any first response"
+msgstr "Elke eerste reactie"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.g9pEhE"
+msgid "Due"
+msgstr "Aan de beurt"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.Ou2gQk"
+msgid "Breached"
+msgstr "Overschreden"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.eEVxHv"
+msgid "On track"
+msgstr "Op schema"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.GN8_Bw"
+msgid "Met"
+msgstr "Gehaald"
+
+#: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.1udzha"
 msgid "Conversations"
 msgstr "Gesprekken"
@@ -15295,6 +15346,11 @@ msgstr "Status"
 msgctxt "inbox.vx8bv3"
 msgid "Assignee"
 msgstr "Toegewezen aan"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.5W7LEp"
+msgid "SLA"
+msgstr "SLA"
 
 #: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.XayNHe"

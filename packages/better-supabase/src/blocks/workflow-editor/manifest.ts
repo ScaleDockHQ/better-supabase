@@ -3,6 +3,7 @@ import type { WorkflowEditorEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { workflowEditorEvents } from "./events.ts";
+import { workflowDefinitionListSurface } from "./lists.ts";
 import { createWorkflowEditor } from "./workflow-editor.ts";
 
 /** The `workflow-editor` block's manifest (ADR 0029). */
@@ -21,6 +22,7 @@ export const workflowEditorBlock: BlockOf<
   category: "automation",
   entities: {
     workflow_definition: {
+      ...workflowDefinitionListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

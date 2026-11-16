@@ -85,6 +85,8 @@ export const EMIT_GAPS: readonly string[] = [
   "inbox.conversation.update",
   "inbox.inbox.create",
   "inbox.inbox.update",
+  "inbox.template.create",
+  "inbox.template.update",
   "incidents.incident.create",
   "incidents.incident_postmortem.update",
   "incidents.status_component.delete",
