@@ -582,10 +582,20 @@ export const LEDGER: BlockSqlDefinition = {
         const at = ctx.col("entries", "effectiveAt");
         const tat = ctx.col("transactions", "effectiveAt");
 
+        const guard = ctx.trigger("ledger_entries_append_only");
+
+        // The append-only trigger refuses the backfill, so it is off for this
+        // one statement. A do block is atomic: a failure leaves it enabled.
         return `alter table ${entries} add column if not exists ${at} timestamptz not null default now();
-update ${entries} e set ${at} = t.${tat}
-from ${ctx.table("transactions")} t
-where t.${ctx.col("transactions", "id")} = e.${ctx.col("entries", "transaction")} and e.${at} is distinct from t.${tat};`;
+do $$
+begin
+  alter table ${entries} disable trigger ${guard};
+  update ${entries} e set ${at} = t.${tat}
+  from ${ctx.table("transactions")} t
+  where t.${ctx.col("transactions", "id")} = e.${ctx.col("entries", "transaction")} and e.${at} is distinct from t.${tat};
+  alter table ${entries} enable trigger ${guard};
+end;
+$$;`;
       },
     },
   ],
