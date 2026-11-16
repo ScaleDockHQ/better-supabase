@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:818000077bba73b6e00a450bf7395dc3b6dd10912e91e9d1d1ca2ae92a851c52
+-- @bsb-hash sha256:56a8573b16310a0e4d83679d3c3473f2aeb70b828393798c96792df67d2c5929
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -565,6 +565,588 @@ end;
 $$;
 revoke execute on function "better_supabase"."vote_on_post"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."vote_on_post"(uuid, integer) to authenticated, service_role;
+-- Posts the caller reads as a keyset page (ADR 1077). filters is { boardId,
+-- status, authorId (each a value or a list), merged (true includes merged
+-- posts), archived (true reads only archived posts), search (title, body),
+-- sort (active, new, top; active by default: pinned first, then the latest
+-- activity), direction, facet (status, boardId), count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_posts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_posts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_archived boolean := coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'boardId') = 'array' then v_filters -> 'boardId' when jsonb_typeof(v_filters -> 'boardId') in ('string', 'number') then jsonb_build_array(v_filters -> 'boardId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'authorId') = 'array' then v_filters -> 'authorId' when jsonb_typeof(v_filters -> 'authorId') in ('string', 'number') then jsonb_build_array(v_filters -> 'authorId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'boardId and authorId are uuids' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'boardId') then
+      raise exception 'facet is one of status, boardId' using errcode = '22023', hint = 'POST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'boardId' then (x."board_id")::text end) as v
+      from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('active', 'new', 'top') then
+    raise exception 'sort is one of active, new, top' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((coalesce(x."pinned_at", '-infinity'::timestamptz))::text, (coalesce(x."last_activity_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (coalesce(x."pinned_at", '-infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."pinned_at", '-infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") < (v_after ->> 1)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."pinned_at", '-infinity'::timestamptz) asc, coalesce(x."last_activity_at", x."created_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((coalesce(x."pinned_at", '-infinity'::timestamptz))::text, (coalesce(x."last_activity_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (coalesce(x."pinned_at", '-infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."pinned_at", '-infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") < (v_after ->> 1)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."pinned_at", '-infinity'::timestamptz) desc, coalesce(x."last_activity_at", x."created_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'active' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((coalesce(x."pinned_at", '-infinity'::timestamptz))::text, (coalesce(x."last_activity_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (coalesce(x."pinned_at", '-infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."pinned_at", '-infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") < (v_after ->> 1)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."pinned_at", '-infinity'::timestamptz) asc, coalesce(x."last_activity_at", x."created_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'active' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((coalesce(x."pinned_at", '-infinity'::timestamptz))::text, (coalesce(x."last_activity_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (coalesce(x."pinned_at", '-infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."pinned_at", '-infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") < (v_after ->> 1)::timestamptz) or (coalesce(x."pinned_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and coalesce(x."last_activity_at", x."created_at") = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."pinned_at", '-infinity'::timestamptz) desc, coalesce(x."last_activity_at", x."created_at") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'new' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'new' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'top' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((x.vote_score)::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (x.vote_score >= (v_after ->> 0)::integer and ((x.vote_score > (v_after ->> 0)::integer) or (x.vote_score = (v_after ->> 0)::integer and x."created_at" < (v_after ->> 1)::timestamptz) or (x.vote_score = (v_after ->> 0)::integer and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x.vote_score asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'top' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', x.vote_score, 'up', x.vote_up, 'down', x.vote_down, 'vote', coalesce((
+      select r."value" from "better_supabase"."reactions" r
+      where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
+        and r."subject_id" = x."id"::text and r."kind" = 'vote'
+        and r."user_id" = (select auth.uid())
+    ), 0))) as j, jsonb_build_array((x.vote_score)::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+        and (v_after is null or (x.vote_score <= (v_after ->> 0)::integer and ((x.vote_score < (v_after ->> 0)::integer) or (x.vote_score = (v_after ->> 0)::integer and x."created_at" < (v_after ->> 1)::timestamptz) or (x.vote_score = (v_after ->> 0)::integer and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x.vote_score desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select t.*, coalesce(s."score", 0) as vote_score, coalesce(s."up", 0) as vote_up, coalesce(s."down", 0) as vote_down
+    from "better_supabase"."posts" t
+    left join "better_supabase"."reaction_scores" s on s."tenant_id" = t."tenant_id" and s."subject_type" = 'post' and s."subject_id" = t."id"::text) x
+      where x."tenant_id" = page_posts.tenant
+        and (not (v_filters -> 'boardId' is not null and jsonb_typeof(v_filters -> 'boardId') <> 'null' and not (jsonb_typeof(v_filters -> 'boardId') = 'array' and jsonb_array_length(v_filters -> 'boardId') = 0)) or x."board_id" = any((case when jsonb_typeof(v_filters -> 'boardId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'boardId')) else array[v_filters ->> 'boardId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'authorId' is not null and jsonb_typeof(v_filters -> 'authorId') <> 'null' and not (jsonb_typeof(v_filters -> 'authorId') = 'array' and jsonb_array_length(v_filters -> 'authorId') = 0)) or x."author_id" = any((case when jsonb_typeof(v_filters -> 'authorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'authorId')) else array[v_filters ->> 'authorId'] end)::uuid[]))
+        and (coalesce(nullif(coalesce(v_filters #>> '{merged,0}', v_filters ->> 'merged'), '') = 'true', false) or x."merged_into_id" is null)
+        and (case when v_archived then x."archived_at" is not null else x."archived_at" is null end)
+        and (v_search is null or x."title" ilike v_search or x."body" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_posts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_posts"(uuid, jsonb) to authenticated, service_role;
+
+-- The organization's boards as a keyset page (ADR 1077), by name. filters is
+-- { archived (true also reads archived boards), kind (a value or a list),
+-- search (name, description), sort (name, createdAt), direction, facet (kind),
+-- count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_post_boards"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_post_boards.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('kind') then
+      raise exception 'facet is one of kind' using errcode = '22023', hint = 'POST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'kind', x."kind", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."post_boards" x
+      where x."tenant_id" = page_post_boards.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_post_boards"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_post_boards"(uuid, jsonb) to authenticated, service_role;
 
 -- Projects a post's moderation item onto the post. A moderator's decision
 -- records post.moderated.

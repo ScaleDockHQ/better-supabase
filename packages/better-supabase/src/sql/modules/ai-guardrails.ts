@@ -8,6 +8,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
+import { guardrailPagesSql } from "./ai-guardrails-pages.ts";
 
 const POLICIES = {
   id: "id",
@@ -281,6 +282,8 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("list_guardrail_decisions")}(text, text, ${id}, integer)`)}
+
+${guardrailPagesSql(ctx, { policyJson, decisionJson })}
 
 -- Deletes decisions older than the retention (${retention}) and returns how many.
 create or replace function ${fn("purge_guardrail_decisions")}()

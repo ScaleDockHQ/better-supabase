@@ -581,13 +581,13 @@
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
     "raw": 1586610,
-    "gzip": 511478,
-    "brotli": 448020
+    "gzip": 511999,
+    "brotli": 448389
   },
   "/[locale]/(app)/inbox/page": {
     "raw": 1458520,
-    "gzip": 468853,
-    "brotli": 410836
+    "gzip": 469374,
+    "brotli": 411235
   },
   "/[locale]/(app)/incidents/[id]/page": {
     "raw": 1352828,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.ts";
 import { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
+import { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import { assetsBlock } from "../../src/blocks/assets/manifest.ts";
@@ -34,6 +35,7 @@ import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { inventoryBlock } from "../../src/blocks/inventory/manifest.ts";
 import { invoicesBlock } from "../../src/blocks/invoices/manifest.ts";
+import { knowledgeBlock } from "../../src/blocks/knowledge/manifest.ts";
 import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
@@ -74,6 +76,8 @@ const BLOCKS = [
   expensesBlock,
   invoicesBlock,
   scoresBlock,
+  agentsBlock,
+  knowledgeBlock,
   contactsBlock,
   contractsBlock,
   dealsBlock,
@@ -187,6 +191,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(84);
+    expect(CASES).toHaveLength(87);
   });
 });

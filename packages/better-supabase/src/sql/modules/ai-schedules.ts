@@ -2,8 +2,16 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  fail,
   withExtraFields,
   writeExtraColumns,
   raise,
@@ -173,6 +181,48 @@ function build(ctx: BlockSqlContext): string {
 
   const runJson = (row: string): string => presentJson(ctx, "runs", RUNS, row);
 
+  const taskIdKey = { expr: `x.${t.id}`, dir: "asc", type: "uuid" } as const;
+
+  const taskCreated = [
+    { expr: `x.${t.createdAt}`, dir: "desc", type: "timestamptz" },
+    taskIdKey,
+  ] as const;
+
+  const taskPage = {
+    name: "page_ai_tasks",
+    from: tasks,
+    alias: "x",
+    where: [
+      `x.${t.tenant} = page_ai_tasks.tenant`,
+      `(${filterFlag("all")} or x.${t.user} = auth.uid())`,
+      filterAny("enabled", `x.${t.enabled}::text`),
+      `(v_search is null or x.${t.title} ilike v_search or x.${t.prompt} ilike v_search)`,
+    ],
+    keys: taskCreated,
+    sorts: {
+      createdAt: taskCreated,
+      title: [
+        { expr: `lower(x.${t.title})`, dir: "asc", type: "text" },
+        taskIdKey,
+      ],
+      nextRunAt: [
+        {
+          expr: `coalesce(x.${t.nextRunAt}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        taskIdKey,
+      ],
+    },
+    facets: { enabled: `x.${t.enabled}` },
+    rowJson: `${taskJson("x")} || jsonb_build_object('last_run', (
+      select ${runJson("y")} from ${runs} y where y.${r.task} = x.${t.id} order by y.${r.createdAt} desc limit 1
+    ))`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("AI_TASK_INVALID", message, "22023"),
+  } as const;
+
   const line = (present: boolean, definition: string): string =>
     present ? `\n  ${definition},` : "";
 
@@ -340,6 +390,44 @@ as $$
   where x.${t.tenant} = list_ai_tasks.tenant and (not list_ai_tasks.mine or x.${t.user} = auth.uid())
 $$;
 ${userGrant(`${fn("list_ai_tasks")}(${id}, boolean)`)}
+
+-- The caller's tasks in a tenant as a keyset page (ADR 1077), newest first.
+-- filters is { all (true reads every task of the tenant that the caller can
+-- read), enabled (a value or a list), search (title, prompt), sort (createdAt,
+-- title, nextRunAt), direction, facet, count, limit, after, offset, paged,
+-- total, totalCap }.
+create or replace function ${fn("page_ai_tasks")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_ai_tasks.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(taskPage)}
+begin
+  ${listBody(taskPage)}
+end;
+$$;
+${userGrant(`${fn("page_ai_tasks")}(${id}, jsonb)`)}
+
+-- One task the caller can read, with its last run, or null.
+create or replace function ${fn("get_ai_task")}(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${taskJson("x")} || jsonb_build_object('last_run', (
+    select ${runJson("y")} from ${runs} y where y.${r.task} = x.${t.id} order by y.${r.createdAt} desc limit 1
+  ))
+  from ${tasks} x where x.${t.id} = get_ai_task.id
+$$;
+${userGrant(`${fn("get_ai_task")}(uuid)`)}
 
 create or replace function ${fn("list_ai_task_runs")}(task_id uuid, max_rows integer default 20)
 returns jsonb

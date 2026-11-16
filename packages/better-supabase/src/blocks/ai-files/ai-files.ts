@@ -1,4 +1,5 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type { RequiredTenantOption } from "../../core/entity-list.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { AiMessagePart } from "../ai-chat/message.ts";
@@ -11,6 +12,7 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
@@ -25,6 +27,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
+import { fileListSurface } from "./lists.ts";
 import {
   documentOf,
   fileOf,
@@ -192,8 +195,30 @@ export function createAiFiles<
         : Promise.resolve(err(notReady())),
     );
 
+  const filePages = entityList<
+    readonly [unknown, AiFile],
+    RequiredTenantOption
+  >({
+    entity: "ai_file",
+    surface: fileListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_files",
+    rowOf: (row) => [row, fileOf(row)] as const,
+  });
+
   const client: AiFiles<F> = {
     files: {
+      page: (pageOptions) =>
+        filePages
+          .page(pageOptions)
+          .andThen((page) =>
+            AsyncResult.from(() => allWithFields(fields, page.items)).map(
+              (items) => ({ ...page, items }),
+            ),
+          ),
+      facets: filePages.facets,
+      count: filePages.count,
       upload: ({
         organizationId,
         file: { filename, mediaType, size, chatId, projectId, ...extra },
@@ -246,6 +271,7 @@ export function createAiFiles<
       },
       get,
       resolve,
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (chatId) =>
         call("list_ai_files", { chat_id: chatId }, (value) =>
           recordsOf(value, "list_ai_files").map(

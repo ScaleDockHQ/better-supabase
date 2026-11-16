@@ -1,6 +1,16 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AiAccess } from "../ai-access.ts";
@@ -9,6 +19,7 @@ import type { DenyTopic, PiiKind } from "./heuristics.ts";
 
 import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, foundOrNotFound } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { consoleLogger } from "../../core/logger.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -30,6 +41,7 @@ import {
   PII_KINDS,
   scanPii,
 } from "./heuristics.ts";
+import { decisionListSurface, policyListSurface } from "./lists.ts";
 
 export type GuardrailStage = "input" | "output";
 
@@ -160,10 +172,33 @@ export interface AiGuardrails {
       },
     ): AsyncResult<GuardrailPolicy | undefined>;
     /**
+     * One keyset page of the policies an organization saved (the system's
+     * without one), by agent and stage, enabled or not. `filters` takes
+     * `agent`, `stage` and `enabled` as lists; `q` searches the agent. It does
+     * not resolve the fallback `get` applies.
+     */
+    page(
+      options?: PageOptions & TenantOption,
+    ): AsyncResult<ListPage<GuardrailPolicy>>;
+    /** The values of the `stage` and `enabled` facets and their counts. */
+    facets(
+      options?: FacetOptions & TenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many policies match the page's filters. */
+    count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+    /**
+     * One saved policy by id, or a `not_found` error. `get` stays the lookup by
+     * agent and stage that resolves the fallback, so it keeps its name.
+     */
+    getPolicy(policyId: string): AsyncResult<GuardrailPolicy>;
+    /**
      * One page of the policies an organization saved (the system's without
      * one), ordered by agent and stage, enabled or not. It does not resolve the
      * fallback `get` applies. `limit` defaults to 50 and is capped at 200; pass
      * `nextCursor` as `after`.
+     *
+     * @deprecated Use `page`, which takes `q`, sorts, array filters and a count
+     * (ADR 1077).
      */
     list(options?: {
       readonly organizationId?: string;
@@ -173,7 +208,26 @@ export interface AiGuardrails {
     }): AsyncResult<ListPage<GuardrailPolicy>>;
   };
   readonly decisions: {
-    /** The decision log, newest first. */
+    /**
+     * One keyset page of the decision log, newest first. `filters` takes
+     * `agent`, `decision` and `stage` as lists; `q` searches the agent. Without
+     * an organization it reads every organization's decisions.
+     */
+    page(
+      options?: PageOptions & TenantOption,
+    ): AsyncResult<ListPage<GuardrailLogEntry>>;
+    /** The values of the `decision` and `stage` facets and their counts. */
+    facets(
+      options?: FacetOptions & TenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many decisions match the page's filters. */
+    count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+    /**
+     * The decision log, newest first.
+     *
+     * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(options?: {
       readonly agent?: string;
       readonly decision?: GuardrailDecision;
@@ -382,8 +436,33 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const logger = options.logger ?? consoleLogger;
 
+  const policyPages = entityList<GuardrailPolicy>({
+    entity: "guardrail_policy",
+    surface: policyListSurface,
+    call,
+    tenant: (organizationId) => AsyncResult.ok(organizationId),
+    fn: "page_guardrail_policies",
+    rowOf: policyOf,
+  });
+
+  const decisionPages = entityList<GuardrailLogEntry>({
+    entity: "guardrail_decision",
+    surface: decisionListSurface,
+    call,
+    tenant: (organizationId) => AsyncResult.ok(organizationId),
+    fn: "page_guardrail_decisions",
+    rowOf: entryOf,
+  });
+
   const client: AiGuardrails = {
     policies: {
+      page: policyPages.page,
+      facets: policyPages.facets,
+      count: policyPages.count,
+      getPolicy: (policyId) =>
+        call("get_guardrail_policy_by_id", { id: policyId }, (value) =>
+          value === null || value === undefined ? undefined : policyOf(value),
+        ).andThen((row) => foundOrNotFound("guardrail_policy", row, policyId)),
       upsert: ({ agent, stage, config, ...setOptions }) =>
         call(
           "set_guardrail_policy",
@@ -403,6 +482,7 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
           (value) =>
             value === null || value === undefined ? undefined : policyOf(value),
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions = {}) =>
         call(
           "list_guardrail_policies",
@@ -421,6 +501,10 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
         ),
     },
     decisions: {
+      page: decisionPages.page,
+      facets: decisionPages.facets,
+      count: decisionPages.count,
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions = {}) =>
         call(
           "list_guardrail_decisions",
@@ -504,21 +588,79 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
 
         return denied ? AsyncResult.err(denied) : client.policies.get(input);
       },
+      page: (pageOptions) => {
+        const denied = accessDenied(access, [pageOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.policies.page(pageOptions);
+      },
+      facets: (facetOptions) => {
+        const denied = accessDenied(access, [facetOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.policies.facets(facetOptions);
+      },
+      count: (countOptions) => {
+        const denied = accessDenied(access, [countOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.policies.count(countOptions);
+      },
+      // A policy id does not name its organization, so a scoped caller can't
+      // read one by id; it pages with its own `organizationId` instead.
+      getPolicy: () =>
+        AsyncResult.err(
+          dbError(
+            "forbidden",
+            "Reading a policy by id spans every organization; use page with organizationId",
+            access?.permission === undefined
+              ? {}
+              : { permission: access.permission },
+          ),
+        ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions) => {
         const denied = accessDenied(access, [listOptions?.organizationId]);
 
         return denied
           ? AsyncResult.err(denied)
-          : client.policies.list(listOptions);
+          : // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
+            client.policies.list(listOptions);
       },
     },
     decisions: {
+      page: (pageOptions) => {
+        const denied = accessDenied(access, [pageOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.decisions.page(pageOptions);
+      },
+      facets: (facetOptions) => {
+        const denied = accessDenied(access, [facetOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.decisions.facets(facetOptions);
+      },
+      count: (countOptions) => {
+        const denied = accessDenied(access, [countOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.decisions.count(countOptions);
+      },
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions) => {
         const denied = accessDenied(access, [listOptions?.organizationId]);
 
         return denied
           ? AsyncResult.err(denied)
-          : client.decisions.list(listOptions);
+          : // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
+            client.decisions.list(listOptions);
       },
       purge: () =>
         AsyncResult.err(

@@ -3,6 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
+import { evalPagesSql } from "./ai-evals-pages.ts";
 
 const DATASETS = {
   id: "id",
@@ -376,6 +377,8 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("list_eval_datasets")}(${id}, text, integer)`)}
+
+${evalPagesSql(ctx, { datasetJson, runJson })}
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most ${maxItems}.

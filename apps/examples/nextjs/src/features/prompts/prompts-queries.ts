@@ -42,16 +42,16 @@ export async function promptSubjects(
 ): Promise<readonly { name: string; title: string }[]> {
   const { supabase } = await bsbCore.context();
 
-  const agents = await agentsBlock(supabase).list({
+  const agents = await agentsBlock(supabase).page({
     organizationId,
-    filter: "mine",
+    filters: { mode: ["mine"] },
     limit: 100,
   });
 
   return [
     { name: ASSISTANT_PROMPT, title: "Assistant" },
     ...(agents.ok
-      ? agents.data.map((agent) => ({
+      ? agents.data.items.map((agent) => ({
           name: agentPrompt(agent.slug),
           title: agent.name,
         }))

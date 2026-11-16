@@ -104,14 +104,20 @@ export const setProviderRouting = bsbCore.action(
   },
   async ({ keys }, { tenant, supabase }) => {
     const providers = aiProviders(supabase);
-    const current = await providers.keys.list(tenant, { limit: 100 });
+
+    const current = await providers.keys.page({
+      organizationId: tenant,
+      limit: 100,
+    });
 
     if (!current.ok) {
       return current;
     }
 
     for (const [priority, entry] of keys.entries()) {
-      const key = current.data.find((candidate) => candidate.id === entry.id);
+      const key = current.data.items.find(
+        (candidate) => candidate.id === entry.id,
+      );
 
       if (key === undefined) {
         continue;

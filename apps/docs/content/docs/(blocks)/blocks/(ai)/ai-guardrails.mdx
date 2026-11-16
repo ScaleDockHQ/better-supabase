@@ -69,6 +69,10 @@ stages. It does not resolve the fallback that `get` applies: a card for an agent
 without its own policy is absent. `limit` defaults to 50 and is at most 200;
 pass the page's `nextCursor` as `after`.
 
+## Paging policies and decisions
+
+`policies.page` and `decisions.page` page by keyset (ADR 1077), each with `facets` and `count`, and `policies.getPolicy` returns a `not_found` error for an unknown id (`policies.get` stays the lookup by agent and stage that resolves the fallback). Policies sort by `agent` and `updatedAt`, and filter by `agent`, `stage` and `enabled`. Decisions sort by `createdAt` (newest first) and `agent`, and filter by `agent`, `decision` and `stage`. `policies.list` and `decisions.list` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Check and wrap
 
 ```ts

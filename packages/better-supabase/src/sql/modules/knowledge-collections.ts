@@ -1,7 +1,19 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { raise, revokeTable, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  fail,
+  raise,
+  revokeTable,
+  SERVICE_CALLER,
+  userGrant,
+} from "../shared.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { teamIdType } from "./teams.ts";
@@ -116,6 +128,47 @@ export function knowledgeCollectionsSql(ctx: BlockSqlContext): string {
         return `'${name}', ${row}.${k(key as keyof typeof COLLECTIONS)}`;
       })
       .join(", ")})`;
+
+  const collectionIdKey = {
+    expr: `x.${k("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const priorityKeys = [
+    { expr: `x.${k("priority")}`, dir: "desc", type: "integer" },
+    { expr: `lower(x.${k("name")})`, dir: "asc", type: "text" },
+    collectionIdKey,
+  ] as const;
+
+  const collectionPage = {
+    name: "page_knowledge_collections",
+    from: collections,
+    alias: "x",
+    where: [
+      `(x.${k("tenant")} = page_knowledge_collections.tenant or x.${k("tenant")} is null)`,
+      filterAny("visibility", visibility("x")),
+      `(v_search is null or x.${k("name")} ilike v_search or x.${k("description")} ilike v_search)`,
+    ],
+    keys: priorityKeys,
+    sorts: {
+      priority: priorityKeys,
+      name: [
+        { expr: `lower(x.${k("name")})`, dir: "asc", type: "text" },
+        collectionIdKey,
+      ],
+      createdAt: [
+        { expr: `x.${k("createdAt")}`, dir: "desc", type: "timestamptz" },
+        collectionIdKey,
+      ],
+    },
+    facets: { visibility: visibility("x") },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("KNOWLEDGE_COLLECTION_INVALID", message, "22023"),
+  } as const;
 
   const checkVisibility = (value: string): string => `
   if ${value} is null or ${value} not in (${VISIBILITIES}) then
@@ -272,6 +325,41 @@ as $$
   where x.${k("tenant")} = list_knowledge_collections.tenant or x.${k("tenant")} is null
 $$;
 ${userGrant(`${fn("list_knowledge_collections")}(${id})`)}
+
+-- The collections the caller can read in a tenant as a keyset page (ADR 1077),
+-- system ones included, highest priority first. filters is { visibility (a
+-- value or a list), search (name, description), sort (priority, name,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_knowledge_collections")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_knowledge_collections.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(collectionPage)}
+begin
+  ${listBody(collectionPage)}
+end;
+$$;
+${userGrant(`${fn("page_knowledge_collections")}(${id}, jsonb)`)}
+
+-- One collection the caller can read, or null.
+create or replace function ${fn("get_knowledge_collection")}(collection_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${json("x")} from ${collections} x where x.${k("id")} = get_knowledge_collection.collection_id
+$$;
+${userGrant(`${fn("get_knowledge_collection")}(uuid)`)}
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
 -- whether anything changed. The grant keeps the collection's tenant.${teamType === "text" ? "" : `\ndrop function if exists ${fn("set_knowledge_collection_grant")}(uuid, uuid, text, boolean);`}

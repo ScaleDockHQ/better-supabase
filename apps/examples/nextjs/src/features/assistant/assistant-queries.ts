@@ -50,6 +50,7 @@ export async function getChatPage(query: OpsListQuery): Promise<ChatPage> {
   }
 
   const page = await aiChat(supabase)
+    // oxlint-disable-next-line typescript/no-deprecated -- the chat list kit pages by the single-string \`cursor\` this loader receives from the URL (ADR 1077)
     .chats.list({
       organizationId,
       limit: CHAT_PAGE_SIZE,

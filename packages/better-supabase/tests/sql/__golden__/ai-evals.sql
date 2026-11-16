@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:9aa5b9343dd50b3bbbbe3e6dc1bc3eece393932dfd41837fbdb07cac82f30de6
+-- @bsb-hash sha256:97995059d44fb09accb9692ac6b372736ea89b57c8ce20ee1e3b89d62fdd2e6c
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,515 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "better_supabase"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -520,7 +1029,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:a586c4c568fadeeba690b7ff5d56a19d0c962643b15951f22abb07d32b993732
+-- @bsb-hash sha256:096df1efa6dffc68dc381adb446a22fcac40de3b0a26eb6a7e00a4552b768b18
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -681,6 +1190,515 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "better_supabase"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -1080,7 +2098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:6b603bef1ece666616c68c886557225ec55eacc38474ae9da97201e045acc8ee
+-- @bsb-hash sha256:ca492cb8524572ca245f6b2bd11448a29905c4237e410b2193fe110ca435f11e
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1246,6 +2264,515 @@ end;
 $$;
 revoke execute on function "app_private"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "app_private"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "app_private"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "app_private"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "app_private"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "app_private"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "app_private"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -1604,7 +3131,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:9508ee1f8c8269704da106a7830f5eeae2e0a2b0c93f4582a6990538f7417422
+-- @bsb-hash sha256:d4c58e0061b9126eac534da742ed9f2ba85a48b93da7fdabdbde61bba4584d78
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1765,6 +3292,515 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "better_supabase"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -2139,6 +4175,26 @@ as $$ select "better_supabase"."list_eval_datasets"($1, $2, $3) $$;
 revoke execute on function "api"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "api"."list_eval_datasets"(uuid, text, integer) to service_role;
 
+create or replace function "api"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_eval_datasets"($1, $2) $$;
+revoke execute on function "api"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+create or replace function "api"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_eval_runs"($1, $2) $$;
+revoke execute on function "api"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."page_eval_runs"(uuid, jsonb) to service_role;
+
 create or replace function "api"."add_eval_items"(dataset uuid, items jsonb)
 returns integer
 language sql
@@ -2261,7 +4317,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:f7b84b895c2453d8cba37ca2be3875714825a99da89ffc4198760a80fa6d000b
+-- @bsb-hash sha256:b0faabb9b10f48bf5912e7e2867c44b1b3ca123b6993cd7f82dbc876c154cdbf
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2413,6 +4469,515 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "better_supabase"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."tenant_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -2771,7 +5336,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:3339ae5ca226323f5da272cceacb88c0bd9b5e1693d94a0c1cdbe552d68e26cb
+-- @bsb-hash sha256:317a377255f739a60b61ec20175eab449758b5a4353788264a9add1adb5b49f8
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2932,6 +5497,515 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
+
+-- A tenant's datasets (the system's when tenant is null) as a keyset page (ADR
+-- 1077), by name, each with its item count, run count and latest run. filters
+-- is { id (a uuid or a list), search (name), sort (name, createdAt,
+-- lastRunAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. It runs as invoker: only the service role calls it.
+create or replace function "better_supabase"."page_eval_datasets"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_datasets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"),
+      'last_run_at', (select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id")
+    ) as j, jsonb_build_array((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select max(y."created_at") from "better_supabase"."eval_runs" y where y."dataset_id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_datasets" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_datasets.tenant::text, '')
+        and (not (v_filters -> 'id' is not null and jsonb_typeof(v_filters -> 'id') <> 'null' and not (jsonb_typeof(v_filters -> 'id') = 'array' and jsonb_array_length(v_filters -> 'id') = 0)) or x."id" = any((case when jsonb_typeof(v_filters -> 'id') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'id')) else array[v_filters ->> 'id'] end)::uuid[]))
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_datasets"(uuid, jsonb) to service_role;
+
+-- A tenant's runs (the system's when tenant is null) as a keyset page (ADR
+-- 1077), newest first. filters is { datasetId (a uuid or a list), status,
+-- model, promptName (a value or a list), search (prompt name, model), sort
+-- (createdAt, finishedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_eval_runs"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_eval_runs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'model', 'promptName') then
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
+      from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."finished_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."finished_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'dataset_id', x."dataset_id", 'tenant_id', x."org_id", 'prompt_name', x."prompt_name", 'prompt_version', x."prompt_version", 'model', x."model", 'scorers', x."scorers", 'status', x."status", 'summary', x."summary", 'created_at', x."created_at", 'finished_at', x."finished_at") as j, jsonb_build_array((coalesce(x."finished_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+        and (v_after is null or (coalesce(x."finished_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."finished_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."eval_runs" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_eval_runs.tenant::text, '')
+        and (not (v_filters -> 'datasetId' is not null and jsonb_typeof(v_filters -> 'datasetId') <> 'null' and not (jsonb_typeof(v_filters -> 'datasetId') = 'array' and jsonb_array_length(v_filters -> 'datasetId') = 0)) or x."dataset_id" = any((case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'datasetId')) else array[v_filters ->> 'datasetId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'model' is not null and jsonb_typeof(v_filters -> 'model') <> 'null' and not (jsonb_typeof(v_filters -> 'model') = 'array' and jsonb_array_length(v_filters -> 'model') = 0)) or x."model" = any((case when jsonb_typeof(v_filters -> 'model') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'model')) else array[v_filters ->> 'model'] end)::text[]))
+        and (not (v_filters -> 'promptName' is not null and jsonb_typeof(v_filters -> 'promptName') <> 'null' and not (jsonb_typeof(v_filters -> 'promptName') = 'array' and jsonb_array_length(v_filters -> 'promptName') = 0)) or x."prompt_name" = any((case when jsonb_typeof(v_filters -> 'promptName') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'promptName')) else array[v_filters ->> 'promptName'] end)::text[]))
+        and (v_search is null or x."prompt_name" ilike v_search or x."model" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_eval_runs"(uuid, jsonb) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.

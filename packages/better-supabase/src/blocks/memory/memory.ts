@@ -12,6 +12,7 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, foundOrNotFound } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { vectorLiteral } from "../../core/search.ts";
@@ -25,6 +26,7 @@ import {
   run,
   textOf,
 } from "../shared.ts";
+import { memoryListSurface } from "./lists.ts";
 import { documentOf, hitOf, memoryOf, recalledOf, viewOf } from "./rows.ts";
 
 export type {
@@ -369,6 +371,21 @@ export function createMemory(options: MemoryOptions): Memory {
     }
   };
 
+  // `page_memories` reads one namespace, so each call builds its list with the
+  // namespace in the call's arguments.
+  const archivalList = (
+    organizationId: string | null,
+    ns: MemoryNamespace | undefined,
+  ) =>
+    entityList<MemoryRecord>({
+      entity: "memory",
+      surface: memoryListSurface,
+      call: (fn, args, then) => call(fn, { ...args, ns: nsArg(ns) }, then),
+      tenant: () => AsyncResult.ok(organizationId ?? undefined),
+      fn: "page_memories",
+      rowOf: (row) => memoryOf(row),
+    });
+
   const client: Memory = {
     core,
     run: runCommand,
@@ -377,6 +394,17 @@ export function createMemory(options: MemoryOptions): Memory {
         save(organizationId, content, ns, saveOptions),
       search: ({ organizationId, query, ns, ...searchOptions }) =>
         search(organizationId, query, ns, searchOptions),
+      page: ({ organizationId, ns, ...pageOptions }) =>
+        archivalList(organizationId, ns).page(pageOptions),
+      facets: ({ organizationId, ns, ...facetOptions }) =>
+        archivalList(organizationId, ns).facets(facetOptions),
+      count: ({ organizationId, ns, ...countOptions }) =>
+        archivalList(organizationId, ns).count(countOptions),
+      get: (memoryId) =>
+        call("get_memory", { memory_id: memoryId }, (value) =>
+          isRecord(value) ? memoryOf(value) : undefined,
+        ).andThen((row) => foundOrNotFound("memory", row, memoryId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ organizationId, ns, ...listOptions }) =>
         call(
           "memory_list",

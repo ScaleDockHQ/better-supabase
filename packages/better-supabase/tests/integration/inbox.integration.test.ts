@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list and get methods until 0.70 (ADR 1077). 10 findings. */
 import { createTestMessage } from "@chat-adapter/tests";
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";

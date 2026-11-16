@@ -96,6 +96,10 @@ const rows = useAiChat({ limit: 50 });
 Every method returns a `Result`. Database errors are `DbError` values, never
 exceptions.
 
+## Paging chats and projects
+
+`chats.page` and `projects.page` page by keyset (ADR 1077), each with `facets` and `count`, and `chats.get` and `projects.get` return a `not_found` error for an unknown id. Chats sort by `lastMessageAt` (the default), `createdAt` and `title`, filter by `projectId`, `pinned` and `archived`, and `q` searches titles and message text. Projects sort by `updatedAt` and `name`, and filter by `pinned` and `archived`. `chats.list` and `projects.list` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Branches
 
 `appendUser` stores the user's message under the chat's leaf. Sending the

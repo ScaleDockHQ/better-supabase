@@ -3,6 +3,7 @@ import type { PostsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { postsEvents } from "./events.ts";
+import { boardListSurface, postListSurface } from "./lists.ts";
 import { postsSqlOptions } from "./options.ts";
 import { createPosts } from "./posts.ts";
 import { postBoardInputSchema, postInputSchema } from "./schemas.ts";
@@ -22,10 +23,12 @@ export const postsBlock: BlockOf<"posts", typeof createPosts, PostsEvents> =
     category: "collaboration",
     entities: {
       post_board: {
+        ...boardListSurface,
         mutability: "editable",
         emits: { create: true, update: true },
       },
       post: {
+        ...postListSurface,
         mutability: "editable",
         emits: {
           create: true,

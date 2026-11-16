@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:8f9daae822c5090a842d926c07fb7fb5a3f94c9538a206b18287ba4ee98c22c9
+-- @bsb-hash sha256:8e5883c49913799830ec62f8051895dbb854aeb6fc941bf499c7a7665d382906
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -557,6 +557,414 @@ end;
 $$;
 revoke execute on function "better_supabase"."memory_list"(uuid, jsonb, text, integer) from public, anon;
 grant execute on function "better_supabase"."memory_list"(uuid, jsonb, text, integer) to authenticated, service_role;
+
+-- The memories of one namespace as a keyset page (ADR 1077), archival facts
+-- newest first. ns names the namespace as memory_list does. filters is { kind
+-- (core, archival; archival by default), category (a value or a list), search
+-- (content), sort (createdAt, updatedAt, path, useCount, lastUsedAt), direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }. It runs as the
+-- caller: row level security decides what shows.
+create or replace function "better_supabase"."page_memories"(tenant uuid, ns jsonb default '{}', filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_scope text;
+  v_agent uuid;
+  v_chat uuid;
+  v_project uuid;
+  v_subject_type text;
+  v_subject_id text;
+  v_private boolean;
+  v_owner uuid;
+  v_filters jsonb := coalesce(page_memories.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  v_scope := coalesce(page_memories.ns ->> 'scope', 'user');
+  v_agent := (page_memories.ns ->> 'agent_id')::uuid;
+  v_chat := (page_memories.ns ->> 'chat_id')::uuid;
+  v_project := (page_memories.ns ->> 'project_id')::uuid;
+  v_subject_type := nullif(page_memories.ns ->> 'subject_type', '');
+  v_subject_id := nullif(page_memories.ns ->> 'subject_id', '');
+  v_private := coalesce((page_memories.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in ('organization', 'record') and not v_private then null when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (page_memories.ns ->> 'owner_id')::uuid else auth.uid() end;
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or not coalesce(better_supabase.can('tenant', page_memories.tenant, 'memory.read'), false)) then
+    raise exception 'you may not use memory here' using errcode = '42501', hint = 'MEMORY_FORBIDDEN';
+  end if;
+  if v_scope not in ('user', 'agent', 'chat', 'project', 'organization', 'record')
+    or (v_scope = 'agent') <> (v_agent is not null)
+    or (v_scope = 'chat') <> (v_chat is not null)
+    or (v_scope = 'project') <> (v_project is not null)
+    or (v_scope = 'record') <> (v_subject_id is not null)
+    or (v_subject_id is not null) <> (v_subject_type is not null)
+    or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
+    raise exception 'ns % is not a memory namespace', page_memories.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'kind') = 'array' then v_filters -> 'kind' when jsonb_typeof(v_filters -> 'kind') in ('string', 'number') then jsonb_build_array(v_filters -> 'kind') else '[]'::jsonb end) s where s not in ('core', 'archival')) then
+    raise exception 'kind is core or archival' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('kind', 'category') then
+      raise exception 'facet is one of kind, category' using errcode = '22023', hint = 'MEMORY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'category' then (coalesce(x."category", ''))::text end) as v
+      from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'updatedAt', 'path', 'useCount', 'lastUsedAt') then
+    raise exception 'sort is one of createdAt, updatedAt, path, useCount, lastUsedAt' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."updated_at" >= (v_after ->> 0)::timestamptz and ((x."updated_at" > (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."updated_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'path' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((coalesce(x."path", ''))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (coalesce(x."path", '') >= (v_after ->> 0)::text and ((coalesce(x."path", '') > (v_after ->> 0)::text) or (coalesce(x."path", '') = (v_after ->> 0)::text and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."path", '') asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'path' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((coalesce(x."path", ''))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (coalesce(x."path", ''), x."id") < ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by coalesce(x."path", '') desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'useCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."use_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."use_count" >= (v_after ->> 0)::integer and ((x."use_count" > (v_after ->> 0)::integer) or (x."use_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."use_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'useCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."use_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (x."use_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."use_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((coalesce(x."last_used_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (coalesce(x."last_used_at", 'epoch'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."last_used_at", 'epoch'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."last_used_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."last_used_at", 'epoch'::timestamptz) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastUsedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEMORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((coalesce(x."last_used_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+        and (v_after is null or (coalesce(x."last_used_at", 'epoch'::timestamptz), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."last_used_at", 'epoch'::timestamptz) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."memories" x
+      where x."tenant_id" = page_memories.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+        and true and (x."expires_at" is null or x."expires_at" > now())
+        and (case when (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) else x."kind" = 'archival' end)
+        and (not (v_filters -> 'category' is not null and jsonb_typeof(v_filters -> 'category') <> 'null' and not (jsonb_typeof(v_filters -> 'category') = 'array' and jsonb_array_length(v_filters -> 'category') = 0)) or coalesce(x."category", '') = any((case when jsonb_typeof(v_filters -> 'category') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'category')) else array[v_filters ->> 'category'] end)::text[]))
+        and (v_search is null or x."content" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_memories"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_memories"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+-- One memory the caller can read by id, or null.
+create or replace function "better_supabase"."get_memory"(memory_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."memories" x
+  where x."id" = get_memory.memory_id and x."archived_at" is null
+$$;
+revoke execute on function "better_supabase"."get_memory"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_memory"(uuid) to authenticated, service_role;
 
 -- Saves an archival fact, with its embedding when the caller has one, a
 -- category, a confidence from 0 to 1 that weighs it in searches, and the time

@@ -81,6 +81,10 @@ purge.
 Every method returns a `Result`. A file the caller can't see is
 `not_found`, the same as a file that doesn't exist.
 
+## Paging files
+
+`files.page` pages the tenant's files by keyset (ADR 1077), with `facets` and `count`. Sorts are `createdAt` (newest first), `filename` and `size`. `chatId`, `status`, `source` and `mediaType` filter by a list of values, and `q` searches the file name. `files.list` keeps working and is deprecated; read a chat's files with `filters: { chatId: [id] }`. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Uploads
 
 ```ts

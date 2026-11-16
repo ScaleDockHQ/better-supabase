@@ -62,6 +62,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text[]", "integer"],
       returns: "jsonb",
     },
+    { name: "page_conversations", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_conversation_summary", args: ["uuid"], returns: "jsonb" },
     { name: "unread_counts", args: ["{id}"], returns: "jsonb" },
     {
       name: "mark_read",

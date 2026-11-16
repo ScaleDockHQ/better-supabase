@@ -56,6 +56,10 @@ import { useAiKeys } from "@/lib/supabase/hooks";
 const rows = useAiKeys({ limit: 50 });
 ```
 
+## Paging keys and batches
+
+`keys.page` and `batches.page` page by keyset (ADR 1077), each with `facets` and `count`. `keys.get` and `batches.getBatch` return a `not_found` error for an unknown id. Keys sort by `provider` (the default), `name` and `createdAt`, filter by `provider` and `enabled`, and `q` searches the provider and the name. Batches sort by `createdAt` (newest first), `provider` and `status`, and filter by `status` and `provider`. `keys.list` and `batches.list` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Keys
 
 A key row names a credential, never the key itself. Store the key with the
