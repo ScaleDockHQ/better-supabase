@@ -152,7 +152,7 @@
   "/[locale]/(app)/assistant/usage/page": {
     "raw": 3720863,
     "gzip": 1108831,
-    "brotli": 922866
+    "brotli": 925190
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
     "raw": 3213743,
@@ -1475,12 +1475,12 @@
     "brotli": 704748
   },
   "/api/commission-plans/list/route": {
-    "raw": 2647637,
+    "raw": 2649010,
     "gzip": 799275,
     "brotli": 677727
   },
   "/api/commission-statements/list/route": {
-    "raw": 2647689,
+    "raw": 2649062,
     "gzip": 799277,
     "brotli": 677723
   },
@@ -1490,12 +1490,12 @@
     "brotli": 676356
   },
   "/api/companies/list/route": {
-    "raw": 2647834,
+    "raw": 2649207,
     "gzip": 799351,
     "brotli": 677798
   },
   "/api/contacts/list/route": {
-    "raw": 2647827,
+    "raw": 2649200,
     "gzip": 799347,
     "brotli": 677797
   },
@@ -1505,7 +1505,7 @@
     "brotli": 679237
   },
   "/api/count-plans/list/route": {
-    "raw": 2647630,
+    "raw": 2649003,
     "gzip": 799278,
     "brotli": 677738
   },
@@ -1595,7 +1595,7 @@
     "brotli": 304368
   },
   "/api/forecasts/list/route": {
-    "raw": 2647782,
+    "raw": 2649155,
     "gzip": 799345,
     "brotli": 677796
   },
@@ -1685,12 +1685,12 @@
     "brotli": 708130
   },
   "/api/lims-methods/list/route": {
-    "raw": 2647628,
+    "raw": 2649001,
     "gzip": 799280,
     "brotli": 677747
   },
   "/api/lims-samples/list/route": {
-    "raw": 2647635,
+    "raw": 2649008,
     "gzip": 799270,
     "brotli": 677746
   },
@@ -1705,17 +1705,17 @@
     "brotli": 306334
   },
   "/api/maintenance-calibrations/list/route": {
-    "raw": 2647720,
+    "raw": 2649093,
     "gzip": 799294,
     "brotli": 677747
   },
   "/api/maintenance-meters/list/route": {
-    "raw": 2647655,
+    "raw": 2649028,
     "gzip": 799268,
     "brotli": 677727
   },
   "/api/maintenance-plans/list/route": {
-    "raw": 2647690,
+    "raw": 2649063,
     "gzip": 799291,
     "brotli": 677743
   },
@@ -1765,12 +1765,12 @@
     "brotli": 676349
   },
   "/api/pick-lists/list/route": {
-    "raw": 2647693,
+    "raw": 2649066,
     "gzip": 799289,
     "brotli": 677760
   },
   "/api/pick-waves/list/route": {
-    "raw": 2647635,
+    "raw": 2649008,
     "gzip": 799277,
     "brotli": 677723
   },
@@ -1790,7 +1790,7 @@
     "brotli": 293966
   },
   "/api/putaway-rules/list/route": {
-    "raw": 2647656,
+    "raw": 2649029,
     "gzip": 799285,
     "brotli": 677744
   },
@@ -1820,7 +1820,7 @@
     "brotli": 91450
   },
   "/api/quotes/list/route": {
-    "raw": 2647805,
+    "raw": 2649178,
     "gzip": 799355,
     "brotli": 677794
   },
@@ -1830,7 +1830,7 @@
     "brotli": 305518
   },
   "/api/referral-codes/list/route": {
-    "raw": 2647614,
+    "raw": 2648987,
     "gzip": 799260,
     "brotli": 677727
   },
@@ -1845,7 +1845,7 @@
     "brotli": 704822
   },
   "/api/rfqs/list/route": {
-    "raw": 2647562,
+    "raw": 2648935,
     "gzip": 799254,
     "brotli": 677729
   },
@@ -1880,7 +1880,7 @@
     "brotli": 679145
   },
   "/api/sequences/list/route": {
-    "raw": 2647604,
+    "raw": 2648977,
     "gzip": 799257,
     "brotli": 677723
   },
@@ -1905,12 +1905,12 @@
     "brotli": 74290
   },
   "/api/till-sessions/list/route": {
-    "raw": 2647635,
+    "raw": 2649008,
     "gzip": 799281,
     "brotli": 677739
   },
   "/api/tills/list/route": {
-    "raw": 2647586,
+    "raw": 2648959,
     "gzip": 799268,
     "brotli": 677724
   },
