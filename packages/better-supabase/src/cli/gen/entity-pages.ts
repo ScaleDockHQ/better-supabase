@@ -1,7 +1,11 @@
 import { existsSync } from "node:fs";
 import { posix } from "node:path";
 
-import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type {
+  GeneratedFile,
+  ResolvedConfig,
+  ExtrasTable,
+} from "../../config/index.ts";
 import type { EntityPage } from "../../list/index.ts";
 import type { PresetCatalogManifest } from "../../preset/index.ts";
 
@@ -245,6 +249,33 @@ export function resolveEntityPages(
   return resolved;
 }
 
+/**
+ * The btree column lists a table already carries, by `schema.table`. The
+ * indexes `gen` wrote for a page (`*_page_idx`), partial indexes and unique
+ * indexes are left out, so the list does not change after a run.
+ */
+export type ExistingIndexes = ReadonlyMap<string, readonly string[][]>;
+
+/** The `ExistingIndexes` of a snapshot's tables. */
+export function existingIndexesOf(
+  tables: readonly Pick<ExtrasTable, "indexes" | "name" | "schema">[],
+): ExistingIndexes {
+  return new Map(
+    tables.map((table) => [
+      `${table.schema}.${table.name}`,
+      table.indexes
+        .filter(
+          (index) =>
+            (index.method ?? "btree") === "btree" &&
+            !index.partial &&
+            !index.unique &&
+            !index.name.endsWith("_page_idx"),
+        )
+        .map((index) => [...index.columns]),
+    ]),
+  );
+}
+
 const camel = (name: string): string =>
   name.replaceAll(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 
@@ -255,9 +286,15 @@ const camel = (name: string): string =>
  * (`sortLists`), and a trigram index for each searched column. A name that is
  * not a column of the table (a derived sort, a facet over a join) has no index
  * here.
+ *
+ * With `existing`, a facet index whose columns equal a btree index the table
+ * already has is left out, because a second copy is a duplicate index (doctor
+ * BS200). A sort index stays: the snapshot has no sort direction, so `(tenant,
+ * at desc, id)` and `(tenant, at, id)` look equal.
  */
 export function entityPageIndexes(
   resolved: ResolvedEntityPage,
+  existing?: ExistingIndexes,
 ): readonly EntityPageIndex[] {
   const { table, surface } = resolved;
 
@@ -332,7 +369,17 @@ export function entityPageIndexes(
     }
   }
 
-  return [...indexes.values()];
+  const carried = existing?.get(`${table.schema}.${table.name}`) ?? [];
+
+  return [...indexes.values()].filter(
+    (index) =>
+      index.kind !== "facet" ||
+      !carried.some(
+        (columns) =>
+          columns.length === index.columns.length &&
+          columns.every((column, at) => column === index.columns[at]),
+      ),
+  );
 }
 
 const quote = (name: string): string => `"${name.replaceAll('"', '""')}"`;
@@ -345,9 +392,10 @@ const quote = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 export function entityPageIndexSql(
   config: PagesConfig,
   idempotent = true,
+  existing?: ExistingIndexes,
 ): string | undefined {
   const indexes = resolveEntityPages(config).flatMap((entry) =>
-    entityPageIndexes(entry),
+    entityPageIndexes(entry, existing),
   );
 
   const unique = [
@@ -789,6 +837,7 @@ export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
 export function emitEntityPages(
   config: PagesConfig,
   runtime: string,
+  existing?: ExistingIndexes,
 ): readonly GeneratedFile[] {
   const pages = resolveEntityPages(config);
 
@@ -803,7 +852,7 @@ export function emitEntityPages(
     pagesDir: posix.join(posix.dirname(config.output), "pages"),
   };
 
-  const indexes = entityPageIndexSql(config, false);
+  const indexes = entityPageIndexSql(config, false, existing);
 
   // The schema folder is the source of truth: `supabase:diff` drops an index
   // the migration creates when no schema file declares it.

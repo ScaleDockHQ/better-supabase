@@ -38,7 +38,7 @@ import {
   metaPaths,
   schemaModulePath,
 } from "./emit.ts";
-import { emitEntityPages } from "./entity-pages.ts";
+import { emitEntityPages, existingIndexesOf } from "./entity-pages.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { emitPermissionScopes } from "./permission-catalog.ts";
@@ -269,7 +269,11 @@ export async function render(
     }
 
     files.push(
-      ...emitEntityPages(config, options.runtimeImport ?? "better-supabase"),
+      ...emitEntityPages(
+        config,
+        options.runtimeImport ?? "better-supabase",
+        existingIndexesOf(snapshot.extras.tables),
+      ),
     );
 
     const blockReads = emitBlockReads(config, blockOptions);

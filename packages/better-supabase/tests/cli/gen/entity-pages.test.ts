@@ -8,6 +8,7 @@ import {
   entityPageIndexes,
   entityPageIndexSql,
   entityPageName,
+  existingIndexesOf,
   resolveEntityPage,
   resolveEntityPages,
 } from "../../../src/cli/gen/entity-pages.ts";
@@ -88,6 +89,46 @@ describe("resolveEntityPage", () => {
 });
 
 describe("entityPageIndexes", () => {
+  it("leaves out a facet index the table already has, keeps sort indexes and ignores its own earlier ones", () => {
+    const resolved = resolveEntityPage(config(), risks);
+    const { table } = resolved;
+
+    expect(table).toBeDefined();
+
+    const key = `${table?.schema}.${table?.name}`;
+
+    const existing = existingIndexesOf([
+      {
+        schema: table?.schema ?? "",
+        name: table?.name ?? "",
+        indexes: [
+          { name: "risks_status_idx", columns: ["tenant_id", "status"] },
+          {
+            name: "risks_residual_idx",
+            columns: ["tenant_id", "residual_score", "id"],
+          },
+          {
+            name: "risks_tenant_id_category_page_idx",
+            columns: ["tenant_id", "category"],
+          },
+        ],
+      },
+    ] as unknown as Parameters<typeof existingIndexesOf>[0]);
+
+    expect(existing.get(key)).toStrictEqual([
+      ["tenant_id", "status"],
+      ["tenant_id", "residual_score", "id"],
+    ]);
+
+    const columns = entityPageIndexes(resolved, existing).map(
+      (index) => index.columns,
+    );
+
+    expect(columns).not.toContainEqual(["tenant_id", "status"]);
+    expect(columns).toContainEqual(["tenant_id", "residual_score", "id"]);
+    expect(columns).toContainEqual(["tenant_id", "category"]);
+  });
+
   it("indexes each sort and facet that is a column, tenant first", () => {
     const indexes = entityPageIndexes(resolveEntityPage(config(), risks));
 

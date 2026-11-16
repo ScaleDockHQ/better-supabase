@@ -24040,7 +24040,7 @@ msgstr "Omschrijving"
 #: src/features/rfqs/components/rfq-detail.tsx
 msgctxt "rfqs.iGYctG"
 msgid "Product variant (needed to award into a purchase order)"
-msgstr ""
+msgstr "Productvariant (nodig om te gunnen aan een inkooporder)"
 
 #: src/features/rfqs/components/rfq-detail.tsx
 #: src/features/rfqs/components/rfqs-overview.tsx
@@ -24051,7 +24051,7 @@ msgstr "Aantal"
 #: src/features/rfqs/components/rfq-detail.tsx
 msgctxt "rfqs.OK5-Fh"
 msgid "Variant"
-msgstr ""
+msgstr "Variant"
 
 #: src/features/rfqs/components/rfq-detail.tsx
 msgctxt "rfqs.qdrWPP"
@@ -24166,7 +24166,7 @@ msgstr "Eerste regel"
 #: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.MMyA8e"
 msgid "Product variant of the first line"
-msgstr ""
+msgstr "Productvariant van de eerste regel"
 
 #: src/features/risks/components/risk-band-badge.tsx
 msgctxt "risks.3Q1Pj6"
@@ -30483,37 +30483,37 @@ msgstr "Contant geld naar de bank gebracht. Een storting is afgeletterd zodra ze
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.BdEdkP"
 msgid "Import bank statement"
-msgstr ""
+msgstr "Bankafschrift importeren"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.Y2etA4"
 msgid "Paste an MT940 statement. A transaction that was imported before is skipped."
-msgstr ""
+msgstr "Plak een MT940-afschrift. Een eerder geïmporteerde transactie wordt overgeslagen."
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.C327TL"
 msgid "Import statement"
-msgstr ""
+msgstr "Afschrift importeren"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.9XUYQt"
 msgid "Import"
-msgstr ""
+msgstr "Importeren"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.W6kvm_"
 msgid "Statement imported"
-msgstr ""
+msgstr "Afschrift geïmporteerd"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.gzcDlE"
 msgid "Bank account"
-msgstr ""
+msgstr "Bankrekening"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.23pVyP"
 msgid "MT940 statement"
-msgstr ""
+msgstr "MT940-afschrift"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills._0TOL5"
@@ -30534,7 +30534,7 @@ msgstr "Status"
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.sSgGIc"
 msgid "Bank transaction"
-msgstr ""
+msgstr "Banktransactie"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.UM1wq9"
@@ -30549,27 +30549,27 @@ msgstr "In afwachting"
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.RJN7lR"
 msgid "Match to a bank transaction"
-msgstr ""
+msgstr "Koppelen aan een banktransactie"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.aZrNvW"
 msgid "Only unmatched transactions for the same amount are offered. Import a statement first when the list is empty."
-msgstr ""
+msgstr "Alleen niet-gekoppelde transacties met hetzelfde bedrag worden getoond. Importeer eerst een afschrift als de lijst leeg is."
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.Qr9R5O"
 msgid "Match"
-msgstr ""
+msgstr "Koppelen"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.g4wM6c"
 msgid "Match deposit"
-msgstr ""
+msgstr "Storting koppelen"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.qDuSZR"
 msgid "Deposit matched"
-msgstr ""
+msgstr "Storting gekoppeld"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.A0aKBA"
@@ -30635,7 +30635,7 @@ msgstr "Oudste eerst"
 #: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.EJbFi7"
 msgid "Search notes"
-msgstr ""
+msgstr "Notities zoeken"
 
 #: src/features/tills/components/tills-overview.tsx
 msgctxt "tills.vuBPCO"
