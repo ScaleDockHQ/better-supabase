@@ -77,6 +77,8 @@ create index "pick_lists_tenant_id_created_at_id_page_idx" on "better_supabase".
 create index "pick_lists_tenant_id_picked_at_id_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "picked_at", "id");
 create index "pick_lists_tenant_id_status_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "status");
 create index "pick_lists_tenant_id_document_type_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type");
+create index "pick_lists_document_id_trgm_idx" on "better_supabase"."pick_lists" using gin ("document_id" extensions.gin_trgm_ops);
+create index "pick_lists_document_type_trgm_idx" on "better_supabase"."pick_lists" using gin ("document_type" extensions.gin_trgm_ops);
 create index "pick_waves_tenant_id_created_at_id_page_idx" on "better_supabase"."pick_waves" ("tenant_id", "created_at", "id");
 create index "pick_waves_tenant_id_name_id_page_idx" on "better_supabase"."pick_waves" ("tenant_id", "name", "id");
 create index "pick_waves_tenant_id_status_page_idx" on "better_supabase"."pick_waves" ("tenant_id", "status");

@@ -7,7 +7,7 @@ export const pickListsList = defineEntityListQuery(
     sorts: ["createdAt", "pickedAt"],
     facets: ["status", "documentType"],
     filters: ["waveId", "status", "documentType", "documentId", "mine"],
-    search: false,
+    search: ["documentId", "documentType"],
   },
   { entity: "warehouse.pick_list" },
 );

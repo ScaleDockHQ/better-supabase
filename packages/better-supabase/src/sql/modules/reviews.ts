@@ -795,8 +795,11 @@ $$;
 revoke execute on function ${fn("my_review")}(${idType}, text, text) from public, anon;
 grant execute on function ${fn("my_review")}(${idType}, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function ${fn("review_queue")}(tenant ${idType}, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+drop function if exists ${fn("review_queue")}(${idType}, text, integer, timestamptz, text, text);
+create or replace function ${fn("review_queue")}(tenant ${idType}, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -816,6 +819,7 @@ begin
     from ${reviews} x
     where x.${r("tenant")} = review_queue.tenant
       and (review_queue.status is null or x.${r("status")} = ${ctx.cast("reviews", "status", "review_queue.status", "null")})
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x.${r("status")} in (select ${ctx.cast("reviews", "status", "s", "null")} from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x.${r("subjectType")} = review_queue.subject_type)
       and (review_queue.subject_id is null or x.${r("subjectId")} = review_queue.subject_id)
       and (review_queue.before is null or x.${r("createdAt")} < review_queue.before)
@@ -825,8 +829,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function ${fn("review_queue")}(${idType}, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function ${fn("review_queue")}(${idType}, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function ${fn("review_queue")}(${idType}, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function ${fn("review_queue")}(${idType}, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller

@@ -62,7 +62,10 @@ function ReceivedCell({ row }: GiftCell) {
   );
 }
 
-/** The gifts overview on the list kit; the URL holds the status filter. */
+/**
+ * The gifts overview on the list kit; the URL holds the search and the status
+ * filter.
+ */
 export function GiftRecordList({
   initial,
   canManage,
@@ -103,6 +106,7 @@ export function GiftRecordList({
         },
       ]}
       sorts={[{ value: "newest", label: t("Newest first") }]}
+      searchLabel={t("Search by payment reference or note")}
       emptyIcon={<HeartHandshakeIcon />}
       emptyTitle={t("No gifts found")}
       emptyDescription={

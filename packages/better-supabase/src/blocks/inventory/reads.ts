@@ -18,9 +18,12 @@ import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { INVENTORY_OVERVIEW_RESULT } from "../../sql/modules/inventory-reads.ts";
 import {
+  stockBinListSurface,
   stockLevelListSurface,
+  stockLocationListSurface,
   stockLotListSurface,
   stockMovementListSurface,
+  stockVariantListSurface,
 } from "./lists.ts";
 
 export type {
@@ -57,6 +60,35 @@ export interface StockMovementRead {
   readonly documentType: string | null;
   readonly documentId: string | null;
   readonly effectiveAt: string;
+}
+
+/** One stock location, as `inventory.locationPage` reads it. */
+export interface StockLocationRead {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly kind: string;
+  /** An inactive location takes no new reservations or transfers. */
+  readonly active: boolean;
+}
+
+/** One bin, as `inventory.binPage` reads it. */
+export interface StockBinRead {
+  readonly id: string;
+  readonly locationId: string;
+  readonly code: string;
+  readonly name: string | null;
+  /** A bin on hold takes no picks. */
+  readonly hold: boolean;
+  readonly active: boolean;
+}
+
+/** One catalog variant, as `inventory.variantPage` reads it. */
+export interface StockVariantRead {
+  readonly id: string;
+  readonly productId: string;
+  readonly sku: string;
+  readonly title: string | null;
 }
 
 /** One stock level on a page: the level plus its `variant:location` id. */
@@ -114,6 +146,30 @@ const LOT_ROW: ReadType = {
   expiresOn: "text?",
   onHand: "text",
   expiry: "text",
+};
+
+const LOCATION_ROW: ReadType = {
+  id: "text",
+  code: "text",
+  name: "text",
+  kind: "text",
+  active: "bool",
+};
+
+const BIN_ROW: ReadType = {
+  id: "text",
+  locationId: "text",
+  code: "text",
+  name: "text?",
+  hold: "bool",
+  active: "bool",
+};
+
+const VARIANT_ROW: ReadType = {
+  id: "text",
+  productId: "text",
+  sku: "text",
+  title: "text?",
 };
 
 const STOCK_LEVELS_RESULT: ReadType = [
@@ -208,6 +264,51 @@ export interface InventoryReads {
   /** One lot's stock by `lot:location:bin` id, or a `not_found` error. */
   getLot(id: string): AsyncResult<StockLotRead>;
   /**
+   * One keyset page of the stock locations, by code. `filters` takes `kind` and
+   * `active` (`"true"` or `"false"`) as lists; `q` matches the code and the
+   * name. Row level security decides which locations come back.
+   */
+  locationPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockLocationRead>>;
+  /** The values of each facet (`kind`, `active`) under the page's filters. */
+  locationFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many locations match the page's filters. */
+  locationCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /**
+   * One keyset page of the bins, by code (needs the lots and bins tables of
+   * `tracking`). `filters` takes `locationId`, `active` and `hold` as lists;
+   * `q` matches the code and the name.
+   */
+  binPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockBinRead>>;
+  /** The values of each facet (`locationId`, `active`) under the page's filters. */
+  binFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many bins match the page's filters. */
+  binCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /**
+   * One keyset page of the catalog variants, by SKU, for a stock select.
+   * `filters` takes `productId` as a list; `q` matches the SKU and the title.
+   */
+  variantPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockVariantRead>>;
+  /** Variants declare no facets, so this returns an empty list. */
+  variantFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many variants match the page's filters. */
+  variantCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /**
    * @deprecated Use `levelPage`, which pages by keyset and takes `q`, sorts,
    * array filters and a count (ADR 1077).
    *
@@ -267,7 +368,43 @@ export function inventoryReads(call: BlockCall): InventoryReads {
     rowOf: (row, fn) => decodeRead<StockLotRead>(LOT_ROW, row, fn),
   });
 
+  const locationRows = entityList<StockLocationRead, RequiredTenantOption>({
+    entity: "inventory_location",
+    surface: stockLocationListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_stock_locations",
+    rowOf: (row, fn) => decodeRead<StockLocationRead>(LOCATION_ROW, row, fn),
+  });
+
+  const binRows = entityList<StockBinRead, RequiredTenantOption>({
+    entity: "inventory_bin",
+    surface: stockBinListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_stock_bins",
+    rowOf: (row, fn) => decodeRead<StockBinRead>(BIN_ROW, row, fn),
+  });
+
+  const variantRows = entityList<StockVariantRead, RequiredTenantOption>({
+    entity: "inventory_variant",
+    surface: stockVariantListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_stock_variants",
+    rowOf: (row, fn) => decodeRead<StockVariantRead>(VARIANT_ROW, row, fn),
+  });
+
   return {
+    locationPage: locationRows.page,
+    locationFacets: locationRows.facets,
+    locationCount: locationRows.count,
+    binPage: binRows.page,
+    binFacets: binRows.facets,
+    binCount: binRows.count,
+    variantPage: variantRows.page,
+    variantFacets: variantRows.facets,
+    variantCount: variantRows.count,
     levelPage: levelRows.page,
     levelFacets: levelRows.facets,
     levelCount: levelRows.count,

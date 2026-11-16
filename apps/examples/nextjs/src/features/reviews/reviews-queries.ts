@@ -14,7 +14,6 @@ import { Temporal } from "temporal-polyfill";
 import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
 
-import { pageOverStatuses } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { ReviewRow } from "./review-row";
@@ -84,30 +83,35 @@ export async function loadReviewPage(
   const before =
     query.after === undefined ? undefined : Temporal.Instant.from(query.after);
 
-  const page = await pageOverStatuses({
-    statuses: query.facets["status"],
-    size: REVIEW_PAGE_SIZE,
-    fetchPage: (status, take) => {
-      const options: Mutable<ReviewQueueOptions> = {
-        pageSize: take,
-        // The queue lists the pending ones by default; no facet means all.
-        status: status !== undefined && isStatus(status) ? status : null,
-      };
+  const statuses = (query.facets["status"] ?? []).filter(isStatus);
 
-      if (before !== undefined) {
-        options.before = before;
-      }
+  // The queue lists the pending ones by default; no facet means all. One more
+  // row than the page tells whether another page follows.
+  const options: Mutable<ReviewQueueOptions> = {
+    pageSize: REVIEW_PAGE_SIZE + 1,
+    status: statuses.length > 0 ? statuses : null,
+  };
 
-      return db.reviews.queue({ organizationId, ...options });
-    },
-    map: toRow,
-  });
-
-  if (!page.ok) {
-    return page;
+  if (before !== undefined) {
+    options.before = before;
   }
 
-  return ok({ ...page.data, items: await nameSubjects(db, page.data.items) });
+  const queue = await db.reviews.queue({ organizationId, ...options });
+
+  if (!queue.ok) {
+    return queue;
+  }
+
+  const taken = queue.data.slice(0, REVIEW_PAGE_SIZE);
+  const last = taken.at(-1);
+
+  return ok({
+    items: await nameSubjects(db, taken.map(toRow)),
+    nextCursor:
+      queue.data.length > REVIEW_PAGE_SIZE && last !== undefined
+        ? last.createdAt.toString()
+        : null,
+  });
 }
 
 /** The first page of reviews, for the instant shell. */

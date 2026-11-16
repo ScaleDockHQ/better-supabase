@@ -2,7 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   extraFieldsArg,
@@ -156,6 +161,7 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
       filterAny("fundId", `x.${d("fund")}`, "uuid"),
       filterAny("pledgeId", `x.${d("pledge")}`, "uuid"),
       filterAny("status", asText(ctx, "donations", `x.${d("status")}`)),
+      `(v_search is null or x.${d("donorId")} ilike v_search or coalesce(x.${d("paymentReference")}, '') ilike v_search${has("donations", "note") ? ` or coalesce(x.${d("note")}, '') ilike v_search` : ""})`,
     ],
     keys: [
       { expr: `x.${d("receivedOn")}`, dir: "desc", type: "date" },
@@ -192,6 +198,7 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
       filterAny("donorType", `x.${p("donorType")}`),
       filterAny("donorId", `x.${p("donorId")}`),
       filterAny("status", asText(ctx, "pledges", `x.${p("status")}`)),
+      `(v_search is null or x.${p("donorId")} ilike v_search${has("pledges", "note") ? ` or coalesce(x.${p("note")}, '') ilike v_search` : ""})`,
     ],
     keys: [
       { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
@@ -585,7 +592,7 @@ $$;
 ${userGrant(`${fn("get_gift")}(uuid)`)}
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function ${fn("list_gifts")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -597,6 +604,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(giftList)}
 begin
   if not ${can("list_gifts.tenant", read)} then
@@ -680,7 +688,7 @@ $$;
 ${userGrant(`${fn("update_pledge")}(uuid, text, date, bigint)`)}
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function ${fn("list_pledges")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -692,6 +700,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(pledgeList)}
 begin
   if not ${can("list_pledges.tenant", read)} then
