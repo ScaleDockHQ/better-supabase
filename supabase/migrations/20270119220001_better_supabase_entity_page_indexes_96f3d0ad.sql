@@ -1,6 +1,7 @@
 -- The indexes the entity page lists need, one per declared sort, facet and
 -- searched column. Managed by `better-supabase gen` (gen.entityPages): it
 -- writes a new migration when a page or its block's list surface changes.
+create index if not exists "periods_tenant_id_starts_on_id_page_idx" on "better_supabase"."periods" ("tenant_id", "starts_on", "id");
 create index if not exists "periods_tenant_id_ends_on_id_page_idx" on "better_supabase"."periods" ("tenant_id", "ends_on", "id");
 create index if not exists "periods_tenant_id_kind_page_idx" on "better_supabase"."periods" ("tenant_id", "kind");
 create index if not exists "periods_tenant_id_status_page_idx" on "better_supabase"."periods" ("tenant_id", "status");
@@ -10,6 +11,7 @@ create index if not exists "risks_tenant_id_next_review_on_id_page_idx" on "bett
 create index if not exists "risks_tenant_id_status_page_idx" on "better_supabase"."risks" ("tenant_id", "status");
 create index if not exists "risks_tenant_id_category_page_idx" on "better_supabase"."risks" ("tenant_id", "category");
 create index if not exists "risks_tenant_id_residual_score_number_id_page_idx" on "better_supabase"."risks" ("tenant_id", "residual_score", "number", "id");
+create index if not exists "work_orders_tenant_id_created_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at", "id");
 create index if not exists "work_orders_tenant_id_starts_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at", "id");
 create index if not exists "work_orders_tenant_id_title_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "title", "id");
 create index if not exists "work_orders_tenant_id_status_page_idx" on "better_supabase"."work_orders" ("tenant_id", "status");
@@ -50,6 +52,7 @@ create index if not exists "quotes_identifier_trgm_idx" on "better_supabase"."qu
 create index if not exists "sequences_tenant_id_name_id_page_idx" on "better_supabase"."sequences" ("tenant_id", "name", "id");
 create index if not exists "sequences_tenant_id_updated_at_id_page_idx" on "better_supabase"."sequences" ("tenant_id", "updated_at", "id");
 create index if not exists "sequences_tenant_id_status_page_idx" on "better_supabase"."sequences" ("tenant_id", "status");
+create index if not exists "commission_plans_tenant_id_created_at_id_page_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at", "id");
 create index if not exists "commission_plans_tenant_id_name_id_page_idx" on "better_supabase"."commission_plans" ("tenant_id", "name", "id");
 create index if not exists "commission_plans_tenant_id_kind_page_idx" on "better_supabase"."commission_plans" ("tenant_id", "kind");
 create index if not exists "commission_statements_tenant_id_ends_on_id_page_idx" on "better_supabase"."commission_statements" ("tenant_id", "ends_on", "id");
@@ -66,9 +69,11 @@ create index if not exists "tills_tenant_id_name_id_page_idx" on "better_supabas
 create index if not exists "tills_tenant_id_created_at_id_page_idx" on "better_supabase"."tills" ("tenant_id", "created_at", "id");
 create index if not exists "tills_tenant_id_currency_page_idx" on "better_supabase"."tills" ("tenant_id", "currency");
 create index if not exists "tills_name_trgm_idx" on "better_supabase"."tills" using gin ("name" extensions.gin_trgm_ops);
+create index if not exists "till_sessions_tenant_id_opened_at_id_page_idx" on "better_supabase"."till_sessions" ("tenant_id", "opened_at", "id");
 create index if not exists "till_sessions_tenant_id_closed_at_id_page_idx" on "better_supabase"."till_sessions" ("tenant_id", "closed_at", "id");
 create index if not exists "till_sessions_tenant_id_status_page_idx" on "better_supabase"."till_sessions" ("tenant_id", "status");
 create index if not exists "till_sessions_notes_trgm_idx" on "better_supabase"."till_sessions" using gin ("notes" extensions.gin_trgm_ops);
+create index if not exists "pick_lists_tenant_id_created_at_id_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "created_at", "id");
 create index if not exists "pick_lists_tenant_id_picked_at_id_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "picked_at", "id");
 create index if not exists "pick_lists_tenant_id_status_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "status");
 create index if not exists "pick_lists_tenant_id_document_type_page_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type");
@@ -104,6 +109,7 @@ create index if not exists "maintenance_meters_tenant_id_name_id_page_idx" on "b
 create index if not exists "maintenance_meters_tenant_id_read_at_id_page_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "read_at", "id");
 create index if not exists "maintenance_meters_tenant_id_unit_page_idx" on "better_supabase"."maintenance_meters" ("tenant_id", "unit");
 create index if not exists "maintenance_meters_name_trgm_idx" on "better_supabase"."maintenance_meters" using gin ("name" extensions.gin_trgm_ops);
+create index if not exists "maintenance_calibrations_tenant_id_performed_at_id_page_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "performed_at", "id");
 create index if not exists "maintenance_calibrations_tenant_id_due_at_id_page_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at", "id");
 create index if not exists "maintenance_calibrations_tenant_id_result_page_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "result");
 create index if not exists "maintenance_calibrations_instrument_trgm_idx" on "better_supabase"."maintenance_calibrations" using gin ("instrument" extensions.gin_trgm_ops);
@@ -113,6 +119,7 @@ create index if not exists "incidents_tenant_id_severity_id_page_idx" on "better
 create index if not exists "incidents_tenant_id_status_page_idx" on "better_supabase"."incidents" ("tenant_id", "status");
 create index if not exists "incidents_tenant_id_severity_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity");
 create index if not exists "customers_organization_id_name_id_page_idx" on "public"."customers" ("organization_id", "name", "id");
+create index if not exists "customers_organization_id_created_at_id_page_idx" on "public"."customers" ("organization_id", "created_at", "id");
 create index if not exists "customers_organization_id_status_page_idx" on "public"."customers" ("organization_id", "status");
 create index if not exists "customers_name_trgm_idx" on "public"."customers" using gin ("name" extensions.gin_trgm_ops);
 create index if not exists "inbox_conversations_tenant_id_last_message_at_id_page_idx" on "better_supabase"."inbox_conversations" ("tenant_id", "last_message_at", "id");

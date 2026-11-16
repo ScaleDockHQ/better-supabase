@@ -287,7 +287,7 @@ stays small. For a page named `risks`, the run writes:
 
 An index is a btree on `(tenant, column, id)` for a sort and `(tenant, column)`
 for a facet, or a trigram index for a searched column. A name that is not a
-column of the table, such as a derived sort, has no index. A btree index whose columns equal one the table already has
+column of the table, such as a derived sort, has no index. A facet index whose columns equal a btree index the table already has
 (a block's own `(tenant_id, status)` index) is not written again, so doctor never reports a duplicate. Each entry of `sortLists`, a
 multi-column sort the page offers, adds one btree on `(tenant, a, b, id)`; `gen` stops with
 `config_invalid` for an entry with fewer than two or more than three keys, or a key outside the

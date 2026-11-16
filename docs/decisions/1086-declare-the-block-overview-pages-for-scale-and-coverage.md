@@ -32,7 +32,8 @@ EX-1265, EX-1267).
 - Three of these pages (lims samples, referral codes, RFQs) declare a facet that a block's own
   index already covers, so `gen` wrote an identical second index and doctor reported BS200
   duplicate indexes. `gen` now compares the btree column lists in the snapshot, ignores its own
-  `*_page_idx` indexes, and skips an index the table already has (changeset, library test).
+  `*_page_idx` indexes, and skips a facet index the table already has (changeset, library test). Sort indexes are always
+  written because the snapshot has no sort direction.
 - The account health page (`/crm/success`) is not declared: it reads scores in memory through
   `loadedPager`, not through a block list, so there is no list function to plan.
 

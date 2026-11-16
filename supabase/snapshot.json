@@ -333869,6 +333869,19 @@
             "predicate": null
           },
           {
+            "name": "commission_plans_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "commission_plans_tenant_id_id_key",
             "columns": [
               "tenant_id",
@@ -365644,6 +365657,19 @@
             "predicate": null
           },
           {
+            "name": "maintenance_calibrations_tenant_id_performed_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "performed_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "maintenance_calibrations_tenant_id_result_page_idx",
             "columns": [
               "tenant_id",
@@ -379505,6 +379531,19 @@
             "predicate": null
           },
           {
+            "name": "periods_tenant_id_starts_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "starts_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "periods_tenant_id_status_page_idx",
             "columns": [
               "tenant_id",
@@ -380290,6 +380329,19 @@
             ],
             "unique": true,
             "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "pick_lists_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -406808,6 +406860,19 @@
             "predicate": null
           },
           {
+            "name": "till_sessions_tenant_id_opened_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "opened_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "till_sessions_tenant_id_status_page_idx",
             "columns": [
               "tenant_id",
@@ -412524,6 +412589,19 @@
             "predicate": null
           },
           {
+            "name": "work_orders_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "work_orders_tenant_id_priority_page_idx",
             "columns": [
               "tenant_id",
@@ -415733,6 +415811,19 @@
           },
           {
             "name": "customers_organization_id_created_at_id_idx",
+            "columns": [
+              "organization_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "customers_organization_id_created_at_id_page_idx",
             "columns": [
               "organization_id",
               "created_at",

@@ -287,8 +287,10 @@ const camel = (name: string): string =>
  * not a column of the table (a derived sort, a facet over a join) has no index
  * here.
  *
- * With `existing`, a btree index whose columns equal one the table already has
- * is left out, because a second copy is a duplicate index (doctor BS200).
+ * With `existing`, a facet index whose columns equal a btree index the table
+ * already has is left out, because a second copy is a duplicate index (doctor
+ * BS200). A sort index stays: the snapshot has no sort direction, so `(tenant,
+ * at desc, id)` and `(tenant, at, id)` look equal.
  */
 export function entityPageIndexes(
   resolved: ResolvedEntityPage,
@@ -371,7 +373,7 @@ export function entityPageIndexes(
 
   return [...indexes.values()].filter(
     (index) =>
-      index.method !== "btree" ||
+      index.kind !== "facet" ||
       !carried.some(
         (columns) =>
           columns.length === index.columns.length &&
