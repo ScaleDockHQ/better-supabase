@@ -1,5 +1,41 @@
 # better-supabase
 
+## 0.67.2
+
+### Patch Changes
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - Doctor BS504 no longer asks for `CRON_SECRET` when no app source names it. The billing, outbox and
+  queue routes take the secret from the app, so an app that authenticates its cron routes another way,
+  such as `caller: "vercel-schedule"`, doesn't need the key.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - Doctor BS601 now only warns about a peer outside its range when the project's `package.json` or a
+  package of its workspace lists it, so packages that another dependency installs for itself, such as `undici` or `vue`, no longer
+  raise it.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - Doctor BS512 now finds the `schedule/v1beta` trigger of a schedule that names a `service` in that
+  service's `functions`, and matches a function by its route file (`app/api/drain/route.ts` for
+  `api/drain`), so it no longer warns about a schedule that is wired.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - The ledger upgrade from version 1 no longer fails with `LEDGER_APPEND_ONLY` on a database that has
+  ledger entries: the step that copies `effective_at` from each transaction turns the append-only
+  trigger off for that one statement and back on in the same block.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - A text list filter, such as `status` on `list_teams`, `page_employees` or `page_invoices`, now
+  compares the column as text, so it works when the app keeps that column as an enum or a domain
+  instead of failing with "operator does not exist". A text column keeps using its index; an index on
+  an enum column does not serve the filter. Run `better-supabase upgrade` to rewrite the block
+  functions.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - The generated permission list now has every optional key a block checks when you set it:
+  `purge` for teams, employees, time entries, activities, agents, announcements, care rules,
+  courses, field definitions, enrollment programs, forms, funding claims, maintenance plans,
+  meetings, posts and score models, the finer quote keys (`send`, `accept`, `reject`,
+  `requestChanges`, `withdraw`) and `impersonation.approve`. Teams no longer list `delete`, which
+  became `purge` in 0.67.
+
+- [#1051](https://github.com/ScaleDockHQ/better-supabase/pull/1051) [`369b882`](https://github.com/ScaleDockHQ/better-supabase/commit/369b88223570806d97686ca58e46124467f5f9a8) Thanks [@mick340](https://github.com/mick340)! - The template guard triggers of tasks, quotes and invoices now fix their `search_path`, so doctor no
+  longer reports BS100 for them.
+
 ## 0.67.1
 
 ### Patch Changes
