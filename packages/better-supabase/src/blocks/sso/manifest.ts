@@ -3,6 +3,7 @@ import type { SsoEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { ssoEvents } from "./events.ts";
+import { domainListSurface, providerListSurface } from "./lists.ts";
 import { ssoSqlOptions } from "./options.ts";
 import { createSso } from "./sso.ts";
 
@@ -18,10 +19,11 @@ export const ssoBlock: BlockOf<"sso", typeof createSso, SsoEvents> =
     entities: {
       organization: { mutability: "state-machine" },
       sso_domain: {
+        ...domainListSurface,
         mutability: "editable",
         emits: { create: true, update: true, delete: true },
       },
-      sso_provider: { mutability: "state-machine" },
+      sso_provider: { ...providerListSurface, mutability: "state-machine" },
       scim_user: {
         mutability: "editable",
         emits: { create: true, update: true, delete: true },

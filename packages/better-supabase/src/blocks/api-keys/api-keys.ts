@@ -4,8 +4,19 @@ import type { JWTClaims } from "@supabase/server";
 
 import type { AuthResolver, ResolvedState } from "../../auth/resolve.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -18,6 +29,7 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -35,6 +47,7 @@ import {
   textOf,
   applyTemporal,
 } from "../shared.ts";
+import { keyListSurface } from "./lists.ts";
 
 export type ApiKeyState = "active" | "grace" | "revoked" | "expired";
 
@@ -96,8 +109,25 @@ export interface ApiKeys<F extends object = Record<never, never>> {
   /**
    * A tenant's keys for its managers (the caller's own otherwise), or the
    * caller's personal keys.
+   *
+   * @deprecated Use `keyPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
    */
   list(organizationId?: string): AsyncResult<readonly (ApiKey & F)[]>;
+  /**
+   * One keyset page of a tenant's keys (the caller's own unless they manage the
+   * tenant), or of the caller's personal keys without an `organizationId`.
+   * `filters` takes `userId` and `revoked` as lists.
+   */
+  keyPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ApiKey & F>>;
+  /** The values of the `revoked` facet and how many rows hold each. */
+  keyFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many keys match the page's filters. */
+  keyCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   revoke(id: string): AsyncResult<boolean>;
   /**
    * A new token for the key, with its extra columns; the old one keeps working
@@ -388,7 +418,25 @@ export function createApiKeys<
     };
   };
 
+  const keys = entityList<readonly [unknown, ApiKey], TenantOption>({
+    entity: "API key",
+    surface: keyListSurface,
+    call,
+    // No organization means the caller's personal keys.
+    tenant: (organizationId) => AsyncResult.ok(organizationId),
+    fn: "page_api_keys",
+    rowOf: (raw) => [raw, apiKeyOf(raw)] as const,
+  });
+
   const client: ApiKeys<F> = {
+    keyPage: (page = {}) =>
+      keys.page(page).andThen(async (found) => {
+        const items = await allWithFields(fields, found.items);
+
+        return items.ok ? ok({ ...found, items: items.data }) : items;
+      }),
+    keyFacets: (facets = {}) => keys.facets(facets),
+    keyCount: (count = {}) => keys.count(count),
     create: ({
       name,
       organizationId,
@@ -422,6 +470,7 @@ export function createApiKeys<
           );
         },
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (organizationId) =>
       call("list_api_keys", { tenant: organizationId ?? null }, (value) =>
         recordsOf(value, "list_api_keys").map(

@@ -4,6 +4,7 @@ import { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.t
 import { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { agentsBlock } from "../../src/blocks/agents/manifest.ts";
+import { apiKeysBlock } from "../../src/blocks/api-keys/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import { assetsBlock } from "../../src/blocks/assets/manifest.ts";
@@ -62,8 +63,10 @@ import { risksBlock } from "../../src/blocks/risks/manifest.ts";
 import { scoresBlock } from "../../src/blocks/scores/manifest.ts";
 import { segmentsBlock } from "../../src/blocks/segments/manifest.ts";
 import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
+import { serviceAccountsBlock } from "../../src/blocks/service-accounts/manifest.ts";
 import { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
 import { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
+import { ssoBlock } from "../../src/blocks/sso/manifest.ts";
 import { teamsBlock } from "../../src/blocks/teams/manifest.ts";
 import { templatesBlock } from "../../src/blocks/templates/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
@@ -146,6 +149,9 @@ const BLOCKS = [
   dataLifecycleBlock,
   impersonationBlock,
   optionSetsBlock,
+  apiKeysBlock,
+  serviceAccountsBlock,
+  ssoBlock,
 ];
 
 const RENDERED = renderBlocks(
@@ -203,6 +209,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(97);
+    expect(CASES).toHaveLength(101);
   });
 });

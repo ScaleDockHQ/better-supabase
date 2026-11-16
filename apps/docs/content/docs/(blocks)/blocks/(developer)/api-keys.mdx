@@ -327,6 +327,18 @@ create policy deals_read_with_key on public.deals for select to authenticated
   );
 ```
 
+## Paging keys
+
+`keyPage` pages by keyset (ADR 1077), with `keyFacets` and `keyCount`. `list` stays as a deprecated alias until 0.70. Without an `organizationId` the page lists the caller's personal keys. With one it lists the tenant's keys for its managers and the caller's own keys for everyone else. Filters are `userId` and `revoked` (`["true"]` or `["false"]`), `q` searches the name and the prefix, and the sorts are `createdAt`, `name`, `expiresAt` and `lastUsedAt`. Your own fields are read on every row. There is no `get`, because the secret hash never leaves the database and a key is read through `verify`.
+
+```ts
+const active = await apiKeys
+  .keyPage({ organizationId, filters: { revoked: ["false"] }, q: "ci" })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## SQL
 
 | Function                                      | Grants                          | Returns                                                   |

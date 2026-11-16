@@ -9,6 +9,12 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   ensureCheck,
   extraFieldsArg,
   extraFieldsJson,
@@ -301,6 +307,49 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     'state', ${state(alias)}${withSuccessor ? `,\n    'successor_id', ${successor(alias)}` : ""}${extraFieldsJson(alias, extras)}
   )`;
 
+  const keyPage = {
+    name: "page_api_keys",
+    from: t,
+    alias: "x",
+    where: [
+      `(case when page_api_keys.tenant is null then x.${c("user")} = auth.uid() else x.${c("tenant")} = page_api_keys.tenant and (${SERVICE_CALLER} or ${can("page_api_keys.tenant", "manage")} or x.${c("user")} = auth.uid()) end)`,
+      filterAny("userId", `x.${c("user")}::text`),
+      filterAny("revoked", `(x.${c("revokedAt")} is not null)::text`),
+      `(v_search is null or x.${c("name")} ilike v_search or x.${c("prefix")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      name: [
+        { expr: `x.${c("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      expiresAt: [
+        { expr: `x.${c("expiresAt")}`, dir: "asc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      lastUsedAt: [
+        {
+          expr: of("x", "lastUsedAt", "null::timestamptz"),
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { revoked: `(x.${c("revokedAt")} is not null)::text` },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("API_KEY_INVALID", message, "22023"),
+  } as const;
+
   const touchOnly = touches
     ? `update ${t} k set ${c("lastUsedAt")} = now() where k.${c("id")} = found.${c("id")};`
     : "";
@@ -462,6 +511,25 @@ begin
 end;
 $$;
 
+-- A tenant's API keys for its managers (the caller's own otherwise) or, without a tenant, the caller's personal keys, as a keyset page, newest first (ADR 1077). filters is { userId, revoked (each a value or a list), search, sort (createdAt, name, expiresAt, lastUsedAt), direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_api_keys")}(tenant ${id} default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_api_keys.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(keyPage)}
+begin
+  
+  ${listBody(keyPage)}
+end;
+$$;
+
 create or replace function ${fn("revoke_api_key")}(key uuid)
 returns boolean
 language plpgsql
@@ -584,11 +652,13 @@ $$;
 
 revoke execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsArg(extras).type}) from public, anon;
 revoke execute on function ${fn("list_api_keys")}(${id}) from public, anon;
+revoke execute on function ${fn("page_api_keys")}(${id}, jsonb) from public, anon;
 revoke execute on function ${fn("revoke_api_key")}(uuid) from public, anon;
 revoke execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) from public, anon;
 revoke execute on function ${fn("verify_api_key")}(text, text) from public, anon, authenticated;
 grant execute on function ${fn("create_api_key")}(${createArgs}${extraFieldsArg(extras).type}) to authenticated, service_role;
 grant execute on function ${fn("list_api_keys")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("page_api_keys")}(${id}, jsonb) to authenticated, service_role;
 grant execute on function ${fn("revoke_api_key")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("rotate_api_key")}(uuid, text, text, interval) to authenticated, service_role;
 grant execute on function ${fn("verify_api_key")}(text, text) to service_role;
@@ -618,6 +688,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_api_keys", args: ["{id}"], returns: "jsonb" },
+    { name: "page_api_keys", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "revoke_api_key", args: ["uuid"], returns: "boolean" },
     {
       name: "rotate_api_key",

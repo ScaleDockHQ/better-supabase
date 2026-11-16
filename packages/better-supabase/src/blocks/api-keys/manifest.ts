@@ -4,6 +4,7 @@ import type { ApiKeysEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createApiKeys } from "./api-keys.ts";
 import { apiKeysEvents } from "./events.ts";
+import { keyListSurface } from "./lists.ts";
 import { apiKeysSqlOptions } from "./options.ts";
 
 /** The `api-keys` block's manifest (ADR 0029). */
@@ -19,7 +20,11 @@ export const apiKeysBlock: BlockOf<
   create: createApiKeys,
   category: "developer",
   entities: {
-    api_key: { mutability: "state-machine", emits: { create: true } },
+    api_key: {
+      ...keyListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle"],
   limits: { create: { meter: "api_keys_created" } },
