@@ -73,6 +73,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     update: "tenant",
     issue: "tenant",
     payment: "tenant",
+    settle: "tenant",
     credit: "tenant",
     charge: "tenant",
     void: "tenant",

@@ -16,6 +16,11 @@ export interface InvoiceNames
   readonly update: string;
   readonly issue: string;
   readonly payment: string;
+  /**
+   * `permissions.settle`: a second key that may record a payment for the whole
+   * open balance, such as a "mark paid" action.
+   */
+  readonly settle: string;
   readonly credit: string;
   readonly charge: string;
   readonly void: string;

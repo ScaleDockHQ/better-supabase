@@ -216,9 +216,10 @@ export function invoiceFunctions(
     permission: string,
     verb: string,
     lock = true,
+    also = "",
   ): string =>
     `select * into ${target} from ${t("invoices")} x where x.${i("id")} = ${id}${lock ? " for update" : ""};
-  if ${target}.${i("id")} is null or not ${can(target, permission)} then
+  if ${target}.${i("id")} is null or not ${also === "" ? can(target, permission) : `(${can(target, permission)}${also})`} then
     if ${target}.${i("id")} is not null and ${can(target, n.read)} then
       ${fail("INVOICE_FORBIDDEN", `you may not ${verb} this invoice`, "42501")}
     end if;
@@ -238,6 +239,16 @@ export function invoiceFunctions(
 
   const balance = (alias: string): string =>
     `(${alias}.${i("total")}${charges ? ` + ${charged(alias)}` : ""} - ${alias}.${i("creditedTotal")} - ${alias}.${i("paidTotal")})`;
+
+  // permissions.settle also lets a caller pay the whole open balance, or replay
+  // a payment already recorded, without the payment key.
+  const settleKey = (alias: string): string =>
+    n.settle === n.payment
+      ? ""
+      : ` or (${can(alias, n.settle)} and (record_invoice_payment.amount = ${balance(alias)} or exists (
+      select 1 from ${ledger.transactions} y
+      where y.${ledger.tx("tenant")} = ${alias}.${i("tenant")} and y.${ledger.tx("key")} = ${paymentKey("nullif(trim(record_invoice_payment.reference), '')")}
+    )))`;
 
   const amounts = [
     "number",
@@ -945,7 +956,7 @@ declare
   v_reference text;
   v_was text;
 begin
-  ${load("v_row", "record_invoice_payment.invoice", n.payment, "record a payment on")}
+  ${load("v_row", "record_invoice_payment.invoice", n.payment, "record a payment on", true, settleKey("v_row"))}
   if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, afterWriteOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_PAYABLE", "only an issued invoice takes payments", "55000")}
   end if;

@@ -240,4 +240,36 @@ describe.skipIf(!live)("invoice payments", () => {
       await s.close();
     }
   });
+
+  it("lets the settle key pay the whole balance but not a part", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const { member, invoices, invoice } = await withMember(s, "quotes.write");
+
+      await s.as(member);
+      expect(
+        hint(
+          await invoices.recordPayment({
+            invoiceId: invoice.id,
+            payment: { amount: eur(400n) },
+          }),
+        ),
+      ).toBe("INVOICE_FORBIDDEN");
+
+      const paid = await invoices
+        .markPaid({ invoice, method: "bank" })
+        .orThrow();
+
+      expect(paid).toMatchObject({ status: "paid", balance: eur(0n) });
+
+      const replay = await invoices
+        .markPaid({ invoice, method: "bank" })
+        .orThrow();
+
+      expect(replay.paidTotal).toEqual(eur(1000n));
+    } finally {
+      await s.close();
+    }
+  });
 });
