@@ -15077,6 +15077,7 @@ msgid "Channel account"
 msgstr "Channel account"
 
 #: src/features/inbox/components/conversation-context.tsx
+#: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.8lCjAM"
 msgid "Priority"
 msgstr "Priority"
@@ -15272,6 +15273,56 @@ msgid "Unassigned"
 msgstr "Unassigned"
 
 #: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.uCkn4-"
+msgid "All priorities"
+msgstr "All priorities"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.yN7aqf"
+msgid "Urgent"
+msgstr "Urgent"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.AxMhQr"
+msgid "High"
+msgstr "High"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.myq2ZL"
+msgid "Normal"
+msgstr "Normal"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.477I0g"
+msgid "Low"
+msgstr "Low"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KrNis5"
+msgid "Any first response"
+msgstr "Any first response"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.g9pEhE"
+msgid "Due"
+msgstr "Due"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.Ou2gQk"
+msgid "Breached"
+msgstr "Breached"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.eEVxHv"
+msgid "On track"
+msgstr "On track"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.GN8_Bw"
+msgid "Met"
+msgstr "Met"
+
+#: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.1udzha"
 msgid "Conversations"
 msgstr "Conversations"
@@ -15290,6 +15341,11 @@ msgstr "Status"
 msgctxt "inbox.vx8bv3"
 msgid "Assignee"
 msgstr "Assignee"
+
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.5W7LEp"
+msgid "SLA"
+msgstr "SLA"
 
 #: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.XayNHe"

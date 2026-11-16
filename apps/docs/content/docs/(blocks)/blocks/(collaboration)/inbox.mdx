@@ -56,7 +56,21 @@ staff and the service.
 
 ## Paging conversations
 
-`conversations.page` pages conversations by keyset (ADR 1077), with `facets` and `count`, and `conversations.getConversation` returns a `not_found` error for an unknown id. `status` is `open` by default (`["all"]` reads every status). Sorts are `lastMessageAt` (the default) and `createdAt`, `inboxId`, `teamId`, `contactId`, `status` and `assignee` filter by a list of values, and `q` searches the subject, the preview and the contact. The organization comes from `organizationId` or the block's `tenant` option. `conversations.list` and `conversations.get` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+`conversations.page` pages conversations by keyset (ADR 1077), with `facets` and `count`, and `conversations.getConversation` returns a `not_found` error for an unknown id. `status` is `open` by default (`["all"]` reads every status). Sorts are `lastMessageAt` (the default) and `createdAt`, `inboxId`, `teamId`, `contactId`, `status`, `assignee`, `priority`, `sla`, `slaMinutes` and `tagId` filter by a list of values, and `q` searches the subject, the preview and the contact. `priority` takes `low`, `normal`, `high` or `urgent`. `sla` takes the first response states `ok`, `due`, `breached` and `met`, judged against `slaMinutes` (one value, 60 by default). `tagId` keeps the conversations that carry any of the tags and needs the `tags` block. The facets are `status`, `inboxId`, `priority` and `sla`. The organization comes from `organizationId` or the block's `tenant` option. `conversations.list` and `conversations.get` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
+## Paging inboxes and templates
+
+`inboxes.page` and `templates.page` page the organization's channel accounts and message templates by keyset, each with `facets` and `count`, and `inboxes.getInbox` and `templates.getTemplate` return a `not_found` error for an unknown id. Both sort by `name` (the default) or `createdAt`. `inboxes.page` filters by `channel`, `botMode` and `archived` (archived inboxes are hidden unless `archived` is `["true"]`) and searches the name and the address. `templates.page` filters by `channel`, `language` and `inboxId` and searches the name and the body. The organization comes from `organizationId` or the block's `tenant` option. Both run as the caller, so the read policy of each table decides which rows come back.
+
+```ts
+const inboxes = await inbox.inboxes
+  .page({ organizationId, filters: { channel: ["whatsapp"] } })
+  .orThrow();
+
+const macros = await inbox.templates
+  .page({ organizationId, q: "follow", limit: 20 })
+  .orThrow();
+```
 
 ## Creating the client
 
@@ -163,7 +177,7 @@ await inbox.conversations.resolve(conversation.id).orThrow();
 | `messages.send`, `note`, `list`, `get`, `edit`, `remove`, `react`  | Messages and notes; `remove` leaves a tombstone                              |
 | `messages.createUpload`, `confirmUpload`                           | A file upload: an attachment row, then its id in `attachments`               |
 | `files.pending`, `stored`, `failed`                                | Service only: channel files to fetch, upload and confirm                     |
-| `templates.upsert`, `delete`                                       | Approved channel templates, such as WhatsApp's                               |
+| `templates.upsert`, `delete`, `page`, `getTemplate`                | Approved channel templates, such as WhatsApp's, and their keyset page        |
 | `purgeContact(contactId)`                                          | Erases a person and their conversations; returns attachment paths to delete  |
 
 A note is a message with `kind: "note"`: staff with `inbox.read` read it,

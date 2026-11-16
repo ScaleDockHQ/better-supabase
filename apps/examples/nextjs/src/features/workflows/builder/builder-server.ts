@@ -55,3 +55,18 @@ export function builderFor(supabase: RpcClient) {
 export function serviceBuilder() {
   return builderFor(bsbCore.admin().$client);
 }
+
+/** One definition by id, or `undefined` when the caller cannot see it. */
+export async function findDefinition(supabase: RpcClient, id: string) {
+  const found = await builderFor(supabase).definitions.getDefinition(id);
+
+  if (found.ok) {
+    return found.data;
+  }
+
+  if (found.error.code === "not_found") {
+    return;
+  }
+
+  throw new Error(found.error.message);
+}

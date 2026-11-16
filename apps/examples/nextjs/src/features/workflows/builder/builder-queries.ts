@@ -11,7 +11,7 @@ import "server-only";
 
 import { bsbCore } from "@/lib/supabase/server-core";
 
-import { builderFor } from "./builder-server";
+import { builderFor, findDefinition } from "./builder-server";
 
 /** A definition as plain data, so it crosses the server boundary. */
 export interface DefinitionRow {
@@ -85,7 +85,7 @@ export async function getBuilderDetail(
   }
 
   const builder = builderFor(supabase);
-  const definition = await builder.definitions.get(id).orThrow();
+  const definition = await findDefinition(supabase, id);
 
   if (definition?.tenant !== tenant) {
     return null;
@@ -96,7 +96,15 @@ export async function getBuilderDetail(
       builder.versions.list(id, { limit: 50 }).orThrow(),
       builder.steps.list({ limit: 200 }).orThrow(),
       builder.nodeKinds.list().orThrow(),
-      builder.definitions.list({ tenant, limit: 100 }).orThrow(),
+      builder.definitions
+        .page({
+          organizationId: tenant,
+          limit: 100,
+          filters: { state: ["published"] },
+          sort: { by: "name", direction: "asc" },
+        })
+        .map((page) => page.items)
+        .orThrow(),
       builder.triggers.list(id, { limit: 50 }).orThrow(),
       builder.credentials.list(tenant, { limit: 100 }).orThrow(),
     ]);
@@ -139,7 +147,7 @@ export async function getBuilderDetail(
       publishedAt: version.publishedAt?.toString() ?? null,
     })),
     definitions: others
-      .filter((other) => other.id !== id && other.published !== undefined)
+      .filter((other) => other.id !== id)
       .map((other) => ({ id: other.id, name: other.name })),
     triggers: triggers.map((trigger) => ({
       id: trigger.id,

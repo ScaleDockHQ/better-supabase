@@ -15,7 +15,7 @@ import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { JsonObject } from "./builder/config-templates";
 
-import { builderFor } from "./builder/builder-server";
+import { builderFor, findDefinition } from "./builder/builder-server";
 import { JsonObjectSchema } from "./builder/config-templates";
 import { workflowName } from "./workflow-labels";
 
@@ -122,7 +122,7 @@ export async function getRunDetail(
 
   if (definitionId !== null) {
     const [definition, versions] = await Promise.all([
-      builder.definitions.get(definitionId).orThrow(),
+      findDefinition(supabase, definitionId),
       builder.versions.list(definitionId, { limit: 50 }).orThrow(),
     ]);
 
