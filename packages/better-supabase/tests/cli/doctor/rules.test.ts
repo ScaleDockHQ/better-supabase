@@ -4345,6 +4345,17 @@ describe("peer versions (BS601)", () => {
     ]);
     expect(await run("BS601", context(base))).toEqual([]);
   });
+
+  it("skips a peer that only another dependency installs", async () => {
+    const peers = [
+      { name: "vue", range: ">=3.5 <4", installed: "3.4.0", direct: false },
+      { name: "undici", range: ">=7 <8", installed: "6.0.0", direct: true },
+    ];
+
+    const findings = await run("BS601", context(base, { peers }));
+
+    expect(findings.map((finding) => finding.target)).toEqual(["undici"]);
+  });
 });
 
 describe("content mapper setup (BS602)", () => {

@@ -83,5 +83,22 @@ describe("installed versions", () => {
     const pgdelta = versions.find((peer) => peer.name === "@supabase/pg-delta");
 
     expect(pgdelta?.installed).toMatch(/^1\.0\.0-alpha\./);
+    expect(pgdelta?.direct).toBeUndefined();
+  });
+
+  it("says whether the project lists the peer itself", async () => {
+    const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
+
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ devDependencies: { "@supabase/pg-delta": "1.0.0" } }),
+    );
+
+    const versions = await peerVersions(root);
+
+    expect(
+      versions.find((peer) => peer.name === "@supabase/pg-delta")?.direct,
+    ).toBe(true);
+    expect(versions.find((peer) => peer.name === "hono")?.direct).toBe(false);
   });
 });
