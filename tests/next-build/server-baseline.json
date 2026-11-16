@@ -1212,7 +1212,7 @@
   "/[locale]/(app)/warehouse/page": {
     "raw": 3203370,
     "gzip": 972620,
-    "brotli": 806979
+    "brotli": 809001
   },
   "/[locale]/(app)/warehouse/rules/[id]/page": {
     "raw": 3216600,
