@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.67.1 (2026-11-16)
+
+- `add --adopt` writes a block's data statements again when an upgrade step
+  since the version an earlier data migration recorded asks for it. The search
+  2 to 3 upgrade does, so the adopted migration carries `search_reindex()` again
+  and existing documents get their `facets` and `sort_key`.
+- `codemod naming` keeps the check constraints the app's own schema files and
+  seeds name on block tables (`alter table better_supabase.profiles add
+  constraint profiles_locale_check ...`). Its `bsb_` loop renamed them, and the
+  next schema diff renamed them back.
+- `better-supabase codemod` skips a folder that holds its own `.git`, such as a
+  linked git worktree inside the project, so it no longer rewrites another
+  checkout's files.
+- Leave request notes are private: `list`, `requestPage` and `get` return `note`
+  only to the requester, their manager and members with `leave.approve` or
+  `leave.manage`, and `null` to other readers, and `q` no longer matches notes
+  the caller can't read. `get_leave_request` checks the caller itself instead of
+  relying on the table's read policy. A block table listed in `expose` keeps the
+  privileges the grants module writes: the block no longer adds its own
+  table-wide select grant, so `select(*, -note, -decision_note)` closes direct
+  reads of the note columns.
+- Ledger version 2: `upgrade` adds `ledger_entries.effective_at` and copies it
+  from the entry's transaction, so entries posted before the column keep their
+  transaction's time instead of the upgrade time. Run `better-supabase upgrade`
+  and apply the migration.
+- `upgrade --preserve <file>` writes the new render to `<file>.new`, keeps the
+  hand-edited file, and writes the other blocks. The path never matched the
+  planned one, so it skipped the file, wrote no `.new` and stopped the rest.
+
 ## 0.67.0 (2026-11-16)
 
 - Breaking: `agents` gets `archive` and `restore`, and the hard delete of an agent
