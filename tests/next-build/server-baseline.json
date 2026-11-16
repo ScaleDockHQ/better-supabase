@@ -1816,13 +1816,13 @@
   },
   "/api/v1/[...path]/route": {
     "raw": 1087305,
-    "gzip": 343452,
-    "brotli": 299262
+    "gzip": 343630,
+    "brotli": 299478
   },
   "/api/v1/openapi.json/route": {
     "raw": 1173722,
-    "gzip": 372984,
-    "brotli": 325498
+    "gzip": 373061,
+    "brotli": 325617
   },
   "/api/warranty/list/route": {
     "raw": 2744689,

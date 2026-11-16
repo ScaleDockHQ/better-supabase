@@ -1,4 +1,4 @@
-/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated methods until 0.70 (ADR 1077). 3 findings. */
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated methods until 0.70 (ADR 1077). 4 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createCustomFields } from "../../src/blocks/custom-fields/index.ts";

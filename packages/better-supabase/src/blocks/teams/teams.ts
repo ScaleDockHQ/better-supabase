@@ -3,13 +3,26 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
+import { foundRow } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -24,6 +37,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { teamListSurface } from "./lists.ts";
 
 export interface TeamsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -114,10 +128,34 @@ export interface Teams<F extends object = Record<never, never>> {
   addMember(input: TeamMemberInput): AsyncResult<boolean>;
   /** Removes a user or an employee; a row with both goes as a whole. */
   removeMember(input: TeamMemberInput): AsyncResult<boolean>;
+  /**
+   * The organization's teams by name, at most 200.
+   *
+   * @deprecated Use `teamPage`, which pages by keyset and takes `q`, `sort`
+   * and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   list(
     organizationId: string,
     options?: { readonly limit?: number },
   ): AsyncResult<readonly Team<F>[]>;
+  /**
+   * One keyset page of teams, by name unless `sort` says otherwise. `filters`
+   * takes `status` (a list); `q` searches the name, the slug and the
+   * description. The organization comes from `organizationId`.
+   */
+  teamPage(
+    options: PageOptions & { readonly organizationId: string },
+  ): AsyncResult<ListPage<Team<F>>>;
+  /** The values of each facet (`status`) under the page's filters. */
+  teamFacets(
+    options: FacetOptions & { readonly organizationId: string },
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many teams match the page's filters. */
+  teamCount(
+    options: CountOptions & { readonly organizationId: string },
+  ): AsyncResult<Count>;
+  /** One team the caller may read, or a `not_found` error. */
+  getTeam(id: string): AsyncResult<Team<F>>;
   /**
    * Makes `userIds` the team's user members and `employeeIds` its employee
    * members: it adds the missing ones and removes the others, and returns what
@@ -178,6 +216,15 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "team fields");
+
+  const teamRows = entityList<Team, TenantOption>({
+    entity: "team",
+    surface: teamListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "list_teams",
+    rowOf: (row) => teamOf(row),
+  });
 
   const client: Teams<F> = {
     create: ({
@@ -244,17 +291,37 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
       call("add_team_member", memberArgs(input), (value) => value === true),
     removeMember: (input) =>
       call("remove_team_member", memberArgs(input), (value) => value === true),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (organizationId, options) =>
-      call("list_teams", { tenant: organizationId }, (value) => {
-        const rows = recordsOf(value, "list_teams").map(teamOf);
+      call(
+        "list_teams",
+        { tenant: organizationId, filters: { limit: 200 } },
+        (value) => {
+          const rows = recordsOf(value, "list_teams").map(teamOf);
 
-        return options?.limit === undefined
-          ? rows
-          : rows.slice(0, options.limit);
-      }).andThen(fields.rows),
+          return options?.limit === undefined
+            ? rows
+            : rows.slice(0, options.limit);
+        },
+      ).andThen(fields.rows),
+    teamPage: (page) =>
+      teamRows
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    teamFacets: teamRows.facets,
+    teamCount: teamRows.count,
+    getTeam: (id) =>
+      foundRow(
+        call("get_team", { team: id }, (value) => value),
+        "team not found",
+        (row) => teamOf(row),
+      ).andThen(fields.row),
     setMembers: ({ organizationId, teamId, userIds, employeeIds }) =>
       AsyncResult.from(async () => {
         const current = async (key: "memberIds" | "memberEmployeeIds") => {
+          // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
           const teams = await hooked.list(organizationId);
 
           if (!teams.ok) {

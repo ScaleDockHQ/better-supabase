@@ -278,7 +278,9 @@ export const loadDriveSharing = bsb.action(
     const [grants, members, teams] = await Promise.all([
       driveOf(db).grants(id),
       getMembers(tenant),
-      db.teams.list(tenant),
+      db.teams
+        .teamPage({ organizationId: tenant, limit: 200 })
+        .map((page) => page.items),
     ]);
 
     if (!grants.ok) {
