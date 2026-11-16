@@ -218,6 +218,35 @@ describe("applyPlan", () => {
     );
     expect(await readIfExists(join(kept, "edited.sql"))).toContain("select 2");
     expect(await readIfExists(join(kept, "clean.sql"))).toContain("select 3");
+
+    const absolute = await project({
+      "clean.sql": block,
+      "edited.sql": block.replace("select 1", "select 2"),
+    });
+
+    const sqlPlanned = await applyPlan(
+      plan(
+        absolute,
+        ["clean.sql", "edited.sql"].map((path) => ({
+          path: join(absolute, path),
+          contents: withBlockHash(
+            "-- @bsb-block tags@2 managed\n\nselect 3;\n",
+          ),
+          policy: "block" as const,
+        })),
+      ),
+      { preserve: ["edited.sql"] },
+    );
+
+    expect(changeLines(sqlPlanned)).toContain(
+      "Skipped edited.sql (left in place; the new render is beside it as .new)",
+    );
+    expect(await readFile(join(absolute, "edited.sql.new"), "utf-8")).toContain(
+      "select 3",
+    );
+    expect(await readIfExists(join(absolute, "clean.sql"))).toContain(
+      "select 3",
+    );
   });
 
   it("keeps a removal whose guard gives a reason, unless --force is set", async () => {

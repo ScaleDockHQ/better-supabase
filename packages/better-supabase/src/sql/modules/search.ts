@@ -969,6 +969,7 @@ export const SEARCH: BlockSqlDefinition = {
       description:
         "search_documents gets facets and sort_key columns, their indexes and search_page. The module's data file indexes every record again to fill them.",
       sql: () => "",
+      data: true,
     },
     {
       from: 3,

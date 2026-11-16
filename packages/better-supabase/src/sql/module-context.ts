@@ -86,6 +86,13 @@ export function moduleContext(
         ? { permissionCatalog: layout.permissionCatalog }
         : {}),
       ...(layout.rerunnable === true ? { rerunnable: true } : {}),
+      ...(layout.grants
+        ? {
+            exposed: layout.grants.map(({ table }) =>
+              table.includes(".") ? table : `public.${table}`,
+            ),
+          }
+        : {}),
       ...(layout.accessProvider?.wildcards
         ? { permissionWildcards: layout.accessProvider.wildcards }
         : {}),

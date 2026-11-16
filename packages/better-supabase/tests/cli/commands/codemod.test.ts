@@ -122,6 +122,20 @@ describe("runCodemod", () => {
     );
   });
 
+  it("skips a nested checkout, such as a linked git worktree", async () => {
+    const worktree = join(root, ".claude/worktrees/feature");
+    await mkdir(join(worktree, "src"), { recursive: true });
+    await writeFile(join(worktree, ".git"), "gitdir: /elsewhere\n");
+    await writeFile(
+      join(worktree, "src/client.ts"),
+      `import { buildJsonSchema } from "better-supabase/config";\n`,
+    );
+
+    const dry = await codemod(["naming", "--dry-run"]);
+    expect(dry.output).not.toContain("worktrees");
+    expect(dry.output).toContain("Would update 2 of 3 files.");
+  });
+
   it("writes the SQL a codemod returns as one new migration", async () => {
     // SAFETY: CODEMODS is a plain object; the test adds one entry and removes it.
     const registry = CODEMODS as Record<string, Codemod>;

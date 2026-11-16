@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
--- @bsb-block ledger@1 managed
+-- @bsb-block ledger@2 managed
 -- @bsb-hash sha256:ec0b3b381ba7e4d35902906bae7f128f4a6ceccfe4674a37eefc0be454e5a057
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -927,13 +927,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as res
 -- ==== data supabase/better-supabase-data/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block-data ledger
--- @bsb-hash sha256:06938b221990c160f1a1ccd8d1df9f3ab7420e37c18081a48be4a911fac889a0
+-- @bsb-hash sha256:a2971168d560bfd7120a8cf2d81b69cfcdc32f3e9d43086075d0d2e5878459f6
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ledger', 1, 'managed')
+values ('ledger', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

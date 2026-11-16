@@ -1,6 +1,6 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:0a13f2f714735c53ffd8467ff63f067dcd2c1260a2ab47d0e969fa1c9bada7b3
+-- @bsb-hash sha256:1b1d38df825dc421d1e70ae5bb0d52f24f31b07752bdddbc5f52727409adfdc6
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -687,7 +687,14 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then v_row."note" end, 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."request_leave"(uuid, uuid, date, date, text, numeric, text) from public, anon;
@@ -777,7 +784,14 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then v_row."note" end, 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_leave_request"(uuid) from public, anon;
@@ -919,7 +933,14 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then v_row."note" end, 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_leave_request"(uuid, date, date, text, numeric, text) from public, anon;
@@ -1005,8 +1026,22 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
   );
   return jsonb_build_object(
-    'request', (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', case when x."cancelled_at" is not null then 'cancelled' when x."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."leave_requests" x where x."id" = v_old."id"),
-    'split', jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at")
+    'request', (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', case when x."cancelled_at" is not null then 'cancelled' when x."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."leave_requests" x where x."id" = v_old."id"),
+    'split', jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then v_row."note" end, 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at")
   );
 end;
 $$;
@@ -1096,7 +1131,14 @@ begin
   end if;
   select coalesce(jsonb_agg(z.item order by z.starts, z.created), '[]'::jsonb) into v_rows
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'typeId', r."type_id", 'startsOn', r."starts_on", 'endsOn', r."ends_on", 'partial', r."partial", 'amount', r."amount"::text, 'note', r."note", 'status', case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', r."approval_id", 'approvedAt', r."approved_at", 'cancelledAt', r."cancelled_at", 'createdAt', r."created_at", 'updatedAt', r."updated_at") as item, r."starts_on" as starts, r."created_at" as created
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'typeId', r."type_id", 'startsOn', r."starts_on", 'endsOn', r."ends_on", 'partial', r."partial", 'amount', r."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = r."tenant_id" and me."user_id" = r."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = r."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', r."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', r."tenant_id", 'leave.manage'), false)) then r."note" end, 'status', case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', r."approval_id", 'approvedAt', r."approved_at", 'cancelledAt', r."cancelled_at", 'createdAt', r."created_at", 'updatedAt', r."updated_at") as item, r."starts_on" as starts, r."created_at" as created
     from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id"
     where r."tenant_id" = list_leave_requests.tenant
@@ -1179,7 +1221,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1200,7 +1249,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1220,7 +1276,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1230,7 +1293,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."starts_on", x."created_at", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."starts_on" asc, x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1245,7 +1315,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1255,7 +1332,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."created_at" > (v_after ->> 1)::timestamptz) or (x."starts_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."starts_on" desc, x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1270,7 +1354,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1280,7 +1371,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."starts_on", x."created_at", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."starts_on" asc, x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1295,7 +1393,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_on")::text, (x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1305,7 +1410,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."starts_on" <= (v_after ->> 0)::date and ((x."starts_on" < (v_after ->> 0)::date) or (x."starts_on" = (v_after ->> 0)::date and x."created_at" > (v_after ->> 1)::timestamptz) or (x."starts_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
       order by x."starts_on" desc, x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1320,7 +1432,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."ends_on")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."ends_on")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1330,7 +1449,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."ends_on", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by x."ends_on" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1345,7 +1471,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."ends_on")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."ends_on")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1355,7 +1488,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."ends_on" <= (v_after ->> 0)::date and ((x."ends_on" < (v_after ->> 0)::date) or (x."ends_on" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
       order by x."ends_on" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1370,7 +1510,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1380,7 +1527,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1395,7 +1549,14 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', x."note", 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false)) then x."note" end, 'status', x.leave_status, 'approvalId', x."approval_id", 'approvedAt', x."approved_at", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from (select r.*, case when r."cancelled_at" is not null then 'cancelled' when r."approved_at" is not null then 'approved' when p."status" in ('rejected', 'expired') then 'rejected' when p."status" = 'cancelled' then 'cancelled' else 'pending' end as leave_status from "better_supabase"."leave_requests" r
     left join "better_supabase"."approval_requests" p on p."id" = r."approval_id") x
@@ -1405,7 +1566,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1425,7 +1593,14 @@ begin
         and (not (v_filters -> 'typeId' is not null and jsonb_typeof(v_filters -> 'typeId') <> 'null' and not (jsonb_typeof(v_filters -> 'typeId') = 'array' and jsonb_array_length(v_filters -> 'typeId') = 0)) or x."type_id"::text = any((case when jsonb_typeof(v_filters -> 'typeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'typeId')) else array[v_filters ->> 'typeId'] end)::text[]))
         and (v_from is null or x."ends_on" >= v_from)
         and (v_to is null or x."starts_on" <= v_to)
-        and (v_search is null or x."note" ilike v_search or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
+        and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', x."tenant_id", 'leave.manage'), false))) or exists (select 1 from "better_supabase"."leave_types" st where st."id"::text = x."type_id"::text and st."name" ilike v_search))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1437,13 +1612,14 @@ $$;
 revoke execute on function "better_supabase"."page_leave_requests"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."page_leave_requests"(uuid, jsonb) to authenticated, service_role;
 
--- One request by id. Security invoker: the read policy of the requests table
--- decides what the caller sees.
+-- One request by id, when the caller may read it: their own, or any with the
+-- read permission. It reads the table as its owner, so an app that revokes
+-- the note column from authenticated still gets it here.
 create or replace function "better_supabase"."get_leave_request"(request_id uuid)
 returns jsonb
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -1452,11 +1628,18 @@ declare
   v_approval "better_supabase"."approval_requests"%rowtype;
 begin
   select * into v_row from "better_supabase"."leave_requests" x where x."id" = get_leave_request.request_id;
-  if not found then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.read'), false))) then
     raise exception 'leave request not found' using errcode = 'P0002', hint = 'LEAVE_REQUEST_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', v_row."note", 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
+      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
+      where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+      limit 1) = auth.uid(), false) and exists (
+      select 1 from "public"."memberships" mm
+      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid()
+    )) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then v_row."note" end, 'status', case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end, 'approvalId', v_row."approval_id", 'approvedAt', v_row."approved_at", 'cancelledAt', v_row."cancelled_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_leave_request"(uuid) from public, anon;

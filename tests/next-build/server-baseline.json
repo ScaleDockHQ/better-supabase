@@ -316,8 +316,8 @@
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
     "raw": 3213843,
-    "gzip": 975014,
-    "brotli": 810954
+    "gzip": 975018,
+    "brotli": 810968
   },
   "/[locale]/(app)/crm/forecasts/page": {
     "raw": 3201905,
@@ -331,8 +331,8 @@
   },
   "/[locale]/(app)/crm/pipelines/[id]/page": {
     "raw": 3213843,
-    "gzip": 975015,
-    "brotli": 810966
+    "gzip": 975018,
+    "brotli": 810988
   },
   "/[locale]/(app)/crm/pipelines/page": {
     "raw": 3201189,
@@ -342,7 +342,7 @@
   "/[locale]/(app)/crm/queues/[id]/page": {
     "raw": 3202946,
     "gzip": 973262,
-    "brotli": 807312
+    "brotli": 807328
   },
   "/[locale]/(app)/crm/queues/page": {
     "raw": 3207294,
@@ -367,7 +367,7 @@
   "/[locale]/(app)/crm/scoring/[id]/page": {
     "raw": 3202952,
     "gzip": 973264,
-    "brotli": 807304
+    "brotli": 807321
   },
   "/[locale]/(app)/crm/scoring/page": {
     "raw": 3207295,
@@ -377,7 +377,7 @@
   "/[locale]/(app)/crm/segments/[id]/page": {
     "raw": 3202958,
     "gzip": 973267,
-    "brotli": 807307
+    "brotli": 807329
   },
   "/[locale]/(app)/crm/segments/page": {
     "raw": 3207302,

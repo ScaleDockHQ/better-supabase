@@ -286,7 +286,7 @@
     "security-definer-functions": 56
   },
   "leave": {
-    "security-definer-functions": 129,
+    "security-definer-functions": 135,
     "row-triggers": 2
   },
   "ledger": {
