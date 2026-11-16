@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:76d433f4919e5b2f7ef572f8d9fbd1f0754ff3af2de23cf522662cfe56b9d3d1
+-- @bsb-hash sha256:69f0e2efa613d65b07a093f83a862bdadc98d6db11bc4a067b6c69f679952eed
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -502,7 +502,7 @@ revoke execute on function "better_supabase"."get_gift"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -514,6 +514,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -548,6 +550,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -567,6 +570,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -595,6 +599,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -618,6 +623,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -641,6 +647,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -664,6 +671,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -687,6 +695,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -710,6 +719,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -728,6 +738,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -834,7 +845,7 @@ revoke execute on function "better_supabase"."update_pledge"(uuid, text, date, b
 grant execute on function "better_supabase"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -846,6 +857,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -878,6 +891,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -895,6 +909,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -921,6 +936,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -942,6 +958,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -963,6 +980,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -984,6 +1002,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -1000,6 +1019,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1371,7 +1391,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:de4c24352331203c8741e840e6287985cbbc224d13f0074964b01c7e11839f30
+-- @bsb-hash sha256:56e2304bc306a00d9a3d78558b6b94ecf384dcec960b686504e52b78c0cd77a1
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1919,7 +1939,7 @@ revoke execute on function "better_supabase"."get_gift"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -1931,6 +1951,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -1965,6 +1987,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1984,6 +2007,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2012,6 +2036,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2035,6 +2060,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2058,6 +2084,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2081,6 +2108,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2104,6 +2132,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2127,6 +2156,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2145,6 +2175,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2269,7 +2300,7 @@ revoke execute on function "better_supabase"."update_pledge"(uuid, text, date, b
 grant execute on function "better_supabase"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -2281,6 +2312,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2313,6 +2346,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2330,6 +2364,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2356,6 +2391,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2377,6 +2413,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2398,6 +2435,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2419,6 +2457,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -2435,6 +2474,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2864,7 +2904,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:075fd770d4f903b3f4042d5372fc07717d9c8aecdc1f43ed7400d2f9e4183344
+-- @bsb-hash sha256:4953ec89bb5108f0bd91e326a9a29795968050eea1a86f3d38aabc00a0394574
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3370,7 +3410,7 @@ revoke execute on function "app_private"."get_gift"(uuid) from public, anon;
 grant execute on function "app_private"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "app_private"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -3382,6 +3422,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3416,6 +3458,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3435,6 +3478,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3463,6 +3507,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3486,6 +3531,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3509,6 +3555,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3532,6 +3579,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3555,6 +3603,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3578,6 +3627,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3596,6 +3646,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -3702,7 +3753,7 @@ revoke execute on function "app_private"."update_pledge"(uuid, text, date, bigin
 grant execute on function "app_private"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "app_private"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -3714,6 +3765,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3746,6 +3799,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3763,6 +3817,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3789,6 +3844,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3810,6 +3866,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3831,6 +3888,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3852,6 +3910,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -3868,6 +3927,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -4239,7 +4299,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:2bbf1613ff807c715baa80ef83b9a0c1a25f9cd48049bad794441b38f5e70d6d
+-- @bsb-hash sha256:205e53bd45bd594aaeeee0aa89673a636dd3038297c2f6afcd7c20642c57b74a
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4740,7 +4800,7 @@ revoke execute on function "better_supabase"."get_gift"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -4752,6 +4812,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -4786,6 +4848,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -4805,6 +4868,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -4833,6 +4897,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4856,6 +4921,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4879,6 +4945,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4902,6 +4969,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4925,6 +4993,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4948,6 +5017,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -4966,6 +5036,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -5072,7 +5143,7 @@ revoke execute on function "better_supabase"."update_pledge"(uuid, text, date, b
 grant execute on function "better_supabase"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -5084,6 +5155,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -5116,6 +5189,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -5133,6 +5207,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -5159,6 +5234,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -5180,6 +5256,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -5201,6 +5278,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -5222,6 +5300,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -5238,6 +5317,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -5782,7 +5862,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:c9d4d0bbd899a87c3064ec7b44e99e5cc6ece7b049275cb27beaedaf1078ccbc
+-- @bsb-hash sha256:a77eec3821bb14803055737e4eba6c58820d63852d99ed52ba97ea466c7d345b
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6268,7 +6348,7 @@ revoke execute on function "better_supabase"."get_gift"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -6280,6 +6360,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -6314,6 +6396,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -6333,6 +6416,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -6361,6 +6445,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6384,6 +6469,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6407,6 +6493,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6430,6 +6517,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6453,6 +6541,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6476,6 +6565,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6494,6 +6584,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -6600,7 +6691,7 @@ revoke execute on function "better_supabase"."update_pledge"(uuid, text, date, b
 grant execute on function "better_supabase"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -6612,6 +6703,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -6644,6 +6737,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -6661,6 +6755,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -6687,6 +6782,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6708,6 +6804,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6729,6 +6826,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6750,6 +6848,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -6766,6 +6865,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -7137,7 +7237,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:dba8c93c32af943281b7c68a36389329cc28d2c28df91064af86e81e0790aa81
+-- @bsb-hash sha256:74d1ebec60f9f1c224fbf60ddd3bdbee8b0ee50bc1d8e928881bb8556b3875f6
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7638,7 +7738,7 @@ revoke execute on function "better_supabase"."get_gift"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_gift"(uuid) to authenticated, service_role;
 
 -- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
--- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- (each a value or a list), search (the donor id, payment reference or note), sort, direction, facet, count, limit, after, offset,
 -- paged, total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_gifts"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -7650,6 +7750,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -7684,6 +7786,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -7703,6 +7806,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -7731,6 +7835,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7754,6 +7859,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7777,6 +7883,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on" >= (v_after ->> 0)::date and ((x."received_on" > (v_after ->> 0)::date) or (x."received_on" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."received_on" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
       order by x."received_on" asc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7800,6 +7907,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."received_on", x."created_at", x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by x."received_on" desc, x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7823,6 +7931,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7846,6 +7955,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -7864,6 +7974,7 @@ begin
         and (not (v_filters -> 'fundId' is not null and jsonb_typeof(v_filters -> 'fundId') <> 'null' and not (jsonb_typeof(v_filters -> 'fundId') = 'array' and jsonb_array_length(v_filters -> 'fundId') = 0)) or x."fund_id" = any((case when jsonb_typeof(v_filters -> 'fundId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'fundId')) else array[v_filters ->> 'fundId'] end)::uuid[]))
         and (not (v_filters -> 'pledgeId' is not null and jsonb_typeof(v_filters -> 'pledgeId') <> 'null' and not (jsonb_typeof(v_filters -> 'pledgeId') = 'array' and jsonb_array_length(v_filters -> 'pledgeId') = 0)) or x."pledge_id" = any((case when jsonb_typeof(v_filters -> 'pledgeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pledgeId')) else array[v_filters ->> 'pledgeId'] end)::uuid[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."payment_reference", '') ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -7970,7 +8081,7 @@ revoke execute on function "better_supabase"."update_pledge"(uuid, text, date, b
 grant execute on function "better_supabase"."update_pledge"(uuid, text, date, bigint) to authenticated, service_role;
 
 -- Pledges, newest first. filters is { donorType, donorId, status (each a value
--- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- or a list), search (the donor id or note), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_pledges"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -7982,6 +8093,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 1000);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -8014,6 +8127,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -8031,6 +8145,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -8057,6 +8172,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -8078,6 +8194,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -8099,6 +8216,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -8120,6 +8238,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -8136,6 +8255,7 @@ begin
         and (not (v_filters -> 'donorType' is not null and jsonb_typeof(v_filters -> 'donorType') <> 'null' and not (jsonb_typeof(v_filters -> 'donorType') = 'array' and jsonb_array_length(v_filters -> 'donorType') = 0)) or x."donor_type" = any((case when jsonb_typeof(v_filters -> 'donorType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorType')) else array[v_filters ->> 'donorType'] end)::text[]))
         and (not (v_filters -> 'donorId' is not null and jsonb_typeof(v_filters -> 'donorId') <> 'null' and not (jsonb_typeof(v_filters -> 'donorId') = 'array' and jsonb_array_length(v_filters -> 'donorId') = 0)) or x."donor_id" = any((case when jsonb_typeof(v_filters -> 'donorId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'donorId')) else array[v_filters ->> 'donorId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."donor_id" ilike v_search or coalesce(x."note", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

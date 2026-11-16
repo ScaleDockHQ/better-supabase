@@ -1,6 +1,6 @@
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:65258069da5c41c55bd4637a5e6ba4bf772ba732e0470d71ecb69d1b4f5d3c08
+-- @bsb-hash sha256:fbab235971c1a7a1576e3d19d5304411ce1f5081b346d57ce17238dd32d22379
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -857,8 +857,11 @@ $$;
 revoke execute on function "better_supabase"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."my_review"(uuid, text, text) to authenticated, service_role;
 
--- Reviews for moderators, newest first: pending by default.
-create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+-- Reviews for moderators, newest first: pending by default. statuses is a list
+-- of statuses and matches a review in any of them (ADR 1077); an empty list
+-- leaves the status off, and it combines with status by and.
+
+create or replace function "better_supabase"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language plpgsql
 stable
@@ -878,6 +881,7 @@ begin
     from "better_supabase"."reviews" x
     where x."tenant_id" = review_queue.tenant
       and (review_queue.status is null or x."status" = review_queue.status)
+      and (coalesce(cardinality(review_queue.statuses), 0) = 0 or x."status" in (select s from unnest(review_queue.statuses) s))
       and (review_queue.subject_type is null or x."subject_type" = review_queue.subject_type)
       and (review_queue.subject_id is null or x."subject_id" = review_queue.subject_id)
       and (review_queue.before is null or x."created_at" < review_queue.before)
@@ -887,8 +891,8 @@ begin
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 -- The rating aggregate of up to 200 subjects of one type, as
 -- { subjectId: { count, average, histogram } }, for the subjects the caller
@@ -1058,15 +1062,15 @@ as $$ select "better_supabase"."my_review"($1, $2, $3) $$;
 revoke execute on function "api"."my_review"(uuid, text, text) from public, anon;
 grant execute on function "api"."my_review"(uuid, text, text) to authenticated, service_role;
 
-create or replace function "api"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null)
+create or replace function "api"."review_queue"(tenant uuid, status text default 'pending', page_size integer default 50, before timestamptz default null, subject_type text default null, subject_id text default null, statuses text[] default null)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."review_queue"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text) from public, anon;
-grant execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."review_queue"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) from public, anon;
+grant execute on function "api"."review_queue"(uuid, text, integer, timestamptz, text, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."review_summary"(tenant uuid, subject_type text, subject_ids text[])
 returns jsonb

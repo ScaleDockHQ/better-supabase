@@ -4,7 +4,7 @@
 -- can't manage waves or see lists assigned to nobody else's work, and the
 -- Globex owner (…a3) sees none of it. Run with `supabase test db`.
 begin;
-select plan(16);
+select plan(23);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -42,6 +42,41 @@ select is(
   (select jsonb_array_length(better_supabase.get_pick_list((select id from ids where name = 'list')) -> 'lines')),
   1,
   'the pick list has a line for the allocation'
+);
+select is(
+  jsonb_array_length(better_supabase.list_pick_lists('00000000-0000-4000-8000-000000000001', '{"search":"w1","paged":true}') -> 'items'),
+  1,
+  'q finds a pick list by its document id'
+);
+select is(
+  jsonb_array_length(better_supabase.list_pick_lists('00000000-0000-4000-8000-000000000001', '{"search":"nope","paged":true}') -> 'items'),
+  0,
+  'q that matches nothing returns no pick lists'
+);
+select is(
+  better_supabase.page_stock_locations('00000000-0000-4000-8000-000000000001', '{"search":"wh","active":["true"],"paged":true}') -> 'items' -> 0 ->> 'code',
+  'WH1',
+  'the location page finds a location by code and filters on active'
+);
+select is(
+  jsonb_array_length(better_supabase.page_stock_locations('00000000-0000-4000-8000-000000000001', '{"kind":["store","virtual"],"paged":true}') -> 'items'),
+  0,
+  'the location page filters on a list of kinds'
+);
+select is(
+  better_supabase.page_stock_variants('00000000-0000-4000-8000-000000000001', '{"search":"bol","paged":true}') -> 'items' -> 0 ->> 'sku',
+  'BOLT',
+  'the variant page finds a variant by SKU'
+);
+select is(
+  jsonb_array_length(better_supabase.page_stock_variants('00000000-0000-4000-8000-000000000001', '{"search":"zzz","paged":true}') -> 'items'),
+  0,
+  'the variant page returns nothing for a search that matches none'
+);
+select is(
+  (better_supabase.page_stock_bins('00000000-0000-4000-8000-000000000001', '{"paged":true}') -> 'hasMore')::text,
+  'false',
+  'the bin page reads an organization without bins'
 );
 select throws_ok(
   format($$select better_supabase.create_pick_list('00000000-0000-4000-8000-000000000001', jsonb_build_object('locationId', %L, 'documentType', 'work_order', 'documentId', 'w1'))$$, current_setting('t.l')),

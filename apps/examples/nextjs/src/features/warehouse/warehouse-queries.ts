@@ -41,51 +41,57 @@ interface Lookups {
   readonly bins: readonly BinOption[];
 }
 
+/** The most rows of one lookup a select shows. */
+const LOOKUP_LIMIT = 200;
+
 /**
  * The active locations, the variants and the bins of the organization, for the
- * names and selects of the warehouse and request pages. The inventory block has
- * no list calls for them, so the read goes through the caller's connection and
- * row level security decides the rows (EX-1102).
+ * names and selects of the warehouse and request pages. The inventory block
+ * lists them, and row level security decides the rows (EX-1102).
  */
 export async function loadLookups(): Promise<Lookups | null> {
   "use cache: private";
-  const { session } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   cacheTag(WAREHOUSE_TAG, SHOP_TAG);
-  const tenant = tenantOf(session);
-  const connection = postgres();
-  const claims = userClaims(session);
+  const organizationId = tenantOf(session);
 
-  if (!tenant || !connection || !claims) {
+  if (!organizationId) {
     return null;
   }
 
-  const sql = connection.asUser(claims);
-
   const [locations, variants, bins] = await Promise.all([
-    sql.queryRaw<LocationOption>(
-      `select id, code, name from better_supabase.inventory_locations
-       where tenant_id = $1 and active order by code limit 200`,
-      [tenant],
-    ),
-    sql.queryRaw<VariantOption>(
-      `select id, sku, title from better_supabase.product_variants
-       where tenant_id = $1 order by sku limit 200`,
-      [tenant],
-    ),
-    sql.queryRaw<{ id: string; code: string; location_id: string }>(
-      `select id, code, location_id from better_supabase.stock_bins
-       where tenant_id = $1 and active order by code limit 200`,
-      [tenant],
-    ),
+    db.inventory
+      .locationPage({
+        organizationId,
+        filters: { active: ["true"] },
+        limit: LOOKUP_LIMIT,
+      })
+      .orThrow(),
+    db.inventory.variantPage({ organizationId, limit: LOOKUP_LIMIT }).orThrow(),
+    db.inventory
+      .binPage({
+        organizationId,
+        filters: { active: ["true"] },
+        limit: LOOKUP_LIMIT,
+      })
+      .orThrow(),
   ]);
 
   return {
-    locations,
-    variants,
-    bins: bins.map((bin) => ({
-      id: bin.id,
-      code: bin.code,
-      locationId: bin.location_id,
+    locations: locations.items.map(({ id, code, name }) => ({
+      id,
+      code,
+      name,
+    })),
+    variants: variants.items.map(({ id, sku, title }) => ({
+      id,
+      sku,
+      title: title ?? "",
+    })),
+    bins: bins.items.map(({ id, code, locationId }) => ({
+      id,
+      code,
+      locationId,
     })),
   };
 }
@@ -118,12 +124,10 @@ export function pickListRowOf(row: PickList): PickListRow {
   };
 }
 
-/**
- * The newest 200 pick lists. `listPickLists` filters by status, wave and
- * document but has no text search, so the overview searches the document id on
- * the server (EX-1103).
- */
-export async function loadPickLists(): Promise<readonly PickListRow[] | null> {
+/** The pick lists released with one wave. */
+export async function loadWavePickLists(
+  waveId: string,
+): Promise<readonly PickListRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG);
@@ -132,7 +136,9 @@ export async function loadPickLists(): Promise<readonly PickListRow[] | null> {
     return null;
   }
 
-  const rows = await db.warehouse.listPickLists({ limit: 200 }).orThrow();
+  const rows = await readAllPages((page) =>
+    db.warehouse.pickListPage({ ...page, filters: { waveId: [waveId] } }),
+  );
 
   return rows.map(pickListRowOf);
 }

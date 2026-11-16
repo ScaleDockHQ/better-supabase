@@ -7,7 +7,7 @@ import { giftList } from "./donations-list";
 
 const parsers = giftList.nuqs(createParser);
 
-/** The overview's URL state: `?status=`. */
+/** The overview's URL state: `?q=&status=&after=`. */
 export function useGiftListState() {
   return useRecordListState(giftList, useQueryStates(parsers));
 }

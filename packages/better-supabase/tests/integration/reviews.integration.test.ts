@@ -182,6 +182,27 @@ describe.skipIf(!live)("reviews module", () => {
         unverified.id,
       ]);
 
+      const decided = await s.value<Review[]>(
+        "better_supabase.review_queue($1, null, 50, null, null, null, $2::text[])",
+        [tenant, ["published", "rejected"]],
+      );
+
+      expect(decided.map((review) => review.id).toSorted()).toEqual(
+        [first.id, unverified.id].toSorted(),
+      );
+      expect(
+        await s.value<Review[]>(
+          "better_supabase.review_queue($1, null, 50, null, null, null, $2::text[])",
+          [tenant, ["rejected"]],
+        ),
+      ).toHaveLength(1);
+      expect(
+        await s.value<Review[]>(
+          "better_supabase.review_queue($1, null, 50, null, null, null, $2::text[])",
+          [tenant, []],
+        ),
+      ).toHaveLength(2);
+
       await s.as("anon");
 
       const listed = await s.value<Review[]>(

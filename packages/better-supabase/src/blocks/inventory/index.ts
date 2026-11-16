@@ -90,11 +90,14 @@ export type {
   InventoryLowStock,
   InventoryOverview,
   InventoryReads,
+  StockBinRead,
   StockLevelPageRead,
   StockLevelRead,
   StockLevelStatus,
+  StockLocationRead,
   StockLotRead,
   StockMovementRead,
+  StockVariantRead,
 } from "./reads.ts";
 
 export { inventoryBlock } from "./manifest.ts";

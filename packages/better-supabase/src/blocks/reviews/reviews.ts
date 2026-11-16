@@ -121,8 +121,11 @@ export interface ReviewListOptions {
 }
 
 export interface ReviewQueueOptions {
-  /** Default `pending`; `null` lists every status. */
-  readonly status?: ReviewStatus | null;
+  /**
+   * Default `pending`; `null` lists every status. A list matches a review in
+   * any of its statuses, and an empty list leaves the status off.
+   */
+  readonly status?: ReviewStatus | readonly ReviewStatus[] | null;
   readonly subjectType?: string;
   readonly subjectId?: string;
   readonly pageSize?: number;
@@ -228,6 +231,26 @@ function optional<K extends string, V>(
   return (value === undefined ? {} : { [key]: value }) as {
     readonly [P in K]?: V;
   };
+}
+
+/**
+ * The `status` and `statuses` arguments of `review_queue`: one status is the
+ * scalar, a list goes in `statuses` and leaves the scalar off.
+ */
+function queueStatus(
+  status: ReviewQueueOptions["status"],
+):
+  | { status: ReviewStatus | null }
+  | { status: null; statuses: ReviewStatus[] } {
+  if (status === undefined) {
+    return { status: "pending" };
+  }
+
+  if (status === null || typeof status === "string") {
+    return { status };
+  }
+
+  return { status: null, statuses: [...status] };
 }
 
 function reviewOf(value: unknown, fn: string): Review {
@@ -403,7 +426,7 @@ export function createReviews<
         "review_queue",
         {
           tenant: organizationId,
-          status: queue.status === undefined ? "pending" : queue.status,
+          ...queueStatus(queue.status),
           page_size: queue.pageSize ?? null,
           before: instantArg(queue.before) ?? null,
           subject_type: queue.subjectType ?? null,

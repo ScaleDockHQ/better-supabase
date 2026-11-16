@@ -116,6 +116,26 @@ describe("createWarehouse", () => {
     ]);
   });
 
+  it("sends q to the pick list page", async () => {
+    const t = fieldsTransport({
+      list_pick_lists: () => ({ items: [LIST], hasMore: false }),
+    });
+
+    const warehouse = createWarehouse({ transport: t, tenant: "org-1" });
+
+    await warehouse
+      .pickListPage({ q: "order-7", filters: { status: ["open"] } })
+      .orThrow();
+
+    expect(t.calls[0]).toEqual([
+      "list_pick_lists",
+      {
+        tenant: "org-1",
+        filters: { search: "order-7", status: ["open"], paged: true },
+      },
+    ]);
+  });
+
   it("makes, picks, completes and reads pick lists", async () => {
     const t = fieldsTransport({
       create_pick_list: () => LIST,

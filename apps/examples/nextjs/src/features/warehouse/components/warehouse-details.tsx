@@ -34,7 +34,7 @@ import {
   loadCountPlans,
   loadLookups,
   loadPickList,
-  loadPickLists,
+  loadWavePickLists,
   loadPutawayRules,
   loadVariance,
   loadWaves,
@@ -235,7 +235,7 @@ export async function WaveDetail({ id }: { id: string }) {
     await Promise.all([
       getExtracted("warehouse"),
       settle(loadWaves),
-      settle(loadPickLists),
+      settle(() => loadWavePickLists(id)),
       dateFormatter(),
       lookups(),
       waveStatusLabels(),
@@ -257,8 +257,7 @@ export async function WaveDetail({ id }: { id: string }) {
     notFound();
   }
 
-  const inWave =
-    lists.kind === "ok" ? lists.data.filter((row) => row.waveId === id) : [];
+  const inWave = lists.kind === "ok" ? lists.data : [];
 
   return (
     <RecordDetailFrame
