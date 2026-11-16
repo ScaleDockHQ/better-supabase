@@ -2540,7 +2540,9 @@ misses or doubles runs. `vercel.json` still calls a path from `crons`: move it
 to `schedules` as a path target with `"requestMethod": "GET"`, which sends the
 same `CRON_SECRET` bearer, and remove the `crons` entry, since a path in both
 runs twice. A schedule targets a private function whose `functions` entry has
-no `schedule/v1beta` trigger, so Vercel never calls it. Or
+no `schedule/v1beta` trigger, so Vercel never calls it. A schedule with a
+`service` is looked up in that service's `functions`, and an entry matches by
+its file (`app/api/drain/route.ts`) or its route (`api/drain`). Or
 `blocks.queue.options.httpTick` is on, but no schema file creates `pg_net`, or
 no SQL file stores the `jobs_tick_url` and `jobs_tick_token` Vault secrets that
 `better_supabase.http_tick()` reads. Secrets set from the dashboard are
@@ -2568,7 +2570,8 @@ example `@vercel/queue@0.12.0` against `>=0.11.0 <0.12`. With
 `strictPeerDependencies` the install fails, and the subpath that needs the
 peer can break at runtime. Doctor reads the version from the nearest
 `node_modules` above the project root and skips peers that aren't installed.
-Install a version in the range, or remove the package if nothing imports it.
+Install a version in the range, or remove
+the package if nothing imports it.
 [Peers](/docs/getting-started/peers) lists which subpath needs which peer.
 
 ### BS602

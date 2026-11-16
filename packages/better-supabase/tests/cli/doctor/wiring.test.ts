@@ -287,6 +287,31 @@ describe("BS512", () => {
     ).toEqual([]);
   });
 
+  it("finds a service's trigger by its route file", async () => {
+    const services = (triggers: unknown[]): Partial<DoctorContext> =>
+      vercel({
+        schedules: {
+          drain: {
+            schedule: "* * * * *",
+            service: "api",
+            function: "api/v1/internal/jobs/drain",
+          },
+        },
+        services: {
+          api: {
+            functions: {
+              "app/api/v1/internal/jobs/drain/route.ts": {
+                experimentalTriggers: triggers,
+              },
+            },
+          },
+        },
+      });
+
+    expect(await targets(services([{ type: "schedule/v1beta" }]))).toEqual([]);
+    expect(await targets(services([]))).toEqual(["schedules:drain"]);
+  });
+
   it("checks pg_net and the Vault secrets while httpTick is on", async () => {
     const config = (httpTick: boolean): Partial<DoctorContext> =>
       // SAFETY: BS512 reads only config.blocks.queue.options.
