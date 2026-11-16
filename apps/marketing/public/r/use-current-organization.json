@@ -4,7 +4,7 @@
   "title": "useCurrentOrganization",
   "description": "The signed-in user's active organization and a switchTo action, for React DOM and React Native.",
   "dependencies": [
-    "better-supabase@^0.66.0"
+    "better-supabase@^0.67.0"
   ],
   "files": [
     {
