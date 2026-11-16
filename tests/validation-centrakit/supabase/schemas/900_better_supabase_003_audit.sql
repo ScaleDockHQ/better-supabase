@@ -1,6 +1,6 @@
 -- better-supabase module: audit
--- @bsb-block audit@13 managed
--- @bsb-hash sha256:aa86e6b77932fd5a5c7204c043ba4a9552f58f34f7f8b207fd048008796132c3
+-- @bsb-block audit@14 managed
+-- @bsb-hash sha256:a4a41007e134244357be45a5517cbb7112aca92fc2517f18c50dc65758280930
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,14 +149,16 @@ begin
       settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
       settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
       settings ->> 'label_column' as label_column,
-      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function,
+      settings ->> 'archive_column' as archive_column, settings ->> 'archive_value' as archive_value
     into entry;
   else
     select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
       coalesce(a."redact", '{}') as redact, a."category" as category,
       a."event_prefix" as event_prefix, a."target_type" as target_type,
       a."tenant_column" as tenant_column, a."label_column" as label_column,
-      null::jsonb as tenant_path, null::text as tenant_function
+      null::jsonb as tenant_path, null::text as tenant_function,
+      null::text as archive_column, null::text as archive_value
     into entry
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
@@ -207,7 +209,7 @@ begin
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     coalesce(auth.uid(), better_supabase.acting_member()),
     row_tenant,
-    coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then 'updated' else 'deleted' end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case tg_op when 'INSERT' then 'created' when 'UPDATE' then case when entry.archive_column is null then 'updated' when (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'archived' when (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'restored' else 'updated' end else 'deleted' end,
     case (coalesce(entry.category, 'data')) when 'membership' then 'users' when 'access' then 'permissions' when 'configuration' then 'settings' when 'integration' then 'integrations' when 'ai' then 'system' else (coalesce(entry.category, 'data')) end,
     'success',
     'database',
@@ -258,14 +260,16 @@ begin
       settings ->> 'category' as category, settings ->> 'event_prefix' as event_prefix,
       settings ->> 'target_type' as target_type, settings ->> 'tenant_column' as tenant_column,
       settings ->> 'label_column' as label_column,
-      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function
+      settings -> 'tenant_path' as tenant_path, settings ->> 'tenant_function' as tenant_function,
+      settings ->> 'archive_column' as archive_column, settings ->> 'archive_value' as archive_value
     into entry;
   else
     select coalesce(a."ignore", '{}') as ignore, coalesce(a."key_columns", '{id}') as key_columns,
       coalesce(a."redact", '{}') as redact, a."category" as category,
       a."event_prefix" as event_prefix, a."target_type" as target_type,
       a."tenant_column" as tenant_column, a."label_column" as label_column,
-      null::jsonb as tenant_path, null::text as tenant_function
+      null::jsonb as tenant_path, null::text as tenant_function,
+      null::text as archive_column, null::text as archive_value
     into entry
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
@@ -305,7 +309,7 @@ begin
       select (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     coalesce(auth.uid(), better_supabase.acting_member()),
     row_tenant,
-    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then case when entry.archive_column is null then 'updated' when (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'archived' when (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'restored' else 'updated' end else 'deleted' end,
     case (coalesce(entry.category, 'data')) when 'membership' then 'users' when 'access' then 'permissions' when 'configuration' then 'settings' when 'integration' then 'integrations' when 'ai' then 'system' else (coalesce(entry.category, 'data')) end,
     'success',
     'database',
@@ -353,7 +357,7 @@ begin
       select (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     coalesce(auth.uid(), better_supabase.acting_member()),
     row_tenant,
-    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then case when entry.archive_column is null then 'updated' when (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'archived' when (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'restored' else 'updated' end else 'deleted' end,
     case (coalesce(entry.category, 'data')) when 'membership' then 'users' when 'access' then 'permissions' when 'configuration' then 'settings' when 'integration' then 'integrations' when 'ai' then 'system' else (coalesce(entry.category, 'data')) end,
     'success',
     'database',
@@ -403,7 +407,7 @@ begin
       select (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     coalesce(auth.uid(), better_supabase.acting_member()),
     row_tenant,
-    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then 'updated' else 'deleted' end,
+    coalesce(entry.event_prefix, tg_table_name) || '.' || case op when 'insert' then 'created' when 'update' then case when entry.archive_column is null then 'updated' when (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'archived' when (case when entry.archive_value is null then coalesce(old_row ->> entry.archive_column, 'false') <> 'false' else old_row ->> entry.archive_column is not distinct from entry.archive_value end) and not (case when entry.archive_value is null then coalesce(new_row ->> entry.archive_column, 'false') <> 'false' else new_row ->> entry.archive_column is not distinct from entry.archive_value end) then 'restored' else 'updated' end else 'deleted' end,
     case (coalesce(entry.category, 'data')) when 'membership' then 'users' when 'access' then 'permissions' when 'configuration' then 'settings' when 'integration' then 'integrations' when 'ai' then 'system' else (coalesce(entry.category, 'data')) end,
     'success',
     'database',
@@ -440,6 +444,10 @@ revoke execute on function better_supabase.audit_statement_change() from public,
 -- insert, and the restricted table's rows in one more. It needs a primary
 -- key, and not deferred, tenant_path or tenant_function.
 -- replace_trigger => true drops another audit trigger on the table.
+-- archive_column names a soft-delete or status column: an update that sets it
+-- is recorded as <event_prefix>.archived and one that clears it as .restored.
+-- Set means not null and not false, or equal to archive_value when given
+-- ('archived' for a status column). Don't ignore or redact the column.
 -- deferred => true audits at commit, once a block function has recorded its
 -- own entry (bsb.recorded), so the row isn't audited twice.
 create or replace function better_supabase.audit(
@@ -455,7 +463,9 @@ create or replace function better_supabase.audit(
   tenant_path text default null,
   tenant_function regprocedure default null,
   deferred boolean default false,
-  statement boolean default false
+  statement boolean default false,
+  archive_column text default null,
+  archive_value text default null
 )
 returns void
 language plpgsql
@@ -537,7 +547,9 @@ begin
     'tenant_column', audit.tenant_column,
     'label_column', audit.label_column,
     'tenant_path', case when audit.tenant_path is not null then jsonb_build_object('column', path_column, 'steps', path_steps) end,
-    'tenant_function', audit.tenant_function::text
+    'tenant_function', audit.tenant_function::text,
+    'archive_column', audit.archive_column,
+    'archive_value', audit.archive_value
   ));
   execute format('drop trigger if exists bsb_audit on %s', target);
   execute format('drop trigger if exists bsb_audit_update on %s', target);
@@ -707,7 +719,7 @@ begin
 end;
 $$;
 
-revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean) from public, anon, authenticated;
+revoke execute on function better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean, text, text) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(regclass) from public, anon, authenticated;
 revoke execute on function better_supabase.unaudit(text) from public, anon, authenticated;
 revoke execute on function better_supabase.audit_forget_dropped() from public, anon, authenticated;
