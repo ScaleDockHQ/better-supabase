@@ -293,13 +293,13 @@ export async function applyPlan(
         : "write";
 
   const force = flags.force === true;
-  const preserve = new Set<string>();
-
-  for (const path of flags.preserve ?? []) {
-    preserve.add(path);
-  }
-
   const base = plan.base ?? plan.root;
+
+  // `--preserve` names a path from the project root; plans may hold absolute ones.
+  const preserve = new Set(
+    (flags.preserve ?? []).map((path) => resolve(base, path)),
+  );
+
   const changes: FileChange[] = [];
   const diffs: string[] = [];
   const staged: Staged[] = [];
@@ -321,7 +321,7 @@ export async function applyPlan(
     let { outcome } = decided;
     let { reason } = decided;
 
-    if (reason === HAND_EDITED && preserve.has(file.path)) {
+    if (reason === HAND_EDITED && preserve.has(path)) {
       outcome = "skip";
       reason = "left in place; the new render is beside it as .new";
       diffs.push(fileDiff(`${shown}.new`, undefined, file.contents, paint));
@@ -339,7 +339,7 @@ export async function applyPlan(
       ...(reason ? { reason } : {}),
     });
 
-    if (reason === HAND_EDITED && preserve.has(file.path)) {
+    if (reason === HAND_EDITED && preserve.has(path)) {
       continue;
     }
 
