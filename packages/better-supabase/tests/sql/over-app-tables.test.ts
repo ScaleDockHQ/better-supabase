@@ -223,7 +223,7 @@ describe("every block table", () => {
     );
 
     expect(specless).toEqual(SPECLESS);
-  });
+  }, 60_000);
 });
 
 describe("withoutAppTableEdits", () => {

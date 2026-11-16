@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the tests cover the deprecated array aliases until 0.70 (ADR 1077). 3 findings. */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

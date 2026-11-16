@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:58ade841a96ea64b94f87203aa9e82a326dc372bcc481cf51f81f4c4b97937ed
+-- @bsb-hash sha256:1f716ae8489ebf38cf0b097ceefadcca48f6b09b4664a0df57c5add34ff376a3
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1854,7 +1854,7 @@ create trigger "bsb_search_control_index"
   after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."controls"
   for each row execute function "better_supabase"."search_index_row"('control', 'id');
 create trigger "bsb_search_compliance_policy_index"
-  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."compliance_policies"
+  after insert or delete or update of "id", "tenant_id", "title", "key" on "better_supabase"."compliance_policies"
   for each row execute function "better_supabase"."search_index_row"('compliance_policy', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)

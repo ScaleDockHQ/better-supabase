@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the tests cover the deprecated array aliases until 0.70 (ADR 1077). 4 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { LifecycleStorage } from "../../../src/blocks/data-lifecycle/index.ts";

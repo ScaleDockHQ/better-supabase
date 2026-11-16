@@ -1323,7 +1323,7 @@
   },
   {
     "code": "CONSENT_PURPOSE_NOT_FOUND",
-    "message": "no such consent purpose"
+    "message": "consent purpose not found"
   },
   {
     "code": "CONSENT_SIGNAL_INVALID",
@@ -2506,6 +2506,10 @@
   {
     "code": "IMPERSONATION_SELF_APPROVAL",
     "message": "An admin cannot approve their own support session"
+  },
+  {
+    "code": "IMPERSONATION_SESSION_NOT_FOUND",
+    "message": "support session not found"
   },
   {
     "code": "IMPERSONATION_TARGET_PLATFORM",

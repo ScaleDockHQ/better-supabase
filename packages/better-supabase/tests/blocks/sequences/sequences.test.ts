@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- the tests cover the deprecated array aliases until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it, vi } from "vitest";
 
 import type {
