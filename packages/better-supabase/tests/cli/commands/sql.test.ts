@@ -660,6 +660,47 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect((await sql(["data", "--check"], config)).code).toBe(0);
   });
 
+  it("writes a data statement again when an upgrade step since the adopted version asks", async () => {
+    const config: ResolveInput = {
+      blocks: ["search"],
+      recordTypes: { doc: { table: "app.docs", search: { title: "heading" } } },
+    };
+
+    await sql(["sync"], config);
+    const first = (await sql(["data"], config)).output!.replace("Created ", "");
+    const text = await readFile(join(root, first), "utf-8");
+    expect(text).toContain('search_reindex"()');
+
+    const adoptedAt = (version: number) =>
+      writeFile(
+        join(root, first),
+        text.replace(
+          /values \('search', \d+,/u,
+          `values ('search', ${String(version)},`,
+        ),
+      );
+
+    await adoptedAt(3);
+    const current = await sql(["data"], config);
+
+    const after = await readFile(
+      join(root, current.output!.replace("Created ", "")),
+      "utf-8",
+    );
+
+    expect(after).not.toContain('search_reindex"()');
+    await rm(join(root, current.output!.replace("Created ", "")));
+
+    await adoptedAt(2);
+    const behind = await sql(["data"], config);
+    expect(
+      await readFile(
+        join(root, behind.output!.replace("Created ", "")),
+        "utf-8",
+      ),
+    ).toContain('search_reindex"()');
+  });
+
   it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
     const config: ResolveInput = { blocks: ["audit"] };
     const schemas = join(root, "supabase/schemas");

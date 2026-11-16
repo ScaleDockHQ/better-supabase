@@ -6,7 +6,11 @@ import type { BlockSqlExtension, BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import { moduleSchemaExtensions, splitStatements } from "../../sql/index.ts";
+import {
+  moduleSchemaExtensions,
+  splitStatements,
+  SQL_MODULES,
+} from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
@@ -115,6 +119,36 @@ const migrationStatements = (sql: string): Set<string> =>
       .filter((text) => text !== normalized(LOCK_TIMEOUT)),
   );
 
+/**
+ * Whether an upgrade step since the version an earlier data migration recorded
+ * for the file's instance asks for its data file to run again.
+ */
+function rerunsData(
+  file: BlockSqlFile,
+  migrated: ReadonlySet<string>,
+): boolean {
+  const row = new RegExp(
+    `\\binsert into better_supabase\\.blocks \\(name, (?:block, )?version, mode\\) values \\('${file.instance ?? file.module}', (?:'[^']*', )?(\\d+),`,
+    "u",
+  );
+
+  const versions = [...migrated].flatMap((statement) => {
+    const match = row.exec(statement);
+
+    return match ? [Number(match[1])] : [];
+  });
+
+  if (versions.length === 0) {
+    return false;
+  }
+
+  const adopted = Math.max(...versions);
+
+  return (SQL_MODULES[file.module]?.upgrades ?? []).some(
+    (step) => step.data === true && step.from >= adopted,
+  );
+}
+
 /** One module's data statements that no data migration holds yet. */
 interface PendingData {
   readonly module: string;
@@ -133,12 +167,17 @@ function pendingData(
   const seen = new Set(migrated);
 
   return files.flatMap((file): PendingData[] => {
+    const rerun = rerunsData(file, migrated);
+
     const statements = splitStatements(file.contents)
       .map((statement) => statement.text)
       .filter((text) => {
         const key = normalized(text);
 
-        if (key === normalized(LOCK_TIMEOUT) || seen.has(key)) {
+        if (
+          key === normalized(LOCK_TIMEOUT) ||
+          (seen.has(key) && !(rerun && migrated.has(key)))
+        ) {
           return false;
         }
 

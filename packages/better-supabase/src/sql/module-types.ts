@@ -39,6 +39,12 @@ export interface BlockSqlUpgrade {
   readonly description: string;
   /** SQL run before the module's current file, e.g. renames and backfills. */
   readonly sql: (ctx: BlockSqlContext) => string;
+  /**
+   * The next `add --adopt` writes the module's data file again, also the
+   * statements an earlier data migration holds, for a step whose new columns
+   * the data file fills.
+   */
+  readonly data?: true;
 }
 
 /**
