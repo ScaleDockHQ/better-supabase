@@ -83,6 +83,15 @@ const SOFT_DELETE = /^(?:deleted|archived)_at$/;
 const CONTAINS = String.raw`(?:@>|<@|\?\||\?&|\?|&&)`;
 
 /**
+ * The text without the parts where a containment operator can't filter rows
+ * through an index: CASE expressions and negated ones, `not (... ? ...)`.
+ */
+const filterText = (text: string): string =>
+  text
+    .replaceAll(/\bcase\b[\s\S]*?\bend\b/gi, " ")
+    .replaceAll(/\bnot\s*\([^()]*\)/gi, " ");
+
+/**
  * `.contains("tags"`, `.containedBy('meta'`, `.overlaps("labels"`, supabase-js
  * filters.
  */
@@ -287,17 +296,19 @@ const DESIGN_RULES: readonly Rule[] = [
       const tables = exposed(context).filter((table) => table.kind === "table");
 
       const policyText = (table: CatalogTable): string =>
-        withoutStrings(
-          table.policies
-            .map((policy) => `${policy.using ?? ""} ${policy.check ?? ""}`)
-            .join(" "),
+        filterText(
+          withoutStrings(
+            table.policies
+              .map((policy) => `${policy.using ?? ""} ${policy.check ?? ""}`)
+              .join(" "),
+          ),
         );
 
       const functions = context.snapshot.generator.functions
         .filter(
           (fn) => context.config.schemas.includes(fn.schema) && fn.definition,
         )
-        .map((fn) => withoutStrings(fn.definition));
+        .map((fn) => filterText(withoutStrings(fn.definition)));
 
       const filtered = new Set<string>();
 

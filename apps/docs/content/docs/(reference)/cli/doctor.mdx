@@ -664,7 +664,9 @@ index.
 index; without one, every query reads the table. Doctor looks in the
 policies, the functions in the exposed schemas and the files in
 `tooling.doctor.sources`. A function counts for a table only when its own
-definition names the table and filters the column. Use `jsonb_path_ops` when you only filter with `@>`, which
+definition names the table and filters the column. A negated test,
+`not (meta ? 'k')`, and one inside a `case` expression don't filter rows
+through an index, so they don't count. Use `jsonb_path_ops` when you only filter with `@>`, which
 makes the index smaller; leave it out for `?`:
 
 ```sql
@@ -1527,24 +1529,21 @@ See [connectors](/docs/blocks/webhooks#connectors).
 
 ### BS345
 
-**Warning: attachments subject on block-wide keys with stricter RLS.** An
-`attachments` subject has no `read` or `upload` key of its own, so its files
-are checked with the block-wide `attachments.read` and `attachments.upload`
-keys. The subject table's own policies check more than tenant membership: a
+**Warning: attachments subject on the block-wide upload key with stricter
+RLS.** An `attachments` subject has no `upload` key of its own, so files are
+attached with the block-wide `attachments.upload` key, but the subject
+table's insert or update policies check more than tenant membership: a
 permission key of their own, an owner or `auth.uid()` comparison, or another
-condition. Any member of the tenant then reads and uploads the files of rows
-they can't open. Doctor counts `current_tenant_id()`, `tenant_ids_with`,
-`member_<tenant>_ids` (and an authorization provider's own `*_ids_with` and
-`*member_*ids` helpers), `can('tenant', ...)` and `member_can` with the
-block's key as tenant membership, and a soft-delete `is null` as neutral. A
-policy with an `or` branch that needs only membership is wider, not
-stricter, and a table with no insert or update policy for clients doesn't
-count against `upload`. A subject with its own read key (`permission`, or
-`permissions.read` in the registry) passes for `read`, since the block checks
-that key on top of `attachments.read`.
-Set `subjects.<type>.permissions.upload` in the registry, or
-`blocks.attachments.on.<type>.permissions` for `read`, to the keys the table
-checks. See
+condition. Any member of the tenant then attaches files to rows they can't
+change. Reads aren't checked: the block's read policy already asks whether
+the caller can read the subject row. Doctor counts `current_tenant_id()`,
+`tenant_ids_with`, `member_<tenant>_ids` (and an authorization provider's own
+`*_ids_with` and `*member_*ids` helpers), `can('tenant', ...)` and
+`member_can` with the block's key as tenant membership, and a soft-delete
+`is null` as neutral. A policy with an `or` branch that needs only membership
+is wider, not stricter, and a table with no insert or update policy for
+clients isn't reported. Set `subjects.<type>.permissions.upload` in the
+registry to the key the table checks. See
 [permissions per subject](/docs/blocks/attachments#permissions-per-subject).
 
 ### BS346
@@ -1552,8 +1551,9 @@ checks. See
 **Warning: block on names an unknown record type.** A block entry's `on`
 lists a type, or has a key, that `config.recordTypes` doesn't register. The
 block's SQL refuses such a type when `gen` renders the migration, so doctor
-reports it first. Register the type in `config.recordTypes`, or remove it from
-`on`. See [record types](/docs/blocks#record-types).
+reports it first. An `on` entry that carries its own `table` registers the
+type inline and isn't reported. Register the type in `config.recordTypes`, or
+remove it from `on`. See [record types](/docs/blocks#record-types).
 
 ### BS347
 

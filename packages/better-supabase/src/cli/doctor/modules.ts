@@ -978,9 +978,9 @@ export const MODULE_RULES: readonly Rule[] = [
   {
     code: "BS345",
     severity: "warning",
-    title: "Attachments subject on block-wide keys with stricter RLS",
+    title: "Attachments subject on the block-wide upload key with stricter RLS",
     description:
-      "An `attachments` subject has no `read` or `upload` key of its own, so its files are checked with the block-wide `attachments.read` and `attachments.upload` keys, but the subject table's own policies check more than tenant membership: a permission key of their own, an owner or `auth.uid()` comparison, or another condition. Any member of the tenant then reads and uploads files of rows they can't open. Doctor recognizes `current_tenant_id()`, `tenant_ids_with`, `member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the block's key as tenant membership. Set `subjects.<type>.permissions.upload`, or `blocks.attachments.on.<type>.permissions` for `read`, to the keys the table checks.",
+      "An `attachments` subject has no `upload` key of its own, so files are attached with the block-wide `attachments.upload` key, but the subject table's insert or update policies check more than tenant membership: a permission key of their own, an owner or `auth.uid()` comparison, or another condition. Any member of the tenant then attaches files to rows they can't change. Reads are left out: the block's read policy already asks whether the caller can read the subject row. Doctor recognizes `current_tenant_id()`, `tenant_ids_with`, `member_<tenant>_ids`, `can('tenant', ...)` and `member_can` with the block's key as tenant membership. Set `subjects.<type>.permissions.upload` to the key the table checks.",
     check: attachmentSubjectsOnDefaults,
   },
   {

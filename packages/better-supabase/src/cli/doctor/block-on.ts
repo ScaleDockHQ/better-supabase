@@ -2,13 +2,20 @@ import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { isRecord } from "../guards.ts";
 
-/** The record types `on` names: list entries or object keys. */
+/**
+ * The record types `on` names: list entries or object keys. A key whose entry
+ * carries its own `table` registers the type inline, so it isn't counted.
+ */
 function namedTypes(on: unknown): readonly string[] {
   if (Array.isArray(on)) {
     return on.filter((type): type is string => typeof type === "string");
   }
 
-  return isRecord(on) ? Object.keys(on) : [];
+  return isRecord(on)
+    ? Object.entries(on)
+        .filter(([, entry]) => !(isRecord(entry) && "table" in entry))
+        .map(([type]) => type)
+    : [];
 }
 
 /**

@@ -2493,11 +2493,11 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     blocks: { attachments: { on: subjects } },
   });
 
-  it("reports a subject whose table checks more than tenant membership", async () => {
+  it("reports a subject whose table checks more than tenant membership for writes", async () => {
     const findings = await run(
       "BS345",
       context(
-        withPolicies(strict, tenantOnly),
+        withPolicies(tenantOnly, strict),
         {},
         config({ note: { table: "notes" } }),
       ),
@@ -2507,12 +2507,22 @@ describe("attachments subject on block-wide keys (BS345)", () => {
       expect.objectContaining({
         severity: "warning",
         target: "public.notes",
-        message: expect.stringContaining(
-          "blocks.attachments.on.note.permissions.read",
-        ),
+        message: expect.stringContaining("subjects.note.permissions.upload"),
       }),
     ]);
-    expect(findings[0]?.message).not.toContain("permissions.upload");
+  });
+
+  it("leaves reads to the block's policy, which checks the subject row", async () => {
+    expect(
+      await run(
+        "BS345",
+        context(
+          withPolicies(strict, tenantOnly),
+          {},
+          config({ note: { table: "notes" } }),
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("passes tenant-only policies, the block's own key and a soft-delete filter", async () => {
@@ -2546,41 +2556,11 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ).toEqual([]);
   });
 
-  it("counts the subject's own read key, which the readable check adds", async () => {
-    const snap = withPolicies(strict, tenantOnly);
-
-    expect(
-      await run(
-        "BS345",
-        context(
-          snap,
-          {},
-          config({ note: { table: "notes", permission: "notes.read" } }),
-        ),
-      ),
-    ).toEqual([]);
-    expect(
-      await run(
-        "BS345",
-        context(
-          snap,
-          {},
-          {
-            recordTypes: {
-              note: { table: "notes", permissions: { read: "notes.read" } },
-            },
-            blocks: { attachments: {} },
-          },
-        ),
-      ),
-    ).toEqual([]);
-  });
-
   it("reads subjects listed by name from the registry and skips unknown tables", async () => {
     const findings = await run(
       "BS345",
       context(
-        withPolicies(strict, tenantOnly),
+        withPolicies(tenantOnly, strict),
         {},
         {
           recordTypes: {
@@ -2729,6 +2709,23 @@ describe("block on names an unknown record type (BS346)", () => {
       "blocks.tags.on.ghost",
       "blocks.attachments.on.memo",
     ]);
+  });
+
+  it("passes an inline on entry that carries its own table", async () => {
+    expect(
+      await run(
+        "BS346",
+        context(
+          base,
+          {},
+          {
+            blocks: {
+              notifications: { on: { invoice: { table: "public.invoices" } } },
+            },
+          },
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("passes registered types and an unset on", async () => {
