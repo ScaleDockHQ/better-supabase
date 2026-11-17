@@ -2023,6 +2023,28 @@ Most block functions check the same condition inline; a few, such as the
 invoices block, accept only a `service_role` token. The prelude file that
 every module install writes defines the function.
 
+## Forbidden or not found
+
+`better_supabase.row_visible(rel, column, value)` says whether the calling API
+role sees the row of `rel` whose `column` equals `value` through the table's
+select policies. A security definer function runs past row security, so use
+it to answer a refused action with "forbidden" for a caller who can see the
+row and "not found" for anyone else, without revealing the row. The invoice
+functions decide their refusals this way (ADR 1088). It isn't granted to the
+API roles, so call it from a security definer function:
+
+```sql
+if not found_with_permission then
+  if better_supabase.row_visible('public.projects', 'id', archive_project.project_id) then
+    raise exception 'not allowed' using errcode = '42501', hint = 'PROJECT_FORBIDDEN';
+  end if;
+  raise exception 'no such project' using errcode = 'P0002', hint = 'PROJECT_NOT_FOUND';
+end if;
+```
+
+Sub-queries inside a policy run with the function owner's rights, and an error
+answers false.
+
 The check reads the token's `role` claim and falls back to `session_user`. A
 pgTAP test that runs `set role authenticated` without setting
 `request.jwt.claims` still connects as `postgres`, so the function returns

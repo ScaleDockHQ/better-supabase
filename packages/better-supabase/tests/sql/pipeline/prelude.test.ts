@@ -40,6 +40,7 @@ describe("prelude", () => {
       "validate_iban",
       "normalize_phone",
       "is_service_role",
+      "row_visible",
     ]) {
       expect(
         sql.match(

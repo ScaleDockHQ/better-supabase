@@ -207,6 +207,11 @@ export function invoiceFunctions(
   const can = (alias: string, permission: string): string =>
     `(${n.service} or ${ctx.scope.can(`${alias}.${i("tenant")}`, p.routed(alias, permission))})`;
 
+  // Whether the caller can read invoice row `alias`: the read key, or the
+  // table's own select policies (ADR 1088).
+  const seen = (alias: string): string =>
+    `(${can(alias, n.read)} or better_supabase.row_visible(${sqlString(t("invoices"))}::regclass, ${sqlString(ctx.colName("invoices", "id"))}, ${alias}.${i("id")}))`;
+
   // Loads the invoice into `target` for `permission`. A caller who can read it
   // but lacks the permission gets INVOICE_FORBIDDEN; anyone else gets
   // INVOICE_NOT_FOUND, so the refusal never reveals a row they can't read.
@@ -220,7 +225,7 @@ export function invoiceFunctions(
   ): string => {
     // `is not true` fails closed when auth.role() is null (no token).
     const check = `if ${target}.${i("id")} is null or (${can(target, permission)}${also}) is not true then
-    if ${target}.${i("id")} is not null and ${can(target, n.read)} then
+    if ${target}.${i("id")} is not null and ${seen(target)} then
       ${fail("INVOICE_FORBIDDEN", `you may not ${verb} this invoice`, "42501")}
     end if;
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
@@ -880,7 +885,7 @@ ${updateInvoiceSql()}${lineItemsSql(
     {
       setter: "set_invoice_lines",
       guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
-    if exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.read)}) then
+    if exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${seen("x")}) then
       ${fail("INVOICE_FORBIDDEN", "you may not edit this invoice", "42501")}
     end if;
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
