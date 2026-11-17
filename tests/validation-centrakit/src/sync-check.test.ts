@@ -139,9 +139,6 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.customer_contacts.customer_contacts_member",
           "centrakit.customers.customers_member",
         ],
-        // CentraKit grants projects to members for select only, and file nodes
-        // are written by the app's own service, never by clients.
-        "warning BS107": ["centrakit.file_node", "centrakit.projects"],
         // CentraKit's schema grants select on every table, including ones it keeps
         // closed to authenticated with no policy.
         "warning BS115": [
