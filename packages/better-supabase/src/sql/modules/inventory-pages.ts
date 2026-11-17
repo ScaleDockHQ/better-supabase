@@ -3,6 +3,7 @@ import type { ListSortKey, ListTemplateOptions } from "../list-template.ts";
 
 import {
   filterAny,
+  filterSet,
   listBody,
   listDeclare,
   searchPattern,
@@ -107,7 +108,10 @@ export function inventoryPages(ctx: BlockSqlContext): string {
 
   const vr = columns(catalog, "variants");
 
-  const productOf = `(select v.${vr("product")} from ${catalog.table("variants")} v where v.${vr("id")}::text = ${metadata("variantId")})`;
+  // The metadata value is cast, not the key, so the lookup uses the index.
+  const variantOf = `(${metadata("variantId")})::uuid`;
+
+  const productOf = `(select v.${vr("product")} from ${catalog.table("variants")} v where v.${vr("id")} = ${variantOf})`;
 
   const movementJson = `jsonb_build_object(
       'id', x.${tx("id")},
@@ -135,7 +139,7 @@ export function inventoryPages(ctx: BlockSqlContext): string {
       `x.${tx("kind")} like 'stock.%'`,
       filterAny("kind", `x.${tx("kind")}`),
       filterAny("variantId", metadata("variantId")),
-      filterAny("productId", productOf),
+      `(not ${filterSet("productId")} or ${variantOf} in (select v.${vr("id")} from ${catalog.table("variants")} v where ${filterAny("productId", `v.${vr("product")}`)}))`,
       filterAny("locationId", metadata("locationId")),
       filterAny("binId", metadata("binId")),
       filterAny("lotId", metadata("lotId")),
