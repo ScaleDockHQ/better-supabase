@@ -297,7 +297,8 @@ anyone with the publishable key can read.
 caller.** A `security definer` function runs as its owner, past RLS. In an
 exposed schema the Data API serves it at `/rpc/<name>`, so when `anon` or
 `authenticated` may execute it and its body never reads `auth.uid()`,
-`auth.jwt()` or the request claims, any caller gets the owner's access. Check
+`auth.jwt()`, the request claims or `better_supabase.is_service_role()`, any
+caller gets the owner's access. Check
 the caller in the body, revoke `execute` from the API roles, or move the
 function to a schema the API doesn't expose. Trigger functions are skipped;
 `/rpc` can't call them. Needs a snapshot taken with this version, which

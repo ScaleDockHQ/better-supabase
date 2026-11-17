@@ -287,6 +287,8 @@ describe("policy security rules", () => {
     ]);
     const checked = `${open} and (select auth.uid()) is not null`;
     expect(await run(context(withFunction(checked)), "BS112")).toEqual([]);
+    const serviceOnly = `${open} and better_supabase.is_service_role()`;
+    expect(await run(context(withFunction(serviceOnly)), "BS112")).toEqual([]);
     const revoked = withFunction(open, { ...definer, execute: [] });
     expect(await run(context(revoked), "BS112")).toEqual([]);
   });
