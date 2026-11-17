@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:efddb3f98ff92f2c999a6ab46b9494da9a2f8193e9aaf845c1697f89b656b850
+-- @bsb-hash sha256:914e51cafd7cdfd6632a4e65c55aa0344ce77bd7e7445c97336b363e3aa69142
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
@@ -870,7 +870,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public
@@ -948,7 +948,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:21ddb8c3b2132e3c112f940c8cd72d4a782aca0599d357cf84a234aa2fe958ba
+-- @bsb-hash sha256:002a3002c428ef12d7e95d0262fd1d1953d4bbd5c358edab33006640f93babf5
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1086,7 +1086,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
@@ -1858,7 +1858,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public
@@ -1941,7 +1941,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:57f37b498e1d1ae71625c49032993b01a9079de24ca8d8e1422228c961f37a27
+-- @bsb-hash sha256:6c03a7c5ef3446d954245bb3629e15e87b55635b7a8a9726d387c8537ff7460f
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2084,7 +2084,7 @@ grant all on "app_private"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "app_private"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "app_private"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "app_private"."ledger_entries" y where y."transaction_id" = "app_private"."ledger_transactions"."id"));
 alter table "app_private"."ledger_entries" enable row level security;
 revoke all on "app_private"."ledger_entries" from public, anon, authenticated;
 grant select on "app_private"."ledger_entries" to authenticated;
@@ -2815,7 +2815,7 @@ create policy bsb_tenant_scope_select on "app_private"."ledger_transactions" as 
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "app_private"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "app_private"."ledger_entries" y where y."transaction_id" = "app_private"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "app_private"."ledger_transactions" as restrictive
   for insert to public
@@ -2893,7 +2893,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:d4ed524fb0a94789a5028d8fd4010c6b4adb41c5dcd07df35e84911592f5fbed
+-- @bsb-hash sha256:a0c8953af0478b6b95e0ef347af7989001f28b9fdea41ddc3f6c3a5dfef1de40
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3031,7 +3031,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
@@ -3762,7 +3762,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public
@@ -3959,7 +3959,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:abb5c73a56f7b40cff94157677e5004c18ab4a6fa0e9237d9ce2c959d6336901
+-- @bsb-hash sha256:344a77d3d929f388e51024b0d8633d9dcdd760b9b9a0231cb53f9924269b6d99
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4083,7 +4083,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_select on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 grant select on "better_supabase"."ledger_entries" to authenticated;
 grant all on "better_supabase"."ledger_entries" to service_role;
@@ -4811,7 +4811,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public
@@ -4889,7 +4889,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:fd78064b2afdafce958e356811bcf369c208c3db38ec2257e1cc49412ec85761
+-- @bsb-hash sha256:81ee43da6e9ddd0888a5c0ea9f1c2fd5463d6e1bd415b7ee25cbfb5f4379b43c
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5027,7 +5027,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
@@ -5758,7 +5758,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public

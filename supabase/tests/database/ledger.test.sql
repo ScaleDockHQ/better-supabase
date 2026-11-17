@@ -2,7 +2,7 @@
 -- Acme (…0001) opens accounts and posts balanced transactions, the member
 -- (…00a2) reads only the account they own, and Globex (…0002) sees nothing.
 begin;
-select plan(16);
+select plan(19);
 
 select set_config(
   'request.jwt.claims',
@@ -119,6 +119,17 @@ select throws_ok(
   'a transaction reverses once'
 );
 
+select set_config('test.other', better_supabase.open_ledger_account(
+  '00000000-0000-4000-8000-000000000001', 'credit', 'credit:a002', 'Store credit', 'EUR'
+) ->> 'id', true);
+select set_config('test.other_grant', better_supabase.post_ledger_transaction(
+  '00000000-0000-4000-8000-000000000001', 'credit.grant',
+  jsonb_build_array(
+    jsonb_build_object('account', current_setting('test.other'), 'amount', '50'),
+    jsonb_build_object('account', current_setting('test.source'), 'amount', '-50')
+  )
+) ->> 'id', true);
+
 -- Acme member: owns the credit account, holds no ledger permission.
 reset role;
 select set_config(
@@ -132,6 +143,20 @@ select results_eq(
   $$select code from better_supabase.ledger_accounts where tenant_id = '00000000-0000-4000-8000-000000000001' and kind like 'credit%'$$,
   $$values ('credit:a001')$$,
   'the member reads the account they own and not the source'
+);
+select ok(
+  (select count(*) from better_supabase.ledger_transactions where id = current_setting('test.grant')::uuid) = 1,
+  'the member reads a transaction that moved their account'
+);
+select is(
+  (select count(*) from better_supabase.ledger_transactions where id = current_setting('test.other_grant')::uuid),
+  0::bigint,
+  'the member does not read a transaction on accounts they cannot see'
+);
+select results_eq(
+  $$select id from better_supabase.ledger_transactions where tenant_id = '00000000-0000-4000-8000-000000000001' order by id$$,
+  $$select distinct transaction_id from better_supabase.ledger_entries order by 1$$,
+  'the member reads exactly the transactions of the entries they can read'
 );
 select throws_ok(
   format($$select better_supabase.post_ledger_transaction('00000000-0000-4000-8000-000000000001', 'credit.grant', '[{"account":"%s","amount":"1"},{"account":"%s","amount":"-1"}]')$$,

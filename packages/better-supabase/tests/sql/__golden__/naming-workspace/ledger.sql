@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:dddba9f9cb30071ad8943632dd126caca8b8b3ce3add08b76bda6a88dfa10d8c
+-- @bsb-hash sha256:8e8ce71318e3995af97db513dac27acfa39596c8b80f2c0b486a76fdd97e89ac
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ grant all on "better_supabase"."ledger_transactions" to service_role;
 create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"));
 alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
@@ -870,7 +870,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ledger_transactions"
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
-    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"))
+    or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "better_supabase"."ledger_transactions"."id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ledger_transactions" as restrictive
   for insert to public

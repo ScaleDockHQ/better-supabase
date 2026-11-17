@@ -419,7 +419,7 @@ ${renderPolicy(
     command: "select",
     roles: ["authenticated"],
     using: `${ctx.scope.check(t("tenant"), read)}
-    or exists (select 1 from ${entries} y where y.${e("transaction")} = ${t("id")})`,
+    or exists (select 1 from ${entries} y where y.${e("transaction")} = ${transactions}.${t("id")})`,
   }),
   { target: transactions },
 )}
