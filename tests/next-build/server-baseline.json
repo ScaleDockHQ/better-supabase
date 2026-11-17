@@ -1,7 +1,7 @@
 {
   "(proxy)": {
     "raw": 1222528,
-    "gzip": 363887,
+    "gzip": 364799,
     "brotli": 293667
   },
   "/.well-known/oauth-protected-resource/[...path]/route": {
@@ -265,7 +265,7 @@
     "brotli": 798547
   },
   "/[locale]/(app)/crm/commissions/page": {
-    "raw": 3217232,
+    "raw": 3217778,
     "gzip": 977696,
     "brotli": 813161
   },
@@ -360,7 +360,7 @@
     "brotli": 810824
   },
   "/[locale]/(app)/crm/referrals/page": {
-    "raw": 3217126,
+    "raw": 3217672,
     "gzip": 977664,
     "brotli": 813139
   },
@@ -1401,7 +1401,7 @@
   },
   "/api/audit/export/route": {
     "raw": 1175477,
-    "gzip": 375727,
+    "gzip": 376692,
     "brotli": 328819
   },
   "/api/auth/callback/route": {
@@ -1757,12 +1757,12 @@
   "/api/periods/export/route": {
     "raw": 2649076,
     "gzip": 797826,
-    "brotli": 676410
+    "brotli": 678128
   },
   "/api/periods/list/route": {
     "raw": 2648970,
     "gzip": 797773,
-    "brotli": 676349
+    "brotli": 678062
   },
   "/api/pick-lists/list/route": {
     "raw": 2649066,
@@ -1852,7 +1852,7 @@
   "/api/risks/list/route": {
     "raw": 2649004,
     "gzip": 797817,
-    "brotli": 676370
+    "brotli": 678086
   },
   "/api/risks/register/route": {
     "raw": 2771185,
@@ -1915,12 +1915,12 @@
     "brotli": 677724
   },
   "/api/v1/[...path]/route": {
-    "raw": 1087305,
+    "raw": 1087894,
     "gzip": 343630,
     "brotli": 299478
   },
   "/api/v1/openapi.json/route": {
-    "raw": 1173722,
+    "raw": 1174311,
     "gzip": 373061,
     "brotli": 325617
   },

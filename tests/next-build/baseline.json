@@ -285,7 +285,7 @@
     "brotli": 431956
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1589134,
+    "raw": 1589309,
     "gzip": 513139,
     "brotli": 448331
   },
@@ -1080,7 +1080,7 @@
     "brotli": 355052
   },
   "/[locale]/(app)/shop/donations/page": {
-    "raw": 1561480,
+    "raw": 1561634,
     "gzip": 498615,
     "brotli": 436053
   },
@@ -1267,7 +1267,7 @@
   "/[locale]/(auth)/oauth/consent/page": {
     "raw": 1164998,
     "gzip": 366584,
-    "brotli": 320253
+    "brotli": 321059
   },
   "/[locale]/(auth)/pricing/[code]/page": {
     "raw": 630815,
