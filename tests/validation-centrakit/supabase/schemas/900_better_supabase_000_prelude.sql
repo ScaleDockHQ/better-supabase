@@ -1,6 +1,6 @@
 -- better-supabase module: prelude
 -- @bsb-block prelude@1 managed
--- @bsb-hash sha256:905f33a61169eb95b3f03d7666322de885986ab1bcc5936d06d1187064403b8a
+-- @bsb-hash sha256:57ed8fd006b23354c3d6221a7607c6730011061afa2d6fea67b43f443eceec82
 -- The schema, the blocks table and the helper functions every block calls, each defined once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -379,7 +379,7 @@ begin
     from pg_catalog.pg_policy p
     where p.polrelid = rel
       and p.polcmd in ('r', '*')
-      and (0::oid = any (p.polroles) or exists (select 1 from unnest(p.polroles) o where pg_catalog.pg_has_role(v_role, o, 'member')));
+      and (0::oid = any (p.polroles) or exists (select 1 from unnest(p.polroles) o where pg_catalog.pg_has_role(v_role, o, 'usage')));
   end if;
   execute format('select exists (select 1 from %s where %I = $1 and (%s))', rel, key_column, v_using)
     into v_found using key_value;
