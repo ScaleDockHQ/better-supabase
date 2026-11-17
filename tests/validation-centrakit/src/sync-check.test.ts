@@ -12,11 +12,11 @@ const live = await reachable();
 const fixture = fileURLToPath(new URL("..", import.meta.url));
 
 describe("the committed module files", () => {
-  // The first command loads the CLI from source, which takes about 5 s on a
-  // CI runner.
+  // Loading the CLI from source and rendering CentraKit's modules took 22 to
+  // 30 s on CI runners in November 2026, so 30 s failed the 0.68.0 release run.
   it(
     "are what upgrade writes for the config and the provider snapshot",
-    { timeout: 30_000 },
+    { timeout: 120_000 },
     async () => {
       const result = await run(["upgrade", "--check", "--cwd", fixture]);
 

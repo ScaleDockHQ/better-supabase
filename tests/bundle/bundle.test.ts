@@ -189,6 +189,27 @@ interface Closure {
   readonly gzip: number;
 }
 
+// The entries share most chunks, so each file is read and gzipped once.
+const sources = new Map<string, Promise<string>>();
+const gzipSizes = new Map<string, Promise<number>>();
+
+const sourceOf = (file: string): Promise<string> => {
+  const known = sources.get(file) ?? readFile(file, "utf-8");
+  sources.set(file, known);
+
+  return known;
+};
+
+const gzipOf = (file: string): Promise<number> => {
+  const known =
+    gzipSizes.get(file) ??
+    sourceOf(file).then((text) => gzipSync(text, { level: 9 }).length);
+
+  gzipSizes.set(file, known);
+
+  return known;
+};
+
 async function closure(entry: string, dynamic = true): Promise<Closure> {
   const files = new Set<string>();
   const externals = new Set<string>();
@@ -199,7 +220,7 @@ async function closure(entry: string, dynamic = true): Promise<Closure> {
     }
 
     files.add(file);
-    const source = await readFile(file, "utf-8");
+    const source = await sourceOf(file);
 
     for (const [, fromClause, lazy] of source.matchAll(SPECIFIER)) {
       if (lazy !== undefined && !dynamic) {
@@ -223,7 +244,7 @@ async function closure(entry: string, dynamic = true): Promise<Closure> {
   let gzip = 0;
 
   for (const file of files) {
-    gzip += gzipSync(await readFile(file), { level: 9 }).length;
+    gzip += await gzipOf(file);
   }
 
   return { files: [...files], externals: [...externals].toSorted(), gzip };
