@@ -392,6 +392,24 @@ begin
 
   update better_supabase.employees set status = 'active', user_id = null where id = '${BOB_EMPLOYEE}';
   ${decidesOwn(CAROL, "'2099-06-01', '2099-06-02'", "Carol could not decide her own leave under a manager without a login")}
+
+  update better_supabase.employees set user_id = '${BOB}', start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-07-06', '2099-07-07') ->> 'id')::uuid;
+  ${as(BOB)}
+  begin
+    perform better_supabase.decide_leave_request(v_leave, true);
+    raise exception 'Bob decided Carol''s leave after his employment ended';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;
+  ${as(CAROL)}
+  perform better_supabase.decide_leave_request(v_leave, true);
+  if (select approved_at is null or decided_by is distinct from '${CAROL}'::uuid from better_supabase.leave_requests where id = v_leave) then
+    raise exception 'Carol could not decide her own leave under a manager whose employment ended';
+  end if;
 end;
 $$;`,
         ["employees", "leave"],

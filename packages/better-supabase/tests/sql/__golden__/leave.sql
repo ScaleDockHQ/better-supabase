@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c4b3ec278af5f8eac638b05d5c97123eee518096d2c2482a0bc956ae84fcc913
+-- @bsb-hash sha256:f4ba20631ef80b98ef85f568f21e8f3a8c19d51d968d01494531813ef0effce8
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2083,7 +2083,7 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2180,7 +2180,7 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2329,7 +2329,7 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2422,7 +2422,7 @@ begin
     'request', (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2430,7 +2430,7 @@ begin
     'split', jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2527,7 +2527,7 @@ begin
     select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'typeId', r."type_id", 'startsOn', r."starts_on", 'endsOn', r."ends_on", 'partial', r."partial", 'amount', r."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(r."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = r."tenant_id" and me."user_id" = r."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = r."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2617,7 +2617,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2645,7 +2645,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2672,7 +2672,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2689,7 +2689,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2711,7 +2711,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2728,7 +2728,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2750,7 +2750,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2767,7 +2767,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2789,7 +2789,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2806,7 +2806,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2828,7 +2828,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2845,7 +2845,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2867,7 +2867,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2884,7 +2884,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2906,7 +2906,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2923,7 +2923,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2945,7 +2945,7 @@ begin
     select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'typeId', x."type_id", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'partial', x."partial", 'amount', x."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2962,7 +2962,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -2989,7 +2989,7 @@ begin
         and (v_search is null or (x."note" ilike v_search and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(x."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = x."tenant_id" and me."user_id" = x."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = x."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
@@ -3028,7 +3028,7 @@ begin
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'partial', v_row."partial", 'amount', v_row."amount"::text, 'note', case when (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_row."tenant_id" and me."user_id" = v_row."user_id"
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null

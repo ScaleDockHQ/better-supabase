@@ -117,10 +117,28 @@ const employeeWho = (
     : `(case when ${employee} is not null then me.${e("id")}::text = ${employee} else me.${e("user")} = ${requester} end)`;
 
 /**
+ * Whether employee `alias` can still decide: has a login, isn't offboarded and
+ * has no end date before today.
+ */
+function employedNow(
+  employees: NonNullable<ReturnType<typeof employeesOf>>,
+  alias: string,
+): string {
+  const e = (column: string): string => employees.col("employees", column);
+
+  const ended = employees.has("employees", "endDate")
+    ? ` and (${alias}.${e("endDate")} is null or ${alias}.${e("endDate")} >= current_date)`
+    : "";
+
+  return `${alias}.${e("user")} is not null and ${employees.is("employees", "status", `${alias}.${e("status")}`, ["offboarded"], true)}${ended}`;
+}
+
+/**
  * The user id of the requester's manager in the request's tenant, as a SQL
  * expression, or `undefined` without the employees module. `employee`, a text
  * SQL expression, names the employee whose manager it is instead when it is not
- * null. An offboarded manager decides nothing.
+ * null. An offboarded manager, or one whose end date has passed, decides
+ * nothing.
  */
 export function managerOf(
   ctx: BlockSqlContext,
@@ -140,7 +158,7 @@ export function managerOf(
   return `(select mgr.${e("user")} from ${table} me
       join ${table} mgr on mgr.${e("id")} = me.${e("manager")}
       where me.${e("tenant")} = ${tenant} and ${employeeWho(e, requester, employee)}
-        and mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
+        and ${employedNow(employees, "mgr")}
       limit 1)`;
 }
 
@@ -214,7 +232,7 @@ export function otherDecider(
             select boss.${e("manager")} from up join ${table} boss on boss.${e("id")} = up.id
           )
           select mgr.${e("user")} from up join ${table} mgr on mgr.${e("id")} = up.id
-          where mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
+          where ${employedNow(employees, "mgr")}
         )`
     : "";
 
