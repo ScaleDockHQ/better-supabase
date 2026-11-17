@@ -1,5 +1,23 @@
 # better-supabase
 
+## 0.69.0
+
+### Minor Changes
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - The inventory movement list takes a `productId` filter, and each movement carries its `productId`, `unit`, `reason`, `note` and `actorId`.
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - A refused invoice action now answers `INVOICE_FORBIDDEN` to a caller who sees the invoice through the invoices table's own select policies, not only through the `read` key, so readers whose permission has row conditions no longer get `INVOICE_NOT_FOUND`. The prelude adds `better_supabase.row_visible(rel, column, value)` for the same decision in your own functions.
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - `blocks.leave.options.decider` names an app function `(request_id uuid) returns boolean` that lets more callers decide a request through `decide_leave_request`, such as every manager up the requester's reporting chain. The database enforces it, and the requester still never decides their own request.
+
+### Patch Changes
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - Doctor BS219 ignores a negated `?` and one inside `case`, BS345 checks only the upload key because the attachments read policy already checks the subject row, and BS346 accepts an `on` entry that carries its own `table`.
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - Doctor reports fewer false positives: BS107 skips commands the API roles hold no privilege for, BS117 is info when `anon` holds no privilege on the table, BS204 accepts an expression index led by the tenant column, BS205 is info on an insert-only policy, and BS206 counts `union all` branches and `from helper('k') t(id)` with constant arguments as once per statement.
+
+- [#1055](https://github.com/ScaleDockHQ/better-supabase/pull/1055) [`ca74c4d`](https://github.com/ScaleDockHQ/better-supabase/commit/ca74c4d4fb0361b4c8d08823b88647a46829b23d) Thanks [@mick340](https://github.com/mick340)! - Doctor BS112 now counts a call to `better_supabase.is_service_role()` as a caller check, so a security definer function that only the service role may run is no longer reported.
+
 ## 0.68.0
 
 ### Minor Changes

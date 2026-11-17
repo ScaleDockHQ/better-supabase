@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.69.0 (2026-11-17)
+
+- The inventory movement list takes a `productId` filter, and each movement carries its `productId`, `unit`, `reason`, `note` and `actorId`.
+- A refused invoice action now answers `INVOICE_FORBIDDEN` to a caller who sees the invoice through the invoices table's own select policies, not only through the `read` key, so readers whose permission has row conditions no longer get `INVOICE_NOT_FOUND`. The prelude adds `better_supabase.row_visible(rel, column, value)` for the same decision in your own functions.
+- `blocks.leave.options.decider` names an app function `(request_id uuid) returns boolean` that lets more callers decide a request through `decide_leave_request`, such as every manager up the requester's reporting chain. The database enforces it, and the requester still never decides their own request.
+- Doctor BS219 ignores a negated `?` and one inside `case`, BS345 checks only the upload key because the attachments read policy already checks the subject row, and BS346 accepts an `on` entry that carries its own `table`.
+- Doctor reports fewer false positives: BS107 skips commands the API roles hold no privilege for, BS117 is info when `anon` holds no privilege on the table, BS204 accepts an expression index led by the tenant column, BS205 is info on an insert-only policy, and BS206 counts `union all` branches and `from helper('k') t(id)` with constant arguments as once per statement.
+- Doctor BS112 now counts a call to `better_supabase.is_service_role()` as a caller check, so a security definer function that only the service role may run is no longer reported.
+
 ## 0.68.0 (2026-11-16)
 
 - `audit()` takes `archive_column` and `archive_value`, so an update that sets or clears a soft-delete or status column is recorded as `<entity>.archived` or `<entity>.restored` instead of `<entity>.updated`. Block tables with an `archivedAt` column pass it on their row audit trigger. The audit module moves to version 14; run `better-supabase upgrade`.
