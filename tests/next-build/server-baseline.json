@@ -2,7 +2,7 @@
   "(proxy)": {
     "raw": 1222528,
     "gzip": 364831,
-    "brotli": 293667
+    "brotli": 294605
   },
   "/.well-known/oauth-protected-resource/[...path]/route": {
     "raw": 812991,
@@ -837,12 +837,12 @@
   "/[locale]/(app)/rules/[rule]/page": {
     "raw": 3155240,
     "gzip": 956172,
-    "brotli": 792393
+    "brotli": 794394
   },
   "/[locale]/(app)/rules/page": {
     "raw": 3168140,
     "gzip": 961466,
-    "brotli": 797026
+    "brotli": 799041
   },
   "/[locale]/(app)/search/page": {
     "raw": 3169347,
@@ -1447,12 +1447,12 @@
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3571847,
     "gzip": 1085507,
-    "brotli": 920968
+    "brotli": 923274
   },
   "/api/chat/durable/[id]/stream/route": {
     "raw": 3571995,
     "gzip": 1085584,
-    "brotli": 921026
+    "brotli": 923336
   },
   "/api/chat/durable/route": {
     "raw": 3571950,
