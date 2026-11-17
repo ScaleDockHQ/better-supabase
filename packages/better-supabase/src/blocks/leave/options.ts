@@ -63,6 +63,14 @@ export type LeaveSqlOptions = {
    * of the approve permission. Default `"permission"`.
    */
   readonly approver?: "permission" | "manager";
+  /**
+   * With `approvals: false`, `"schema.function"` of an app function
+   * `(request_id uuid) returns boolean` that lets more callers decide through
+   * `decide_leave_request`, such as the managers up the requester's reporting
+   * chain. It runs as the function's owner with the caller's `auth.uid()`; the
+   * requester still never decides their own request.
+   */
+  readonly decider?: string;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -80,4 +88,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     approver: option.string<"permission" | "manager">({
       default: "permission",
     }),
+    decider: option.string(),
   });

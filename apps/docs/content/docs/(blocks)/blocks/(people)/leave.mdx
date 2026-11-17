@@ -150,6 +150,27 @@ blocks: {
 
 `options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave_request.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the requester, fails with the forbidden error. With `options.approver: "manager"`, the requester's manager in the [employees block](/docs/blocks/employees) (or the request's employee's manager) may also decide, next to holders of `leave.approve`. That needs the employees block's tables; the default is `"permission"`.
 
+`options.decider` names an app function, `"schema.function"`, that takes the request id and returns whether the caller may decide too. Use it for a rule the block doesn't know, such as every manager up the requester's reporting chain or a manager's stand-in. `decide_leave_request` calls it inside its own check, so the rule holds for every caller of the function, and the requester still never decides their own request. The function sees the caller through `auth.uid()`, and a null answer denies. It needs `approvals: false`; with the approvals block, its policy picks the approvers.
+
+```sql
+create function public.leave_chain_decides(request_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.manages_in_chain(auth.uid(), r.employee_id)
+  from public.time_off_requests r
+  where r.id = request_id
+$$;
+revoke execute on function public.leave_chain_decides(uuid) from public, anon, authenticated;
+```
+
+```ts
+leave: { options: { approvals: false, decider: "public.leave_chain_decides" } }
+```
+
 ### Your own tables without a key or part-of-day column
 
 Over your own tables, `columns.types.key` and `columns.requests.partial` can map to `null`. Without a key column, a type's `key` is its id: `saveType` with an existing type's id updates it, and any other key creates a type. Without a partial column, a request takes whole days (`LEAVE_PARTIAL_UNSUPPORTED` for `morning` or `afternoon`) or, for an hours type, hours, and reads return `full` or `hours`.
