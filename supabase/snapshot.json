@@ -310662,7 +310662,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"access_request\",\"event_prefix\":\"access_request\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -311006,6 +311007,9 @@
             "function": "better_supabase.accounting_account_level",
             "fills": [
               "level"
+            ],
+            "updateOf": [
+              "parent_id"
             ]
           },
           {
@@ -311015,7 +311019,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.accounting_account_level_children"
+            "function": "better_supabase.accounting_account_level_children",
+            "conditional": true,
+            "updateOf": [
+              "parent_id"
+            ]
           },
           {
             "name": "bsb_audit",
@@ -311029,7 +311037,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_account\",\"event_prefix\":\"accounting_account\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -311362,7 +311371,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_budget\",\"event_prefix\":\"accounting_budget\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -311669,7 +311679,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_dimension\",\"event_prefix\":\"accounting_dimension\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -311943,7 +311954,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_entry\",\"event_prefix\":\"accounting_entry\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -312525,7 +312537,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_journal\",\"event_prefix\":\"accounting_journal\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -312602,7 +312615,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "fiscal_year",
+              "account_id",
+              "COALESCE(party_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "accounting_opening_balances_pkey",
@@ -312863,7 +312882,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"accounting_period\",\"event_prefix\":\"accounting_period\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -313389,7 +313409,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"acknowledgement_assignment\",\"event_prefix\":\"acknowledgement_assignment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -313645,7 +313666,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"acknowledgement\",\"event_prefix\":\"acknowledgement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -313858,7 +313880,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"activity\",\"event_prefix\":\"activity\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_activity_index",
@@ -313873,6 +313896,14 @@
             "args": [
               "activity",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "body",
+              "id",
+              "outcome",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -314586,7 +314617,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"advisory\",\"event_prefix\":\"advisory\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_advisory_index",
@@ -314601,6 +314633,13 @@
             "args": [
               "advisory",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "summary",
+              "tenant_id",
+              "title",
+              "tracking_id"
             ]
           }
         ],
@@ -314757,7 +314796,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"advisory_product_version\",\"event_prefix\":\"advisory_product_version\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -314923,7 +314963,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"advisory_product\",\"event_prefix\":\"advisory_product\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_advisory_product_index",
@@ -314938,6 +314979,12 @@
             "args": [
               "advisory_product",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -315081,7 +315128,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"advisory_vulnerability\",\"event_prefix\":\"advisory_vulnerability\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -315422,7 +315470,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"agent_mandate\",\"event_prefix\":\"agent_mandate\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -315820,7 +315869,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"agent\",\"event_prefix\":\"agent\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -316429,7 +316479,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "(kind = 'external'::text)"
+            "predicate": "(kind = 'external'::text)",
+            "keys": [
+              "chat_id",
+              "lower(email)"
+            ]
           },
           {
             "name": "ai_chat_participants_pkey",
@@ -316814,7 +316868,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ai_chat\",\"event_prefix\":\"ai_chat\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -317008,7 +317063,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ai_document\",\"event_prefix\":\"ai_document\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -318042,7 +318098,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ai_project\",\"event_prefix\":\"ai_project\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -318970,7 +319027,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ai_scheduled_task\",\"event_prefix\":\"ai_scheduled_task\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -319604,7 +319662,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"announcement\",\"event_prefix\":\"announcement\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -319763,7 +319822,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"api_key\",\"event_prefix\":\"api_key\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -320101,7 +320161,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_application_guard"
+            "function": "better_supabase.bsb_application_guard",
+            "updateOf": [
+              "state"
+            ]
           },
           {
             "name": "bsb_audit",
@@ -320115,7 +320178,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"application\",\"event_prefix\":\"application\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_pipeline_application",
@@ -320130,6 +320194,11 @@
               "pipeline_id",
               "stage_entered_at",
               "stage_id"
+            ],
+            "updateOf": [
+              "owner_id",
+              "pipeline_id",
+              "stage_id"
             ]
           },
           {
@@ -320140,7 +320209,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_status_application"
+            "function": "better_supabase.bsb_pipeline_status_application",
+            "updateOf": [
+              "stage_id"
+            ]
           }
         ],
         "grants": [
@@ -320301,7 +320373,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_calibration\",\"event_prefix\":\"appraisal_calibration\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -320501,7 +320574,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_competency\",\"event_prefix\":\"appraisal_competency\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -320679,7 +320753,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_cycle\",\"event_prefix\":\"appraisal_cycle\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -320846,7 +320921,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_goal\",\"event_prefix\":\"appraisal_goal\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -321041,7 +321117,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_review_rating\",\"event_prefix\":\"appraisal_review_rating\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -321260,7 +321337,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal_review\",\"event_prefix\":\"appraisal_review\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -321504,7 +321582,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"appraisal\",\"event_prefix\":\"appraisal\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -322173,7 +322252,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"approval\",\"event_prefix\":\"approval\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -322615,6 +322695,10 @@
             "fills": [
               "next_due_at",
               "updated_at"
+            ],
+            "updateOf": [
+              "interval_days",
+              "last_done_at"
             ]
           }
         ],
@@ -322927,7 +323011,10 @@
             ],
             "level": "row",
             "function": "better_supabase.asset_location_check_parent",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "parent_id"
+            ]
           },
           {
             "name": "bsb_audit",
@@ -322941,7 +323028,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"asset_location\",\"event_prefix\":\"asset_location\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_asset_location_index",
@@ -322956,6 +323044,11 @@
             "args": [
               "asset_location",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -323340,7 +323433,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"asset\",\"event_prefix\":\"asset\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_asset_index",
@@ -323355,6 +323449,11 @@
             "args": [
               "asset",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -323726,7 +323825,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"assignment_queue\",\"event_prefix\":\"assignment_queue\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -324625,7 +324725,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"attachment\",\"event_prefix\":\"attachment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -325391,7 +325492,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"automation\",\"event_prefix\":\"automation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -325621,7 +325723,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bank_account\",\"event_prefix\":\"bank_account\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_bank_account_index",
@@ -325636,6 +325739,14 @@
             "args": [
               "bank_account",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "holder",
+              "iban",
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -325804,7 +325915,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bank_match\",\"event_prefix\":\"bank_match\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -325991,7 +326103,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bank_rule\",\"event_prefix\":\"bank_rule\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -326200,7 +326313,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bank_statement\",\"event_prefix\":\"bank_statement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -326496,7 +326610,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bank_transaction\",\"event_prefix\":\"bank_transaction\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -326927,7 +327042,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bin_slot\",\"event_prefix\":\"bin_slot\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -327151,7 +327267,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bom_component\",\"event_prefix\":\"bom_component\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -327373,7 +327490,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bom_operation\",\"event_prefix\":\"bom_operation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -327587,7 +327705,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"bom\",\"event_prefix\":\"bom\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -328551,7 +328670,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"booking\",\"event_prefix\":\"booking\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_bookings_activity",
@@ -328561,7 +328681,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_booking_activity"
+            "function": "better_supabase.bsb_booking_activity",
+            "updateOf": [
+              "during",
+              "status"
+            ]
           },
           {
             "name": "bsb_passes_credit_refund",
@@ -328570,7 +328694,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.refund_pass_credit"
+            "function": "better_supabase.refund_pass_credit",
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_search_booking_index",
@@ -328585,6 +328712,11 @@
             "args": [
               "booking",
               "id"
+            ],
+            "updateOf": [
+              "customer_name",
+              "id",
+              "tenant_id"
             ]
           }
         ],
@@ -328892,6 +329024,10 @@
             "function": "better_supabase.calendar_attendee_auto_decline",
             "fills": [
               "response"
+            ],
+            "conditional": true,
+            "updateOf": [
+              "user_id"
             ]
           }
         ],
@@ -329252,7 +329388,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"calendar_event\",\"event_prefix\":\"calendar_event\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_calendar_events_auto_decline",
@@ -329262,7 +329399,15 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.calendar_block_auto_decline"
+            "function": "better_supabase.calendar_block_auto_decline",
+            "conditional": true,
+            "updateOf": [
+              "auto_decline",
+              "ends_at",
+              "kind",
+              "starts_at",
+              "status"
+            ]
           },
           {
             "name": "bsb_search_calendar_event_index",
@@ -329277,6 +329422,13 @@
             "args": [
               "calendar_event",
               "id"
+            ],
+            "updateOf": [
+              "description",
+              "id",
+              "location",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -329571,7 +329723,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"calendar\",\"event_prefix\":\"calendar\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -329761,7 +329914,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_alert\",\"event_prefix\":\"care_alert\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -329989,7 +330143,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_plan_action\",\"event_prefix\":\"care_plan_action\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -330144,7 +330299,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_plan_evaluation\",\"event_prefix\":\"care_plan_evaluation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -330328,7 +330484,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_plan_goal\",\"event_prefix\":\"care_plan_goal\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -330520,7 +330677,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_plan_problem\",\"event_prefix\":\"care_plan_problem\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -330765,7 +330923,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_plan\",\"event_prefix\":\"care_plan\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_care_plan_index",
@@ -330780,6 +330939,11 @@
             "args": [
               "care_plan",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -330950,7 +331114,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"care_rule\",\"event_prefix\":\"care_rule\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -331471,7 +331636,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"cart\",\"event_prefix\":\"cart\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -331654,7 +331820,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"case_action\",\"event_prefix\":\"case_action\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -331839,7 +332006,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"case_kind\",\"event_prefix\":\"case_kind\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -332131,7 +332299,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"case\",\"event_prefix\":\"case\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_case_guard",
@@ -332140,7 +332309,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_case_guard"
+            "function": "better_supabase.bsb_case_guard",
+            "updateOf": [
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_case",
@@ -332154,6 +332326,10 @@
             "fills": [
               "pipeline_id",
               "stage_entered_at",
+              "stage_id"
+            ],
+            "updateOf": [
+              "pipeline_id",
               "stage_id"
             ]
           },
@@ -332170,6 +332346,15 @@
             "args": [
               "case",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "description",
+              "id",
+              "number",
+              "root_cause",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -333125,7 +333310,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"channel\",\"event_prefix\":\"channel\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_channel_index",
@@ -333140,6 +333326,13 @@
             "args": [
               "channel",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "purpose",
+              "tenant_id",
+              "topic"
             ]
           }
         ],
@@ -333717,7 +333910,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"checkout_session\",\"event_prefix\":\"checkout_session\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -334343,7 +334537,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"commission_assignment\",\"event_prefix\":\"commission_assignment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -334564,7 +334759,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"commission_plan\",\"event_prefix\":\"commission_plan\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -334827,7 +335023,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"commission_statement\",\"event_prefix\":\"commission_statement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -335119,7 +335316,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"commission\",\"event_prefix\":\"commission\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -335397,7 +335595,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "lower(name)",
+              "id"
+            ]
           }
         ],
         "policies": [
@@ -335481,7 +335684,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"company\",\"event_prefix\":\"company\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_field_history_company",
@@ -335490,7 +335694,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_field_history_company"
+            "function": "better_supabase.bsb_field_history_company",
+            "updateOf": [
+              "lifecycle",
+              "owner_id"
+            ]
           },
           {
             "name": "bsb_search_company_index",
@@ -335505,6 +335713,13 @@
             "args": [
               "company",
               "id"
+            ],
+            "updateOf": [
+              "domain",
+              "id",
+              "name",
+              "tenant_id",
+              "website"
             ]
           }
         ],
@@ -335848,7 +336063,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"compliance_policy\",\"event_prefix\":\"compliance_policy\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_compliance_policy_index",
@@ -335863,6 +336079,12 @@
             "args": [
               "compliance_policy",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "key",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -336213,7 +336435,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"connector_server\",\"event_prefix\":\"connector_server\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -336582,7 +336805,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"consent_purpose\",\"event_prefix\":\"consent_purpose\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -337107,7 +337331,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"consent\",\"event_prefix\":\"consent\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -337380,7 +337605,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"content_entry\",\"event_prefix\":\"content_entry\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_content_entry_index",
@@ -337395,6 +337621,12 @@
             "args": [
               "content_entry",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "summary",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -337583,7 +337815,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"contract_obligation\",\"event_prefix\":\"contract_obligation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -337883,7 +338116,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"contract\",\"event_prefix\":\"contract\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_contract_index",
@@ -337898,6 +338132,11 @@
             "args": [
               "contract",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -338261,7 +338500,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"control_framework\",\"event_prefix\":\"control_framework\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -338480,7 +338720,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"control\",\"event_prefix\":\"control\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_control_index",
@@ -338495,6 +338736,11 @@
             "args": [
               "control",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -338835,7 +339081,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"conversation\",\"event_prefix\":\"conversation\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_conversation_index",
@@ -338850,6 +339097,12 @@
             "args": [
               "conversation",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -339090,7 +339343,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"count_plan\",\"event_prefix\":\"count_plan\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -339299,7 +339553,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"course_certificate\",\"event_prefix\":\"course_certificate\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_qualification_course_certificate",
@@ -339309,7 +339564,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.qualification_course_certificate"
+            "function": "better_supabase.qualification_course_certificate",
+            "updateOf": [
+              "revoked_at"
+            ]
           }
         ],
         "grants": [
@@ -339681,7 +339939,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"course_lesson\",\"event_prefix\":\"course_lesson\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -339830,7 +340089,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"course_module\",\"event_prefix\":\"course_module\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -340000,7 +340260,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"course\",\"event_prefix\":\"course\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_course_index",
@@ -340015,6 +340276,12 @@
             "args": [
               "course",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "summary",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -340346,7 +340613,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"dam_rendition\",\"event_prefix\":\"dam_rendition\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -340424,7 +340692,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(expires_on, 'infinity'::date)",
+              "id"
+            ]
           },
           {
             "name": "dam_usage_rights_node_idx",
@@ -340531,7 +340804,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"dam_usage_right\",\"event_prefix\":\"dam_usage_right\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_dam_usage_right_index",
@@ -340546,6 +340820,11 @@
             "args": [
               "dam_usage_right",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "licensee",
+              "tenant_id"
             ]
           }
         ],
@@ -341110,7 +341389,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "subject_id",
+              "group_key",
+              "COALESCE(period, ''::text)"
+            ]
           },
           {
             "name": "deadlines_due_idx",
@@ -341232,7 +341518,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"deadline\",\"event_prefix\":\"deadline\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -342002,7 +342289,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"deal\",\"event_prefix\":\"deal\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_deal_guard",
@@ -342028,7 +342316,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_field_history_deal"
+            "function": "better_supabase.bsb_field_history_deal",
+            "updateOf": [
+              "amount",
+              "expected_close_on",
+              "owner_id",
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_deal",
@@ -342043,6 +342337,11 @@
               "pipeline_id",
               "stage_entered_at",
               "stage_id"
+            ],
+            "updateOf": [
+              "owner_id",
+              "pipeline_id",
+              "stage_id"
             ]
           },
           {
@@ -342053,7 +342352,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_status_deal"
+            "function": "better_supabase.bsb_pipeline_status_deal",
+            "updateOf": [
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_search_deal_index",
@@ -342068,6 +342370,14 @@
             "args": [
               "deal",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "identifier",
+              "name",
+              "note",
+              "tenant_id"
             ]
           }
         ],
@@ -342448,7 +342758,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(customer_group_id, '00000000-0000-4000-8000-000000000000'::uuid)",
+              "COALESCE(product_group_id, '00000000-0000-4000-8000-000000000000'::uuid)",
+              "COALESCE(valid_from, '0001-01-01'::date)",
+              "min_quantity"
+            ]
           },
           {
             "name": "discount_rules_pkey",
@@ -342890,7 +343207,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"dispatch_route\",\"event_prefix\":\"dispatch_route\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -343197,7 +343515,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"document_suggestion\",\"event_prefix\":\"document_suggestion\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -343317,7 +343636,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "document_type",
+              "name",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "COALESCE(language, ''::text)"
+            ]
           }
         ],
         "policies": [
@@ -343401,7 +343727,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"document_template\",\"event_prefix\":\"document_template\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -343509,7 +343836,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "key",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "COALESCE(language, ''::text)"
+            ]
           }
         ],
         "policies": [
@@ -343593,7 +343926,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"document_text_block\",\"event_prefix\":\"document_text_block\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -343820,7 +344154,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"document\",\"event_prefix\":\"document\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_document_index",
@@ -343835,6 +344170,11 @@
             "args": [
               "document",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -344032,7 +344372,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"donation_fund\",\"event_prefix\":\"donation_fund\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_donation_fund_index",
@@ -344047,6 +344388,11 @@
             "args": [
               "donation_fund",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -344238,7 +344584,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"donation_receipt\",\"event_prefix\":\"donation_receipt\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -344507,7 +344854,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"donation\",\"event_prefix\":\"donation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -344769,7 +345117,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.search_watch_drive_node_0"
+            "function": "better_supabase.search_watch_drive_node_0",
+            "conditional": true,
+            "updateOf": [
+              "content",
+              "node_id"
+            ]
           }
         ],
         "grants": [
@@ -344994,7 +345347,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((archived_at IS NULL) AND (source = 'internal'::text))"
+            "predicate": "((archived_at IS NULL) AND (source = 'internal'::text))",
+            "keys": [
+              "tenant_id",
+              "COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "lower(name)"
+            ]
           }
         ],
         "policies": [
@@ -345078,7 +345436,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"drive_node\",\"event_prefix\":\"drive_node\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_drive_node_bin_touch",
@@ -345087,7 +345446,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.drive_node_bin_touch"
+            "function": "better_supabase.drive_node_bin_touch",
+            "updateOf": [
+              "archived_at"
+            ]
           },
           {
             "name": "bsb_drive_node_moved",
@@ -345096,7 +345458,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.drive_node_moved"
+            "function": "better_supabase.drive_node_moved",
+            "conditional": true,
+            "updateOf": [
+              "parent_id"
+            ]
           },
           {
             "name": "bsb_drive_node_path",
@@ -345109,6 +345475,9 @@
             "function": "better_supabase.drive_node_path",
             "fills": [
               "path"
+            ],
+            "updateOf": [
+              "parent_id"
             ]
           },
           {
@@ -345142,6 +345511,12 @@
             "args": [
               "drive_node",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "name",
+              "tenant_id"
             ]
           },
           {
@@ -345153,7 +345528,10 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_transition_drive_node",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "document_status"
+            ]
           }
         ],
         "grants": [
@@ -346073,7 +346451,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"employee\",\"event_prefix\":\"employee\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_employee_manager_guard",
@@ -346084,7 +346463,10 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_employee_manager_guard",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "manager_id"
+            ]
           },
           {
             "name": "bsb_employee_team_members",
@@ -346094,7 +346476,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_employee_team_members"
+            "function": "better_supabase.bsb_employee_team_members",
+            "updateOf": [
+              "team_id",
+              "user_id"
+            ]
           },
           {
             "name": "bsb_employee_user_mirror",
@@ -346103,7 +346489,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_employee_user_mirror"
+            "function": "better_supabase.bsb_employee_user_mirror",
+            "updateOf": [
+              "user_id"
+            ]
           },
           {
             "name": "bsb_leave_requests_employee_sync",
@@ -346113,7 +346502,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_leave_requests_employee_sync"
+            "function": "better_supabase.bsb_leave_requests_employee_sync",
+            "updateOf": [
+              "user_id"
+            ]
           },
           {
             "name": "bsb_search_employee_index",
@@ -346128,6 +346520,13 @@
             "args": [
               "employee",
               "id"
+            ],
+            "updateOf": [
+              "email",
+              "id",
+              "job_title",
+              "name",
+              "tenant_id"
             ]
           },
           {
@@ -346138,7 +346537,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_time_entries_employee_sync"
+            "function": "better_supabase.bsb_time_entries_employee_sync",
+            "updateOf": [
+              "user_id"
+            ]
           }
         ],
         "grants": [
@@ -346362,7 +346764,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"enrichment\",\"event_prefix\":\"enrichment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -346528,7 +346931,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"enrollment_program\",\"event_prefix\":\"enrollment_program\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -346856,7 +347260,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((sequence_id IS NOT NULL) AND (status = 'active'::text))"
+            "predicate": "((sequence_id IS NOT NULL) AND (status = 'active'::text))",
+            "keys": [
+              "tenant_id",
+              "lower(sequence_address)"
+            ]
           },
           {
             "name": "enrollments_sequence_idx",
@@ -347003,7 +347411,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"enrollment\",\"event_prefix\":\"enrollment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -347222,7 +347631,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "COALESCE(tenant_id::text, ''::text)",
+              "name"
+            ]
           },
           {
             "name": "eval_datasets_pkey",
@@ -347634,7 +348047,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"evidence_task\",\"event_prefix\":\"evidence_task\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -347827,7 +348241,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"expense_category\",\"event_prefix\":\"expense_category\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -348010,7 +348425,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"expense_line\",\"event_prefix\":\"expense_line\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_expense_line_index",
@@ -348025,6 +348441,11 @@
             "args": [
               "expense_line",
               "id"
+            ],
+            "updateOf": [
+              "description",
+              "id",
+              "tenant_id"
             ]
           }
         ],
@@ -348249,7 +348670,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"expense_report\",\"event_prefix\":\"expense_report\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_expense_report_index",
@@ -348264,6 +348686,11 @@
             "args": [
               "expense_report",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -348568,7 +348995,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"field_definition\",\"event_prefix\":\"field_definition\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -348627,7 +349055,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "subject_id",
+              "definition_id",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "bsb_field_values_legal_entity_idx",
@@ -349054,7 +349489,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"flag\",\"event_prefix\":\"flag\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -349426,7 +349862,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"forecast_snapshot\",\"event_prefix\":\"forecast_snapshot\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -349679,7 +350116,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.observation_submission_trigger"
+            "function": "better_supabase.observation_submission_trigger",
+            "updateOf": [
+              "status"
+            ]
           }
         ],
         "grants": [
@@ -349990,7 +350430,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"form\",\"event_prefix\":\"form\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_form_index",
@@ -350005,6 +350446,11 @@
             "args": [
               "form",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -350237,7 +350683,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"funding_award\",\"event_prefix\":\"funding_award\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -350431,7 +350878,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"funding_claim_line\",\"event_prefix\":\"funding_claim_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -350641,7 +351089,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"funding_claim\",\"event_prefix\":\"funding_claim\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -350858,7 +351307,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"funding_delivery\",\"event_prefix\":\"funding_delivery\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -351051,7 +351501,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"funding_product\",\"event_prefix\":\"funding_product\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -351214,7 +351665,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"goal\",\"event_prefix\":\"goal\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -351352,7 +351804,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "COALESCE(tenant_id::text, ''::text)",
+              "agent",
+              "stage"
+            ]
           },
           {
             "name": "guardrail_policies_pkey",
@@ -351544,7 +352001,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"guest_grant\",\"event_prefix\":\"guest_grant\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_drive_guest_sharing",
@@ -351555,7 +352013,11 @@
             ],
             "level": "row",
             "function": "better_supabase.drive_guest_sharing",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "subject_id",
+              "subject_type"
+            ]
           }
         ],
         "grants": [
@@ -351634,7 +352096,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "lower(email)"
+            ]
           },
           {
             "name": "guests_pkey",
@@ -351765,7 +352231,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"guest\",\"event_prefix\":\"guest\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -353782,7 +354249,10 @@
             ],
             "level": "row",
             "function": "better_supabase.inbox_delivery_broadcast",
-            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('conversation_id', d.\"conversation_id\", 'message_id', new.\"message_id\", 'status', new.\"status\"),\n      'delivery',\n      'inbox:org:' || new.\"tenant_id\"::text,\n      true\n    )\n    from \"better_supabase\".\"inbox_message_details\" d where d.\"message_id\" = new.\"message_id\";\n  end if;\n  return null;\nend;\n"
+            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('conversation_id', d.\"conversation_id\", 'message_id', new.\"message_id\", 'status', new.\"status\"),\n      'delivery',\n      'inbox:org:' || new.\"tenant_id\"::text,\n      true\n    )\n    from \"better_supabase\".\"inbox_message_details\" d where d.\"message_id\" = new.\"message_id\";\n  end if;\n  return null;\nend;\n",
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_updated_at",
@@ -354312,7 +354782,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inbox\",\"event_prefix\":\"inbox\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_updated_at",
@@ -354833,7 +355304,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"incident_postmortem\",\"event_prefix\":\"incident_postmortem\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -355475,7 +355947,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"status_component\",\"event_prefix\":\"status_component\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -355652,7 +356125,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"status_page\",\"event_prefix\":\"status_page\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -356049,7 +356523,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"incident\",\"event_prefix\":\"incident\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_incident_index",
@@ -356064,6 +356539,11 @@
             "args": [
               "incident",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -356266,7 +356746,8 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.drop_incoming_webhook_secret"
+            "function": "better_supabase.drop_incoming_webhook_secret",
+            "conditional": true
           },
           {
             "name": "bsb_updated_at",
@@ -356612,7 +357093,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inspection_finding\",\"event_prefix\":\"inspection_finding\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_inspection_finding_index",
@@ -356627,6 +357109,11 @@
             "args": [
               "inspection_finding",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -356806,7 +357293,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inspection_member\",\"event_prefix\":\"inspection_member\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_inspection_assignment",
@@ -356993,7 +357481,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inspection_program\",\"event_prefix\":\"inspection_program\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_inspection_program_index",
@@ -357008,6 +357497,12 @@
             "args": [
               "inspection_program",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -357170,7 +357665,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(planned_start, '-infinity'::date)",
+              "sequence",
+              "id"
+            ]
           },
           {
             "name": "inspections_pkey",
@@ -357316,7 +357817,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inspection\",\"event_prefix\":\"inspection\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_inspection_calendar",
@@ -357326,7 +357828,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.inspection_calendar_mirror"
+            "function": "better_supabase.inspection_calendar_mirror",
+            "updateOf": [
+              "planned_end",
+              "planned_start",
+              "status",
+              "title"
+            ]
           },
           {
             "name": "bsb_search_inspection_index",
@@ -357341,6 +357849,14 @@
             "args": [
               "inspection",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "number",
+              "scope",
+              "summary",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -357495,7 +358011,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"interview\",\"event_prefix\":\"interview\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -357919,7 +358436,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inventory_location\",\"event_prefix\":\"inventory_location\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -358253,7 +358771,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"inventory_receipt\",\"event_prefix\":\"inventory_receipt\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -358338,7 +358857,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((accepted_at IS NULL) AND (declined_at IS NULL) AND (revoked_at IS NULL))"
+            "predicate": "((accepted_at IS NULL) AND (declined_at IS NULL) AND (revoked_at IS NULL))",
+            "keys": [
+              "tenant_id",
+              "lower(email)"
+            ]
           },
           {
             "name": "invitations_pkey",
@@ -358861,7 +359384,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "level"
+            ]
           },
           {
             "name": "invoice_approval_levels_pkey",
@@ -360766,7 +361294,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "direction",
+              "kind",
+              "identifier",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "invoices_tenant_status_idx",
@@ -360867,7 +361402,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"invoice\",\"event_prefix\":\"invoice\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_billable_time_release",
@@ -360876,7 +361412,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.billable_time_release"
+            "function": "better_supabase.billable_time_release",
+            "conditional": true,
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_document_freeze",
@@ -360885,7 +361425,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.freeze_issued_invoice"
+            "function": "better_supabase.freeze_issued_invoice",
+            "conditional": true,
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_invoice_open_items_refresh",
@@ -360895,7 +361439,15 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.refresh_open_item"
+            "function": "better_supabase.refresh_open_item",
+            "updateOf": [
+              "credited_total",
+              "due_on",
+              "issued_on",
+              "paid_total",
+              "status",
+              "total"
+            ]
           },
           {
             "name": "bsb_invoices_entity_numbers",
@@ -360906,7 +361458,14 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_invoices_entity_numbers",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "direction",
+              "identifier",
+              "kind",
+              "legal_entity_id",
+              "number"
+            ]
           },
           {
             "name": "bsb_search_invoice_index",
@@ -360921,6 +361480,11 @@
             "args": [
               "invoice",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -361072,7 +361636,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"iteration\",\"event_prefix\":\"iteration\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -361270,7 +361835,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"job_opening\",\"event_prefix\":\"job_opening\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -361891,7 +362457,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"knowledge_document\",\"event_prefix\":\"knowledge_document\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -362417,7 +362984,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"lease\",\"event_prefix\":\"lease\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_lease_index",
@@ -362432,6 +363000,11 @@
             "args": [
               "lease",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -362656,7 +363229,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"leave_request\",\"event_prefix\":\"leave_request\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_leave_requests_employee",
@@ -362669,6 +363243,9 @@
             "function": "better_supabase.bsb_leave_requests_employee",
             "fills": [
               "employee_id"
+            ],
+            "updateOf": [
+              "user_id"
             ]
           }
         ],
@@ -362862,7 +363439,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"leave_type\",\"event_prefix\":\"leave_type\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -363088,7 +363666,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ledger_account\",\"event_prefix\":\"ledger_account\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_ledger_account_index",
@@ -363103,6 +363682,11 @@
             "args": [
               "ledger_account",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -363610,7 +364194,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ledger_hold\",\"event_prefix\":\"ledger_hold\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -363815,7 +364400,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"ledger_transaction\",\"event_prefix\":\"ledger_transaction\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_ledger_transactions_append_only",
@@ -364078,7 +364664,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"legal_entity\",\"event_prefix\":\"legal_entity\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_legal_entity_default_guard",
@@ -364087,7 +364674,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.legal_entity_default_guard"
+            "function": "better_supabase.legal_entity_default_guard",
+            "conditional": true,
+            "updateOf": [
+              "is_default"
+            ]
           }
         ],
         "grants": [
@@ -364257,7 +364848,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"legal_entity_setting\",\"event_prefix\":\"legal_entity_setting\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -364591,7 +365183,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"lims_method\",\"event_prefix\":\"lims_method\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -364742,7 +365335,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"lims_result\",\"event_prefix\":\"lims_result\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -365012,7 +365606,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"lims_sample\",\"event_prefix\":\"lims_sample\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_lims_sample_index",
@@ -365027,6 +365622,11 @@
             "args": [
               "lims_sample",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -365229,7 +365829,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"mail_account\",\"event_prefix\":\"mail_account\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -365445,7 +366046,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"mail_message\",\"event_prefix\":\"mail_message\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_mail_changed",
@@ -365455,7 +366057,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.lead_mail_changed"
+            "function": "better_supabase.lead_mail_changed",
+            "updateOf": [
+              "clicked_at",
+              "opened_at"
+            ]
           },
           {
             "name": "bsb_replied",
@@ -365464,7 +366070,8 @@
               "insert"
             ],
             "level": "row",
-            "function": "better_supabase.sequence_mail_replied"
+            "function": "better_supabase.sequence_mail_replied",
+            "conditional": true
           }
         ],
         "grants": [
@@ -365798,7 +366405,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"mail_thread\",\"event_prefix\":\"mail_thread\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -366314,7 +366922,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_calibration\",\"event_prefix\":\"maintenance_calibration\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -366488,7 +367097,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_meter_reading\",\"event_prefix\":\"maintenance_meter_reading\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -366711,7 +367321,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_meter\",\"event_prefix\":\"maintenance_meter\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -366867,7 +367478,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_plan_part\",\"event_prefix\":\"maintenance_plan_part\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -366972,7 +367584,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(next_due_at, 'infinity'::timestamp with time zone)",
+              "id"
+            ]
           },
           {
             "name": "maintenance_plans_meter_idx",
@@ -367176,7 +367793,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_plan\",\"event_prefix\":\"maintenance_plan\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_maintenance_plan_index",
@@ -367191,6 +367809,11 @@
             "args": [
               "maintenance_plan",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -367480,7 +368103,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"checklist_item\",\"event_prefix\":\"checklist_item\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -368062,7 +368686,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"maintenance_request\",\"event_prefix\":\"maintenance_request\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_maintenance_request_guard",
@@ -368093,6 +368718,10 @@
               "pipeline_id",
               "stage_entered_at",
               "stage_id"
+            ],
+            "updateOf": [
+              "pipeline_id",
+              "stage_id"
             ]
           },
           {
@@ -368103,7 +368732,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_status_maintenance_request"
+            "function": "better_supabase.bsb_pipeline_status_maintenance_request",
+            "updateOf": [
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_realtime_delete",
@@ -368812,7 +369444,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"medication_administration\",\"event_prefix\":\"medication_administration\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -369072,7 +369705,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"medication_order\",\"event_prefix\":\"medication_order\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -369273,7 +369907,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"medication\",\"event_prefix\":\"medication\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -369461,7 +370096,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"meeting_action_item\",\"event_prefix\":\"meeting_action_item\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -369675,7 +370311,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"meeting_agenda_item\",\"event_prefix\":\"meeting_agenda_item\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -369858,7 +370495,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"meeting_attendee\",\"event_prefix\":\"meeting_attendee\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_meeting_calendar_attendee",
@@ -369869,7 +370507,10 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.meeting_calendar_attendee"
+            "function": "better_supabase.meeting_calendar_attendee",
+            "updateOf": [
+              "role"
+            ]
           },
           {
             "name": "bsb_meeting_invitation",
@@ -370077,7 +370718,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"meeting_decision\",\"event_prefix\":\"meeting_decision\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_meeting_decision_index",
@@ -370092,6 +370734,11 @@
             "args": [
               "meeting_decision",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -370294,7 +370941,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"meeting\",\"event_prefix\":\"meeting\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_meeting_calendar",
@@ -370304,7 +370952,13 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.meeting_calendar_mirror"
+            "function": "better_supabase.meeting_calendar_mirror",
+            "updateOf": [
+              "ends_at",
+              "starts_at",
+              "status",
+              "title"
+            ]
           },
           {
             "name": "bsb_search_meeting_index",
@@ -370319,6 +370973,13 @@
             "args": [
               "meeting",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "location",
+              "summary",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -370651,7 +371312,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"memory\",\"event_prefix\":\"memory\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -371281,7 +371943,10 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((anchor ->> 'kind'::text) = 'file'::text)"
+            "predicate": "((anchor ->> 'kind'::text) = 'file'::text)",
+            "keys": [
+              "(anchor ->> 'attachmentId'::text)"
+            ]
           },
           {
             "name": "messaging_messages_parent_idx",
@@ -371418,7 +372083,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"message\",\"event_prefix\":\"message\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_messages_moderation_guard",
@@ -371460,7 +372126,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.messaging_message_written"
+            "function": "better_supabase.messaging_message_written",
+            "updateOf": [
+              "archived_at",
+              "sent_at"
+            ]
           },
           {
             "name": "bsb_posts_replied",
@@ -371470,7 +372140,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.posts_replied"
+            "function": "better_supabase.posts_replied",
+            "updateOf": [
+              "archived_at",
+              "sent_at"
+            ]
           },
           {
             "name": "bsb_posts_reply_guard",
@@ -371495,6 +372169,12 @@
             "args": [
               "message",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "body",
+              "id",
+              "tenant_id"
             ]
           }
         ],
@@ -372410,7 +373090,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"moderation_item\",\"event_prefix\":\"moderation_item\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_posts_moderated",
@@ -372419,7 +373100,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.posts_moderated"
+            "function": "better_supabase.posts_moderated",
+            "conditional": true,
+            "updateOf": [
+              "decided_at",
+              "status"
+            ]
           },
           {
             "name": "bsb_reviews_moderated",
@@ -372428,7 +373114,12 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.reviews_moderated"
+            "function": "better_supabase.reviews_moderated",
+            "conditional": true,
+            "updateOf": [
+              "decided_at",
+              "status"
+            ]
           }
         ],
         "grants": [
@@ -373999,7 +374690,13 @@
             ],
             "level": "row",
             "function": "better_supabase.broadcast_notification",
-            "source": "\nbegin\n  perform realtime.send(\n    jsonb_build_object('id', new.\"id\", 'event_id', new.\"event_id\", 'operation', lower(tg_op), 'tenant', new.\"tenant_id\"),\n    case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,\n    'notifications:' || new.\"user_id\"::text,\n    true\n  );\n  return null;\nend;\n"
+            "source": "\nbegin\n  perform realtime.send(\n    jsonb_build_object('id', new.\"id\", 'event_id', new.\"event_id\", 'operation', lower(tg_op), 'tenant', new.\"tenant_id\"),\n    case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,\n    'notifications:' || new.\"user_id\"::text,\n    true\n  );\n  return null;\nend;\n",
+            "conditional": true,
+            "updateOf": [
+              "dismissed_at",
+              "read_at",
+              "resolved_at"
+            ]
           }
         ],
         "grants": [
@@ -374619,7 +375316,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"observation_definition\",\"event_prefix\":\"observation_definition\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -374894,7 +375592,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"observation\",\"event_prefix\":\"observation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -375150,7 +375849,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "(is_default AND (archived_at IS NULL))"
+            "predicate": "(is_default AND (archived_at IS NULL))",
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "field",
+              "COALESCE(scope_id, ''::text)"
+            ]
           },
           {
             "name": "option_sets_pkey",
@@ -375260,7 +375965,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"option_set\",\"event_prefix\":\"option_set\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -377068,7 +377774,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "invoice_number",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "orders_tenant_id_number_key",
@@ -377080,7 +377791,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "number",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "orders_variant_idx",
@@ -377177,7 +377893,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"order\",\"event_prefix\":\"order\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_orders_entity_numbers",
@@ -377188,7 +377905,12 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_orders_entity_numbers",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "invoice_number",
+              "legal_entity_id",
+              "number"
+            ]
           },
           {
             "name": "bsb_search_order_index",
@@ -377203,6 +377925,11 @@
             "args": [
               "order",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "number",
+              "tenant_id"
             ]
           }
         ],
@@ -378397,7 +379124,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pass_check_in\",\"event_prefix\":\"pass_check_in\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -378591,7 +379319,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pass\",\"event_prefix\":\"pass\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -379243,7 +379972,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "run_id",
+              "COALESCE(user_id, employee_id)",
+              "kind",
+              "COALESCE(code, ''::text)"
+            ]
           },
           {
             "name": "payroll_lines_pkey",
@@ -379350,7 +380085,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"payroll_line\",\"event_prefix\":\"payroll_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -379553,7 +380289,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"payroll_run\",\"event_prefix\":\"payroll_run\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -379827,7 +380564,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "lower(name)",
+              "id"
+            ]
           },
           {
             "name": "people_user_idx",
@@ -379922,7 +380664,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"person\",\"event_prefix\":\"person\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_person_changed",
@@ -379947,6 +380690,14 @@
             "args": [
               "person",
               "id"
+            ],
+            "updateOf": [
+              "email",
+              "id",
+              "name",
+              "phone",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -380188,7 +380939,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"period\",\"event_prefix\":\"period\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -380287,7 +381039,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"category\":\"access\",\"tenant_column\":\"tenant_id\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_bump_override_members_delete",
@@ -380388,7 +381141,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"category\":\"access\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -380751,7 +381505,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pick_line\",\"event_prefix\":\"pick_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -381062,7 +381817,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pick_list\",\"event_prefix\":\"pick_list\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -381299,7 +382055,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pick_wave\",\"event_prefix\":\"pick_wave\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -381856,7 +382613,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "(is_default AND (archived_at IS NULL))"
+            "predicate": "(is_default AND (archived_at IS NULL))",
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "COALESCE(scope_id, ''::text)"
+            ]
           },
           {
             "name": "pipelines_name_trgm_idx",
@@ -381989,7 +382751,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pipeline\",\"event_prefix\":\"pipeline\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -382072,7 +382835,10 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((accepted_at IS NULL) AND (declined_at IS NULL) AND (revoked_at IS NULL))"
+            "predicate": "((accepted_at IS NULL) AND (declined_at IS NULL) AND (revoked_at IS NULL))",
+            "keys": [
+              "lower(email)"
+            ]
           },
           {
             "name": "platform_invitations_pkey",
@@ -382209,7 +382975,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"category\":\"access\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_bump_deleted_platform_roles",
@@ -382573,7 +383340,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"pledge\",\"event_prefix\":\"pledge\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -382739,7 +383507,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"post_board\",\"event_prefix\":\"post_board\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -382955,7 +383724,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"post\",\"event_prefix\":\"post\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_posts_removed",
@@ -382979,6 +383749,12 @@
             "args": [
               "post",
               "id"
+            ],
+            "updateOf": [
+              "body",
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -383208,7 +383984,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"prescription\",\"event_prefix\":\"prescription\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -383559,7 +384336,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "variant_id",
+              "type",
+              "value",
+              "COALESCE(party_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "product_identifiers_lookup_idx",
@@ -385063,7 +385846,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"product_variant\",\"event_prefix\":\"product_variant\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_collections_product_variant_cascade",
@@ -385141,6 +385925,13 @@
             "args": [
               "product_variant",
               "id"
+            ],
+            "updateOf": [
+              "barcode",
+              "id",
+              "sku",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -385341,7 +386132,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"production_consumption\",\"event_prefix\":\"production_consumption\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -385580,7 +386372,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"production_order_operation\",\"event_prefix\":\"production_order_operation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -385857,7 +386650,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"production_order\",\"event_prefix\":\"production_order\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_production_order_index",
@@ -385872,6 +386666,12 @@
             "args": [
               "production_order",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "note",
+              "number",
+              "tenant_id"
             ]
           }
         ],
@@ -386064,7 +386864,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"product\",\"event_prefix\":\"product\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_collections_product_cascade",
@@ -386142,6 +386943,13 @@
             "args": [
               "product",
               "id"
+            ],
+            "updateOf": [
+              "description",
+              "id",
+              "slug",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -386207,7 +387015,10 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "lower(username)"
+            ]
           }
         ],
         "policies": [
@@ -386882,7 +387693,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"promotion\",\"event_prefix\":\"promotion\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -386935,7 +387747,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "COALESCE(tenant_id::text, ''::text)",
+              "name",
+              "label"
+            ]
           },
           {
             "name": "prompt_labels_tenant_idx",
@@ -387005,7 +387822,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "COALESCE(tenant_id::text, ''::text)",
+              "name",
+              "version"
+            ]
           },
           {
             "name": "prompt_versions_pkey",
@@ -387559,7 +388381,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"purchase_order\",\"event_prefix\":\"purchase_order\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -387915,7 +388738,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"purchase_requisition\",\"event_prefix\":\"purchase_requisition\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -388389,7 +389213,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"putaway_rule\",\"event_prefix\":\"putaway_rule\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -388568,7 +389393,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"qualification_requirement\",\"event_prefix\":\"qualification_requirement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -388775,7 +389601,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"qualification_type\",\"event_prefix\":\"qualification_type\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_qualification_type_index",
@@ -388790,6 +389617,12 @@
             "args": [
               "qualification_type",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "key",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -389021,7 +389854,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"qualification\",\"event_prefix\":\"qualification\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -389674,7 +390508,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "number",
+              "revision",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           },
           {
             "name": "quotes_tenant_id_status_page_idx",
@@ -389846,7 +390686,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"quote\",\"event_prefix\":\"quote\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_quotes_entity_numbers",
@@ -389857,7 +390698,12 @@
             ],
             "level": "row",
             "function": "better_supabase.bsb_quotes_entity_numbers",
-            "fills": []
+            "fills": [],
+            "updateOf": [
+              "legal_entity_id",
+              "number",
+              "revision"
+            ]
           },
           {
             "name": "bsb_search_quote_index",
@@ -389872,6 +390718,11 @@
             "args": [
               "quote",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -390329,7 +391180,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"reaction\",\"event_prefix\":\"reaction\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_reactions_changed",
@@ -390724,7 +391576,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"referral_code\",\"event_prefix\":\"referral_code\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -390964,7 +391817,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"referral\",\"event_prefix\":\"referral\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -391158,7 +392012,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"relation\",\"event_prefix\":\"relation\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -391374,7 +392229,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"reminder\",\"event_prefix\":\"reminder\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -391557,7 +392413,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"document_snapshot\",\"event_prefix\":\"document_snapshot\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_frozen_render_guard",
@@ -391927,7 +392784,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"review\",\"event_prefix\":\"review\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_reviews_changed",
@@ -391938,7 +392796,11 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.reviews_changed"
+            "function": "better_supabase.reviews_changed",
+            "updateOf": [
+              "rating",
+              "status"
+            ]
           }
         ],
         "grants": [
@@ -392104,7 +392966,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"rfq_line\",\"event_prefix\":\"rfq_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -392284,7 +393147,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"rfq_quote_line\",\"event_prefix\":\"rfq_quote_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -392472,7 +393336,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"rfq_quote\",\"event_prefix\":\"rfq_quote\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -392642,7 +393507,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"rfq_supplier\",\"event_prefix\":\"rfq_supplier\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -392885,7 +393751,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"rfq\",\"event_prefix\":\"rfq\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_rfq_index",
@@ -392900,6 +393767,11 @@
             "args": [
               "rfq",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -393093,7 +393965,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"risk_assessment\",\"event_prefix\":\"risk_assessment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -393297,7 +394170,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"risk_matrix\",\"event_prefix\":\"risk_matrix\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -393430,7 +394304,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(residual_score, '-1'::integer)",
+              "sequence",
+              "id"
+            ]
           },
           {
             "name": "risks_matrix_idx",
@@ -393674,7 +394554,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"risk\",\"event_prefix\":\"risk\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_risk_index",
@@ -393689,6 +394570,16 @@
             "args": [
               "risk",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "cause",
+              "consequence",
+              "description",
+              "id",
+              "number",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -393775,7 +394666,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"category\":\"access\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_bump_deleted_role_members",
@@ -393892,7 +394784,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"category\":\"access\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -394371,7 +395264,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"sbom_component\",\"event_prefix\":\"sbom_component\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -394713,7 +395607,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "lower(display_name)"
+            ]
           },
           {
             "name": "scim_groups_external_id_idx",
@@ -394849,7 +395747,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "lower(user_name)"
+            ]
           }
         ],
         "policies": [],
@@ -395194,7 +396096,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"score_model\",\"event_prefix\":\"score_model\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -395456,7 +396359,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "updated_at",
+              "((subject_type || ':'::text) || subject_id)"
+            ]
           },
           {
             "name": "search_documents_title_trgm_idx",
@@ -395935,7 +396843,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"segment\",\"event_prefix\":\"segment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -396164,7 +397073,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"sequence\",\"event_prefix\":\"sequence\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -396497,7 +397407,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"share_link\",\"event_prefix\":\"share_link\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -396579,7 +397490,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "is_default"
+            "predicate": "is_default",
+            "keys": [
+              "tenant_id",
+              "list",
+              "scope",
+              "COALESCE(\nCASE scope\n    WHEN 'user'::text THEN owner_id::text\n    WHEN 'team'::text THEN team_id\n    ELSE NULL::text\nEND, ''::text)"
+            ]
           },
           {
             "name": "shared_views_list_idx",
@@ -396701,7 +397618,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"saved_view\",\"event_prefix\":\"saved_view\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -396773,7 +397691,12 @@
             "primary": false,
             "partial": true,
             "method": "gist",
-            "predicate": "(status = 'assigned'::text)"
+            "predicate": "(status = 'assigned'::text)",
+            "keys": [
+              "tenant_id",
+              "user_id",
+              "tstzrange(starts_at, ends_at)"
+            ]
           },
           {
             "name": "shift_assignments_pkey",
@@ -396918,7 +397841,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shift_assignment\",\"event_prefix\":\"shift_assignment\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -397100,7 +398024,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shift_availability\",\"event_prefix\":\"shift_availability\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -397300,7 +398225,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shift_swap\",\"event_prefix\":\"shift_swap\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -397511,7 +398437,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shift_template\",\"event_prefix\":\"shift_template\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -397747,7 +398674,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shift\",\"event_prefix\":\"shift\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -397976,7 +398904,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shipment_line\",\"event_prefix\":\"shipment_line\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -398156,7 +399085,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shipment_package\",\"event_prefix\":\"shipment_package\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -398344,7 +399274,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shipment_tracking_event\",\"event_prefix\":\"shipment_tracking_event\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_shipment_events_append_only",
@@ -398630,7 +399561,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"shipment\",\"event_prefix\":\"shipment\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_shipment_index",
@@ -398645,6 +399577,11 @@
             "args": [
               "shipment",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "reference",
+              "tenant_id"
             ]
           }
         ],
@@ -398834,7 +399771,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"signature_request\",\"event_prefix\":\"signature_request\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_care_plans_signature_settled",
@@ -398843,7 +399781,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.care_plan_signature_settled"
+            "function": "better_supabase.care_plan_signature_settled",
+            "conditional": true,
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_contracts_signature_settled",
@@ -398852,7 +399794,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.contract_signature_settled"
+            "function": "better_supabase.contract_signature_settled",
+            "conditional": true,
+            "updateOf": [
+              "status"
+            ]
           }
         ],
         "grants": [
@@ -399522,7 +400468,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "(archived_at IS NULL)"
+            "predicate": "(archived_at IS NULL)",
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "COALESCE(priority, ''::text)"
+            ]
           },
           {
             "name": "sla_policies_pkey",
@@ -399617,7 +400568,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"sla_policy\",\"event_prefix\":\"sla_policy\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -400948,7 +401900,14 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "count_id",
+              "variant_id",
+              "COALESCE(bin_id, '00000000-0000-4000-8000-000000000000'::uuid)",
+              "COALESCE(lot_id, '00000000-0000-4000-8000-000000000000'::uuid)",
+              "COALESCE(serial, ''::text)"
+            ]
           },
           {
             "name": "stock_count_lines_lot_idx",
@@ -401698,7 +402657,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"stock_lot_link\",\"event_prefix\":\"stock_lot_link\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -403118,7 +404078,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "subject_type",
+              "lower(name)"
+            ]
           }
         ],
         "policies": [
@@ -403206,7 +404171,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"subject_collection\",\"event_prefix\":\"subject_collection\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -404592,7 +405558,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"tag\",\"event_prefix\":\"tag\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -404651,7 +405618,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "code"
+            ]
           },
           {
             "name": "tax_codes_pkey",
@@ -404758,7 +405730,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"tax_code\",\"event_prefix\":\"tax_code\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_tax_code_index",
@@ -404773,6 +405746,12 @@
             "args": [
               "tax_code",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -404937,7 +405916,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"tax_rate\",\"event_prefix\":\"tax_rate\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -405022,7 +406002,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "COALESCE(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)",
+              "period_start",
+              "period_end"
+            ]
           },
           {
             "name": "tax_returns_pkey",
@@ -405117,7 +406103,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"tax_return\",\"event_prefix\":\"tax_return\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -405485,7 +406472,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"team\",\"event_prefix\":\"team\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -406499,7 +407487,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"template\",\"event_prefix\":\"template\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -406983,7 +407972,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"till_count\",\"event_prefix\":\"till_count\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -407142,7 +408132,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"till_deposit\",\"event_prefix\":\"till_deposit\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -407306,7 +408297,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"till_movement\",\"event_prefix\":\"till_movement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -407539,7 +408531,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"till_session\",\"event_prefix\":\"till_session\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -407750,7 +408743,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"till\",\"event_prefix\":\"till\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_till_index",
@@ -407765,6 +408759,11 @@
             "args": [
               "till",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -407877,7 +408876,12 @@
             "primary": false,
             "partial": true,
             "method": "gist",
-            "predicate": "(archived_at IS NULL)"
+            "predicate": "(archived_at IS NULL)",
+            "keys": [
+              "tenant_id",
+              "user_id",
+              "tstzrange(started_at, COALESCE(ended_at, 'infinity'::timestamp with time zone))"
+            ]
           },
           {
             "name": "time_entries_pkey",
@@ -408012,7 +409016,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"time_entry\",\"event_prefix\":\"time_entry\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_billable_time_guard",
@@ -408035,6 +409040,9 @@
             "function": "better_supabase.bsb_time_entries_employee",
             "fills": [
               "employee_id"
+            ],
+            "updateOf": [
+              "user_id"
             ]
           },
           {
@@ -408381,7 +409389,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"time_rate\",\"event_prefix\":\"time_rate\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -408573,7 +409582,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"timeline_entry\",\"event_prefix\":\"timeline_entry\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -408764,7 +409774,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"timesheet\",\"event_prefix\":\"timesheet\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -409901,7 +410912,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"variant_size\",\"event_prefix\":\"variant_size\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -410099,7 +411111,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"version\",\"event_prefix\":\"version\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -410174,7 +411187,13 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "tenant_id",
+              "product_id",
+              "vulnerability_id",
+              "COALESCE(version_id, '00000000-0000-0000-0000-000000000000'::uuid)"
+            ]
           }
         ],
         "policies": [
@@ -410258,7 +411277,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"vex_statement\",\"event_prefix\":\"vex_statement\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -410466,7 +411486,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"vulnerability\",\"event_prefix\":\"vulnerability\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_vulnerability_index",
@@ -410481,6 +411502,12 @@
             "args": [
               "vulnerability",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "summary",
+              "tenant_id",
+              "vuln_id"
             ]
           }
         ],
@@ -410623,7 +411650,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"waitlist_entry\",\"event_prefix\":\"waitlist_entry\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -410811,7 +411839,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"warranty_claim\",\"event_prefix\":\"warranty_claim\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_warranty_claim_index",
@@ -410826,6 +411855,13 @@
             "args": [
               "warranty_claim",
               "id"
+            ],
+            "updateOf": [
+              "decision",
+              "id",
+              "manufacturer",
+              "tenant_id",
+              "title"
             ]
           },
           {
@@ -410838,6 +411874,9 @@
             "level": "row",
             "function": "better_supabase.bsb_transition_warranty_claim",
             "fills": [
+              "status"
+            ],
+            "updateOf": [
               "status"
             ]
           }
@@ -411341,7 +412380,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"webhook_endpoint\",\"event_prefix\":\"webhook_endpoint\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_updated_at",
@@ -411362,7 +412402,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.reset_webhook_endpoint"
+            "function": "better_supabase.reset_webhook_endpoint",
+            "updateOf": [
+              "enabled"
+            ]
           }
         ],
         "grants": [
@@ -411689,7 +412732,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"work_center\",\"event_prefix\":\"work_center\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_search_work_center_index",
@@ -411704,6 +412748,12 @@
             "args": [
               "work_center",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "id",
+              "name",
+              "tenant_id"
             ]
           }
         ],
@@ -411993,7 +413043,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"checklist_item\",\"event_prefix\":\"checklist_item\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -412617,7 +413668,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"work_item\",\"event_prefix\":\"work_item\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_field_history_work_item",
@@ -412626,7 +413678,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_field_history_work_item"
+            "function": "better_supabase.bsb_field_history_work_item",
+            "updateOf": [
+              "body",
+              "title"
+            ]
           },
           {
             "name": "bsb_option_work_item_priority",
@@ -412639,6 +413695,10 @@
             "function": "better_supabase.bsb_option_work_item_priority",
             "fills": [
               "priority"
+            ],
+            "updateOf": [
+              "priority",
+              "priority_option_id"
             ]
           },
           {
@@ -412649,7 +413709,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.bsb_pipeline_status_work_item"
+            "function": "better_supabase.bsb_pipeline_status_work_item",
+            "updateOf": [
+              "stage_id"
+            ]
           },
           {
             "name": "bsb_pipeline_work_item",
@@ -412663,6 +413726,10 @@
             "fills": [
               "pipeline_id",
               "stage_entered_at",
+              "stage_id"
+            ],
+            "updateOf": [
+              "pipeline_id",
               "stage_id"
             ]
           },
@@ -412721,6 +413788,14 @@
             "args": [
               "work_item",
               "id"
+            ],
+            "updateOf": [
+              "archived_at",
+              "body",
+              "id",
+              "identifier",
+              "tenant_id",
+              "title"
             ]
           },
           {
@@ -412733,6 +413808,9 @@
             "level": "row",
             "function": "better_supabase.bsb_transition_work_item",
             "fills": [
+              "state"
+            ],
+            "updateOf": [
               "state"
             ]
           },
@@ -412958,7 +414036,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"work_order_part\",\"event_prefix\":\"work_order_part\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -413321,7 +414400,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"work_order\",\"event_prefix\":\"work_order\"}"
-            ]
+            ],
+            "conditional": true
           },
           {
             "name": "bsb_maintenance_work_order",
@@ -413330,7 +414410,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.maintenance_work_order_closed"
+            "function": "better_supabase.maintenance_work_order_closed",
+            "conditional": true,
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_maintenance_work_order_technician",
@@ -413339,7 +414423,11 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.maintenance_work_order_assigned"
+            "function": "better_supabase.maintenance_work_order_assigned",
+            "conditional": true,
+            "updateOf": [
+              "technician_id"
+            ]
           },
           {
             "name": "bsb_search_work_order_index",
@@ -413354,6 +414442,11 @@
             "args": [
               "work_order",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "tenant_id",
+              "title"
             ]
           }
         ],
@@ -413532,7 +414625,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"project\",\"event_prefix\":\"project\",\"archive_column\":\"archived_at\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -414219,7 +415313,8 @@
             "function": "better_supabase.audit_row_change",
             "args": [
               "{\"ignore\":[],\"redact\":[],\"target_type\":\"workflow_definition\",\"event_prefix\":\"workflow_definition\"}"
-            ]
+            ],
+            "conditional": true
           }
         ],
         "grants": [
@@ -414633,7 +415728,12 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "(attributes ->> 'bsb.definition'::text)",
+              "created_at",
+              "id"
+            ]
           },
           {
             "name": "workflow_runs_engine_external_key",
@@ -414789,7 +415889,10 @@
               "update"
             ],
             "level": "row",
-            "function": "better_supabase.workflow_runs_alert"
+            "function": "better_supabase.workflow_runs_alert",
+            "updateOf": [
+              "status"
+            ]
           },
           {
             "name": "bsb_workflow_runs_status",
@@ -414800,7 +415903,10 @@
             ],
             "level": "row",
             "function": "better_supabase.workflow_runs_changed",
-            "source": "\nbegin\n  if tg_op = 'UPDATE' and old.\"status\" = new.\"status\" then\n    return null;\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-run:' || new.\"id\"::text, true);\n    if new.\"tenant_id\" is not null then\n      perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-runs:' || new.\"tenant_id\"::text, true);\n    end if;\n  end if;\n  if new.\"mode\" = 'test' then\n    return null;\n  end if;\n  case new.\"status\"\n    when 'completed' then\n      perform \"better_supabase\".emit_event('workflow_run.completed', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.completed:' || new.\"id\", 'better-supabase/workflows');\n    when 'failed' then\n      perform \"better_supabase\".emit_event('workflow_run.failed', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.failed:' || new.\"id\", 'better-supabase/workflows');\n    when 'cancelled' then\n      perform \"better_supabase\".emit_event('workflow_run.cancelled', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.cancelled:' || new.\"id\", 'better-supabase/workflows');\n    else null;\n  end case;\n  return null;\nend;\n"
+            "source": "\nbegin\n  if tg_op = 'UPDATE' and old.\"status\" = new.\"status\" then\n    return null;\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-run:' || new.\"id\"::text, true);\n    if new.\"tenant_id\" is not null then\n      perform realtime.send(jsonb_build_object('id', new.\"id\", 'status', new.\"status\"), 'status', 'workflow-runs:' || new.\"tenant_id\"::text, true);\n    end if;\n  end if;\n  if new.\"mode\" = 'test' then\n    return null;\n  end if;\n  case new.\"status\"\n    when 'completed' then\n      perform \"better_supabase\".emit_event('workflow_run.completed', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.completed:' || new.\"id\", 'better-supabase/workflows');\n    when 'failed' then\n      perform \"better_supabase\".emit_event('workflow_run.failed', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.failed:' || new.\"id\", 'better-supabase/workflows');\n    when 'cancelled' then\n      perform \"better_supabase\".emit_event('workflow_run.cancelled', jsonb_build_object('runId', new.\"id\", 'organizationId', new.\"tenant_id\"::text, 'engine', new.\"engine\", 'externalId', new.\"external_id\", 'definition', new.\"definition\", 'status', new.\"status\", 'error', new.\"error\", 'subjectType', new.\"subject_type\", 'subjectId', new.\"subject_id\"), 'workflow-runs/' || new.\"id\", (new.\"tenant_id\")::text, 'workflow_run.cancelled:' || new.\"id\", 'better-supabase/workflows');\n    else null;\n  end case;\n  return null;\nend;\n",
+            "updateOf": [
+              "status"
+            ]
           }
         ],
         "grants": [
@@ -415274,7 +416380,10 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": "((kind = 'event'::text) AND enabled)"
+            "predicate": "((kind = 'event'::text) AND enabled)",
+            "keys": [
+              "(config ->> 'type'::text)"
+            ]
           },
           {
             "name": "workflow_triggers_pkey",
@@ -415733,6 +416842,9 @@
             "function": "better_supabase.bsb_transition_change_request",
             "fills": [
               "status"
+            ],
+            "updateOf": [
+              "status"
             ]
           },
           {
@@ -415945,6 +417057,11 @@
             "fills": [
               "birth_date",
               "diagnosis"
+            ],
+            "updateOf": [
+              "birth_date",
+              "diagnosis",
+              "organization_id"
             ]
           },
           {
@@ -416099,7 +417216,11 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "organization_id",
+              "lower(email)"
+            ]
           },
           {
             "name": "contacts_pkey",
@@ -416615,7 +417736,11 @@
               "update"
             ],
             "level": "row",
-            "function": "public.customers_owner_team_check"
+            "function": "public.customers_owner_team_check",
+            "conditional": true,
+            "updateOf": [
+              "owner_team_id"
+            ]
           },
           {
             "name": "customers_set_updated_at",
@@ -417022,7 +418147,11 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.ensure_organization_owner"
+            "function": "better_supabase.ensure_organization_owner",
+            "updateOf": [
+              "organization_id",
+              "role"
+            ]
           },
           {
             "name": "bsb_organization_role_guard",
@@ -417056,7 +418185,10 @@
               "delete"
             ],
             "level": "row",
-            "function": "better_supabase.bump_authz_version"
+            "function": "better_supabase.bump_authz_version",
+            "updateOf": [
+              "role"
+            ]
           }
         ],
         "grants": [
@@ -417251,7 +418383,10 @@
             "primary": false,
             "partial": true,
             "method": "btree",
-            "predicate": null
+            "predicate": null,
+            "keys": [
+              "lower(slug)"
+            ]
           },
           {
             "name": "organizations_slug_key",
@@ -417721,6 +418856,12 @@
             "args": [
               "project",
               "id"
+            ],
+            "updateOf": [
+              "deleted_at",
+              "id",
+              "name",
+              "organization_id"
             ]
           },
           {
@@ -417748,6 +418889,11 @@
               "name,budget_minor,currency",
               "",
               ""
+            ],
+            "updateOf": [
+              "budget_minor",
+              "currency",
+              "name"
             ]
           }
         ],
@@ -418611,6 +419757,12 @@
             "args": [
               "task",
               "id"
+            ],
+            "updateOf": [
+              "id",
+              "organization_id",
+              "project_id",
+              "title"
             ]
           },
           {
