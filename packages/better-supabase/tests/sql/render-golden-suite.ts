@@ -191,22 +191,28 @@ export function registerGoldenSnapshots(names: readonly string[]): void {
 
 export function registerGoldenChecks(): void {
   describe("SQL module output", () => {
-    it("renders the same files whatever order the modules come in", () => {
-      const forward = renderEveryModule();
+    // Rendering every module twice takes about 2 s locally and 20 to 21 s on
+    // a loaded CI runner, past the 20 s default.
+    it(
+      "renders the same files whatever order the modules come in",
+      { timeout: 60_000 },
+      () => {
+        const forward = renderEveryModule();
 
-      const reversed = new Map(
-        renderBlocks(EVERY_MODULE.toReversed(), {}).map((file) => [
-          file.path,
-          file.contents,
-        ]),
-      );
+        const reversed = new Map(
+          renderBlocks(EVERY_MODULE.toReversed(), {}).map((file) => [
+            file.path,
+            file.contents,
+          ]),
+        );
 
-      expect(
-        forward
-          .filter((file) => reversed.get(file.path) !== file.contents)
-          .map((file) => file.path),
-      ).toEqual([]);
-    });
+        expect(
+          forward
+            .filter((file) => reversed.get(file.path) !== file.contents)
+            .map((file) => file.path),
+        ).toEqual([]);
+      },
+    );
 
     it("stamps every file with the hash of its own body", () => {
       const each = VARIANTS.filter(
