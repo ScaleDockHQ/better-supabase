@@ -327,6 +327,12 @@ const TENANT_HELPER = /member|tenant|current_org|org_id/i;
 const TENANT_COLUMN =
   /^(?:organization|organization|tenant|team|workspace|account)_id$/;
 
+const API_ROLES: ReadonlySet<string> = new Set([
+  "anon",
+  "authenticated",
+  "public",
+]);
+
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
 
 const OWN_RULES: readonly Rule[] = [
@@ -568,7 +574,17 @@ const OWN_RULES: readonly Rule[] = [
           ),
         );
 
-        const missing = COMMANDS.filter((command) => !covered.has(command));
+        // A command the API roles hold no privilege for fails with 42501
+        // before row security, so it needs no policy.
+        const held = new Set(
+          [...table.grants, ...(table.columnGrants ?? [])]
+            .filter((grant) => API_ROLES.has(grant.role.toLowerCase()))
+            .flatMap((grant) => grant.privileges.map((p) => p.toLowerCase())),
+        );
+
+        const missing = COMMANDS.filter(
+          (command) => !covered.has(command) && held.has(command),
+        );
 
         if (missing.length === 0) {
           return [];
@@ -609,7 +625,11 @@ const OWN_RULES: readonly Rule[] = [
             table.kind === "table" &&
             table.columns.some((column) => column.name === tenant.column) &&
             !table.indexes.some(
-              (index) => !index.partial && index.columns[0] === tenant.column,
+              // An expression key also marks an index partial; only a
+              // predicate keeps it from serving every tenant query.
+              (index) =>
+                (!index.partial || index.predicate === null) &&
+                index.columns[0] === tenant.column,
             ),
         )
         .map((table) => ({

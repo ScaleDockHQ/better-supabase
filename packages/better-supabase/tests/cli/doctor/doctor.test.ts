@@ -913,6 +913,32 @@ describe("doctor rules", () => {
     expect(await codes(context(snap))).toEqual(["BS204", "BS216"]);
   });
 
+  it("accepts an expression index led by the tenant column and not a partial one", async () => {
+    const indexed = (predicate: string | null) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        notes.indexes = [
+          ...notes.indexes.filter(
+            (index) => index.columns[0] !== "organization_id",
+          ),
+          {
+            name: "notes_tenant_lower_title",
+            columns: ["organization_id"],
+            unique: false,
+            primary: false,
+            partial: true,
+            method: "btree",
+            predicate,
+          },
+        ];
+      });
+
+    expect(await codes(context(indexed(null)))).not.toContain("BS204");
+    expect(await codes(context(indexed("(archived_at IS NULL)")))).toContain(
+      "BS204",
+    );
+  });
+
   it("leaves a view's tenant column out of the index check", async () => {
     const snap = snapshot((tables) => {
       const notes = table(tables, "notes");
@@ -1081,6 +1107,24 @@ describe("doctor rules", () => {
       expect(
         await codes(context(withFunctions(constant, [helper({})])), "BS205"),
       ).toEqual([]);
+
+      const insertOnly = snapshot((tables) => {
+        table(tables, "customers").policies = [
+          {
+            ...memberPolicy("customers_insert", ""),
+            command: "insert" as const,
+            using: null,
+            check: "private.is_member(organization_id)",
+          },
+        ];
+      });
+
+      expect(
+        await runRules(
+          context(withFunctions(insertOnly, [helper({})])),
+          RULES.filter((rule) => rule.code === "BS205"),
+        ),
+      ).toMatchObject([{ severity: "info" }]);
     });
 
     it("flags security definer helpers used in many policies (BS206)", async () => {
@@ -1179,6 +1223,29 @@ describe("doctor rules", () => {
           "BS206",
         ),
       ).toEqual(["BS206"]);
+
+      // union all branches and a from item run once per statement too.
+      for (const using of [
+        "(organization_id IN ( SELECT private.is_member('a'::text) AS is_member UNION ALL SELECT private.is_member('b'::text) AS is_member))",
+        "(organization_id IN ( SELECT t.id FROM private.is_member('crm.read'::text) t(id)))",
+      ]) {
+        const once = snapshot((tables) => {
+          for (const name of names) {
+            table(tables, name).policies = [
+              memberPolicy(`${name}_member`, using),
+            ];
+          }
+        });
+
+        expect(
+          await codes(
+            context(withFunctions(once, [helper({})]), {
+              config: tight.config,
+            }),
+            "BS206",
+          ),
+        ).toEqual([]);
+      }
     });
 
     it("flags overlapping permissive policies and defers to splinter's lint (BS207)", async () => {

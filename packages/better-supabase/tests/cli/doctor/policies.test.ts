@@ -430,6 +430,10 @@ describe("policies without a role (BS117)", () => {
 
   it("flags permissive policies for public and skips restrictive ones", async () => {
     const snap = snapshot((tables) => {
+      table(tables, "notes").grants = [
+        ...table(tables, "notes").grants,
+        { role: "anon", privileges: ["SELECT"] },
+      ];
       table(tables, "notes").policies = [
         ...table(tables, "notes").policies,
         policy({ name: "notes_no_role", roles: ["public"] }),
@@ -454,6 +458,19 @@ describe("policies without a role (BS117)", () => {
         message: expect.stringContaining("applies to public"),
       },
       { target: "public.notes.notes_no_roles" },
+    ]);
+  });
+
+  it("reports info when anon holds no privilege on the table", async () => {
+    const snap = snapshot((tables) => {
+      const notes = table(tables, "notes");
+      notes.policies = [policy({ name: "notes_no_role", roles: ["public"] })];
+      notes.grants = notes.grants.filter((grant) => grant.role !== "anon");
+      notes.columnGrants = [];
+    });
+
+    expect(await run(context(snap), "BS117")).toMatchObject([
+      { severity: "info", target: "public.notes.notes_no_role" },
     ]);
   });
 });

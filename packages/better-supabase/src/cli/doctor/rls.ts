@@ -464,8 +464,8 @@ const LITERAL_ARGS = String.raw`(?:\s*(?:'(?:[^']|'')*'(?:::[\w ]+(?:\[\])?)?|-?
 
 /**
  * Whether every call of `name` (`schema.function`) in `expressions` takes only
- * constant arguments inside `(select ...)`, which Postgres runs once per
- * statement. An argument from the row makes it run per row.
+ * constant arguments in a sub-query's select list or from list, which Postgres
+ * runs once per statement. An argument from the row makes it run per row.
  */
 function onlyWrapped(
   name: string,
@@ -477,8 +477,11 @@ function onlyWrapped(
 
   const any = new RegExp(`(?<![\\w."])${call}`, "gi");
 
+  // A select list or from item of a sub-query: `(select helper('k'))`,
+  // `col in (select helper('k'))`, a `union all select helper('k')` branch or
+  // `from helper('k') t(id)`.
   const wrapped = new RegExp(
-    `\\(\\s*select\\s+${call}${LITERAL_ARGS}\\)(?:\\s+as\\s+"?\\w+"?)?\\s*\\)`,
+    `\\b(?:select|from)\\s+${call}${LITERAL_ARGS}\\)`,
     "gi",
   );
 
@@ -841,6 +844,10 @@ export const RLS_RULES: readonly Rule[] = [
 
             return [
               {
+                // An insert check runs per written row, never over a scan.
+                ...(policy.command === "insert"
+                  ? { severity: "info" as const }
+                  : {}),
                 message: `Policy "${policy.name}" on ${qualified(table)} calls ${name}(${column}), ${notInlinable(slow)}, with a column of the row, so it runs once per row. Have a helper return the allowed values once and compare: \`${column} in (select <helper>())\`${fix}.`,
                 target: `${qualified(table)}.${policy.name}`,
                 object: policyObject(table, policy),

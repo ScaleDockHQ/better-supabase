@@ -250,7 +250,9 @@ make a read-only table explicit, and cover the table with
 itself (the one the tenant column references) is skipped. On an app table a
 block runs over, only your own policies decide whether the table is reported:
 the block reads it through its `bsb_` policies and writes it through its own
-functions, so a table with only block policies is left alone.
+functions, so a table with only block policies is left alone. A command that
+`anon` and `authenticated` hold no table or column privilege for fails with
+`42501` before row security runs, so it needs no policy and isn't reported.
 
 ### BS108
 
@@ -360,7 +362,9 @@ create policy notes_read on public.notes for select to authenticated
   using (organization_id = (select better_supabase.current_tenant_id()));
 ```
 
-Restrictive policies only narrow access, so doctor skips them.
+Restrictive policies only narrow access, so doctor skips them. When `anon`
+holds no privilege on the table, a signed-out request fails before the policy
+runs, so the finding is info instead of a warning.
 
 ## Performance
 
@@ -368,8 +372,9 @@ Restrictive policies only narrow access, so doctor skips them.
 
 **Warning: tenant column without an index.** With the
 [memberships extension](/docs/blocks/memberships), every query filters on the tenant column. Add
-an index that starts with it. Views are left out, because a query on a view
-uses the indexes of its tables.
+an index that starts with it; an expression index whose first key is the plain
+column counts, a partial one doesn't. Views are left out, because a query on a
+view uses the indexes of its tables.
 
 ### BS205
 
@@ -387,6 +392,9 @@ create policy notes_member on public.notes for select to authenticated
   using (organization_id in (select private.user_organization_ids()));
 ```
 
+An insert policy's `with check` runs once per written row, never over a scan,
+so on an insert-only policy the finding is info.
+
 ### BS206
 
 **Warning: security definer policy helper that cannot be inlined.** A
@@ -400,8 +408,10 @@ InitPlan, or have it return the allowed ids as a set and compare with
 its answer once per transaction with
 [`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
 A policy whose every call to the
-helper already reads `(select helper(...))` with constant arguments, such as
-`(select tenant_ids_with('crm.read'))`, doesn't count.
+helper takes constant arguments in a sub-query, such as
+`(select tenant_ids_with('crm.read'))`, `col in (select helper('k'))`, a
+`union all select helper('k')` branch or `from helper('k') t(id)`, doesn't
+count.
 
 ### BS207
 

@@ -265,6 +265,25 @@ describe("BS107 without the tenant plugin", () => {
     expect(excluded.map((finding) => finding.target)).toEqual(["public.notes"]);
   });
 
+  it("skips commands the API roles hold no privilege for", async () => {
+    const snap = snapshot((tables) => {
+      const tags = table(tables, "tags");
+      tags.policies = [
+        policy("tags_read", "select", null, { check: "org_id = 1" }),
+      ];
+      tags.grants = [
+        { role: "authenticated", privileges: ["SELECT", "INSERT"] },
+      ];
+      tags.columnGrants = [
+        { column: "name", role: "authenticated", privileges: ["UPDATE"] },
+      ];
+    });
+
+    const [finding] = await run("BS107", context(snap));
+
+    expect(finding?.message).toContain("no insert, update policy");
+  });
+
   it("counts a policy that calls one of the provider's functions as tenant-scoped", async () => {
     const snap = snapshot((tables) => {
       table(tables, "notes").policies = [
