@@ -6772,6 +6772,9 @@
               "approver": {
                 "type": "string",
                 "default": "permission"
+              },
+              "decider": {
+                "type": "string"
               }
             }
           }
