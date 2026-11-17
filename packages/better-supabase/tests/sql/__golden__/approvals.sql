@@ -1698,7 +1698,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:38c86e3c546609ca302d21b1732403407826eef0cb69dde94cdc52b3e0688562
+-- @bsb-hash sha256:2d2c952aa1985f3439c2d9b59d333d6cd7801065bbf3089c9f534af09ae519d3
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1838,7 +1838,7 @@ begin
     when 'manager' then (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = approval_fact.tenant and (case when approval_fact.value is not null then me."id"::text = approval_fact.value else me."user_id" = approval_fact.requester end)
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = v_me, false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = approval_fact.tenant and mm."user_id" = v_me and mm."disabled_at" is null
@@ -1987,7 +1987,7 @@ begin
     or (coalesce(((q.bsb_step -> 'approvers') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = q.bsb_me, false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."disabled_at" is null
@@ -2002,7 +2002,7 @@ begin
     or (coalesce(((q.bsb_step -> 'escalateTo') ->> 'manager')::boolean, false) and (coalesce((select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = q."tenant_id" and (case when (q."policy" ->> 'managerOf') is not null then me."id"::text = (q."policy" ->> 'managerOf') else me."user_id" = q."requested_by" end)
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) = q.bsb_me, false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = q."tenant_id" and mm."user_id" = q.bsb_me and mm."disabled_at" is null
@@ -2054,7 +2054,7 @@ begin
       select (select mgr."user_id" from "better_supabase"."employees" me
       join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
       where me."tenant_id" = v_req."tenant_id" and (case when (v_req."policy" ->> 'managerOf') is not null then me."id"::text = (v_req."policy" ->> 'managerOf') else me."user_id" = v_req."requested_by" end)
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded'
+        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
       limit 1) where coalesce((v_approvers ->> 'manager')::boolean, false)
       union
       select x."delegate_to" from "better_supabase"."approval_decisions" x

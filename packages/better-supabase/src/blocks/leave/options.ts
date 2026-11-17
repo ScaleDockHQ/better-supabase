@@ -72,10 +72,11 @@ export type LeaveSqlOptions = {
    */
   readonly decider?: string;
   /**
-   * With `approvals: false`, a requester who holds the approve permission and
-   * has no manager above them in the employees block decides their own request
-   * through `decide_leave_request`. Needs the employees block. Default
-   * `false`.
+   * With `approvals: false`, a requester who holds the approve permission
+   * decides their own request through `decide_leave_request` when nobody else
+   * can: no other active member holds the permission, and no active manager
+   * with a login can decide it (`approver: "manager"`, or anyone up the chain
+   * with a `decider`). Needs the employees block. Default `false`.
    */
   readonly selfDecideWhenTopOfChain?: boolean;
 };

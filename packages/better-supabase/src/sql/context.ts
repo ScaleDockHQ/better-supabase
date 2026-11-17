@@ -346,6 +346,8 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
   readonly providerRowsWithFor: string | undefined;
+  /** The `provider` model's `can_user` answers only for the caller. */
+  readonly providerCallerOnly?: boolean;
   /**
    * The names of `config.appTables`, created in `public` after every block
    * file, so a block can't put a trigger on one (ADR 0043).
@@ -619,6 +621,8 @@ export interface BlockSqlContextSource {
   /** The provider's `functions.rowsWith` and `rowsWithFor` templates. */
   readonly providerRowsWith?: string;
   readonly providerRowsWithFor?: string;
+  /** The `provider` model's `can_user` answers only for the caller. */
+  readonly providerCallerOnly?: boolean;
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
@@ -1296,6 +1300,7 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     providerRowsWith: source.providerRowsWith,
     providerRowsWithFor: source.providerRowsWithFor,
+    ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,
     resolved,

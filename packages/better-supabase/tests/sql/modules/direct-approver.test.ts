@@ -4,6 +4,10 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import {
+  callerOnlyProvider,
+  moduleProvider,
+} from "../../fixtures/authorization-provider.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
@@ -282,9 +286,26 @@ $$;`,
 
 const CAROL_EMPLOYEE = "99999999-9999-4999-8999-999999999999";
 
+const HR = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const HR_EMPLOYEE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+// Carol owns the company and has no manager. public.approvers lists who holds
+// the approve permission, starting with Carol alone.
 const CAROL_ON_TOP = `
 insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id)
   values ('${CAROL_EMPLOYEE}', '${TENANT}', '${CAROL}', 'Carol', null);
+create table public.approvers (user_id uuid primary key);
+insert into public.approvers values ('${CAROL}');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$
+  select permission not like '%.approve' or exists (select 1 from public.approvers a where a.user_id = auth.uid())
+$$;
+create or replace function better_supabase.can_user(member uuid, scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$
+  select permission not like '%.approve' or exists (select 1 from public.approvers a where a.user_id = member)
+$$;
+create function public.nobody_decides(request_id uuid)
+returns boolean language sql stable as $$ select false $$;
 `;
 
 const decideOwn = (who: string, request: string, expected: string): string => `
@@ -298,12 +319,29 @@ const decideOwn = (who: string, request: string, expected: string): string => `
     end if;
   end;`;
 
-const topBlocks = (on: boolean): AnyBlocksConfig => ({
+const decidesOwn = (who: string, dates: string, expected: string): string => `
+  ${as(who)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, ${dates}) ->> 'id')::uuid;
+  perform better_supabase.decide_leave_request(v_leave, true);
+  if (select approved_at is null or decided_by is distinct from '${who}'::uuid from better_supabase.leave_requests where id = v_leave) then
+    raise exception '${expected}';
+  end if;`;
+
+const refusedOwn = (who: string, dates: string, expected: string): string => `
+  ${as(who)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, ${dates}) ->> 'id')::uuid;
+  ${decideOwn(who, "v_leave", expected)}`;
+
+const topBlocks = (
+  on: boolean,
+  extra: { readonly approver?: "manager"; readonly decider?: string } = {},
+): AnyBlocksConfig => ({
   leave: {
     options: {
       owner: "employee",
       approvals: false,
       selfDecideWhenTopOfChain: on,
+      ...extra,
     },
   },
 });
@@ -330,45 +368,83 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
-  it("lets a key holder at the top decide their own leave and refuses one with a manager or without the key", async () => {
+  it("lets a requester decide their own leave only when nobody else can", async () => {
     await expect(
       run(
         `do $$
 declare
   v_type uuid;
   v_leave uuid;
-  v_bob uuid;
 begin
   ${as(CAROL)}
   v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
-  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
-  perform better_supabase.decide_leave_request(v_leave, true);
-  if (select approved_at is null or decided_by is distinct from '${CAROL}'::uuid from better_supabase.leave_requests where id = v_leave) then
-    raise exception 'Carol could not decide her own leave at the top';
-  end if;
+  ${decidesOwn(CAROL, "'2099-03-02', '2099-03-03'", "Carol could not decide her own leave as the sole approver")}
+  ${refusedOwn(BOB, "'2099-03-09', '2099-03-10'", "Bob decided his own leave without the approve permission")}
 
-  ${as(BOB)}
-  v_bob := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-09', '2099-03-10') ->> 'id')::uuid;
-  ${decideOwn(BOB, "v_bob", "Bob decided his own leave without the approve permission")}
+  insert into auth.users (id) values ('${HR}');
+  insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${HR}', 'member');
+  insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id) values ('${HR_EMPLOYEE}', '${TENANT}', '${HR}', 'Hannah', null);
+  insert into public.approvers values ('${HR}');
+  ${refusedOwn(HR, "'2099-03-16', '2099-03-17'", "HR without a manager decided her own leave while Carol can approve")}
+  update better_supabase.memberships set disabled_at = now() where user_id = '${HR}';
+  ${decidesOwn(CAROL, "'2099-03-23', '2099-03-24'", "Carol could not decide her own leave with the other approver disabled")}
+  delete from public.approvers where user_id = '${HR}';
 
   update better_supabase.employees set manager_id = '${BOB_EMPLOYEE}' where id = '${CAROL_EMPLOYEE}';
-  ${as(CAROL)}
-  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
-  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave with a manager above her")}
+  ${refusedOwn(CAROL, "'2099-04-06', '2099-04-07'", "Carol decided her own leave with an active manager who can decide it")}
 
   update better_supabase.employees set status = 'offboarded' where id = '${BOB_EMPLOYEE}';
-  ${as(CAROL)}
-  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-05-04', '2099-05-05') ->> 'id')::uuid;
-  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under an offboarded manager")}
+  ${decidesOwn(CAROL, "'2099-05-04', '2099-05-05'", "Carol could not decide her own leave under an offboarded manager")}
 
   update better_supabase.employees set status = 'active', user_id = null where id = '${BOB_EMPLOYEE}';
+  ${decidesOwn(CAROL, "'2099-06-01', '2099-06-02'", "Carol could not decide her own leave under a manager without a login")}
+
+  update better_supabase.employees set user_id = '${BOB}', start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
   ${as(CAROL)}
-  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-06-01', '2099-06-02') ->> 'id')::uuid;
-  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under a manager without a login")}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-07-06', '2099-07-07') ->> 'id')::uuid;
+  ${as(BOB)}
+  begin
+    perform better_supabase.decide_leave_request(v_leave, true);
+    raise exception 'Bob decided Carol''s leave after his employment ended';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;
+  ${as(CAROL)}
+  perform better_supabase.decide_leave_request(v_leave, true);
+  if (select approved_at is null or decided_by is distinct from '${CAROL}'::uuid from better_supabase.leave_requests where id = v_leave) then
+    raise exception 'Carol could not decide her own leave under a manager whose employment ended';
+  end if;
 end;
 $$;`,
         ["employees", "leave"],
-        topBlocks(true),
+        topBlocks(true, { approver: "manager" }),
+        CAROL_ON_TOP,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("counts every active manager up the chain as a decider when options.decider is set", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+begin
+  ${as(CAROL)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  update better_supabase.employees set manager_id = '${ALICE_EMPLOYEE}' where id = '${CAROL_EMPLOYEE}';
+  update better_supabase.employees set status = 'offboarded' where id = '${ALICE_EMPLOYEE}';
+  ${refusedOwn(CAROL, "'2099-03-02', '2099-03-03'", "Carol decided her own leave with an active manager two levels up")}
+
+  update better_supabase.employees set status = 'offboarded' where id = '${BOB_EMPLOYEE}';
+  ${decidesOwn(CAROL, "'2099-04-06', '2099-04-07'", "Carol could not decide her own leave with only offboarded managers above her")}
+end;
+$$;`,
+        ["employees", "leave"],
+        topBlocks(true, { decider: "public.nobody_decides" }),
         CAROL_ON_TOP,
       ),
     ).resolves.toBeUndefined();
@@ -389,6 +465,106 @@ $$;`,
         },
       }),
     ).toThrow(/needs the employees block's tables/);
+  });
+});
+
+describe("a manager whose employment ended", BOOT, () => {
+  it("no longer decides leave or an expense directly", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+  v_expense uuid;
+begin
+  ${as(BOB)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  update better_supabase.employees set start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
+  ${as(ALICE)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_expense);
+  ${decideOwn(BOB, "v_leave", "Bob decided leave after his employment ended")}
+  begin
+    perform better_supabase.decide_expense(v_expense, true);
+    raise exception 'Bob decided an expense after his employment ended';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+});
+
+const decideFunction = (sql: string): string => {
+  const start = sql.indexOf(
+    'create or replace function "better_supabase"."decide_leave_request"(',
+  );
+
+  return sql.slice(start, sql.indexOf("\n$$;", start) + 4);
+};
+
+describe("the self-decide check", () => {
+  it("renders the golden decide function with the option on", async () => {
+    const sql = renderBlocks(["employees", "leave"], {
+      modules: {
+        leave: {
+          options: {
+            owner: "employee",
+            approvals: false,
+            approver: "manager",
+            decider: "public.chain_decides",
+            selfDecideWhenTopOfChain: true,
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    await expect(decideFunction(sql)).toMatchFileSnapshot(
+      "../__golden__/leave-self-decide.sql",
+    );
+  });
+
+  it("refuses an access model that can't answer for other users", () => {
+    expect(() =>
+      renderBlocks(["employees", "leave"], {
+        modules: {
+          permissions: {
+            model: "custom",
+            functions: {
+              can: "app.can",
+              tenantIdsWith: "app.tenant_ids_with",
+              isPlatform: "app.is_platform",
+              canAssign: "app.can_assign",
+            },
+          },
+          leave: {
+            options: { approvals: false, selfDecideWhenTopOfChain: true },
+          },
+        },
+      }),
+    ).toThrow(/answers for other users/);
+  });
+
+  it("refuses a provider that answers only for the caller and accepts one that answers for others", () => {
+    const self = (accessProvider: typeof moduleProvider) => () =>
+      renderBlocks(["employees", "leave"], {
+        modules: {
+          permissions: { model: "provider" },
+          leave: {
+            options: { approvals: false, selfDecideWhenTopOfChain: true },
+          },
+        },
+        accessProvider,
+      });
+
+    expect(self(callerOnlyProvider)).toThrow(/answers for other users/);
+    expect(self(moduleProvider)).not.toThrow();
   });
 });
 

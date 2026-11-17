@@ -117,10 +117,28 @@ const employeeWho = (
     : `(case when ${employee} is not null then me.${e("id")}::text = ${employee} else me.${e("user")} = ${requester} end)`;
 
 /**
+ * Whether employee `alias` can still decide: has a login, isn't offboarded and
+ * has no end date before today.
+ */
+function employedNow(
+  employees: NonNullable<ReturnType<typeof employeesOf>>,
+  alias: string,
+): string {
+  const e = (column: string): string => employees.col("employees", column);
+
+  const ended = employees.has("employees", "endDate")
+    ? ` and (${alias}.${e("endDate")} is null or ${alias}.${e("endDate")} >= current_date)`
+    : "";
+
+  return `${alias}.${e("user")} is not null and ${employees.is("employees", "status", `${alias}.${e("status")}`, ["offboarded"], true)}${ended}`;
+}
+
+/**
  * The user id of the requester's manager in the request's tenant, as a SQL
  * expression, or `undefined` without the employees module. `employee`, a text
  * SQL expression, names the employee whose manager it is instead when it is not
- * null. An offboarded manager decides nothing.
+ * null. An offboarded manager, or one whose end date has passed, decides
+ * nothing.
  */
 export function managerOf(
   ctx: BlockSqlContext,
@@ -140,7 +158,7 @@ export function managerOf(
   return `(select mgr.${e("user")} from ${table} me
       join ${table} mgr on mgr.${e("id")} = me.${e("manager")}
       where me.${e("tenant")} = ${tenant} and ${employeeWho(e, requester, employee)}
-        and mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
+        and ${employedNow(employees, "mgr")}
       limit 1)`;
 }
 
@@ -171,16 +189,22 @@ export function managerMatch(
 }
 
 /**
- * SQL that is true when the requester has an employee record in the tenant with
- * no manager at all, or `undefined` without the employees module. A manager who
- * is offboarded or has no login still counts, so a missing decider never lets
- * someone decide for themselves.
+ * SQL that is true when someone other than the requester can decide the
+ * request, or `undefined` without the employees module: an active member who
+ * holds `permission` in the tenant, the requester's manager when `manager` is
+ * set (as `managerMatch` lets them decide), or, when `chain` is set, an active
+ * manager anywhere up the requester's reporting chain who has a login, since an
+ * app's decider may accept them. A requester may decide their own request only
+ * when this is false.
  */
-export function topOfChain(
+export function otherDecider(
   ctx: BlockSqlContext,
   args: {
     readonly requester: string;
     readonly tenant: string;
+    readonly permission: string;
+    readonly manager: boolean;
+    readonly chain: boolean;
     readonly employee?: string;
   },
 ): string | undefined {
@@ -191,11 +215,36 @@ export function topOfChain(
   }
 
   const e = (column: string): string => employees.col("employees", column);
+  const table = employees.table("employees");
+  const members = ctx.of("memberships");
+  const m = (column: string): string => members.col("memberships", column);
+
+  const manager = args.manager
+    ? managerMatch(ctx, {
+        requester: args.requester,
+        tenant: args.tenant,
+        user: `om.${m("user")}`,
+        ...(args.employee === undefined ? {} : { employee: args.employee }),
+      })
+    : "";
+
+  const chain = args.chain
+    ? `om.${m("user")} in (
+          with recursive up(id) as (
+            select me.${e("manager")} from ${table} me
+            where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
+            union
+            select boss.${e("manager")} from up join ${table} boss on boss.${e("id")} = up.id
+          )
+          select mgr.${e("user")} from up join ${table} mgr on mgr.${e("id")} = up.id
+          where ${employedNow(employees, "mgr")}
+        )`
+    : "";
 
   return `exists (
-      select 1 from ${employees.table("employees")} me
-      where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
-        and me.${e("manager")} is null
+      select 1 from ${members.table("memberships")} om
+      where om.${m("tenant")} = ${args.tenant} and om.${m("user")} is distinct from ${args.requester}${activeMembership(ctx, "om")}
+        and (${[manager, chain, ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)].filter((check) => check !== "").join(" or ")})
     )`;
 }
 

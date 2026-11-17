@@ -112,6 +112,11 @@ export function moduleContext(
       ...providerIdType(layout),
       ...providerGuests(layout),
       ...(modules?.permissions?.model === "provider" &&
+      (layout.accessProvider?.functions.idsWithFor === undefined ||
+        layout.accessProvider.functions.isPlatformFor === undefined)
+        ? { providerCallerOnly: true }
+        : {}),
+      ...(modules?.permissions?.model === "provider" &&
       layout.accessProvider?.functions.rowsWith !== undefined
         ? {
             providerRowsWith: layout.accessProvider.functions.rowsWith,

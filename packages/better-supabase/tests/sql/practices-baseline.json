@@ -285,6 +285,9 @@
   "leases": {
     "security-definer-functions": 56
   },
+  "leave-self-decide": {
+    "security-definer-functions": 1
+  },
   "leave": {
     "security-definer-functions": 135,
     "row-triggers": 2

@@ -23,7 +23,7 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import { managerMatch, topOfChain } from "./approvals-tenant.ts";
+import { managerMatch, otherDecider } from "./approvals-tenant.ts";
 import { deciderCall, managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
@@ -318,9 +318,12 @@ function build(ctx: BlockSqlContext): string {
   }
 
   const top = ctx.flag("selfDecideWhenTopOfChain", false)
-    ? topOfChain(ctx, {
+    ? otherDecider(ctx, {
         requester: owner.requester("v_row"),
         tenant: `v_row.${q("tenant")}`,
+        permission: approve,
+        manager: manager !== "",
+        chain: decider !== "",
         ...(ctx.has("requests", "employee")
           ? { employee: `v_row.${q("employee")}::text` }
           : {}),
@@ -339,14 +342,25 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  if (
+    top !== "" &&
+    ((ctx.modules.permissions?.model === "custom" &&
+      ctx.modules.permissions.functions?.canUser === undefined) ||
+      ctx.providerCallerOnly === true)
+  ) {
+    throw new TypeError(
+      "blocks.leave.options.selfDecideWhenTopOfChain needs an access model that answers for other users (blocks.permissions.functions.canUser, or the provider's idsWithFor and isPlatformFor) to find the other approvers",
+    );
+  }
+
   const self =
     top === ""
       ? ""
-      : ` or (coalesce(${owner.requester("v_row")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${top})`;
+      : ` or (coalesce(${owner.requester("v_row")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and not ${top})`;
 
   const decide = `
 -- Approves or rejects a pending request without the approvals block, as the
--- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}${top ? "\n-- A requester with the approve permission and no manager above them decides\n-- their own request (options.selfDecideWhenTopOfChain)." : ""}
+-- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}${top ? "\n-- A requester with the approve permission decides their own request when\n-- nobody else can decide it (options.selfDecideWhenTopOfChain)." : ""}
 drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);
 create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb

@@ -143,6 +143,41 @@ $$;`),
       ).resolves.toBeUndefined();
     });
 
+    it("drops a manager whose employment ended from the manager step of leave, weeks and expenses", async () => {
+      await expect(
+        run(`do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+  v_sheet uuid;
+  v_expense uuid;
+  v_approval uuid;
+begin
+  ${as(BOB)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  update better_supabase.employees set start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
+  ${as(ALICE)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'approvalId')::uuid;
+  perform better_supabase.log_time('${TENANT}', '2099-03-02T09:00:00Z', '2099-03-02T10:00:00Z');
+  v_sheet := (better_supabase.submit_timesheet('${TENANT}', '2099-03-02') ->> 'id')::uuid;
+  v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_expense);
+  ${as(BOB)}
+  foreach v_approval in array array[
+    v_leave,
+    (select id from better_supabase.approval_requests where subject_type = 'timesheet' and subject_id = v_sheet::text and status = 'pending'),
+    (select id from better_supabase.approval_requests where subject_type = 'expense' and subject_id = v_expense::text and status = 'pending')
+  ] loop
+    if v_approval is null or better_supabase.approval_eligible(v_approval)
+      or v_approval = any (select better_supabase.approval_eligible_ids('${TENANT}')) then
+      raise exception 'Bob still decides % after his employment ended', v_approval;
+    end if;
+  end loop;
+end;
+$$;`),
+      ).resolves.toBeUndefined();
+    });
+
     it("keeps approval_eligible_ids in step with approval_eligible for role approvers", async () => {
       await expect(
         run(`do $$
