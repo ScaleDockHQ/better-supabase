@@ -24,6 +24,7 @@ export const stockMovementListSurface: EntityListSurface = {
   filters: [
     "kind",
     "variantId",
+    "productId",
     "locationId",
     "binId",
     "lotId",

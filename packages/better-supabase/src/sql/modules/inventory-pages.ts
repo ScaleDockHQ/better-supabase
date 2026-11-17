@@ -103,14 +103,25 @@ export function inventoryPages(ctx: BlockSqlContext): string {
     movementIdKey,
   ] as const;
 
+  const catalog = ctx.of("catalog");
+
+  const vr = columns(catalog, "variants");
+
+  const productOf = `(select v.${vr("product")} from ${catalog.table("variants")} v where v.${vr("id")}::text = ${metadata("variantId")})`;
+
   const movementJson = `jsonb_build_object(
       'id', x.${tx("id")},
       'kind', x.${tx("kind")},
       'variantId', ${metadata("variantId")},
+      'productId', ${productOf},
       'locationId', ${metadata("locationId")},
       'binId', ${metadata("binId")},
       'lotId', ${metadata("lotId")},
       'quantity', ${metadata("quantity")},
+      'unit', ${metadata("unit")},
+      'reason', ${metadata("reason")},
+      'note', ${ledger.has("transactions", "memo") ? `x.${tx("memo")}` : "null::text"},
+      'actorId', x.${tx("actor")},
       'documentType', x.${tx("referenceType")},
       'documentId', x.${tx("referenceId")},
       'effectiveAt', x.${tx("effectiveAt")})`;
@@ -124,6 +135,7 @@ export function inventoryPages(ctx: BlockSqlContext): string {
       `x.${tx("kind")} like 'stock.%'`,
       filterAny("kind", `x.${tx("kind")}`),
       filterAny("variantId", metadata("variantId")),
+      filterAny("productId", productOf),
       filterAny("locationId", metadata("locationId")),
       filterAny("binId", metadata("binId")),
       filterAny("lotId", metadata("lotId")),
@@ -279,10 +291,6 @@ export function inventoryPages(ctx: BlockSqlContext): string {
     invalid: (message: string) => fail("INVENTORY_INVALID", message, "22023"),
   } as const;
 
-  const catalog = ctx.of("catalog");
-
-  const vr = columns(catalog, "variants");
-
   const variantSort = (column: string): readonly ListSortKey[] => [
     { expr: `x.${vr(column)}`, dir: "asc", type: "text" },
     { expr: `x.${vr("id")}`, dir: "asc", type: "uuid" },
@@ -413,9 +421,10 @@ ${userGrant(`${fn("get_inventory_level")}(text)`)}
     return `
 -- A keyset page of the ledger's stock movements, newest first (ADR 1077). Row
 -- security decides what the caller sees. filters is { kind, variantId,
--- locationId, binId, lotId, documentType, documentId (each a value or a list),
--- search (the kind or the document id), sort (effectiveAt, quantity),
--- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+-- productId, locationId, binId, lotId, documentType, documentId (each a value
+-- or a list), search (the kind or the document id), sort (effectiveAt,
+-- quantity), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function ${fn("page_inventory_movements")}(tenant ${ctx.idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
