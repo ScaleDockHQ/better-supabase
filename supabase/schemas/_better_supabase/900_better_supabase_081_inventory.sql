@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:9d970f5444daf089e454d0c512b7e5ccaf32ab635fca26513c57773c6b6bb254
+-- @bsb-hash sha256:f3b7e7a32a49f81810b64df2042a4fc33180efb6c9a174925a05a81149114b61
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3867,9 +3867,10 @@ grant execute on function "better_supabase"."get_inventory_level"(text) to authe
 
 -- A keyset page of the ledger's stock movements, newest first (ADR 1077). Row
 -- security decides what the caller sees. filters is { kind, variantId,
--- locationId, binId, lotId, documentType, documentId (each a value or a list),
--- search (the kind or the document id), sort (effectiveAt, quantity),
--- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+-- productId, locationId, binId, lotId, documentType, documentId (each a value
+-- or a list), search (the kind or the document id), sort (effectiveAt,
+-- quantity), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."page_inventory_movements"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3911,6 +3912,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -3934,6 +3936,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -3963,10 +3966,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((x."effective_at")::text, (x."id")::text) as k
@@ -3976,6 +3984,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4000,10 +4009,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((x."effective_at")::text, (x."id")::text) as k
@@ -4013,6 +4027,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4037,10 +4052,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((x."effective_at")::text, (x."id")::text) as k
@@ -4050,6 +4070,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4074,10 +4095,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((x."effective_at")::text, (x."id")::text) as k
@@ -4087,6 +4113,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4111,10 +4138,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((abs(coalesce((x."metadata" ->> 'quantity')::numeric, 0)))::text, (x."id")::text) as k
@@ -4124,6 +4156,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4148,10 +4181,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") as j, jsonb_build_array((abs(coalesce((x."metadata" ->> 'quantity')::numeric, 0)))::text, (x."id")::text) as k
@@ -4161,6 +4199,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4183,6 +4222,7 @@ begin
         and x."kind" like 'stock.%'
         and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or (x."kind")::text = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
         and (not (v_filters -> 'variantId' is not null and jsonb_typeof(v_filters -> 'variantId') <> 'null' and not (jsonb_typeof(v_filters -> 'variantId') = 'array' and jsonb_array_length(v_filters -> 'variantId') = 0)) or (x."metadata" ->> 'variantId')::text = any((case when jsonb_typeof(v_filters -> 'variantId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'variantId')) else array[v_filters ->> 'variantId'] end)::text[]))
+        and (not (v_filters -> 'productId' is not null and jsonb_typeof(v_filters -> 'productId') <> 'null' and not (jsonb_typeof(v_filters -> 'productId') = 'array' and jsonb_array_length(v_filters -> 'productId') = 0)) or ((select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'))::text = any((case when jsonb_typeof(v_filters -> 'productId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'productId')) else array[v_filters ->> 'productId'] end)::text[]))
         and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or (x."metadata" ->> 'locationId')::text = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::text[]))
         and (not (v_filters -> 'binId' is not null and jsonb_typeof(v_filters -> 'binId') <> 'null' and not (jsonb_typeof(v_filters -> 'binId') = 'array' and jsonb_array_length(v_filters -> 'binId') = 0)) or (x."metadata" ->> 'binId')::text = any((case when jsonb_typeof(v_filters -> 'binId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'binId')) else array[v_filters ->> 'binId'] end)::text[]))
         and (not (v_filters -> 'lotId' is not null and jsonb_typeof(v_filters -> 'lotId') <> 'null' and not (jsonb_typeof(v_filters -> 'lotId') = 'array' and jsonb_array_length(v_filters -> 'lotId') = 0)) or (x."metadata" ->> 'lotId')::text = any((case when jsonb_typeof(v_filters -> 'lotId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'lotId')) else array[v_filters ->> 'lotId'] end)::text[]))
@@ -4216,10 +4256,15 @@ begin
       'id', x."id",
       'kind', x."kind",
       'variantId', x."metadata" ->> 'variantId',
+      'productId', (select v."product_id" from "better_supabase"."product_variants" v where v."id"::text = x."metadata" ->> 'variantId'),
       'locationId', x."metadata" ->> 'locationId',
       'binId', x."metadata" ->> 'binId',
       'lotId', x."metadata" ->> 'lotId',
       'quantity', x."metadata" ->> 'quantity',
+      'unit', x."metadata" ->> 'unit',
+      'reason', x."metadata" ->> 'reason',
+      'note', x."memo",
+      'actorId', x."actor_id",
       'documentType', x."reference_type",
       'documentId', x."reference_id",
       'effectiveAt', x."effective_at") into v_row
