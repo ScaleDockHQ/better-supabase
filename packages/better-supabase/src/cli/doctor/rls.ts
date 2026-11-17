@@ -463,7 +463,8 @@ const grantsTo = (grant: { readonly role: string }, role: string): boolean =>
 const LITERAL_ARGS = String.raw`(?:\s*(?:'(?:[^']|'')*'(?:::[\w ]+(?:\[\])?)?|-?\d+(?:\.\d+)?|true|false|null)\s*,?)*\s*`;
 
 /**
- * Whether every call of `name` (`schema.function`) in `expressions` takes only
+ * Whether every call of `name` (`schema.function`, or the bare function name
+ * Postgres prints for one on the search path) in `expressions` takes only
  * constant arguments in a sub-query's select list or from list, which Postgres
  * runs once per statement. An argument from the row makes it run per row.
  */
@@ -473,7 +474,7 @@ function onlyWrapped(
 ): boolean {
   const dot = name.indexOf(".");
 
-  const call = `"?${escape(name.slice(0, dot))}"?\\s*\\.\\s*"?${escape(name.slice(dot + 1))}"?\\s*\\(`;
+  const call = `(?:"?${escape(name.slice(0, dot))}"?\\s*\\.\\s*)?"?${escape(name.slice(dot + 1))}"?\\s*\\(`;
 
   const any = new RegExp(`(?<![\\w."])${call}`, "gi");
 

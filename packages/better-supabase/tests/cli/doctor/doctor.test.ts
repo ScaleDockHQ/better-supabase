@@ -1315,6 +1315,45 @@ describe("doctor rules", () => {
         ).toEqual([]);
       }
 
+      const unqualified = (using: string) =>
+        snapshot((tables) => {
+          for (const name of names) {
+            table(tables, name).policies = [
+              {
+                ...memberPolicy(`${name}_member`, using),
+                functions: ["public.is_member"],
+              },
+            ];
+          }
+        });
+
+      expect(
+        await codes(
+          context(
+            withFunctions(
+              unqualified(
+                "(organization_id IN ( SELECT is_member('k'::text) AS is_member))",
+              ),
+              [helper({ schema: "public" })],
+            ),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual([]);
+
+      expect(
+        await codes(
+          context(
+            withFunctions(unqualified("is_member(organization_id)"), [
+              helper({ schema: "public" }),
+            ]),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual(["BS206"]);
+
       // A from or where after the call can read the row, so it still counts.
       const correlated = snapshot((tables) => {
         for (const name of names) {
