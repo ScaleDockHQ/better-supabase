@@ -1097,7 +1097,7 @@ const SQL_PART = /('(?:[^']|'')*'|"(?:[^"]|"")*")/;
  * needs no quotes unquoted, and spacing collapsed, so two spellings of one
  * expression compare equal. String literals keep their case.
  */
-export function normalizedSql(text: string): string {
+function normalizedSql(text: string): string {
   return text
     .split(SQL_PART)
     .map((part, at) => {
