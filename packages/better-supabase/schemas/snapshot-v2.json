@@ -1308,6 +1308,17 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "disabled": {
+                "description": "The trigger doesn't fire in a normal session (tgenabled other than O or A). Absent when it fires.",
+                "const": true
+              },
+              "guards": {
+                "description": "Columns the better-supabase:guards(...) marker in the trigger comment names; doctor BS213 treats them as protected.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

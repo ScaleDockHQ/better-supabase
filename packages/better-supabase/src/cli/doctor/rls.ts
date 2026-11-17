@@ -740,10 +740,11 @@ function writableColumns(
 
   const risky = columns.filter(
     (column) =>
-      deciding.has(column) ||
-      (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
-        !pinnedToTenant(table, column, command, role, pins) &&
-        !pinnedToCaller(table, column, command, role)),
+      !guardedByTrigger(table, column, command) &&
+      (deciding.has(column) ||
+        (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
+          !pinnedToTenant(table, column, command, role, pins) &&
+          !pinnedToCaller(table, column, command, role))),
   );
 
   if (tableLevel) {
@@ -757,6 +758,25 @@ function writableColumns(
         grant.column === column &&
         grant.privileges.includes(privilege),
     ),
+  );
+}
+
+/**
+ * An enabled row-level `before` trigger for `command` whose comment marks
+ * `column` with `better-supabase:guards(...)`.
+ */
+function guardedByTrigger(
+  table: CatalogTable,
+  column: string,
+  command: (typeof WRITES)[number],
+): boolean {
+  return table.triggers.some(
+    (trigger) =>
+      trigger.timing === "before" &&
+      trigger.level === "row" &&
+      trigger.disabled !== true &&
+      trigger.events.includes(command) &&
+      (trigger.guards?.includes(column) ?? false),
   );
 }
 
@@ -969,7 +989,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)`, the membership helper `member_organization_ids()` or the provider's `idsWith` and `memberIds` helpers, alone, next to a guest's grant from `portal_subjects()`, or next to a branch that writes a null tenant under a platform check), a column every insert policy pins to the caller (`column = (select auth.uid())`, on insert only), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)`, the membership helper `member_organization_ids()` or the provider's `idsWith` and `memberIds` helpers, alone, next to a guest's grant from `portal_subjects()`, or next to a branch that writes a null tenant under a platform check), a column every insert policy pins to the caller (`column = (select auth.uid())`, on insert only), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them. A column an enabled row-level `before` trigger for that command guards never counts, when the trigger's comment names it on a line of its own: `comment on trigger <name> on <table> is 'better-supabase:guards(role, user_id)'`. The doctor doesn't read the trigger body, so the trigger has to raise when the column changes.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

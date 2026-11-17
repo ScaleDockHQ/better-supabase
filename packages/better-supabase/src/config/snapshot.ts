@@ -228,6 +228,16 @@ export interface CatalogTrigger {
    * for every other trigger.
    */
   readonly fills?: readonly string[];
+  /**
+   * The trigger doesn't fire in a normal session (`tgenabled` other than `O` or
+   * `A`). Absent when it fires, and in older snapshots.
+   */
+  readonly disabled?: true;
+  /**
+   * Columns the trigger comment's `better-supabase:guards(...)` marker names,
+   * which doctor BS213 treats as protected. Absent without a marker.
+   */
+  readonly guards?: readonly string[];
 }
 
 export interface CatalogGrant {

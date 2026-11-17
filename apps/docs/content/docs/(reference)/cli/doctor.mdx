@@ -579,6 +579,28 @@ revoke insert, update on public.contacts from authenticated;
 grant insert (id, name, email), update (id, name, email) on public.contacts to authenticated;
 ```
 
+When a trigger already protects a column, mark it in the trigger's comment.
+Doctor doesn't read trigger bodies, so the marker is how you tell it that the
+trigger raises when the column changes:
+
+```sql
+create trigger memberships_keep_role
+  before update on public.memberships
+  for each row execute function public.keep_role();
+
+comment on trigger memberships_keep_role on public.memberships is
+  'better-supabase:guards(role, user_id)';
+```
+
+The marker is `better-supabase:guards(column, ...)` on a line of its own, so
+the comment can hold other text on the lines around it. A column may be
+double-quoted. Doctor then leaves the named columns out for a command only
+when the trigger is a row-level `before` trigger for that command (`update`
+for updates, `insert` for inserts) and fires in a normal session, so a trigger
+disabled with `alter table ... disable trigger` or enabled only for replica
+sessions doesn't count. The marker also covers a column the provider lists in
+`decidingColumns`. Snapshots taken before this version have no markers.
+
 Helper bodies come from the database, or from your SQL files when the
 snapshot doesn't have them. Column grants need a snapshot taken with this
 version; older snapshots only show table grants.
