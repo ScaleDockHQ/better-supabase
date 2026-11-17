@@ -171,16 +171,22 @@ export function managerMatch(
 }
 
 /**
- * SQL that is true when the requester has an employee record in the tenant with
- * no manager at all, or `undefined` without the employees module. A manager who
- * is offboarded or has no login still counts, so a missing decider never lets
- * someone decide for themselves.
+ * SQL that is true when someone other than the requester can decide the
+ * request, or `undefined` without the employees module: an active member who
+ * holds `permission` in the tenant, the requester's manager when `manager` is
+ * set (as `managerMatch` lets them decide), or, when `chain` is set, an active
+ * manager anywhere up the requester's reporting chain who has a login, since an
+ * app's decider may accept them. A requester may decide their own request only
+ * when this is false.
  */
-export function topOfChain(
+export function otherDecider(
   ctx: BlockSqlContext,
   args: {
     readonly requester: string;
     readonly tenant: string;
+    readonly permission: string;
+    readonly manager: boolean;
+    readonly chain: boolean;
     readonly employee?: string;
   },
 ): string | undefined {
@@ -191,11 +197,31 @@ export function topOfChain(
   }
 
   const e = (column: string): string => employees.col("employees", column);
+  const table = employees.table("employees");
+  const members = ctx.of("memberships");
+  const m = (column: string): string => members.col("memberships", column);
+
+  const manager = args.manager
+    ? `\n        or ${managerMatch(ctx, { requester: args.requester, tenant: args.tenant, user: `om.${m("user")}`, ...(args.employee === undefined ? {} : { employee: args.employee }) })}`
+    : "";
+
+  const chain = args.chain
+    ? `\n        or om.${m("user")} in (
+          with recursive up(id) as (
+            select me.${e("manager")} from ${table} me
+            where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
+            union
+            select boss.${e("manager")} from up join ${table} boss on boss.${e("id")} = up.id
+          )
+          select mgr.${e("user")} from up join ${table} mgr on mgr.${e("id")} = up.id
+          where mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
+        )`
+    : "";
 
   return `exists (
-      select 1 from ${employees.table("employees")} me
-      where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
-        and me.${e("manager")} is null
+      select 1 from ${members.table("memberships")} om
+      where om.${m("tenant")} = ${args.tenant} and om.${m("user")} is distinct from ${args.requester}${activeMembership(ctx, "om")}
+        and (${ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)}${manager}${chain})
     )`;
 }
 
