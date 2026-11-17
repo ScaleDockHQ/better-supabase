@@ -23,7 +23,7 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import { managerMatch } from "./approvals-tenant.ts";
+import { managerMatch, topOfChain } from "./approvals-tenant.ts";
 import { deciderCall, managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
@@ -317,9 +317,36 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  const top = ctx.flag("selfDecideWhenTopOfChain", false)
+    ? topOfChain(ctx, {
+        requester: owner.requester("v_row"),
+        tenant: `v_row.${q("tenant")}`,
+        ...(ctx.has("requests", "employee")
+          ? { employee: `v_row.${q("employee")}::text` }
+          : {}),
+      })
+    : "";
+
+  if (top === undefined) {
+    throw new TypeError(
+      "blocks.leave.options.selfDecideWhenTopOfChain needs the employees block's tables",
+    );
+  }
+
+  if (top !== "" && !statusMode) {
+    throw new TypeError(
+      "blocks.leave.options.selfDecideWhenTopOfChain needs approvals: false; with the approvals block its policy picks the approvers",
+    );
+  }
+
+  const self =
+    top === ""
+      ? ""
+      : ` or (coalesce(${owner.requester("v_row")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${top})`;
+
   const decide = `
 -- Approves or rejects a pending request without the approvals block, as the
--- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}
+-- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}${top ? "\n-- A requester with the approve permission and no manager above them decides\n-- their own request (options.selfDecideWhenTopOfChain)." : ""}
 drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);
 create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
@@ -334,7 +361,7 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}${manager}${decider}) and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
+  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}${manager}${decider}) and ${owner.requester("v_row")} is distinct from auth.uid())${self}) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
     ${forbidden("not allowed to decide this leave request; only the service role decides for another user, never for the requester")}
   end if;
   if not (${pendingIn("v_row", "")}) then

@@ -117,6 +117,16 @@ lets a delete through only for the service role, only for the tenant whose
 purge is running, and only while that tenant has a due deletion. Updates stay
 refused.
 
+A transaction a block posts keeps `memo` as English text and adds `memoKey`
+and `memoParams` (`lease.rent` with `{ periodStart }`), so an app words the
+memo in its own locale. `BLOCK_MEMO_MESSAGES` from
+`better-supabase/blocks/messages` lists every key with its English
+[MessageFormat](https://messageformat.unicode.org) text; use it as the base of
+your catalog and fall back to `memo` for a key the catalog lacks. A
+transaction you post through `post` has no key. `ledger_post` takes
+`memo_key` and `memo_params` after `reverses`, and an app table without the
+columns maps them to `null` like `memo`.
+
 ## Holds
 
 `hold(accountId, { amount, expiresAt })` reserves part of the available

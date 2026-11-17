@@ -71,6 +71,13 @@ export type LeaveSqlOptions = {
    * requester still never decides their own request.
    */
   readonly decider?: string;
+  /**
+   * With `approvals: false`, a requester who holds the approve permission and
+   * has no manager above them in the employees block decides their own request
+   * through `decide_leave_request`. Needs the employees block. Default
+   * `false`.
+   */
+  readonly selfDecideWhenTopOfChain?: boolean;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -89,4 +96,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
       default: "permission",
     }),
     decider: option.string(),
+    selfDecideWhenTopOfChain: option.boolean({ default: false }),
   });

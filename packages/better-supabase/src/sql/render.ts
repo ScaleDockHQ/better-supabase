@@ -9,6 +9,7 @@ import { eventTriggersOf } from "./event-triggers.ts";
 import {
   applyIndexSkips,
   indexSkipOf,
+  withoutRepeatedIndexes,
   withoutSkippedIndexes,
 } from "./index-skip.ts";
 import {
@@ -94,7 +95,7 @@ export function moduleBody(
   const skip = indexSkipOf(layout.modules?.[name], `blocks.${name}.indexes`);
 
   if (skip.length === 0) {
-    return named;
+    return withoutRepeatedIndexes(named, new Map());
   }
 
   const stripped = withoutSkippedIndexes(named, new Set(skip));
@@ -106,7 +107,7 @@ export function moduleBody(
     );
   }
 
-  return stripped.sql;
+  return withoutRepeatedIndexes(stripped.sql, new Map());
 }
 
 /**
@@ -179,9 +180,18 @@ export function renderBlocks(
       : file,
   );
 
+  const indexes = new Map<string, string>();
+
   return applyIndexSkips(covered, (instance) =>
     indexSkipOf(layout.modules?.[instance], `blocks.${instance}.indexes`),
-  ).map((file) => ({ ...file, contents: withBlockHash(file.contents) }));
+  ).map((file) => ({
+    ...file,
+    contents: withBlockHash(
+      file.kind === "schema"
+        ? withoutRepeatedIndexes(file.contents, indexes)
+        : file.contents,
+    ),
+  }));
 }
 
 function moduleFiles(

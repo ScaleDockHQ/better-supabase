@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:17a53157ece504d2d8dedf19030717b672fb718c07c8e90f178c634c3df8f2a0
+-- @bsb-hash sha256:625bbc36340c67a14ffdfc6d9e8c10c4c8c099fe776e230747b1a9a59e82ece4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5189,7 +5189,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', a."unit",
     'reference', y."reference_id",
-    'memo', 'Stock ' || (y."metadata" ->> 'reason'),
+    'memo', 'Stock ' || (y."metadata" ->> 'reason'), 'memoKey', 'accounting.stock_movement', 'memoParams', jsonb_build_object('reason', y."metadata" ->> 'reason'),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'inventory', 'debit', e."amount"::text),
       jsonb_build_object('role', case y."metadata" ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs'

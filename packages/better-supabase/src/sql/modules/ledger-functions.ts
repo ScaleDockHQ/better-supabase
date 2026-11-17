@@ -40,9 +40,18 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
   const post = ctx.permission("post", permissions.post);
   const hasMemo = ctx.has("transactions", "memo");
 
+  const hasMemoKey = ctx.has("transactions", "memoKey");
+  const hasMemoParams = ctx.has("transactions", "memoParams");
+
   // A transaction row's memo, or null when the app maps the column to null.
   const memo = (row: string): string =>
     hasMemo ? `${row}.${t("memo")}` : "null::text";
+
+  const memoKey = (row: string): string =>
+    hasMemoKey ? `${row}.${t("memoKey")}` : "null::text";
+
+  const memoParams = (row: string): string =>
+    hasMemoParams ? `${row}.${t("memoParams")}` : "null::jsonb";
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
@@ -63,7 +72,7 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
     `coalesce((select jsonb_agg(jsonb_build_object('id', y.${e("id")}, 'accountId', y.${e("account")}, 'amount', y.${e("amount")}::text, 'unit', y.${e("unit")}) order by y.${e("createdAt")}, y.${e("id")}) from ${entries} y where y.${e("transaction")} = ${transaction}), '[]'::jsonb)`;
 
   const transactionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'referenceType', ${row}.${t("referenceType")}, 'referenceId', ${row}.${t("referenceId")}, 'memo', ${memo(row)}, 'idempotencyKey', ${row}.${t("key")}, 'reverses', ${row}.${t("reverses")}, 'metadata', ${row}.${t("metadata")}, 'effectiveAt', ${row}.${t("effectiveAt")}, 'actorId', ${row}.${t("actor")}, 'createdAt', ${row}.${t("createdAt")}, 'entries', ${entriesOf(`${row}.${t("id")}`)})`;
+    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, 'kind', ${row}.${t("kind")}, 'referenceType', ${row}.${t("referenceType")}, 'referenceId', ${row}.${t("referenceId")}, 'memo', ${memo(row)}, 'memoKey', ${memoKey(row)}, 'memoParams', ${memoParams(row)}, 'idempotencyKey', ${row}.${t("key")}, 'reverses', ${row}.${t("reverses")}, 'metadata', ${row}.${t("metadata")}, 'effectiveAt', ${row}.${t("effectiveAt")}, 'actorId', ${row}.${t("actor")}, 'createdAt', ${row}.${t("createdAt")}, 'entries', ${entriesOf(`${row}.${t("id")}`)})`;
 
   // A hold row's column, or null when the app's holds table lacks it.
   const held = (row: string, column: string, type: string): string =>
@@ -102,6 +111,7 @@ export function ledgerFunctions(ctx: BlockSqlContext): string {
         recordId: `${row}.${a("id")}::text`,
         targetLabel: `${row}.${a("name")}`,
         summary: `'${summary} ' || ${row}.${a("code")}`,
+        summaryParams: `jsonb_build_object('code', ${row}.${a("code")})`,
       },
     });
 
@@ -156,8 +166,11 @@ revoke execute on function ${fn("ledger_account_for")}(${accountArgs}) from publ
 -- Posts a balanced transaction: lines is an array of {account, amount} with
 -- signed integer amounts in each account's unit, summing to zero per unit.
 -- With idempotency_key a second call returns the first transaction. Modules
--- that post to the ledger call it; it isn't granted to anyone.
-create or replace function ${fn("ledger_post")}(tenant ${idType}, kind text, lines jsonb, reference_type text default null, reference_id text default null, memo text default null, idempotency_key text default null, effective_at timestamptz default null, metadata jsonb default null, reverses uuid default null)
+-- that post to the ledger call it; it isn't granted to anyone. memo_key and
+-- memo_params name the memo for a translation catalog; memo stays its English
+-- text.
+drop function if exists ${fn("ledger_post")}(${postArgs});
+create or replace function ${fn("ledger_post")}(tenant ${idType}, kind text, lines jsonb, reference_type text default null, reference_id text default null, memo text default null, idempotency_key text default null, effective_at timestamptz default null, metadata jsonb default null, reverses uuid default null, memo_key text default null, memo_params jsonb default null)
 returns uuid
 language plpgsql
 security definer
@@ -210,8 +223,8 @@ begin
     ["text", "ledger_post.kind"],
     ["jsonb", "ledger_post.lines"],
   ])}
-  insert into ${transactions} (${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}${hasMemo ? `, ${t("memo")}` : ""}, ${t("key")}, ${t("reverses")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")})
-  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id${hasMemo ? ", nullif(trim(ledger_post.memo), '')" : ""},
+  insert into ${transactions} (${t("tenant")}, ${t("kind")}, ${t("referenceType")}, ${t("referenceId")}${hasMemo ? `, ${t("memo")}` : ""}${hasMemoKey ? `, ${t("memoKey")}` : ""}${hasMemoParams ? `, ${t("memoParams")}` : ""}, ${t("key")}, ${t("reverses")}, ${t("metadata")}, ${t("effectiveAt")}, ${t("actor")})
+  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id${hasMemo ? ", nullif(trim(ledger_post.memo), '')" : ""}${hasMemoKey ? ", ledger_post.memo_key" : ""}${hasMemoParams ? ", ledger_post.memo_params" : ""},
     ledger_post.idempotency_key, ledger_post.reverses, coalesce(ledger_post.metadata, '{}'::jsonb), coalesce(ledger_post.effective_at, now()), auth.uid())
   returning * into v_row;
   insert into ${entries} (${e("tenant")}, ${e("transaction")}, ${e("account")}, ${e("amount")}, ${e("unit")}, ${e("effectiveAt")})
@@ -230,7 +243,7 @@ begin
   return v_row.${t("id")};
 end;
 $$;
-revoke execute on function ${fn("ledger_post")}(${postArgs}) from public, anon, authenticated;
+revoke execute on function ${fn("ledger_post")}(${postArgs}, text, jsonb) from public, anon, authenticated;
 
 -- The entries of this organization whose ids are in the list.
 create or replace function ${fn("get_many")}(tenant ${idType}, ids uuid[])
@@ -387,7 +400,9 @@ begin
     (select jsonb_agg(jsonb_build_object('account', y.${e("account")}, 'amount', (-y.${e("amount")})::text) order by y.${e("createdAt")}, y.${e("id")})
       from ${entries} y where y.${e("transaction")} = v_old.${t("id")}),
     v_old.${t("referenceType")}, v_old.${t("referenceId")}, ${hasMemo ? `coalesce(reverse_ledger_transaction.memo, v_old.${t("memo")})` : "reverse_ledger_transaction.memo"},
-    null, null, v_old.${t("metadata")}, v_old.${t("id")});
+    null, null, v_old.${t("metadata")}, v_old.${t("id")},
+    case when reverse_ledger_transaction.memo is null then ${memoKey("v_old")} end,
+    case when reverse_ledger_transaction.memo is null then ${memoParams("v_old")} end);
   select * into v_row from ${transactions} x where x.${t("id")} = v_id;
   ${ctx.record({
     type: "ledger_transaction.reversed",
@@ -399,6 +414,7 @@ begin
       targetType: "ledger_transaction",
       recordId: `v_old.${t("id")}::text`,
       summary: `'reversed a ' || v_old.${t("kind")} || ' transaction'`,
+      summaryParams: `jsonb_build_object('kind', v_old.${t("kind")})`,
     },
   })}
   return ${transactionJson("v_row")};
@@ -686,7 +702,7 @@ begin
   from (
     select jsonb_build_object('id', y.${e("id")}, 'accountId', y.${e("account")}, 'amount', y.${e("amount")}::text, 'unit', y.${e("unit")},
         'transactionId', r.${t("id")}, 'kind', r.${t("kind")}, 'referenceType', r.${t("referenceType")}, 'referenceId', r.${t("referenceId")},
-        'memo', ${memo("r")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'actorId', r.${t("actor")}, 'createdAt', y.${e("createdAt")}) as item,
+        'memo', ${memo("r")}, 'memoKey', ${memoKey("r")}, 'memoParams', ${memoParams("r")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'actorId', r.${t("actor")}, 'createdAt', y.${e("createdAt")}) as item,
       y.${e("createdAt")} as created, y.${e("id")} as id
     from ${entries} y
     join ${transactions} r on r.${t("id")} = y.${e("transaction")}

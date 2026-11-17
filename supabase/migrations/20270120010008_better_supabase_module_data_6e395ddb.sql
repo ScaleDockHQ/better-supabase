@@ -1,0 +1,15 @@
+-- better-supabase add --adopt: the rows and settings of audit, ledger that no data migration holds yet.
+
+set lock_timeout = '5s';
+
+-- audit
+insert into better_supabase.blocks (name, version, mode)
+values ('audit', 15, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ledger
+insert into better_supabase.blocks (name, version, mode)
+values ('ledger', 3, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

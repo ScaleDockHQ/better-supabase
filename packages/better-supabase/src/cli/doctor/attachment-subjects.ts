@@ -245,11 +245,9 @@ export function attachmentSubjectsOnDefaults(
       const names = stricter.map(({ action }) => action).join(" and ");
       const what = stricter.map(({ what: verb }) => verb).join(" and ");
 
-      const fixes = stricter.map(() => `subjects.${type}.permissions.upload`);
-
       return [
         {
-          message: `Attachments on ${type} use the block-wide ${names} key, but ${target} checks more than tenant membership for ${what}, so any member of the tenant gets the files of a ${type} they can't open. Set ${fixes.join(" and ")} to the key the table checks.`,
+          message: `Attachments on ${type} use the block-wide ${names} key, but ${target} checks more than tenant membership for ${what}, so anyone who can read a ${type} can attach files to one they can't change. Set subjects.${type}.permissions.upload or blocks.attachments.on.${type}.permissions.upload to the key the table checks, or baseline the finding when readers may attach.`,
           target,
           object: tableObject(table),
         },

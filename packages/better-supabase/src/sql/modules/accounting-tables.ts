@@ -203,7 +203,7 @@ create table if not exists ${entries} (
   ${e("updatedAt")} timestamptz not null default now(),
   check ((${e("sourceType")} is null) = (${e("sourceId")} is null)),
   check (${e("status")} = 'draft' or (${e("number")} is not null and ${e("period")} is not null and ${e("postedAt")} is not null))
-);
+);${ctx.has("entries", "memoKey") ? `\nalter table ${entries} add column if not exists ${e("memoKey")} text;` : ""}${ctx.has("entries", "memoParams") ? `\nalter table ${entries} add column if not exists ${e("memoParams")} jsonb;` : ""}
 create unique index if not exists ${name("entries", "number_idx")} on ${entries} (${e("journal")}, ${e("fiscalYear")}, ${e("sequence")}) where ${e("sequence")} is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
 create unique index if not exists ${name("entries", "source_idx")} on ${entries} (${e("tenant")}, ${e("sourceType")}, ${e("sourceId")}) where ${e("sourceType")} is not null and ${e("status")} <> 'reversed';

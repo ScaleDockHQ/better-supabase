@@ -280,6 +280,118 @@ $$;`,
   });
 });
 
+const CAROL_EMPLOYEE = "99999999-9999-4999-8999-999999999999";
+
+const CAROL_ON_TOP = `
+insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id)
+  values ('${CAROL_EMPLOYEE}', '${TENANT}', '${CAROL}', 'Carol', null);
+`;
+
+const decideOwn = (who: string, request: string, expected: string): string => `
+  ${as(who)}
+  begin
+    perform better_supabase.decide_leave_request(${request}, true);
+    raise exception '${expected}';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;`;
+
+const topBlocks = (on: boolean): AnyBlocksConfig => ({
+  leave: {
+    options: {
+      owner: "employee",
+      approvals: false,
+      selfDecideWhenTopOfChain: on,
+    },
+  },
+});
+
+describe("options.selfDecideWhenTopOfChain", BOOT, () => {
+  it("keeps refusing the requester when it is off", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+begin
+  ${as(CAROL)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave with the option off")}
+end;
+$$;`,
+        ["employees", "leave"],
+        topBlocks(false),
+        CAROL_ON_TOP,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("lets a key holder at the top decide their own leave and refuses one with a manager or without the key", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+  v_bob uuid;
+begin
+  ${as(CAROL)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  perform better_supabase.decide_leave_request(v_leave, true);
+  if (select approved_at is null or decided_by is distinct from '${CAROL}'::uuid from better_supabase.leave_requests where id = v_leave) then
+    raise exception 'Carol could not decide her own leave at the top';
+  end if;
+
+  ${as(BOB)}
+  v_bob := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-09', '2099-03-10') ->> 'id')::uuid;
+  ${decideOwn(BOB, "v_bob", "Bob decided his own leave without the approve permission")}
+
+  update better_supabase.employees set manager_id = '${BOB_EMPLOYEE}' where id = '${CAROL_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave with a manager above her")}
+
+  update better_supabase.employees set status = 'offboarded' where id = '${BOB_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-05-04', '2099-05-05') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under an offboarded manager")}
+
+  update better_supabase.employees set status = 'active', user_id = null where id = '${BOB_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-06-01', '2099-06-02') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under a manager without a login")}
+end;
+$$;`,
+        ["employees", "leave"],
+        topBlocks(true),
+        CAROL_ON_TOP,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("needs approvals: false and the employees block", () => {
+    expect(() =>
+      renderBlocks(["employees", "approvals", "leave"], {
+        modules: { leave: { options: { selfDecideWhenTopOfChain: true } } },
+      }),
+    ).toThrow(/needs approvals: false/);
+    expect(() =>
+      renderBlocks(["leave"], {
+        modules: {
+          leave: {
+            options: { approvals: false, selfDecideWhenTopOfChain: true },
+          },
+        },
+      }),
+    ).toThrow(/needs the employees block's tables/);
+  });
+});
+
 describe("options.approver", () => {
   it("defaults to the approve permission", () => {
     const sql = renderBlocks(["employees", "leave"], {

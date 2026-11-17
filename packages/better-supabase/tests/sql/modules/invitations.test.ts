@@ -110,6 +110,35 @@ describe("invitations module", () => {
     );
   });
 
+  it("indexes invited_by once when both kinds share a table", () => {
+    const sql = overApp(
+      {
+        permissions: {
+          model: "catalog",
+          tables: { platformAssignments: "public.user_roles" },
+        },
+        invitations: {
+          tables: {
+            invitations: "public.organization_invitations",
+            platformInvitations: "public.organization_invitations",
+          },
+          columns: { invitations: { tenant: "tenant_id" } },
+        },
+      },
+      ["invitations"],
+    );
+
+    expect(sql).toContain(
+      'create index if not exists invitations_invited_by_idx on "public"."organization_invitations" ("invited_by");',
+    );
+    expect(sql).not.toMatch(
+      /create index[^;]*platform_invitations_invited_by_idx/,
+    );
+    expect(sql).toContain(
+      "-- public.organization_invitations already gets the same index as invitations_invited_by_idx, so this block adds no platform_invitations_invited_by_idx.",
+    );
+  });
+
   it("keeps one open platform invitation per email apart from tenant invitations in a shared table", () => {
     const sql = overApp(
       {

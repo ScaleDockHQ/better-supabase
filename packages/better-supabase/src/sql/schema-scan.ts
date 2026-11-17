@@ -969,7 +969,10 @@ const KEY_CONSTRAINT =
 
 const COLUMN_KEY = /\s(?:primary\s+key|unique)\b/i;
 
-/** A full btree index, by its name when it has one, and its leading columns. */
+/**
+ * An index of the app's, by its name when it has one, and its leading columns.
+ * Without `method` and `where` it is a full btree index.
+ */
 export interface OwnIndex {
   readonly name?: string;
   readonly columns: readonly string[];
@@ -980,15 +983,23 @@ export interface OwnIndex {
    * means the caller already knows the keys are columns.
    */
   readonly plain?: boolean;
+  /** The access method when it is not `btree`. */
+  readonly method?: string;
+  /**
+   * The `where` of a partial index. Omitted for a full index, and for a unique
+   * key whose `where` is `<key column> is not null`.
+   */
+  readonly where?: string;
 }
 
 /**
- * The leading columns of every btree index the files give each table in
- * `schemas`: `create index` statements, and the primary keys and unique
- * constraints in `create table`. A partial unique index whose `where` is
- * exactly `<key column> is not null` counts as a full key. Other partial
- * indexes and other methods are left out. An expression key is recorded with
- * `plain: false`, so it cannot imply a block key.
+ * The leading columns of every index the files give each table in `schemas`:
+ * `create index` statements, and the primary keys and unique constraints in
+ * `create table`. A partial unique index whose `where` is exactly `<key column>
+ * is not null` counts as a full key. Other partial indexes and other methods
+ * carry their `where` and `method`, and only when every key is a column. A
+ * btree expression key is recorded with `plain: false`, so it cannot imply a
+ * block key.
  */
 export function declaredIndexes(
   files: readonly { readonly text: string }[],
@@ -1002,6 +1013,7 @@ export function declaredIndexes(
     name?: string,
     unique = false,
     plain = true,
+    other: Pick<OwnIndex, "method" | "where"> = {},
   ): void => {
     if (
       columns.length > 0 &&
@@ -1014,6 +1026,7 @@ export function declaredIndexes(
           columns,
           ...(unique ? { unique } : {}),
           plain,
+          ...other,
         },
       ]);
     }
@@ -1032,6 +1045,11 @@ export function declaredIndexes(
         index.columns.length > 0
       ) {
         add(index.table, index.columns, index.name, index.unique, index.plain);
+      } else if (index.plain && index.columns.length > 0) {
+        add(index.table, index.columns, index.name, index.unique, true, {
+          ...(index.method === "btree" ? {} : { method: index.method }),
+          ...(index.where === undefined ? {} : { where: index.where }),
+        });
       }
     }
 
@@ -1070,4 +1088,62 @@ export function declaredIndexes(
   }
 
   return found;
+}
+
+const SQL_PART = /('(?:[^']|'')*'|"(?:[^"]|"")*")/;
+
+/**
+ * `text` with keywords and unquoted names in lowercase, a quoted name that
+ * needs no quotes unquoted, and spacing collapsed, so two spellings of one
+ * expression compare equal. String literals keep their case.
+ */
+function normalizedSql(text: string): string {
+  return text
+    .split(SQL_PART)
+    .map((part, at) => {
+      if (at % 2 === 0) {
+        return part.toLowerCase();
+      }
+
+      return /^"[a-z_][a-z0-9_$]*"$/.test(part) ? part.slice(1, -1) : part;
+    })
+    .join("")
+    .replaceAll(/\s+/g, " ")
+    .replaceAll(/\s*([(),])\s*/g, "$1")
+    .trim();
+}
+
+/** Whether `(` at 0 closes at the last character of `text`. */
+const wrapped = (text: string): boolean =>
+  text.startsWith("(") && closingParen(text, 0) === text.length - 1;
+
+/**
+ * An index predicate without its `where` and the parentheses around the whole
+ * of it, normalized: the file form `where a is not null` and the catalog form
+ * `(a IS NOT NULL)` are equal. An absent predicate is `""`.
+ */
+export function normalizedPredicate(predicate: string | undefined): string {
+  let text = normalizedSql((predicate ?? "").replace(/^\s*where\b/i, ""));
+
+  while (wrapped(text)) {
+    text = text.slice(1, -1).trim();
+  }
+
+  return text;
+}
+
+/**
+ * A `create index` statement without its name, `concurrently` and `if not
+ * exists`, normalized. Two statements with the same signature build the same
+ * index, the way splinter's `duplicate_index` compares them.
+ */
+export function indexSignature(statement: string): string {
+  const head = /\bcreate\s+(unique\s+)?index\b[\s\S]*?\bon\s/i.exec(statement);
+
+  const rest =
+    head === null
+      ? statement
+      : `${head[1] ?? ""}index on ${statement.slice(head.index + head[0].length)}`;
+
+  return normalizedSql(rest.replace(/;\s*$/, ""));
 }

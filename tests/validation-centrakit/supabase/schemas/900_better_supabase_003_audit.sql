@@ -1,6 +1,6 @@
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:a4a41007e134244357be45a5517cbb7112aca92fc2517f18c50dc65758280930
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:a45ca1551d10900ffba5e464a5c8b1767472c73b90e91a65e7c47f062c6d7d47
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -764,7 +764,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -832,8 +834,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -886,7 +888,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -935,7 +939,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -987,8 +993,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write

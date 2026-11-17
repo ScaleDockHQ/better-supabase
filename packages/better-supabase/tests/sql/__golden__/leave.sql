@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f6d22211d5d225b6c8eb872e566548e16050d48e95e8081099736ad41a09b677
+-- @bsb-hash sha256:c4b3ec278af5f8eac638b05d5c97123eee518096d2c2482a0bc956ae84fcc913
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1716,6 +1716,7 @@ begin
     target_type => 'leave_balance',
     record_id => v_entry::text,
     summary => 'adjusted a leave balance by ' || adjust_leave_balance.amount::numeric(8, 2)::text,
+    summary_params => jsonb_build_object('amount', adjust_leave_balance.amount),
     tenant => (adjust_leave_balance.tenant)::uuid,
     metadata => jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)
   );

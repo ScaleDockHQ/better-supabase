@@ -193,6 +193,15 @@ The `before_accounting_entry_post`, `after_accounting_entry_post`,
 `before_accounting_entry_reverse` and `after_accounting_entry_reverse`
 [hooks](/docs/extending/blocks#hooks-in-sql) run inside the posting transaction.
 
+An entry a block books keeps `memo` as English text (`Payment of
+INV-0001`) and adds `memoKey` and `memoParams` (`accounting.invoice_payment`
+with `{ invoice: "INV-0001" }`). The keys are `accounting.<source type>`, plus
+`accounting.reversal` and `accounting.opening_balances`, and
+`BLOCK_MEMO_MESSAGES` from `better-supabase/blocks/messages` lists their
+English text. A posting source's document sets them with the `memoKey` and
+`memoParams` keys next to `memo`. An entry you save yourself has no key, and
+changing a booked entry's memo clears it.
+
 ## Postings from other blocks
 
 When `accounting` is installed, these blocks book their documents in the same

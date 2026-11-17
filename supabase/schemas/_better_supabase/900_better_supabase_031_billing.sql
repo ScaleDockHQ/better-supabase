@@ -1,6 +1,6 @@
 -- better-supabase module: billing
 -- @bsb-block billing@5 managed
--- @bsb-hash sha256:4f0eb52f2f9950673b03d114e97ac335f3d272438cef06e22cf033ee17a8928d
+-- @bsb-hash sha256:cb4801150ecf1e0f76be18ea3b77f0cf459422e552f5d7591ee12fea5521199f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -773,7 +773,8 @@ begin
       'Proration for ' || v_row."plan",
       'billing.proration:' || v_row."id"::text || ':' || extract(epoch from v_at)::text,
       v_at,
-      jsonb_build_object('plan', v_row."plan", 'credit', v_credit, 'charge', v_charge));
+      jsonb_build_object('plan', v_row."plan", 'credit', v_credit, 'charge', v_charge),
+      memo_key => 'billing.proration', memo_params => jsonb_build_object('plan', v_row."plan"));
   end if;
   update "better_supabase"."billing_native_subscriptions" set "unit_amount" = v_new_amount, "quantity" = v_new_quantity
     where "id" = v_row."id";

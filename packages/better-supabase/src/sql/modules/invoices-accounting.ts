@@ -82,7 +82,7 @@ export function invoiceAccountingSources(
     'entryDate', ${ctx.has("charges", "createdAt") ? `(c.${ch("createdAt")} at time zone 'UTC')::date` : "current_date"},
     'currency', inv.${i("currency")},
     'reference', inv.${i("identifier")},
-    'memo', 'Charge on ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'memo', 'Charge on ' || coalesce(inv.${i("identifier")}, inv.${i("title")}), 'memoKey', 'accounting.invoice_charge', 'memoParams', jsonb_build_object('invoice', coalesce(inv.${i("identifier")}, inv.${i("title")})),
     'lines', jsonb_build_array(
       jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', c.${ch("amount")}::text, 'partyId', ${party("inv")})),
       jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', c.${ch("amount")}::text, 'description', ${ctx.has("charges", "description") ? `c.${ch("description")}` : "null"})))
@@ -178,7 +178,7 @@ export function invoiceAccountingSources(
     'entryDate', (y.${tx("effectiveAt")} at time zone 'UTC')::date,
     'currency', inv.${i("currency")},
     'reference', coalesce(y.${tx("metadata")} ->> 'reference', inv.${i("identifier")}),
-    'memo', 'Payment of ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'memo', 'Payment of ' || coalesce(inv.${i("identifier")}, inv.${i("title")}), 'memoKey', 'accounting.invoice_payment', 'memoParams', jsonb_build_object('invoice', coalesce(inv.${i("identifier")}, inv.${i("title")})),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', ${purchase ? `case when ${direction("inv")} then 'credit' else 'debit' end` : "'debit'"}, p.amount::text),
       jsonb_strip_nulls(jsonb_build_object('role', ${purchase ? `case when ${direction("inv")} then 'payable' else 'receivable' end` : "'receivable'"}, ${purchase ? `case when ${direction("inv")} then 'debit' else 'credit' end` : "'credit'"}, p.amount::text, 'partyId', ${party("inv")})))
@@ -204,7 +204,7 @@ export function invoiceAccountingSources(
     'organizationId', inv.${i("tenant")},
     'currency', inv.${i("currency")},
     'reference', inv.${i("identifier")},
-    'memo', 'Write-off of ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'memo', 'Write-off of ' || coalesce(inv.${i("identifier")}, inv.${i("title")}), 'memoKey', 'accounting.invoice_write_off', 'memoParams', jsonb_build_object('invoice', coalesce(inv.${i("identifier")}, inv.${i("title")})),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'expense', 'debit', b.balance::text),
       jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', b.balance::text, 'partyId', ${party("inv")})))

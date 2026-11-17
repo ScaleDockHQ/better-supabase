@@ -483,7 +483,7 @@ describe("audit value mapping", () => {
     expect(body).not.toContain("audit_event.");
     expect(body).toContain("audit_event_trusted.idempotency_key");
     expect(sql).toContain(
-      "revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;",
+      "revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;",
     );
     expect(sql).toContain('to "service_role", "app_owner";');
     const plain = audit();
@@ -494,7 +494,7 @@ describe("audit value mapping", () => {
   it("takes the impersonation columns as arguments, with the act claim first for users", () => {
     const sql = audit();
     expect(sql).toContain(
-      "  support_session uuid default null,\n  impersonated_by uuid default null,\n  impersonation_reason text default null\n)",
+      "  support_session uuid default null,\n  impersonated_by uuid default null,\n  impersonation_reason text default null,\n  summary_key text default null,\n  summary_params jsonb default null\n)",
     );
     expect(sql).toContain(
       "coalesce(audit_event.impersonated_by, case when auth.jwt() -> 'act' ->> 'sub'",
@@ -522,7 +522,7 @@ describe("audit value mapping", () => {
     const sql = audit();
 
     expect(sql).toContain(
-      "grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to",
+      "grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to",
     );
   });
 });

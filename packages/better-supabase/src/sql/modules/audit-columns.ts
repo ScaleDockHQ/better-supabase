@@ -29,6 +29,8 @@ const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
     "tenantLabel",
     "targetLabel",
     "summary",
+    "summaryKey",
+    "summaryParams",
     "requestId",
     "correlationId",
     "scope",

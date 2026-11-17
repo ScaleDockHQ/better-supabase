@@ -901,7 +901,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', ${payableAccount("v_row")}, 'amount', -${total("v_row")}));
   v_tx := ${ledger?.fn("ledger_post") ?? ""}(v_row.${r("tenant")}, 'expense.approved', v_lines,
     'expenses', v_row.${r("id")}::text, left('Expenses: ' || v_row.${r("title")}, 500), 'expense:' || v_row.${r("id")}::text || ':approved', null,
-    jsonb_build_object('reportId', v_row.${r("id")}, 'userId', v_row.${r("user")}));
+    jsonb_build_object('reportId', v_row.${r("id")}, 'userId', v_row.${r("user")}),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row.${r("title")}));
   update ${reports} x set ${r("approvedAt")} = now()${alsoSet("reports", "approvalTransaction", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;${loadApproval}
@@ -935,7 +936,8 @@ begin${loadReport("reimburse_expense_report.report_id", true)}
       jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', -${total("v_row")})),
     'expenses', v_row.${r("id")}::text, left('Reimbursed: ' || v_row.${r("title")}, 500), 'expense:' || v_row.${r("id")}::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row.${r("id")}, 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row.${r("id")}, 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row.${r("title")}));
   update ${reports} x set ${r("reimbursedAt")} = coalesce(reimburse_expense_report.paid_at, now())${alsoSet("reports", "reimbursement", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;

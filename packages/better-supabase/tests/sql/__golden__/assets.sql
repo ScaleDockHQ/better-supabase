@@ -1721,7 +1721,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:66329a431a4ead8a961da8d5fd6744c45192f6aa63a1f2cc429ab32196a13785
+-- @bsb-hash sha256:601268fc43b827038f29dc9be16ddbe68089024b6e5af5f6506690f6f9406f82
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3499,7 +3499,7 @@ as $$
     'entryDate', (y."period_start" + interval '1 month' - interval '1 day')::date,
     'currency', a."currency",
     'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Depreciation of ' || a."name" || ' for ' || to_char(y."period_start", 'YYYY-MM'), 500),
+    'memo', left('Depreciation of ' || a."name" || ' for ' || to_char(y."period_start", 'YYYY-MM'), 500), 'memoKey', 'accounting.asset_depreciation', 'memoParams', jsonb_build_object('asset', a."name", 'periodStart', y."period_start"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'depreciation_expense', 'debit', y."amount"::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'credit', y."amount"::text))
@@ -3523,7 +3523,7 @@ as $$
     'entryDate', a."disposed_on",
     'currency', a."currency",
     'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Disposal of ' || a."name", 500),
+    'memo', left('Disposal of ' || a."name", 500), 'memoKey', 'accounting.asset_disposal', 'memoParams', jsonb_build_object('asset', a."name"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', a."disposal_amount"::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'debit', q.total::text),

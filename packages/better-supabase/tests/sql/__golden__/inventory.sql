@@ -5485,7 +5485,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:cd464db58d0d1b7a3ce1a6996d48d880c64bc39850375ac17e9de9fc60099e93
+-- @bsb-hash sha256:fd7f6a04ece5cf23ccb759f17ebbce7cbb0e935755cd1c00279657c478522d88
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10674,7 +10674,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', a."unit",
     'reference', y."reference_id",
-    'memo', 'Stock ' || (y."metadata" ->> 'reason'),
+    'memo', 'Stock ' || (y."metadata" ->> 'reason'), 'memoKey', 'accounting.stock_movement', 'memoParams', jsonb_build_object('reason', y."metadata" ->> 'reason'),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'inventory', 'debit', e."amount"::text),
       jsonb_build_object('role', case y."metadata" ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs'

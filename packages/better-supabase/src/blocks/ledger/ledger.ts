@@ -113,6 +113,10 @@ export interface LedgerTransaction {
   readonly referenceType?: string;
   readonly referenceId?: string;
   readonly memo?: string;
+  /** The memo's translation key, when a block wrote it (`invoice.payment`). */
+  readonly memoKey?: string;
+  /** The raw values the memo names, for the app's own wording of `memoKey`. */
+  readonly memoParams?: Readonly<Record<string, unknown>>;
   readonly idempotencyKey?: string;
   /** The transaction this one reverses. */
   readonly reverses?: string;
@@ -145,6 +149,10 @@ export interface LedgerAccountEntry extends LedgerEntry {
   readonly referenceType?: string;
   readonly referenceId?: string;
   readonly memo?: string;
+  /** The memo's translation key, when a block wrote it (`invoice.payment`). */
+  readonly memoKey?: string;
+  /** The raw values the memo names, for the app's own wording of `memoKey`. */
+  readonly memoParams?: Readonly<Record<string, unknown>>;
   readonly reverses?: string;
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly effectiveAt: Temporal.Instant;
@@ -321,6 +329,11 @@ function transactionOf(value: unknown, fn: string): LedgerTransaction {
     ...optional("referenceType", optionalText(row["referenceType"])),
     ...optional("referenceId", optionalText(row["referenceId"])),
     ...optional("memo", optionalText(row["memo"])),
+    ...optional("memoKey", optionalText(row["memoKey"])),
+    ...optional(
+      "memoParams",
+      isRecord(row["memoParams"]) ? row["memoParams"] : undefined,
+    ),
     ...optional("idempotencyKey", optionalText(row["idempotencyKey"])),
     ...optional("reverses", optionalText(row["reverses"])),
     ...optional("actorId", optionalText(row["actorId"])),
@@ -340,6 +353,11 @@ function accountEntryOf(value: unknown, fn: string): LedgerAccountEntry {
     ...optional("referenceType", optionalText(row["referenceType"])),
     ...optional("referenceId", optionalText(row["referenceId"])),
     ...optional("memo", optionalText(row["memo"])),
+    ...optional("memoKey", optionalText(row["memoKey"])),
+    ...optional(
+      "memoParams",
+      isRecord(row["memoParams"]) ? row["memoParams"] : undefined,
+    ),
     ...optional("reverses", optionalText(row["reverses"])),
     ...optional("actorId", optionalText(row["actorId"])),
   };

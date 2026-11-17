@@ -16,7 +16,11 @@ import {
   userGrant,
 } from "../shared.ts";
 import { requireSettings } from "./accounting-setup.ts";
-import { accountingSql, ENTRY_RESERVED } from "./accounting-shared.ts";
+import {
+  accountingSql,
+  ENTRY_RESERVED,
+  entryMemoKey,
+} from "./accounting-shared.ts";
 
 /** The JSON of an entry (`row`), with its lines when `withLines`. */
 export function entryJson(
@@ -36,7 +40,7 @@ export function entryJson(
     ? `, 'lines', coalesce((select jsonb_agg(${lineJson} order by el.${l("position")}, el.${l("id")}) from ${lines} el join ${ctx.table("accounts")} ea on ea.${a("id")} = el.${l("account")} where el.${l("entry")} = ${row}.${e("id")}), '[]'::jsonb)`
     : "";
 
-  return `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'journalId', ${row}.${e("journal")}, 'number', ${row}.${e("number")}, 'fiscalYear', ${row}.${e("fiscalYear")}, 'entryDate', ${row}.${e("entryDate")}, 'periodId', ${row}.${e("period")}, 'status', ${row}.${e("status")}, 'reference', ${row}.${e("reference")}, 'sourceType', ${row}.${e("sourceType")}, 'sourceId', ${row}.${e("sourceId")}, 'reversesId', ${row}.${e("reverses")}, 'memo', ${row}.${e("memo")}, 'total', coalesce((select sum(et.${l("debit")}) from ${lines} et where et.${l("entry")} = ${row}.${e("id")}), 0)::text, 'postedAt', ${row}.${e("postedAt")}, 'postedBy', ${row}.${e("postedBy")}, 'createdBy', ${row}.${e("createdBy")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${linesJson}${extraFieldsJson(row, extras)})`;
+  return `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'journalId', ${row}.${e("journal")}, 'number', ${row}.${e("number")}, 'fiscalYear', ${row}.${e("fiscalYear")}, 'entryDate', ${row}.${e("entryDate")}, 'periodId', ${row}.${e("period")}, 'status', ${row}.${e("status")}, 'reference', ${row}.${e("reference")}, 'sourceType', ${row}.${e("sourceType")}, 'sourceId', ${row}.${e("sourceId")}, 'reversesId', ${row}.${e("reverses")}, 'memo', ${row}.${e("memo")}, 'memoKey', ${ctx.has("entries", "memoKey") ? `${row}.${e("memoKey")}` : "null::text"}, 'memoParams', ${ctx.has("entries", "memoParams") ? `${row}.${e("memoParams")}` : "null::jsonb"}, 'total', coalesce((select sum(et.${l("debit")}) from ${lines} et where et.${l("entry")} = ${row}.${e("id")}), 0)::text, 'postedAt', ${row}.${e("postedAt")}, 'postedBy', ${row}.${e("postedBy")}, 'createdBy', ${row}.${e("createdBy")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${linesJson}${extraFieldsJson(row, extras)})`;
 }
 
 /** Draft entries, posting, reversal and the entry reads. */
@@ -55,6 +59,21 @@ export function accountingEntryFunctions(ctx: BlockSqlContext): string {
   const j = (column: string): string => ctx.col("journals", column);
   const p = (column: string): string => ctx.col("periods", column);
   const e = (column: string): string => ctx.col("entries", column);
+
+  const reversalMemo = entryMemoKey(
+    ctx,
+    "'accounting.reversal'",
+    `jsonb_build_object('number', v_row.${e("number")})`,
+  );
+
+  const keptMemoKey = (["memoKey", "memoParams"] as const)
+    .filter((logical) => ctx.has("entries", logical))
+    .map(
+      (logical) =>
+        ` ${e(logical)} = case when y.${e("memo")} is not distinct from nullif(trim(save_accounting_entry.memo), '') then y.${e(logical)} end,`,
+    )
+    .join("");
+
   const l = (column: string): string => ctx.col("lines", column);
   const d = (column: string): string => ctx.col("dimensions", column);
   const v = (column: string): string => ctx.col("dimensionValues", column);
@@ -215,6 +234,7 @@ begin
       recordId: `v_row.${e("id")}::text`,
       targetLabel: `v_row.${e("number")}`,
       summary: `'posted entry ' || v_row.${e("number")}`,
+      summaryParams: `jsonb_build_object('number', v_row.${e("number")})`,
     },
   })}
   ${ctx.hook("after_accounting_entry_post", [["uuid", `v_row.${e("id")}`]])}
@@ -296,7 +316,7 @@ begin
     delete from ${lines} y where y.${l("entry")} = v_row.${e("id")};
     update ${entries} y set ${e("journal")} = v_journal.${j("id")}, ${e("entryDate")} = save_accounting_entry.entry_date,
       ${e("reference")} = nullif(trim(save_accounting_entry.reference), ''), ${e("sourceType")} = save_accounting_entry.source_type,
-      ${e("sourceId")} = save_accounting_entry.source_id, ${e("memo")} = nullif(trim(save_accounting_entry.memo), ''),
+      ${e("sourceId")} = save_accounting_entry.source_id, ${e("memo")} = nullif(trim(save_accounting_entry.memo), ''),${keptMemoKey}
       ${e("period")} = (select z.${p("id")} from ${periods} z where z.${p("tenant")} = v_journal.${j("tenant")} and save_accounting_entry.entry_date >= z.${p("startsOn")} and save_accounting_entry.entry_date <= z.${p("endsOn")}),
       ${e("updatedAt")} = now()
     where y.${e("id")} = v_row.${e("id")}
@@ -439,9 +459,9 @@ begin
     ${invalid("only a posted entry can be reversed; delete a draft instead")}
   end if;
   ${ctx.hook("before_accounting_entry_reverse", [["uuid", `v_row.${e("id")}`]])}
-  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("reverses")}, ${e("memo")}, ${e("createdBy")})
+  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("reverses")}, ${e("memo")}${reversalMemo.columns}, ${e("createdBy")})
   values (v_row.${e("tenant")}, v_row.${e("journal")}, coalesce(accounting_reverse.entry_date, v_row.${e("entryDate")}), v_row.${e("number")},
-    v_row.${e("id")}, 'Reversal of ' || v_row.${e("number")}, auth.uid())
+    v_row.${e("id")}, 'Reversal of ' || v_row.${e("number")}${reversalMemo.values}, auth.uid())
   returning * into v_reversal;
   insert into ${lines} (${l("tenant")}, ${l("entry")}, ${l("position")}, ${l("account")}, ${l("debit")}, ${l("credit")}, ${l("currency")},
     ${l("amountCurrency")}, ${l("fxRate")}, ${l("taxCode")}, ${l("party")}, ${l("dimensions")}, ${l("description")})
@@ -462,6 +482,7 @@ begin
       recordId: `v_row.${e("id")}::text`,
       targetLabel: `v_row.${e("number")}`,
       summary: `'reversed entry ' || v_row.${e("number")} || ' with ' || v_reversal.${e("number")}`,
+      summaryParams: `jsonb_build_object('number', v_row.${e("number")}, 'reversalNumber', v_reversal.${e("number")})`,
     },
   })}
   ${ctx.hook("after_accounting_entry_reverse", [["uuid", `v_row.${e("id")}`]])}

@@ -243,6 +243,30 @@ export const DEFAULT_JOURNALS: readonly {
 /** The extra column keys the entry reads return next to the extra columns. */
 export const ENTRY_RESERVED = ["fields", "lines", "total"] as const;
 
+/**
+ * The memo key and params columns of an entry insert, and their values, for the
+ * ones the entries table has.
+ */
+export function entryMemoKey(
+  ctx: BlockSqlContext,
+  key: string,
+  params: string,
+): { readonly columns: string; readonly values: string } {
+  const pairs = (
+    [
+      ["memoKey", key],
+      ["memoParams", params],
+    ] as const
+  ).filter(([logical]) => ctx.has("entries", logical));
+
+  return {
+    columns: pairs
+      .map(([logical]) => `, ${ctx.col("entries", logical)}`)
+      .join(""),
+    values: pairs.map(([, value]) => `, ${value}`).join(""),
+  };
+}
+
 /** `'a', 'b'` for an `in (...)` list. */
 export const sqlList = (values: readonly string[]): string =>
   values.map((value) => sqlString(value)).join(", ");

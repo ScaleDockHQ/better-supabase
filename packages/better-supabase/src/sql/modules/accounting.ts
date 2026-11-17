@@ -251,6 +251,7 @@ const NAMES: BlockSqlNames = {
     entries: {
       name: "accounting_entries",
       app: {},
+      optional: ["memoKey", "memoParams"],
       lifecycle: tenantTable,
       columns: {
         id: "id",
@@ -267,6 +268,8 @@ const NAMES: BlockSqlNames = {
         sourceId: "source_id",
         reverses: "reverses_id",
         memo: "memo",
+        memoKey: "memo_key",
+        memoParams: "memo_params",
         postedAt: "posted_at",
         postedBy: "posted_by",
         createdBy: "created_by",

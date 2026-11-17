@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:b265bcbb213bfe4b2147928ddb1389d50df59ac6fa1567dd97c37a9099852347
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:116a90c16e40fce896fba3140290237f164fc036a6108ae2481a012198066b82
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -108,6 +108,8 @@ alter table "better_supabase"."audit_events" add column "actor_label" text;
 alter table "better_supabase"."audit_events" add column "tenant_label" text;
 alter table "better_supabase"."audit_events" add column "target_label" text;
 alter table "better_supabase"."audit_events" add column "summary" text;
+alter table "better_supabase"."audit_events" add column "summary_key" text;
+alter table "better_supabase"."audit_events" add column "summary_params" jsonb;
 alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
@@ -213,7 +215,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -244,6 +246,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -330,7 +334,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -360,6 +364,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -390,7 +396,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -420,6 +426,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -452,7 +460,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -482,6 +490,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -831,7 +841,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -879,7 +891,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -910,6 +922,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -921,8 +935,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -975,7 +989,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -1024,7 +1040,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -1056,7 +1074,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -1087,6 +1105,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -1098,8 +1118,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -1617,8 +1637,8 @@ begin
   -- metadata, so a page of a busy log stays small. get_audit_event returns the
   -- full entry.
   v_entry := case when entry_fields = 'summary'
-    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
-    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
   end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
@@ -1775,7 +1795,7 @@ as $$
 declare
   result jsonb;
 begin
-  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
   into result
   using entry_id::bigint;
   return result;
@@ -1827,7 +1847,7 @@ grant execute on function "better_supabase"."audit_event_types"(uuid[]) to servi
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:fe7e8d0aa0d0ba07093b04f6d026119d93c2bd1be527f9641efec6e332bddc20
+-- @bsb-hash sha256:d1d4441f9619602c4d48c61465a096d9491caa93d3aca83e6a29c0c29a54dc92
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1843,14 +1863,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:6b1dc1ed75518d09a005061c5a0abc1798443c53f8c366cd4af6f1ff566a90dd
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:bd92a8f544047642eb2062406ec8dd4287c376b4eebf10a57d21a90ac57aaeba
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1957,6 +1977,8 @@ alter table "better_supabase"."audit_events" add column "actor_label" text;
 alter table "better_supabase"."audit_events" add column "tenant_label" text;
 alter table "better_supabase"."audit_events" add column "target_label" text;
 alter table "better_supabase"."audit_events" add column "summary" text;
+alter table "better_supabase"."audit_events" add column "summary_key" text;
+alter table "better_supabase"."audit_events" add column "summary_params" jsonb;
 alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
@@ -2069,7 +2091,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -2100,6 +2122,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     v_label,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -2189,7 +2213,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2219,6 +2243,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     l.label,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -2253,7 +2279,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2283,6 +2309,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     l.label,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -2319,7 +2347,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2349,6 +2377,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     l.label,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -2699,7 +2729,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -2747,7 +2779,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -2778,6 +2810,8 @@ begin
     (select o."name"::text from "better_supabase"."organizations" o where o."id" = tenant),
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -2789,8 +2823,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -2843,7 +2877,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -2892,7 +2928,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -2924,7 +2962,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -2955,6 +2993,8 @@ begin
     (select o."name"::text from "better_supabase"."organizations" o where o."id" = tenant),
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -2966,8 +3006,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -3489,8 +3529,8 @@ begin
   -- metadata, so a page of a busy log stays small. get_audit_event returns the
   -- full entry.
   v_entry := case when entry_fields = 'summary'
-    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
-    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
   end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
@@ -3647,7 +3687,7 @@ as $$
 declare
   result jsonb;
 begin
-  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
   into result
   using entry_id::bigint;
   return result;
@@ -3860,7 +3900,7 @@ grant execute on function "better_supabase"."revert_audit_entries"(text[]) to au
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:fe7e8d0aa0d0ba07093b04f6d026119d93c2bd1be527f9641efec6e332bddc20
+-- @bsb-hash sha256:d1d4441f9619602c4d48c61465a096d9491caa93d3aca83e6a29c0c29a54dc92
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3876,14 +3916,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:fa876f94f275cda6c9b3f35506f057307375a98449b121e6e19cd88f700fad71
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:664125ddc65537452eae7cf22fa4b65ace092623c710453612384e0770675b62
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3990,6 +4030,8 @@ alter table "app_private"."audit_events" add column "actor_label" text;
 alter table "app_private"."audit_events" add column "tenant_label" text;
 alter table "app_private"."audit_events" add column "target_label" text;
 alter table "app_private"."audit_events" add column "summary" text;
+alter table "app_private"."audit_events" add column "summary_key" text;
+alter table "app_private"."audit_events" add column "summary_params" jsonb;
 alter table "app_private"."audit_events" add column "request_id" text;
 alter table "app_private"."audit_events" add column "correlation_id" text;
 alter table "app_private"."audit_events" add column "scope" text;
@@ -4095,7 +4137,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -4126,6 +4168,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -4212,7 +4256,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4242,6 +4286,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -4272,7 +4318,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4302,6 +4348,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -4334,7 +4382,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4364,6 +4412,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -4713,7 +4763,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -4761,7 +4813,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -4792,6 +4844,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -4803,8 +4857,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -4857,7 +4911,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -4906,7 +4962,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -4938,7 +4996,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -4969,6 +5027,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -4980,8 +5040,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -5499,8 +5559,8 @@ begin
   -- metadata, so a page of a busy log stays small. get_audit_event returns the
   -- full entry.
   v_entry := case when entry_fields = 'summary'
-    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
-    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
   end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
@@ -5657,7 +5717,7 @@ as $$
 declare
   result jsonb;
 begin
-  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "app_private"."audit_events" l where l."id" = $1$q$
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "app_private"."audit_events" l where l."id" = $1$q$
   into result
   using entry_id::bigint;
   return result;
@@ -5709,7 +5769,7 @@ grant execute on function "app_private"."audit_event_types"(uuid[]) to service_r
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:35861e0a9eb78096375f7b196739a9d81941598f03faa64f97e08ef72d787ba5
+-- @bsb-hash sha256:99c17d5eab8d07081646a871d5630d0b63d2182d4c316e4f0b9a7f916bd59666
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5725,14 +5785,14 @@ delete from "app_private"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:751084455581187aa50f55545d761cc3ca4d9c51be6fe85d49e193993a7be0a0
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:fa8360bf0c370453330e3bef70cad73bfa92541edb15fdc9a3654ea0287abc62
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5839,6 +5899,8 @@ alter table "better_supabase"."audit_events" add column "actor_label" text;
 alter table "better_supabase"."audit_events" add column "tenant_label" text;
 alter table "better_supabase"."audit_events" add column "target_label" text;
 alter table "better_supabase"."audit_events" add column "summary" text;
+alter table "better_supabase"."audit_events" add column "summary_key" text;
+alter table "better_supabase"."audit_events" add column "summary_params" jsonb;
 alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
@@ -5944,7 +6006,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -5975,6 +6037,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -6061,7 +6125,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -6091,6 +6155,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -6121,7 +6187,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -6151,6 +6217,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -6183,7 +6251,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -6213,6 +6281,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -6562,7 +6632,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -6610,7 +6682,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -6641,6 +6713,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -6652,8 +6726,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -6706,7 +6780,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -6755,7 +6831,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -6787,7 +6865,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -6818,6 +6896,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -6829,8 +6909,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -7348,8 +7428,8 @@ begin
   -- metadata, so a page of a busy log stays small. get_audit_event returns the
   -- full entry.
   v_entry := case when entry_fields = 'summary'
-    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
-    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
   end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
@@ -7506,7 +7586,7 @@ as $$
 declare
   result jsonb;
 begin
-  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
   into result
   using entry_id::bigint;
   return result;
@@ -7559,14 +7639,14 @@ grant execute on function "better_supabase"."audit_event_types"(uuid[]) to servi
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
-create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
+create or replace function "api"."audit_event"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null, summary_key text default null, summary_params jsonb default null)
 returns text
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."audit_event"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) $$;
-revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to service_role;
+as $$ select "better_supabase"."audit_event"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) $$;
+revoke execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."audit_event"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to service_role;
 
 create or replace function "api"."audit_event_many"(events jsonb)
 returns jsonb
@@ -7577,14 +7657,14 @@ as $$ select "better_supabase"."audit_event_many"($1) $$;
 revoke execute on function "api"."audit_event_many"(jsonb) from public, anon, authenticated;
 grant execute on function "api"."audit_event_many"(jsonb) to service_role;
 
-create or replace function "api"."audit_event_trusted"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null)
+create or replace function "api"."audit_event_trusted"(event_type text, category text default null, outcome text default 'success', source text default null, target_type text default null, record_id text default null, tenant uuid default null, metadata jsonb default '{}', idempotency_key text default null, restricted jsonb default null, actor_id uuid default null, summary text default null, target_label text default null, correlation_id text default null, actor_kind text default null, actor_label text default null, ip inet default null, user_agent text default null, session_id text default null, request_id text default null, scope text default null, support_session uuid default null, impersonated_by uuid default null, impersonation_reason text default null, summary_key text default null, summary_params jsonb default null)
 returns text
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."audit_event_trusted"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) $$;
-revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to service_role;
+as $$ select "better_supabase"."audit_event_trusted"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26) $$;
+revoke execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."audit_event_trusted"(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to service_role;
 
 create or replace function "api"."chain_heads"(target regclass, tenant_column text default null)
 returns jsonb
@@ -7697,7 +7777,7 @@ grant execute on function "api"."audit_event_types"(uuid[]) to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:fe7e8d0aa0d0ba07093b04f6d026119d93c2bd1be527f9641efec6e332bddc20
+-- @bsb-hash sha256:d1d4441f9619602c4d48c61465a096d9491caa93d3aca83e6a29c0c29a54dc92
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -7713,14 +7793,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:527a85e69aab2ddd32a5b97f434b896c6295f6c53a96de0c9a915748a5e6c4f5
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:c9d1841ef93909411859769ba4108e16c123e3d971c216755cdad452c57503c9
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7821,6 +7901,8 @@ alter table "better_supabase"."audit_events" add column if not exists "actor_lab
 alter table "better_supabase"."audit_events" add column if not exists "tenant_label" text;
 alter table "better_supabase"."audit_events" add column if not exists "target_label" text;
 alter table "better_supabase"."audit_events" add column if not exists "summary" text;
+alter table "better_supabase"."audit_events" add column if not exists "summary_key" text;
+alter table "better_supabase"."audit_events" add column if not exists "summary_params" jsonb;
 alter table "better_supabase"."audit_events" add column if not exists "request_id" text;
 alter table "better_supabase"."audit_events" add column if not exists "correlation_id" text;
 alter table "better_supabase"."audit_events" add column if not exists "scope" text;
@@ -8479,7 +8561,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -8553,8 +8637,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -8607,7 +8691,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -8656,7 +8742,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -8714,8 +8802,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Tables the app must not edit: append_only refuses update, delete and
 -- truncate for every role; function_writes also takes the Data API write
@@ -9398,7 +9486,7 @@ grant execute on function "better_supabase"."audit_event_types"(uuid[]) to authe
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:fe7e8d0aa0d0ba07093b04f6d026119d93c2bd1be527f9641efec6e332bddc20
+-- @bsb-hash sha256:d1d4441f9619602c4d48c61465a096d9491caa93d3aca83e6a29c0c29a54dc92
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -9414,14 +9502,14 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
--- @bsb-block audit@14 managed
--- @bsb-hash sha256:d823dbacc492ccc33cafc295dd4cf03fe6a823282707d511d64c307c7f469961
+-- @bsb-block audit@15 managed
+-- @bsb-hash sha256:b5b38713f0ce039c438577fb5df31e0fa55425ab1eb4b8bf7bbd779b0aed0b3f
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9528,6 +9616,8 @@ alter table "better_supabase"."audit_events" add column "actor_label" text;
 alter table "better_supabase"."audit_events" add column "tenant_label" text;
 alter table "better_supabase"."audit_events" add column "target_label" text;
 alter table "better_supabase"."audit_events" add column "summary" text;
+alter table "better_supabase"."audit_events" add column "summary_key" text;
+alter table "better_supabase"."audit_events" add column "summary_params" jsonb;
 alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
@@ -9633,7 +9723,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -9664,6 +9754,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -9750,7 +9842,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -9780,6 +9872,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -9810,7 +9904,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -9840,6 +9934,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -9872,7 +9968,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -9902,6 +9998,8 @@ begin
     coalesce(v_jwt -> 'user_metadata' ->> 'full_name', v_jwt ->> 'email'),
     null,
     row_data ->> entry.label_column,
+    null,
+    null,
     null,
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-request-id'))),
     coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null((v_headers ->> 'x-correlation-id'))),
@@ -10251,7 +10349,9 @@ create or replace function better_supabase.audit_event(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -10299,7 +10399,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -10330,6 +10430,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -10341,8 +10443,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- audit_event for a batch of events in one call (the outbox sink): each
 -- element takes audit_event's argument names as keys, keeps its checks and
@@ -10395,7 +10497,9 @@ begin
         scope => batch_event ->> 'scope',
         support_session => (batch_event ->> 'support_session')::uuid,
         impersonated_by => (batch_event ->> 'impersonated_by')::uuid,
-        impersonation_reason => batch_event ->> 'impersonation_reason'
+        impersonation_reason => batch_event ->> 'impersonation_reason',
+        summary_key => batch_event ->> 'summary_key',
+        summary_params => nullif(batch_event -> 'summary_params', 'null'::jsonb)
       );
       results := results || pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('id', batch_result));
     exception when others then
@@ -10444,7 +10548,9 @@ create or replace function better_supabase.audit_event_trusted(
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -10476,7 +10582,7 @@ begin
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "org_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "summary_key", "summary_params", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -10507,6 +10613,8 @@ begin
     null,
     target_label,
     summary,
+    coalesce(summary_key, event_type),
+    summary_params,
     coalesce(better_supabase.request_id_or_null(request_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.request_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-request-id')))),
     coalesce(better_supabase.request_id_or_null(correlation_id), coalesce(better_supabase.request_id_or_null(current_setting('better_supabase.correlation_id', true)), better_supabase.request_id_or_null(better_supabase.request_header('x-correlation-id')))),
     coalesce(audit_event_trusted.scope, case when tenant is null then 'platform' else 'tenant' end)
@@ -10518,8 +10626,8 @@ begin
   return entry_id::text;
 end;
 $$;
-revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) from public, anon, authenticated;
-grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text) to "service_role";
+revoke execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) from public, anon, authenticated;
+grant execute on function better_supabase.audit_event_trusted(text, text, text, text, text, text, uuid, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb) to "service_role";
 
 -- Entries are append-only. purge_audit_log deletes old ones: it runs as its
 -- owner and sets better_supabase.audit_purge, and a role that only sets the
@@ -11037,8 +11145,8 @@ begin
   -- metadata, so a page of a busy log stays small. get_audit_event returns the
   -- full entry.
   v_entry := case when entry_fields = 'summary'
-    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
-    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
+    then $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label") || jsonb_build_object('summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope")$e$
+    else $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$
   end;
   if cardinality(for_tenants) > 0 then
     v_where := v_where || $q$ and l."org_id" = any ($1)$q$;
@@ -11195,7 +11303,7 @@ as $$
 declare
   result jsonb;
 begin
-  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
+  execute $q$select $q$ || $e$jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."org_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'summaryKey', l."summary_key", 'summaryParams', l."summary_params", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata")$e$ || $q$ from "better_supabase"."audit_events" l where l."id" = $1$q$
   into result
   using entry_id::bigint;
   return result;
@@ -11247,7 +11355,7 @@ grant execute on function "better_supabase"."audit_event_types"(uuid[]) to servi
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block-data audit
--- @bsb-hash sha256:fe7e8d0aa0d0ba07093b04f6d026119d93c2bd1be527f9641efec6e332bddc20
+-- @bsb-hash sha256:d1d4441f9619602c4d48c61465a096d9491caa93d3aca83e6a29c0c29a54dc92
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11263,6 +11371,6 @@ delete from "better_supabase"."audited_tables" a
 where not exists (select 1 from pg_catalog.pg_class c where c.oid = a."target"::oid);
 
 insert into better_supabase.blocks (name, version, mode)
-values ('audit', 14, 'managed')
+values ('audit', 15, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

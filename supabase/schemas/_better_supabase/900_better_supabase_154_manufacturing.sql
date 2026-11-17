@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:86b6cb27ba54a11b01f792d343742f16ef2f25c0d2492edec35c8dbcd928d36d
+-- @bsb-hash sha256:ab0e2ac3450378f00de44ae669db56e09a20bc73935abffb040cf9af0f8dd8bb
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2506,7 +2506,7 @@ as $$
     'entryDate', (x."completed_at" at time zone 'UTC')::date,
     'currency', x."currency",
     'reference', x."number",
-    'memo', 'Production labor ' || x."number",
+    'memo', 'Production labor ' || x."number", 'memoKey', 'accounting.production_order', 'memoParams', jsonb_build_object('number', x."number"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'work_in_progress', 'debit', x."labor_cost"::text),
       jsonb_build_object('role', 'expense', 'credit', x."labor_cost"::text))

@@ -10,6 +10,7 @@ import type {
   Catalog,
   CatalogFunction,
   CatalogTable,
+  CatalogTrigger,
   ExtrasFunction,
   ExtrasHookFunction,
   Snapshot,
@@ -419,6 +420,89 @@ describe("doctor rules", () => {
       );
       expect(message).toContain(
         "revoke update on better_supabase.memberships from authenticated;\ngrant update (created_at) on better_supabase.memberships to authenticated;",
+      );
+    });
+
+    const guard = {
+      name: "memberships_keep_role",
+      timing: "before" as const,
+      events: ["update" as const],
+      level: "row" as const,
+      function: "public.keep_role",
+      guards: ["role"],
+    };
+
+    const guarded = (trigger: CatalogTrigger, insert = false) =>
+      withTable("memberships", (memberships) => {
+        memberships.policies = [
+          ...memberships.policies,
+          updatePolicy,
+          ...(insert
+            ? [
+                {
+                  ...updatePolicy,
+                  name: "members_insert",
+                  command: "insert" as const,
+                  using: null,
+                },
+              ]
+            : []),
+        ];
+        memberships.grants = [
+          { role: "authenticated", privileges: ["SELECT", "INSERT", "UPDATE"] },
+        ];
+        memberships.triggers = [trigger];
+      });
+
+    it("leaves out a column a before update trigger marks as guarded", async () => {
+      const findings = await runRules(context(guarded(guard)), only);
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, user_id.",
+      );
+    });
+
+    it.each([
+      ["a disabled trigger", { ...guard, disabled: true as const }],
+      ["an after trigger", { ...guard, timing: "after" as const }],
+      ["a statement trigger", { ...guard, level: "statement" as const }],
+      ["a trigger without update", { ...guard, events: ["insert" as const] }],
+      ["a marker naming another column", { ...guard, guards: ["user_id"] }],
+      [
+        "a trigger with a when condition",
+        { ...guard, conditional: true as const },
+      ],
+      ["an update of other columns", { ...guard, updateOf: ["user_id"] }],
+    ])("keeps the column for %s", async (_, trigger) => {
+      const findings = await runRules(context(guarded(trigger)), only);
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, role",
+      );
+    });
+
+    it("guards a column an update of trigger names", async () => {
+      const findings = await runRules(
+        context(guarded({ ...guard, updateOf: ["role", "user_id"] })),
+        only,
+      );
+
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, user_id.",
+      );
+    });
+
+    it("guards an insert only when the trigger fires on insert", async () => {
+      const updateOnly = await runRules(context(guarded(guard, true)), only);
+      expect(updateOnly[0]?.message).toContain(
+        "authenticated may insert org_id, role, user_id; authenticated may update org_id, user_id.",
+      );
+
+      const both = await runRules(
+        context(guarded({ ...guard, events: ["insert", "update"] }, true)),
+        only,
+      );
+
+      expect(both[0]?.message).toContain(
+        "authenticated may insert org_id, user_id; authenticated may update org_id, user_id.",
       );
     });
 
@@ -1246,6 +1330,45 @@ describe("doctor rules", () => {
           ),
         ).toEqual([]);
       }
+
+      const unqualified = (using: string) =>
+        snapshot((tables) => {
+          for (const name of names) {
+            table(tables, name).policies = [
+              {
+                ...memberPolicy(`${name}_member`, using),
+                functions: ["public.is_member"],
+              },
+            ];
+          }
+        });
+
+      expect(
+        await codes(
+          context(
+            withFunctions(
+              unqualified(
+                "(organization_id IN ( SELECT is_member('k'::text) AS is_member))",
+              ),
+              [helper({ schema: "public" })],
+            ),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual([]);
+
+      expect(
+        await codes(
+          context(
+            withFunctions(unqualified("is_member(organization_id)"), [
+              helper({ schema: "public" }),
+            ]),
+            { config: tight.config },
+          ),
+          "BS206",
+        ),
+      ).toEqual(["BS206"]);
 
       // A from or where after the call can read the row, so it still counts.
       const correlated = snapshot((tables) => {

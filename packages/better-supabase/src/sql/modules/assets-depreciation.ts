@@ -490,7 +490,7 @@ export function assetAccountingSources(
     'entryDate', (y.${d("periodStart")} + interval '1 month' - interval '1 day')::date,
     'currency', a.${s("currency")},
     'reference', left(${label}, 200),
-    'memo', left('Depreciation of ' || a.${s("name")} || ' for ' || to_char(y.${d("periodStart")}, 'YYYY-MM'), 500),
+    'memo', left('Depreciation of ' || a.${s("name")} || ' for ' || to_char(y.${d("periodStart")}, 'YYYY-MM'), 500), 'memoKey', 'accounting.asset_depreciation', 'memoParams', jsonb_build_object('asset', a.${s("name")}, 'periodStart', y.${d("periodStart")}),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'depreciation_expense', 'debit', y.${d("amount")}::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'credit', y.${d("amount")}::text))
@@ -509,7 +509,7 @@ export function assetAccountingSources(
     'entryDate', a.${s("disposedOn")},
     'currency', a.${s("currency")},
     'reference', left(${label}, 200),
-    'memo', left('Disposal of ' || a.${s("name")}, 500),
+    'memo', left('Disposal of ' || a.${s("name")}, 500), 'memoKey', 'accounting.asset_disposal', 'memoParams', jsonb_build_object('asset', a.${s("name")}),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', a.${s("disposalAmount")}::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'debit', q.total::text),

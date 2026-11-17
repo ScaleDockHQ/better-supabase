@@ -105,6 +105,26 @@ describe("sql layout edges", () => {
         predicate: `where (${table.primaryKey[0] ?? "id"} is not null)`,
       },
       {
+        name: "coverage_opclass_idx",
+        columns: ["id"],
+        unique: false,
+        primary: false,
+        partial: false,
+        method: "gin",
+        predicate: null,
+        keys: ["id jsonb_path_ops"],
+      },
+      {
+        name: "coverage_collate_idx",
+        columns: ["id"],
+        unique: false,
+        primary: false,
+        partial: false,
+        method: "btree",
+        predicate: null,
+        keys: ['id COLLATE "C"'],
+      },
+      {
         name: "coverage_miss_idx",
         columns: ["id"],
         unique: true,
@@ -130,11 +150,20 @@ describe("sql layout edges", () => {
 
     expect(indexes.map((index) => index.name)).toContain("coverage_open_idx");
     expect(indexes.map((index) => index.name)).toContain("coverage_plain_idx");
+    expect(indexes).toContainEqual(
+      expect.objectContaining({ name: "coverage_hash_idx", method: "hash" }),
+    );
     expect(indexes.map((index) => index.name)).not.toContain(
-      "coverage_hash_idx",
+      "coverage_partial_idx",
     );
     expect(indexes.map((index) => index.name)).not.toContain(
       "coverage_miss_idx",
+    );
+    expect(indexes.map((index) => index.name)).not.toContain(
+      "coverage_opclass_idx",
+    );
+    expect(indexes.map((index) => index.name)).not.toContain(
+      "coverage_collate_idx",
     );
   });
 });

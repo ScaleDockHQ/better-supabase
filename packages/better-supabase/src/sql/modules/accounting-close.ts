@@ -127,6 +127,7 @@ export function accountingCloseFunctions(ctx: BlockSqlContext): string {
         recordId: `${row}.${p("id")}::text`,
         targetLabel: `${row}.${p("fiscalYear")}::text || '-' || lpad(${row}.${p("number")}::text, 2, '0')`,
         summary: `'${type.slice("accounting_period.".length)} period ' || ${row}.${p("fiscalYear")}::text || '-' || lpad(${row}.${p("number")}::text, 2, '0')`,
+        summaryParams: `jsonb_build_object('fiscalYear', ${row}.${p("fiscalYear")}, 'number', ${row}.${p("number")})`,
       },
     });
 
@@ -447,6 +448,7 @@ begin
       recordId: "close_fiscal_year.fiscal_year::text",
       targetLabel: "close_fiscal_year.fiscal_year::text",
       summary: `'closed fiscal year ' || close_fiscal_year.fiscal_year::text`,
+      summaryParams: `jsonb_build_object('fiscalYear', close_fiscal_year.fiscal_year)`,
     },
   })}
   return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);

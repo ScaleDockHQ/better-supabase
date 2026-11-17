@@ -2,7 +2,7 @@ import type { BatchArgument } from "../shared.ts";
 
 /** `audit_event`'s argument types. */
 export const EVENT_ARGS = (id: string): string =>
-  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`;
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text, text, jsonb`;
 
 /** `audit_event`'s arguments, as the keys of an `audit_event_many` element. */
 export const EVENT_KEYS = (id: string): readonly BatchArgument[] => [
@@ -30,15 +30,19 @@ export const EVENT_KEYS = (id: string): readonly BatchArgument[] => [
   ["support_session", "uuid"],
   ["impersonated_by", "uuid"],
   ["impersonation_reason", "text"],
+  ["summary_key", "text"],
+  ["summary_params", "jsonb"],
 ];
 
 export const PREVIOUS_EVENT_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text`,
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text`,
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`,
 ];
 
 /** `audit_event_trusted`'s signatures before the current one. */
 export const PREVIOUS_TRUSTED_ARGS = (id: string): readonly string[] => [
   `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text`,
+  `text, text, text, text, text, text, ${id}, jsonb, text, jsonb, uuid, text, text, text, text, text, inet, text, text, text, text, uuid, uuid, text`,
 ];

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:eaad5e89e02dfb886a7aa969aa56364cfc3d31b5057137f75a67da34f57a894e
+-- @bsb-hash sha256:d17ed99ad20d410aa45f3bdfd13c6b9f0c503751e7845f0eaf29dec1be3e8848
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -784,7 +784,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -828,7 +829,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -1268,7 +1270,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:cda08bf35e24527462076b2cd58c3b20c84ebbf7a0df742e1fa8bc56f216582c
+-- @bsb-hash sha256:f2c80d0d2946499cd035dd972cee849b8a2ac99575646935fa7172a646caae8f
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2086,7 +2088,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -2142,7 +2145,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -2548,7 +2552,7 @@ as $$
     'entryDate', (v."approved_at" at time zone 'UTC')::date,
     'currency', v."currency",
     'reference', left(v."id"::text, 8),
-    'memo', left('Expenses: ' || v."title", 500),
+    'memo', left('Expenses: ' || v."title", 500), 'memoKey', 'accounting.expense_report', 'memoParams', jsonb_build_object('title', v."title"),
     'lines', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'expense', 'debit', g.amount::text, 'description', v."title", 'dimensions', nullif(g.dim, '{}'::jsonb))) order by g.dim::text)
         from (select coalesce(y."dimensions", '{}'::jsonb) as dim, sum(y."amount") as amount from "better_supabase"."expense_lines" y where y."report_id" = v."id" group by 1) g),
       jsonb_build_array(jsonb_build_object('role', 'expense', 'debit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text, 'description', v."title")))
@@ -2573,7 +2577,7 @@ as $$
     'entryDate', (v."reimbursed_at" at time zone 'UTC')::date,
     'currency', v."currency",
     'reference', left(v."id"::text, 8),
-    'memo', left('Reimbursed: ' || v."title", 500),
+    'memo', left('Reimbursed: ' || v."title", 500), 'memoKey', 'accounting.expense_reimbursement', 'memoParams', jsonb_build_object('title', v."title"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'payable', 'debit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text, 'partyId', v."user_id"::text),
       jsonb_build_object('role', 'bank', 'credit', (select coalesce(sum(y."amount"), 0) from "better_supabase"."expense_lines" y where y."report_id" = v."id")::text))
@@ -2658,7 +2662,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:c12ca2a6dc85d61e9c5b3a27864c5f44b2b7f715679bd8357e50bcc38a387bdb
+-- @bsb-hash sha256:1a4e4dbded4603a79f6d369659d68c30e0296df7d4e95b58e2dbcb74e441011a
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3446,7 +3450,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "app_private"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "app_private"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3490,7 +3495,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "app_private"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "app_private"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3930,7 +3936,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:794534ee9deed57441f54c099f5ed1744c16974d41c2be669a63ebbdf9c2a74a
+-- @bsb-hash sha256:a3bafd2fc402b8b72d67d67a790ce91f8ca616869af8a072f0e5eca0291c8051
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4713,7 +4719,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -4757,7 +4764,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -5351,7 +5359,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:7350765f37320f729a8335698cc546ca3c4f03b6211c965509de4d5cf938a1ab
+-- @bsb-hash sha256:5564f8c11761479e126486d1cae063c7217bf7a7411788c273538c51bfbf5080
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6126,7 +6134,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -6170,7 +6179,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -6610,7 +6620,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:e883d12e6be4aa9f3ebd038f72c2c0d0e1f73fb494becdccd68070734e503928
+-- @bsb-hash sha256:565b10e3ed35d64cb65aac71712d287647b7dd8383336532c62f649dcfbacf53
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7393,7 +7403,8 @@ begin
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."org_id", 'expense_payable', 'expenses:payable:' || v_row."user_id"::text || ':' || v_row."currency", 'Expenses owed ' || v_row."currency", v_row."currency"::text, 0::smallint, 'users', v_row."user_id"::text, v_row."user_id", true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0)));
   v_tx := "better_supabase"."ledger_post"(v_row."org_id", 'expense.approved', v_lines,
     'expenses', v_row."id"::text, left('Expenses: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':approved', null,
-    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"));
+    jsonb_build_object('reportId', v_row."id", 'userId', v_row."user_id"),
+    memo_key => 'expense.approved', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "approved_at" = now(), "approval_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -7437,7 +7448,8 @@ begin
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."org_id", 'expense_cash', 'expenses:cash:' || v_row."currency", 'Expenses paid ' || v_row."currency", v_row."currency"::text, 0::smallint, null, null, null, true, 'expenses.read', 'expenses', null), 'amount', -coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = v_row."id"), 0))),
     'expenses', v_row."id"::text, left('Reimbursed: ' || v_row."title", 500), 'expense:' || v_row."id"::text || ':reimbursed',
     reimburse_expense_report.paid_at,
-    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))));
+    jsonb_strip_nulls(jsonb_build_object('reportId', v_row."id", 'reference', nullif(trim(reimburse_expense_report.reference), ''))),
+    memo_key => 'expense.reimbursed', memo_params => jsonb_build_object('title', v_row."title"));
   update "better_supabase"."expense_reports" x set "reimbursed_at" = coalesce(reimburse_expense_report.paid_at, now()), "reimbursement_transaction_id" = v_tx, "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;

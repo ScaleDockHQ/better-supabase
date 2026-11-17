@@ -59,6 +59,20 @@ export type ListCallParams<
   ? [options?: Options & Extra]
   : [options: Options & Extra];
 
+/**
+ * What an entity list's `page` takes: the shared options, an offset and a
+ * total.
+ */
+export interface EntityPageOptions extends PageOptions {
+  /**
+   * Skip this many rows. Prefer `after`, which never reads skipped rows; the
+   * two do not combine.
+   */
+  readonly offset?: number;
+  /** Add `total` and `totalCapped` to the page. */
+  readonly total?: boolean;
+}
+
 /** What `facets` reads: the filters of `page`, and the facets to count. */
 export interface FacetOptions extends Pick<PageOptions, "q" | "filters"> {
   /** The facets to count. Default every facet the entity declares. */
@@ -76,7 +90,7 @@ export type CountOptions = Pick<PageOptions, "q" | "filters">;
 export interface EntityList<Item, Extra extends object = object> {
   /** One keyset page, in the order of `sort` (the entity's default without it). */
   readonly page: (
-    ...args: ListCallParams<PageOptions, Extra>
+    ...args: ListCallParams<EntityPageOptions, Extra>
   ) => AsyncResult<ListPage<Item>>;
   /** The values of each facet and how many rows hold each, under the filters. */
   readonly facets: (
@@ -321,11 +335,15 @@ export function entityList<Item>(
         )
       : AsyncResult.err(filters.error);
 
-  const page = (options: PageOptions & TenantOption = {}) =>
+  const page = (options: EntityPageOptions & TenantOption = {}) =>
     read(
       options.organizationId,
       listFilters(spec, options),
-      { paged: true },
+      {
+        paged: true,
+        ...(options.offset === undefined ? {} : { offset: options.offset }),
+        ...(options.total === true ? { total: true } : {}),
+      },
       (value) => {
         const page = pageRowsOf(value, fn);
         const [applied, ...ignored] = sortsOf(options.sort);

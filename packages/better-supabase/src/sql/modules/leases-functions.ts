@@ -282,7 +282,8 @@ begin${loadLease("activate_lease.lease_id", manage, true)}
         jsonb_build_object('account', v_account, 'amount', v_row.${l("deposit")}),
         jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', -v_row.${l("deposit")})),
       'leases', v_row.${l("id")}::text, 'Deposit received', 'leases.deposit:' || v_row.${l("id")}::text, null,
-      jsonb_build_object(${leaseKey}, v_row.${l("id")}));
+      jsonb_build_object(${leaseKey}, v_row.${l("id")}),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := ${ledger.fn("ledger_hold")}(v_account, v_row.${l("deposit")}, 'leases', v_row.${l("id")}::text, null);
   end if;
   update ${leases} x set ${l("status")} = 'active', ${l("depositHold")} = v_hold.${lh("id")}, ${l("updatedAt")} = now()
@@ -370,7 +371,8 @@ begin${loadLease("terminate_lease.lease_id", manage, true)}
           jsonb_build_object('account', ${depositAccount("v_row")}, 'amount', -(v_held - v_deduction)),
           jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', v_held - v_deduction)),
         'leases', v_row.${l("id")}::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row.${l("id")}::text, null,
-        jsonb_build_object(${leaseKey}, v_row.${l("id")}));
+        jsonb_build_object(${leaseKey}, v_row.${l("id")}),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update ${leases} x set
@@ -475,7 +477,8 @@ begin
             jsonb_build_object('account', ${incomeAccount("v_row")}, 'amount', -v_row.${l("rent")})),
           'leases', v_row.${l("id")}::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row.${l("id")}::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into ${charges} (${c("tenant")}, ${c("lease")}, ${c("periodStart")}, ${c("periodEnd")}, ${c("amount")}, ${c("currency")}, ${c("transaction")})
         values (v_row.${l("tenant")}, v_row.${l("id")}, v_start, v_end, v_row.${l("rent")}, v_row.${l("currency")}, v_tx)
         returning * into v_charge;
@@ -490,6 +493,7 @@ begin
             targetType: "lease_charge",
             recordId: `v_charge.${c("id")}::text`,
             summary: `'posted rent from ' || v_charge.${c("periodStart")}::text`,
+            summaryParams: `jsonb_build_object('periodStart', v_charge.${c("periodStart")})`,
           },
         })}
         v_count := v_count + 1;
@@ -532,7 +536,8 @@ begin${loadLease("record_rent_payment.lease_id", manage)}
         jsonb_build_object('account', ${rentAccount("v_row")}, 'amount', -record_rent_payment.amount),
         jsonb_build_object('account', ${cashAccount("v_row")}, 'amount', record_rent_payment.amount)),
       'leases', v_row.${l("id")}::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object(${leaseKey}, v_row.${l("id")}, 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     ${bookSource(ctx, "lease_payment", "v_tx")}
     ${ctx.record({
       type: "lease.paid",

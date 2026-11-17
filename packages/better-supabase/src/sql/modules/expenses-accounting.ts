@@ -1,6 +1,7 @@
 import type { AccountingSource } from "../accounting-sources-sql.ts";
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { expensesStandalone } from "./expenses-standalone.ts";
 
 /**
@@ -29,13 +30,18 @@ export function expenseAccountingSources(
       jsonb_build_array(jsonb_build_object('role', 'expense', 'debit', ${total}::text, 'description', v.${r("title")})))`
     : `jsonb_build_array(jsonb_build_object('role', 'expense', 'debit', ${total}::text, 'description', v.${r("title")}))`;
 
-  const entry = (date: string, memo: string, entryLines: string): string =>
+  const entry = (
+    date: string,
+    memo: string,
+    key: string,
+    entryLines: string,
+  ): string =>
     `  select jsonb_build_object(
     'organizationId', v.${r("tenant")},
     'entryDate', (${date} at time zone 'UTC')::date,
     'currency', v.${r("currency")},
     'reference', left(v.${r("id")}::text, 8),
-    'memo', left(${memo} || v.${r("title")}, 500),
+    'memo', left(${memo} || v.${r("title")}, 500), 'memoKey', ${sqlString(key)}, 'memoParams', jsonb_build_object('title', v.${r("title")}),
     'lines', ${entryLines}
   )
   from ${reports} v
@@ -51,6 +57,7 @@ export function expenseAccountingSources(
       body: `${entry(
         `v.${r("approvedAt")}`,
         "'Expenses: '",
+        "accounting.expense_report",
         `${expenseLines}
       || jsonb_build_array(jsonb_build_object('role', 'payable', 'credit', ${total}::text, 'partyId', v.${r("user")}::text))`,
       )} and v.${r("approvedAt")} is not null`,
@@ -64,6 +71,7 @@ export function expenseAccountingSources(
       body: `${entry(
         `v.${r("reimbursedAt")}`,
         "'Reimbursed: '",
+        "accounting.expense_reimbursement",
         `jsonb_build_array(
       jsonb_build_object('role', 'payable', 'debit', ${total}::text, 'partyId', v.${r("user")}::text),
       jsonb_build_object('role', 'bank', 'credit', ${total}::text))`,

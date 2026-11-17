@@ -142,6 +142,8 @@ const NAMES: BlockSqlNames = {
         tenantLabel: "tenant_label",
         targetLabel: "target_label",
         summary: "summary",
+        summaryKey: "summary_key",
+        summaryParams: "summary_params",
         requestId: "request_id",
         correlationId: "correlation_id",
         scope: "scope",
@@ -152,6 +154,8 @@ const NAMES: BlockSqlNames = {
         "tenantLabel",
         "targetLabel",
         "summary",
+        "summaryKey",
+        "summaryParams",
         "requestId",
         "correlationId",
         "scope",
@@ -212,6 +216,8 @@ function contextPairs(
   values: {
     targetLabel: string;
     summary: string;
+    summaryKey: string;
+    summaryParams: string;
     correlationId: string;
     actorKind?: string;
     actorLabel?: string;
@@ -228,6 +234,8 @@ function contextPairs(
     ["tenantLabel", tenantLabel(ctx, tenant)],
     ["targetLabel", values.targetLabel],
     ["summary", values.summary],
+    ["summaryKey", values.summaryKey],
+    ["summaryParams", values.summaryParams],
     ["requestId", values.requestId ?? requestIdSql(ctx)],
     ["correlationId", values.correlationId],
     [
@@ -348,7 +356,7 @@ ${defaultPartition(log, fallback)}`
   ${c("occurredAt")} timestamptz not null default now()${tail}${op}${table}
 -- Set when an admin acted as the user (the act claim).${add("impersonatedBy", "uuid")}${add("impersonationReason", "text")}${add("supportSession", "uuid")}
 -- Semantic events (audit_event) and the per-table registry fill these.${add("eventType", "text")}${add("category", "text")}${add("outcome", "text")}${add("source", "text")}${add("targetType", "text")}${add("metadata", "jsonb")}${add("idempotencyKey", "text")}
--- Who acted and on what, as it was then, for audit pages.${add("actorKind", "text")}${add("actorLabel", "text")}${add("tenantLabel", "text")}${add("targetLabel", "text")}${add("summary", "text")}${add("requestId", "text")}${add("correlationId", "text")}${add("scope", "text")}
+-- Who acted and on what, as it was then, for audit pages.${add("actorKind", "text")}${add("actorLabel", "text")}${add("tenantLabel", "text")}${add("targetLabel", "text")}${add("summary", "text")}${add("summaryKey", "text")}${add("summaryParams", "jsonb")}${add("requestId", "text")}${add("correlationId", "text")}${add("scope", "text")}
 ${
   ctx.has("log", "table") && ctx.has("log", "record")
     ? `create index if not exists audit_events_record_idx on ${log} (${c("table")}, ${c("record")}, ${c("occurredAt")} desc);\n`
@@ -525,6 +533,8 @@ function rowChange(
     contextPairs(ctx, "row_tenant", {
       targetLabel: "row_data ->> entry.label_column",
       summary: "null",
+      summaryKey: "null",
+      summaryParams: "null",
       correlationId: correlationIdSql(ctx),
     }),
   );
@@ -725,6 +735,8 @@ function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
     ...contextPairs(ctx, "tenant", {
       targetLabel: "target_label",
       summary: "summary",
+      summaryKey: "coalesce(summary_key, event_type)",
+      summaryParams: "summary_params",
       correlationId: `coalesce(better_supabase.request_id_or_null(correlation_id), ${correlationIdSql(ctx)})`,
       actorKind: `coalesce(actor_kind, ${actorKind(ctx)})`,
       actorLabel: `coalesce(actor_label, ${ACTOR_LABEL})`,
@@ -789,7 +801,9 @@ function auditEvent(ctx: BlockSqlContext, restricted: boolean): string {
   scope text default null,
   support_session uuid default null,
   impersonated_by uuid default null,
-  impersonation_reason text default null
+  impersonation_reason text default null,
+  summary_key text default null,
+  summary_params jsonb default null
 )
 returns text
 language plpgsql
@@ -1005,7 +1019,7 @@ export const AUDIT: BlockSqlDefinition = {
       : [],
   target: "schema",
   modes: ["managed"],
-  version: 14,
+  version: 15,
   names: NAMES,
   contract: () => [
     {
@@ -1025,32 +1039,7 @@ export const AUDIT: BlockSqlDefinition = {
     },
     {
       name: "audit_event",
-      args: [
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-        "{id}",
-        "jsonb",
-        "text",
-        "jsonb",
-        "uuid",
-        "text",
-        "text",
-        "text",
-        "text",
-        "text",
-        "inet",
-        "text",
-        "text",
-        "text",
-        "text",
-        "uuid",
-        "uuid",
-        "text",
-      ],
+      args: EVENT_ARGS("{id}").split(", "),
       returns: "text",
     },
     { name: "audit_event_many", args: ["jsonb"], returns: "jsonb" },

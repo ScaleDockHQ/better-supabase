@@ -28,7 +28,7 @@ export function leaseAccountingSources(
     'organizationId', y.${c("tenant")},
     'entryDate', y.${c("periodStart")},
     'currency', y.${c("currency")},
-    'memo', left('Rent from ' || y.${c("periodStart")}::text || ': ' || coalesce(v.${l("title")}, ''), 500),
+    'memo', left('Rent from ' || y.${c("periodStart")}::text || ': ' || coalesce(v.${l("title")}, ''), 500), 'memoKey', 'accounting.lease_rent', 'memoParams', jsonb_build_object('periodStart', y.${c("periodStart")}, 'lease', coalesce(v.${l("title")}, '')),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'receivable', 'debit', y.${c("amount")}::text, 'partyId', v.${l("partyId")}),
       jsonb_build_object('role', 'revenue', 'credit', y.${c("amount")}::text))
@@ -47,7 +47,7 @@ export function leaseAccountingSources(
     'entryDate', (y.${tx("effectiveAt")} at time zone 'UTC')::date,
     'currency', v.${l("currency")},
     'reference', y.${tx("metadata")} ->> 'reference',
-    'memo', left('Rent payment: ' || coalesce(v.${l("title")}, ''), 500),
+    'memo', left('Rent payment: ' || coalesce(v.${l("title")}, ''), 500), 'memoKey', 'accounting.lease_payment', 'memoParams', jsonb_build_object('lease', coalesce(v.${l("title")}, '')),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', p.amount::text),
       jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', v.${l("partyId")}))

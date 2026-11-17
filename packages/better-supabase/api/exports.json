@@ -2675,6 +2675,7 @@
   "./blocks/messages": {
     "values": [
       "BLOCK_HINT_MESSAGES",
+      "BLOCK_MEMO_MESSAGES",
       "blockErrorMessage",
       "fieldMessages",
       "hintMessage"
@@ -3007,6 +3008,7 @@
       "EntityOfflineJoin",
       "EntityOfflineJoinTable",
       "EntityOfflineScope",
+      "EntityPageOptions",
       "EntityPartition",
       "EntityPartitionEvery",
       "EntityRename",

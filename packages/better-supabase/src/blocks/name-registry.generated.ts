@@ -24,7 +24,7 @@ export interface BlockNameRegistry {
       readonly "roles": "tenant" | "role" | "account" | "updatedAt";
       readonly "journals": "id" | "tenant" | "code" | "name" | "type" | "defaultAccount" | "currency" | "contraAccount" | "bankAccount" | "createdAt" | "updatedAt";
       readonly "periods": "id" | "tenant" | "fiscalYear" | "number" | "startsOn" | "endsOn" | "status" | "closedAt" | "closedBy" | "lockedAt" | "lockedBy" | "createdAt";
-      readonly "entries": "id" | "tenant" | "journal" | "fiscalYear" | "sequence" | "number" | "entryDate" | "period" | "status" | "reference" | "sourceType" | "sourceId" | "reverses" | "memo" | "postedAt" | "postedBy" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "entries": "id" | "tenant" | "journal" | "fiscalYear" | "sequence" | "number" | "entryDate" | "period" | "status" | "reference" | "sourceType" | "sourceId" | "reverses" | "memo" | "memoKey" | "memoParams" | "postedAt" | "postedBy" | "createdBy" | "createdAt" | "updatedAt";
       readonly "lines": "id" | "tenant" | "entry" | "position" | "account" | "debit" | "credit" | "currency" | "amountCurrency" | "fxRate" | "taxCode" | "taxAmount" | "party" | "dimensions" | "description";
       readonly "dimensions": "id" | "tenant" | "key" | "name" | "createdAt";
       readonly "dimensionValues": "id" | "tenant" | "dimension" | "code" | "name" | "archivedAt";
@@ -40,7 +40,7 @@ export interface BlockNameRegistry {
       readonly "accounting_account": "id" | "tenant_id" | "code" | "name" | "type" | "subtype" | "parent_id" | "currency" | "reconcilable" | "normal_side" | "level" | "default_tax_code_id" | "active" | "archived_at" | "created_at" | "updated_at";
       readonly "accounting_journal": "id" | "tenant_id" | "code" | "name" | "type" | "default_account_id" | "currency" | "contra_account_id" | "bank_account_id" | "created_at" | "updated_at";
       readonly "accounting_period": "id" | "tenant_id" | "fiscal_year" | "number" | "starts_on" | "ends_on" | "status" | "closed_at" | "closed_by" | "locked_at" | "locked_by" | "created_at";
-      readonly "accounting_entry": "id" | "tenant_id" | "journal_id" | "fiscal_year" | "sequence" | "number" | "entry_date" | "period_id" | "status" | "reference" | "source_type" | "source_id" | "reverses_id" | "memo" | "posted_at" | "posted_by" | "created_by" | "created_at" | "updated_at";
+      readonly "accounting_entry": "id" | "tenant_id" | "journal_id" | "fiscal_year" | "sequence" | "number" | "entry_date" | "period_id" | "status" | "reference" | "source_type" | "source_id" | "reverses_id" | "memo" | "memo_key" | "memo_params" | "posted_at" | "posted_by" | "created_by" | "created_at" | "updated_at";
       readonly "accounting_dimension": "id" | "tenant_id" | "key" | "name" | "created_at";
       readonly "accounting_budget": "id" | "tenant_id" | "name" | "fiscal_year" | "status" | "created_by" | "created_at" | "updated_at";
     };
@@ -349,7 +349,7 @@ export interface BlockNameRegistry {
   };
   readonly "audit": {
     readonly tables: {
-      readonly "log": "id" | "table" | "record" | "op" | "old" | "new" | "changed" | "actor" | "actorRole" | "tenant" | "occurredAt" | "impersonatedBy" | "impersonationReason" | "supportSession" | "eventType" | "category" | "outcome" | "source" | "targetType" | "metadata" | "idempotencyKey" | "actorKind" | "actorLabel" | "tenantLabel" | "targetLabel" | "summary" | "requestId" | "correlationId" | "scope";
+      readonly "log": "id" | "table" | "record" | "op" | "old" | "new" | "changed" | "actor" | "actorRole" | "tenant" | "occurredAt" | "impersonatedBy" | "impersonationReason" | "supportSession" | "eventType" | "category" | "outcome" | "source" | "targetType" | "metadata" | "idempotencyKey" | "actorKind" | "actorLabel" | "tenantLabel" | "targetLabel" | "summary" | "summaryKey" | "summaryParams" | "requestId" | "correlationId" | "scope";
       readonly "restricted": "entry" | "old" | "new" | "ip" | "userAgent" | "metadata" | "sessionId" | "changedValues";
       readonly "registry": "target" | "ignore" | "keyColumns" | "redact" | "category" | "eventPrefix" | "targetType" | "tenantColumn" | "labelColumn";
     };
@@ -1413,7 +1413,7 @@ export interface BlockNameRegistry {
   readonly "ledger": {
     readonly tables: {
       readonly "accounts": "id" | "tenant" | "kind" | "code" | "name" | "unit" | "scale" | "holderType" | "holderId" | "owner" | "allowNegative" | "readPermission" | "managedBy" | "metadata" | "closedAt" | "createdAt" | "updatedAt";
-      readonly "transactions": "id" | "tenant" | "kind" | "referenceType" | "referenceId" | "memo" | "key" | "reverses" | "metadata" | "effectiveAt" | "actor" | "createdAt";
+      readonly "transactions": "id" | "tenant" | "kind" | "referenceType" | "referenceId" | "memo" | "memoKey" | "memoParams" | "key" | "reverses" | "metadata" | "effectiveAt" | "actor" | "createdAt";
       readonly "entries": "id" | "tenant" | "transaction" | "account" | "amount" | "unit" | "effectiveAt" | "createdAt";
       readonly "balances": "account" | "tenant" | "balance" | "held" | "available" | "updatedAt";
       readonly "holds": "id" | "tenant" | "account" | "amount" | "status" | "referenceType" | "referenceId" | "expiresAt" | "transaction" | "createdBy" | "createdAt" | "updatedAt";
@@ -1423,7 +1423,7 @@ export interface BlockNameRegistry {
     readonly hooks: "before_ledger_transaction_post" | "after_ledger_transaction_post";
     readonly entities: {
       readonly "ledger_account": "id" | "tenant_id" | "kind" | "code" | "name" | "unit" | "scale" | "holder_type" | "holder_id" | "owner_id" | "allow_negative" | "read_permission" | "managed_by" | "metadata" | "closed_at" | "created_at" | "updated_at";
-      readonly "ledger_transaction": "id" | "tenant_id" | "kind" | "reference_type" | "reference_id" | "memo" | "idempotency_key" | "reverses" | "metadata" | "effective_at" | "actor_id" | "created_at";
+      readonly "ledger_transaction": "id" | "tenant_id" | "kind" | "reference_type" | "reference_id" | "memo" | "memo_key" | "memo_params" | "idempotency_key" | "reverses" | "metadata" | "effective_at" | "actor_id" | "created_at";
       readonly "ledger_hold": "id" | "tenant_id" | "account_id" | "amount" | "status" | "reference_type" | "reference_id" | "expires_at" | "transaction_id" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "ledger_account";

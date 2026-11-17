@@ -6,7 +6,7 @@ import {
   maskComments,
   statementSpans,
 } from "./over-app-tables.ts";
-import { indexStatements } from "./schema-scan.ts";
+import { indexSignature, indexStatements } from "./schema-scan.ts";
 
 const INDEX_NAME = /^[a-z_][a-z0-9_]*$/;
 
@@ -158,4 +158,48 @@ export function applyIndexSkips(
   }
 
   return out;
+}
+
+/**
+ * `sql` without each `create index` whose signature `seen` already holds under
+ * another name, so two blocks, or two tables of one block mapped to the same
+ * table, don't build the same index twice. A comment names the index that
+ * stays. Adds the signatures of the indexes it keeps to `seen`.
+ */
+export function withoutRepeatedIndexes(
+  sql: string,
+  seen: Map<string, string>,
+): string {
+  const masked = maskComments(sql);
+  let out = "";
+  let cursor = 0;
+
+  for (const [from, to] of statementSpans(sql)) {
+    const statement = masked.slice(from, to);
+
+    const [index] = CREATE_INDEX.test(statement)
+      ? indexStatements(statement)
+      : [];
+
+    if (index?.name === undefined) {
+      continue;
+    }
+
+    const signature = indexSignature(statement);
+    const kept = seen.get(signature);
+
+    if (kept === undefined) {
+      seen.set(signature, index.name);
+      continue;
+    }
+
+    if (kept === index.name) {
+      continue;
+    }
+
+    out += `${sql.slice(cursor, from + statement.search(/\S/))}-- ${index.table} already gets the same index as ${kept}, so this block adds no ${index.name}.`;
+    cursor = to;
+  }
+
+  return out + sql.slice(cursor);
 }
