@@ -285,7 +285,7 @@
     "brotli": 431956
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1589134,
+    "raw": 1589305,
     "gzip": 513139,
     "brotli": 448331
   },
@@ -1080,7 +1080,7 @@
     "brotli": 355052
   },
   "/[locale]/(app)/shop/donations/page": {
-    "raw": 1561480,
+    "raw": 1561627,
     "gzip": 498615,
     "brotli": 436053
   },
