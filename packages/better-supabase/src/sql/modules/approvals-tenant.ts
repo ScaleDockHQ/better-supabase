@@ -107,6 +107,15 @@ const employeesOf = (
     ? ctx.of("employees")
     : undefined;
 
+const employeeWho = (
+  e: (column: string) => string,
+  requester: string,
+  employee?: string,
+): string =>
+  employee === undefined
+    ? `me.${e("user")} = ${requester}`
+    : `(case when ${employee} is not null then me.${e("id")}::text = ${employee} else me.${e("user")} = ${requester} end)`;
+
 /**
  * The user id of the requester's manager in the request's tenant, as a SQL
  * expression, or `undefined` without the employees module. `employee`, a text
@@ -128,14 +137,9 @@ export function managerOf(
   const e = (column: string): string => employees.col("employees", column);
   const table = employees.table("employees");
 
-  const who =
-    employee === undefined
-      ? `me.${e("user")} = ${requester}`
-      : `(case when ${employee} is not null then me.${e("id")}::text = ${employee} else me.${e("user")} = ${requester} end)`;
-
   return `(select mgr.${e("user")} from ${table} me
       join ${table} mgr on mgr.${e("id")} = me.${e("manager")}
-      where me.${e("tenant")} = ${tenant} and ${who}
+      where me.${e("tenant")} = ${tenant} and ${employeeWho(e, requester, employee)}
         and mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
       limit 1)`;
 }
@@ -164,6 +168,34 @@ export function managerMatch(
       select 1 from ${members.table("memberships")} mm
       where mm.${m("tenant")} = ${args.tenant} and mm.${m("user")} = ${args.user}${activeMembership(ctx, "mm")}
     ))`;
+}
+
+/**
+ * SQL that is true when the requester has an employee record in the tenant and
+ * no manager who could decide for them under `managerMatch`, or `undefined`
+ * without the employees module.
+ */
+export function topOfChain(
+  ctx: BlockSqlContext,
+  args: {
+    readonly requester: string;
+    readonly tenant: string;
+    readonly employee?: string;
+  },
+): string | undefined {
+  const employees = employeesOf(ctx);
+  const manager = managerOf(ctx, args.requester, args.tenant, args.employee);
+
+  if (employees === undefined || manager === undefined) {
+    return undefined;
+  }
+
+  const e = (column: string): string => employees.col("employees", column);
+
+  return `(exists (
+      select 1 from ${employees.table("employees")} me
+      where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
+    ) and not ${managerMatch(ctx, { ...args, user: manager })})`;
 }
 
 /** What the request functions share with the rest of the module. */

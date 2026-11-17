@@ -150,7 +150,7 @@ blocks: {
 
 `options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave_request.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the requester, fails with the forbidden error. With `options.approver: "manager"`, the requester's manager in the [employees block](/docs/blocks/employees) (or the request's employee's manager) may also decide, next to holders of `leave.approve`. That needs the employees block's tables; the default is `"permission"`.
 
-`options.decider` names an app function, `"schema.function"`, that takes the request id and returns whether the caller may decide too. Use it for a rule the block doesn't know, such as every manager up the requester's reporting chain or a manager's stand-in. `decide_leave_request` calls it inside its own check, so the rule holds for every caller of the function, and the requester still never decides their own request. The function sees the caller through `auth.uid()`, and a null answer denies. It needs `approvals: false`; with the approvals block, its policy picks the approvers.
+`options.decider` names an app function, `"schema.function"`, that takes the request id and returns whether the caller may decide too. Use it for a rule the block doesn't know, such as every manager up the requester's reporting chain or a manager's stand-in. `decide_leave_request` calls it inside its own check, so the rule holds for every caller of the function, and it never lets the requester decide their own request. The function sees the caller through `auth.uid()`, and a null answer denies. It needs `approvals: false`; with the approvals block, its policy picks the approvers.
 
 ```sql
 create function public.leave_chain_decides(request_id uuid)
@@ -169,6 +169,12 @@ revoke execute on function public.leave_chain_decides(uuid) from public, anon, a
 
 ```ts
 leave: { options: { approvals: false, decider: "public.leave_chain_decides" } }
+```
+
+A requester at the top of the reporting chain has nobody to decide their leave. `options.selfDecideWhenTopOfChain: true` lets them decide it themselves through `decide_leave_request`, so the app doesn't need the service role for it. The database allows it only when the requester holds `leave.approve` in the request's organization, has an employee record there (the request's employee, when the request has one), and has no manager who could decide under `approver: "manager"`: the record has no manager, or the manager has no account, is offboarded or is no longer an active member. The block doesn't ask an `options.decider` function for this. The decision is booked and recorded like any other, with the requester as `decidedBy`. It needs `approvals: false` and the employees block's tables; the default is `false`.
+
+```ts
+leave: { options: { approvals: false, selfDecideWhenTopOfChain: true } }
 ```
 
 ### Your own tables without a key or part-of-day column

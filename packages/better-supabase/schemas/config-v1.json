@@ -6775,6 +6775,10 @@
               },
               "decider": {
                 "type": "string"
+              },
+              "selfDecideWhenTopOfChain": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
