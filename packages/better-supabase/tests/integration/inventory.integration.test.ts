@@ -129,6 +129,35 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     });
   });
 
+  it("pages movements by product with their unit, reason, note and actor", async () => {
+    await session.as(owner);
+
+    const page = (filters: Record<string, unknown>) =>
+      call<{ items: Record<string, unknown>[] }>(
+        "better_supabase.page_inventory_movements($1, $2::jsonb)",
+        [tenant, JSON.stringify({ ...filters, paged: true })],
+      );
+
+    const byVariant = await page({ variantId: tee });
+    const first = byVariant.items.find((row) => row["reason"] === "receipt");
+
+    expect(first).toMatchObject({
+      variantId: tee,
+      productId: expect.any(String),
+      note: "first delivery",
+      actorId: owner.id,
+      unit: null,
+    });
+    expect(
+      (await page({ productId: first?.["productId"] })).items.map(
+        (row) => row["id"],
+      ),
+    ).toEqual(byVariant.items.map((row) => row["id"]));
+    expect(
+      (await page({ productId: "00000000-0000-4000-8000-000000000000" })).items,
+    ).toEqual([]);
+  });
+
   it("keeps the ledger append-only", async () => {
     await session.service();
     expect(

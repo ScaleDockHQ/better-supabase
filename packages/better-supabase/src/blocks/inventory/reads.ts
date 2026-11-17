@@ -52,11 +52,18 @@ export interface StockMovementRead {
   readonly id: string;
   readonly kind: string;
   readonly variantId: string | null;
+  /** The catalog product of the variant. */
+  readonly productId: string | null;
   readonly locationId: string | null;
   readonly binId: string | null;
   readonly lotId: string | null;
   /** Signed, as text. */
   readonly quantity: string | null;
+  /** Null for the variant's default unit. */
+  readonly unit: string | null;
+  readonly reason: string | null;
+  readonly note: string | null;
+  readonly actorId: string | null;
   readonly documentType: string | null;
   readonly documentId: string | null;
   readonly effectiveAt: string;
@@ -127,10 +134,15 @@ const MOVEMENT_ROW: ReadType = {
   id: "text",
   kind: "text",
   variantId: "text?",
+  productId: "text?",
   locationId: "text?",
   binId: "text?",
   lotId: "text?",
   quantity: "text?",
+  unit: "text?",
+  reason: "text?",
+  note: "text?",
+  actorId: "text?",
   documentType: "text?",
   documentId: "text?",
   effectiveAt: "text",

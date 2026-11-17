@@ -8,6 +8,7 @@ import { createTable, enableRowSecurity } from "../emit/table.ts";
 import { MEMO_FUNCTIONS } from "../memo.ts";
 import { moduleContext } from "../module-context.ts";
 import { NORMALIZE_SQL } from "../normalize-sql.ts";
+import { ROW_VISIBLE } from "../row-visible.ts";
 import { EQUIVALENT_TRIGGERS, IS_SERVICE_ROLE } from "../shared.ts";
 import { subjectMergeDispatcher } from "../subject-merge-sql.ts";
 import { moduleHeader } from "./assemble.ts";
@@ -34,6 +35,7 @@ export const PRELUDE_FUNCTIONS: ReadonlySet<string> = new Set([
   "raise_actor_readonly",
   "normalize_phone",
   "replace_equivalent_triggers",
+  "row_visible",
   "try_column_type",
   "validate_iban",
   "value_unsupported",
@@ -113,6 +115,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;`,
     EQUIVALENT_TRIGGERS.trim(),
     NORMALIZE_SQL.trim(),
     IS_SERVICE_ROLE,
+    ROW_VISIBLE,
   ];
 
   if (!installed.includes("memberships")) {

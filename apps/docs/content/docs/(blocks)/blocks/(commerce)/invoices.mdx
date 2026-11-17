@@ -230,7 +230,7 @@ permissions: {
 },
 ```
 
-A caller who can read the invoice but lacks an action's key gets `INVOICE_FORBIDDEN` (`42501`), so the app can say why. A caller who can't read it gets `INVOICE_NOT_FOUND`, which keeps the invoice's existence hidden.
+A caller who can read the invoice but lacks an action's key gets `INVOICE_FORBIDDEN` (`42501`), so the app can say why. Reading counts the `read` key and the invoices table's own select policies, so a member who sees invoices through an app policy, such as one with row conditions the `read` key can't carry, gets the same answer. A caller who can't read it gets `INVOICE_NOT_FOUND`, which keeps the invoice's existence hidden.
 
 ### Totals the app keeps
 

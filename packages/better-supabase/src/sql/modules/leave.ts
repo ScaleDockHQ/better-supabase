@@ -24,7 +24,7 @@ import {
   updateExtraColumns,
 } from "../shared.ts";
 import { managerMatch } from "./approvals-tenant.ts";
-import { managerDecides } from "./direct-approver.ts";
+import { deciderCall, managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
   LEAVE_CONTRIBUTES,
@@ -305,9 +305,21 @@ function build(ctx: BlockSqlContext): string {
       : {}),
   });
 
+  const decider = deciderCall(
+    ctx,
+    "blocks.leave.options",
+    "decide_leave_request.request_id",
+  );
+
+  if (decider !== "" && !statusMode) {
+    throw new TypeError(
+      "blocks.leave.options.decider needs approvals: false; with the approvals block its policy picks the approvers",
+    );
+  }
+
   const decide = `
 -- Approves or rejects a pending request without the approvals block, as the
--- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}
+-- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}
 drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);
 create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
@@ -322,7 +334,7 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}${manager}) and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
+  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}${manager}${decider}) and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
     ${forbidden("not allowed to decide this leave request; only the service role decides for another user, never for the requester")}
   end if;
   if not (${pendingIn("v_row", "")}) then

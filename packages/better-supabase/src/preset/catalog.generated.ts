@@ -32338,6 +32338,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "kind",
             "variantId",
+            "productId",
             "locationId",
             "binId",
             "lotId",

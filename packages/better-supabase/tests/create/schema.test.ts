@@ -70,6 +70,9 @@ describe("parseSchema", () => {
 
       expect(wrong.map((table) => table.id)).toEqual([]);
     },
+    // Rendering every block takes about 2 s locally and 21 s on a loaded CI
+    // runner, past the 20 s default.
+    60_000,
   );
 
   it("reads primary keys, foreign keys and the tenant column", () => {

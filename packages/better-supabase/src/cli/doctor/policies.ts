@@ -24,7 +24,16 @@ const AUTH_ROLE = /\bauth"?\s*\.\s*"?role"?\s*\(\s*\)/i;
 
 /** A check of who is calling: the JWT, the user id, or the session role. */
 const CALLER_CHECK =
-  /\bauth"?\s*\.\s*"?(?:uid|jwt)"?\s*\(|request\.jwt|\b(?:current_user|session_user|current_role)\b|has_organization_role|member_organization_ids/i;
+  /\bauth"?\s*\.\s*"?(?:uid|jwt)"?\s*\(|request\.jwt|\b(?:current_user|session_user|current_role)\b|has_organization_role|member_organization_ids|\bis_service_role"?\s*\(/i;
+
+/** Whether anon or public holds any privilege on the table or a column. */
+const anonHolds = (table: {
+  readonly grants: readonly { readonly role: string }[];
+  readonly columnGrants?: readonly { readonly role: string }[];
+}): boolean =>
+  [...table.grants, ...(table.columnGrants ?? [])].some((grant) =>
+    ["anon", "public"].includes(grant.role.toLowerCase()),
+  );
 
 const USER_METADATA = /\buser_metadata\b/i;
 
@@ -459,6 +468,8 @@ export const POLICY_RULES: readonly Rule[] = [
               (policy.roles.length === 0 || policy.roles.includes("public")),
           )
           .map((policy): FindingInput => ({
+            // Without a privilege anon fails before the policy runs.
+            ...(anonHolds(table) ? {} : { severity: "info" as const }),
             message: `Policy "${policy.name}" on ${qualified(table)} applies to public (no \`to\` role, or \`to public\`), which is every role, anon included. Recreate it with \`to authenticated\`, or list the roles that need it.`,
             target: `${qualified(table)}.${policy.name}`,
             object: policyObject(table, policy),

@@ -68,8 +68,13 @@ const NAMES = ["employees", "leave", "time-entries", "expenses"] as const;
 
 const BOOT = { timeout: 180_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(NAMES, { modules: BLOCKS }).map((file) => ({
+async function run(
+  check: string,
+  names: readonly string[] = NAMES,
+  blocks: AnyBlocksConfig = BLOCKS,
+  extra = "",
+): Promise<void> {
+  const files = renderBlocks(names, { modules: blocks }).map((file) => ({
     ...file,
     contents: file.contents
       .replace(
@@ -95,6 +100,7 @@ async function run(check: string): Promise<void> {
         .filter((file) => file.kind === "data")
         .map((file) => file.contents),
       ALLOW,
+      extra,
       check,
     ],
   });
@@ -182,6 +188,95 @@ begin
 end;
 $$;`),
     ).resolves.toBeUndefined();
+  });
+});
+
+const DAVE = "77777777-7777-4777-8777-777777777777";
+const DAVE_EMPLOYEE = "88888888-8888-4888-8888-888888888888";
+
+// Dave manages Bob, who manages Alice; the app's decider walks the chain.
+const CHAIN = `
+insert into auth.users (id) values ('${DAVE}') on conflict do nothing;
+insert into better_supabase.memberships (organization_id, user_id, role)
+  values ('${TENANT}', '${DAVE}', 'member') on conflict do nothing;
+insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id)
+  values ('${DAVE_EMPLOYEE}', '${TENANT}', '${DAVE}', 'Dave', null);
+update better_supabase.employees set manager_id = '${DAVE_EMPLOYEE}' where id = '${BOB_EMPLOYEE}';
+create function public.chain_decides(request_id uuid)
+returns boolean language sql stable as $$
+  with recursive chain as (
+    select e.manager_id from better_supabase.leave_requests r
+    join better_supabase.employees e on e.id = r.employee_id
+    where r.id = request_id
+    union
+    select e.manager_id from chain c join better_supabase.employees e on e.id = c.manager_id
+  )
+  select exists (
+    select 1 from chain c join better_supabase.employees m on m.id = c.manager_id
+    where m.user_id = auth.uid()
+  )
+$$;
+`;
+
+describe("options.decider", BOOT, () => {
+  it("lets the app's function admit a manager up the chain and keeps a report out", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+begin
+  ${as(CAROL)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  ${as(ALICE)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  ${as(DAVE)}
+  perform better_supabase.decide_leave_request(v_leave, true);
+  if (select approved_at from better_supabase.leave_requests where id = v_leave) is null then
+    raise exception 'the chain manager could not approve the leave';
+  end if;
+  ${as(DAVE)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
+  ${as(ALICE)}
+  begin
+    perform better_supabase.decide_leave_request(v_leave, true);
+    raise exception 'a report decided her manager''s leave';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`,
+        ["employees", "leave"],
+        {
+          leave: {
+            options: {
+              owner: "employee",
+              approvals: false,
+              decider: "public.chain_decides",
+            },
+          },
+        },
+        CHAIN,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("needs approvals: false and a schema-qualified name", () => {
+    expect(() =>
+      renderBlocks(["employees", "approvals", "leave"], {
+        modules: { leave: { options: { decider: "public.chain_decides" } } },
+      }),
+    ).toThrow(/needs approvals: false/);
+    expect(() =>
+      renderBlocks(["employees", "leave"], {
+        modules: {
+          leave: { options: { approvals: false, decider: "chain_decides" } },
+        },
+      }),
+    ).toThrow(/decider is "schema.function"/);
   });
 });
 

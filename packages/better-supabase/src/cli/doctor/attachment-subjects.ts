@@ -186,8 +186,9 @@ export function attachmentSubjectsOnDefaults(
   const { tables } = catalogOf(context);
   const overrides = context.config.blocks["attachments"]?.permissions ?? {};
 
+  // The block's read policy already asks whether the caller can read the
+  // subject row, so only upload can let a member past the table's policies.
   const actions = [
-    { action: "read", commands: ["select"], what: "reads" },
     { action: "upload", commands: ["insert", "update"], what: "writes" },
   ] as const;
 
@@ -221,15 +222,12 @@ export function attachmentSubjectsOnDefaults(
           );
 
           // Many tables let no client add or change rows; that says nothing about who may attach files.
-          if (command !== "select" && applying.length === 0) {
+          if (applying.length === 0) {
             return false;
           }
 
           return !applying.some((policy) => {
-            const expression =
-              command === "select"
-                ? policy.using
-                : (policy.check ?? policy.using);
+            const expression = policy.check ?? policy.using;
 
             return (
               expression !== null &&
@@ -247,11 +245,7 @@ export function attachmentSubjectsOnDefaults(
       const names = stricter.map(({ action }) => action).join(" and ");
       const what = stricter.map(({ what: verb }) => verb).join(" and ");
 
-      const fixes = stricter.map(({ action }) =>
-        action === "read"
-          ? `blocks.attachments.on.${type}.permissions.read`
-          : `subjects.${type}.permissions.upload`,
-      );
+      const fixes = stricter.map(() => `subjects.${type}.permissions.upload`);
 
       return [
         {

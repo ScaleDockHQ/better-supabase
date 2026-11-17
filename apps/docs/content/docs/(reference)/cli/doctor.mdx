@@ -250,7 +250,9 @@ make a read-only table explicit, and cover the table with
 itself (the one the tenant column references) is skipped. On an app table a
 block runs over, only your own policies decide whether the table is reported:
 the block reads it through its `bsb_` policies and writes it through its own
-functions, so a table with only block policies is left alone.
+functions, so a table with only block policies is left alone. A command that
+`anon` and `authenticated` hold no table or column privilege for fails with
+`42501` before row security runs, so it needs no policy and isn't reported.
 
 ### BS108
 
@@ -297,7 +299,8 @@ anyone with the publishable key can read.
 caller.** A `security definer` function runs as its owner, past RLS. In an
 exposed schema the Data API serves it at `/rpc/<name>`, so when `anon` or
 `authenticated` may execute it and its body never reads `auth.uid()`,
-`auth.jwt()` or the request claims, any caller gets the owner's access. Check
+`auth.jwt()`, the request claims or `better_supabase.is_service_role()`, any
+caller gets the owner's access. Check
 the caller in the body, revoke `execute` from the API roles, or move the
 function to a schema the API doesn't expose. Trigger functions are skipped;
 `/rpc` can't call them. Needs a snapshot taken with this version, which
@@ -359,7 +362,9 @@ create policy notes_read on public.notes for select to authenticated
   using (organization_id = (select better_supabase.current_tenant_id()));
 ```
 
-Restrictive policies only narrow access, so doctor skips them.
+Restrictive policies only narrow access, so doctor skips them. When `anon`
+holds no privilege on the table, a signed-out request fails before the policy
+runs, so the finding is info instead of a warning.
 
 ## Performance
 
@@ -367,8 +372,9 @@ Restrictive policies only narrow access, so doctor skips them.
 
 **Warning: tenant column without an index.** With the
 [memberships extension](/docs/blocks/memberships), every query filters on the tenant column. Add
-an index that starts with it. Views are left out, because a query on a view
-uses the indexes of its tables.
+an index that starts with it; an expression index whose first key is the plain
+column counts, a partial one doesn't. Views are left out, because a query on a
+view uses the indexes of its tables.
 
 ### BS205
 
@@ -386,6 +392,9 @@ create policy notes_member on public.notes for select to authenticated
   using (organization_id in (select private.user_organization_ids()));
 ```
 
+An insert policy's `with check` runs once per written row, never over a scan,
+so on an insert-only policy the finding is info.
+
 ### BS206
 
 **Warning: security definer policy helper that cannot be inlined.** A
@@ -399,8 +408,10 @@ InitPlan, or have it return the allowed ids as a set and compare with
 its answer once per transaction with
 [`better_supabase.memo_get` and `memo_set`](/docs/blocks/sql#memoize-a-value-for-one-transaction).
 A policy whose every call to the
-helper already reads `(select helper(...))` with constant arguments, such as
-`(select tenant_ids_with('crm.read'))`, doesn't count.
+helper takes constant arguments in a sub-query, such as
+`(select tenant_ids_with('crm.read'))`, `col in (select helper('k'))`, a
+`union all select helper('k')` branch or `from helper('k') t(id)`, doesn't
+count.
 
 ### BS207
 
@@ -653,7 +664,9 @@ index.
 index; without one, every query reads the table. Doctor looks in the
 policies, the functions in the exposed schemas and the files in
 `tooling.doctor.sources`. A function counts for a table only when its own
-definition names the table and filters the column. Use `jsonb_path_ops` when you only filter with `@>`, which
+definition names the table and filters the column. A negated test,
+`not (meta ? 'k')`, and one inside a `case` expression don't filter rows
+through an index, so they don't count. Use `jsonb_path_ops` when you only filter with `@>`, which
 makes the index smaller; leave it out for `?`:
 
 ```sql
@@ -1516,24 +1529,21 @@ See [connectors](/docs/blocks/webhooks#connectors).
 
 ### BS345
 
-**Warning: attachments subject on block-wide keys with stricter RLS.** An
-`attachments` subject has no `read` or `upload` key of its own, so its files
-are checked with the block-wide `attachments.read` and `attachments.upload`
-keys. The subject table's own policies check more than tenant membership: a
+**Warning: attachments subject on the block-wide upload key with stricter
+RLS.** An `attachments` subject has no `upload` key of its own, so files are
+attached with the block-wide `attachments.upload` key, but the subject
+table's insert or update policies check more than tenant membership: a
 permission key of their own, an owner or `auth.uid()` comparison, or another
-condition. Any member of the tenant then reads and uploads the files of rows
-they can't open. Doctor counts `current_tenant_id()`, `tenant_ids_with`,
-`member_<tenant>_ids` (and an authorization provider's own `*_ids_with` and
-`*member_*ids` helpers), `can('tenant', ...)` and `member_can` with the
-block's key as tenant membership, and a soft-delete `is null` as neutral. A
-policy with an `or` branch that needs only membership is wider, not
-stricter, and a table with no insert or update policy for clients doesn't
-count against `upload`. A subject with its own read key (`permission`, or
-`permissions.read` in the registry) passes for `read`, since the block checks
-that key on top of `attachments.read`.
-Set `subjects.<type>.permissions.upload` in the registry, or
-`blocks.attachments.on.<type>.permissions` for `read`, to the keys the table
-checks. See
+condition. Any member of the tenant then attaches files to rows they can't
+change. Reads aren't checked: the block's read policy already asks whether
+the caller can read the subject row. Doctor counts `current_tenant_id()`,
+`tenant_ids_with`, `member_<tenant>_ids` (and an authorization provider's own
+`*_ids_with` and `*member_*ids` helpers), `can('tenant', ...)` and
+`member_can` with the block's key as tenant membership, and a soft-delete
+`is null` as neutral. A policy with an `or` branch that needs only membership
+is wider, not stricter, and a table with no insert or update policy for
+clients isn't reported. Set `subjects.<type>.permissions.upload` in the
+registry to the key the table checks. See
 [permissions per subject](/docs/blocks/attachments#permissions-per-subject).
 
 ### BS346
@@ -1541,8 +1551,9 @@ checks. See
 **Warning: block on names an unknown record type.** A block entry's `on`
 lists a type, or has a key, that `config.recordTypes` doesn't register. The
 block's SQL refuses such a type when `gen` renders the migration, so doctor
-reports it first. Register the type in `config.recordTypes`, or remove it from
-`on`. See [record types](/docs/blocks#record-types).
+reports it first. An `on` entry that carries its own `table` registers the
+type inline and isn't reported. Register the type in `config.recordTypes`, or
+remove it from `on`. See [record types](/docs/blocks#record-types).
 
 ### BS347
 

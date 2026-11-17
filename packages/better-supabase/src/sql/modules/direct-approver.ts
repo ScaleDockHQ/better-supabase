@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { managerMatch } from "./approvals-tenant.ts";
 
 /**
@@ -46,4 +47,33 @@ export function managerDecides(
   return directApprover(ctx, where) === "manager"
     ? ` or ${managerMatch(ctx, { ...args, user: "auth.uid()" })}`
     : "";
+}
+
+const FUNCTION = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
+
+/**
+ * ` or <schema.function>(<id>)` for `options.decider`, an app function `(id
+ * uuid) returns boolean` that lets more callers decide, such as the managers up
+ * the requester's reporting chain; else `""`. A null answer denies.
+ */
+export function deciderCall(
+  ctx: BlockSqlContext,
+  where: string,
+  id: string,
+): string {
+  const name = ctx.text("decider", "");
+
+  if (name === "") {
+    return "";
+  }
+
+  if (!FUNCTION.test(name)) {
+    throw new TypeError(
+      `${where}.decider is "schema.function", a function (id uuid) returns boolean`,
+    );
+  }
+
+  const [schema = "", fn = ""] = name.split(".");
+
+  return ` or coalesce(${sqlIdent(schema)}.${sqlIdent(fn)}(${id}), false)`;
 }
