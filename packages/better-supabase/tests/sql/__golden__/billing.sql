@@ -813,7 +813,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@5 managed
--- @bsb-hash sha256:bd786173d9f71d3f355d3380bd3fe32f7e0943200e32a3ea95c029964c7c5eb6
+-- @bsb-hash sha256:014c58d901281b788a78df82765788c26fc9579c5cafda2c1524a0777508007b
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1586,7 +1586,8 @@ begin
       'Proration for ' || v_row."plan",
       'billing.proration:' || v_row."id"::text || ':' || extract(epoch from v_at)::text,
       v_at,
-      jsonb_build_object('plan', v_row."plan", 'credit', v_credit, 'charge', v_charge));
+      jsonb_build_object('plan', v_row."plan", 'credit', v_credit, 'charge', v_charge),
+      memo_key => 'billing.proration', memo_params => jsonb_build_object('plan', v_row."plan"));
   end if;
   update "better_supabase"."billing_native_subscriptions" set "unit_amount" = v_new_amount, "quantity" = v_new_quantity
     where "id" = v_row."id";

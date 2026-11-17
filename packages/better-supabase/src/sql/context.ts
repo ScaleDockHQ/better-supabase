@@ -1201,6 +1201,7 @@ export function createModuleContext(
       ["record_id", audit.recordId],
       ["target_label", audit.targetLabel],
       ["summary", audit.summary],
+      ["summary_params", audit.summaryParams],
       [
         "tenant",
         action.tenant === undefined

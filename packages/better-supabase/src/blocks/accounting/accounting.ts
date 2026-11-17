@@ -323,6 +323,10 @@ export interface AccountingEntry<F extends object = Record<never, never>> {
   /** The entry this one reverses. */
   readonly reversesId?: string;
   readonly memo?: string;
+  /** The memo's translation key when a block wrote it (`invoice.payment`). */
+  readonly memoKey?: string;
+  /** The raw values the memo names, for the app's own wording of `memoKey`. */
+  readonly memoParams?: Readonly<Record<string, unknown>>;
   /** The sum of the debits. */
   readonly total: bigint;
   /** On `getEntry` and writes; `entries` leaves them out. */

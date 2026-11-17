@@ -31,7 +31,7 @@ export function inventoryAccountingSources(
     'entryDate', (y.${tx("effectiveAt")} at time zone 'UTC')::date,
     'currency', a.${la("unit")},
     'reference', y.${tx("referenceId")},
-    'memo', 'Stock ' || (y.${tx("metadata")} ->> 'reason'),
+    'memo', 'Stock ' || (y.${tx("metadata")} ->> 'reason'), 'memoKey', 'accounting.stock_movement', 'memoParams', jsonb_build_object('reason', y.${tx("metadata")} ->> 'reason'),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'inventory', 'debit', e.${le("amount")}::text),
       jsonb_build_object('role', case y.${tx("metadata")} ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs'

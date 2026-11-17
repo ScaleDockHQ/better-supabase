@@ -4,7 +4,7 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { entryJson } from "./accounting-entries.ts";
 import { requireSettings } from "./accounting-setup.ts";
-import { accountingSql } from "./accounting-shared.ts";
+import { accountingSql, entryMemoKey } from "./accounting-shared.ts";
 
 const plain = (qualified: string): string => qualified.replaceAll('"', "");
 
@@ -26,6 +26,13 @@ export function accountingOpeningFunctions(ctx: BlockSqlContext): string {
   const j = (column: string): string => ctx.col("journals", column);
   const p = (column: string): string => ctx.col("periods", column);
   const e = (column: string): string => ctx.col("entries", column);
+
+  const openingMemo = entryMemoKey(
+    ctx,
+    "'accounting.opening_balances'",
+    "jsonb_build_object('fiscalYear', post_accounting_opening_balances.fiscal_year)",
+  );
+
   const l = (column: string): string => ctx.col("lines", column);
   const o = (column: string): string => ctx.col("openingBalances", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -206,9 +213,9 @@ begin
   if v_journal is null then
     ${fail("ACCOUNTING_JOURNAL_NOT_FOUND", "the opening entry needs a general journal", "P0002")}
   end if;
-  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("sourceType")}, ${e("sourceId")}, ${e("memo")}, ${e("createdBy")})
+  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("sourceType")}, ${e("sourceId")}, ${e("memo")}${openingMemo.columns}, ${e("createdBy")})
   values (post_accounting_opening_balances.tenant, v_journal, v_starts, 'opening_balance', post_accounting_opening_balances.fiscal_year::text,
-    'Opening balances of fiscal year ' || post_accounting_opening_balances.fiscal_year::text, auth.uid())
+    'Opening balances of fiscal year ' || post_accounting_opening_balances.fiscal_year::text${openingMemo.values}, auth.uid())
   returning * into v_row;
   insert into ${lines} (${l("tenant")}, ${l("entry")}, ${l("position")}, ${l("account")}, ${l("debit")}, ${l("credit")}, ${l("currency")}, ${l("amountCurrency")}, ${l("party")})
   select post_accounting_opening_balances.tenant, v_row.${e("id")}, (row_number() over (order by w.${a("code")}, y.${o("party")}))::smallint, y.${o("account")},

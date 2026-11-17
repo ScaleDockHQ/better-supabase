@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:654ecae1db7f171bed4c2aa22fa6280fef9456798f3c2e032d4411fd47130f21
+-- @bsb-hash sha256:f4a1231fcd7291bfdcee58e0522ea4c739f6fd3d8b09b2b1b0479fe734d47baa
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -303,7 +303,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -324,7 +325,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "better_supabase"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
@@ -1391,7 +1393,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:6f426a80931735249441bce644cb8045ab55188eacdbf59f1e84bf3bedfb6902
+-- @bsb-hash sha256:dc6a41efe0281901647162594f1635dad334cf0c817a9e8b595eee1f6e23d3d7
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1711,7 +1713,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -1752,7 +1755,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "better_supabase"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
@@ -2803,7 +2807,7 @@ as $$
     'organizationId', v."tenant_id",
     'entryDate', v."received_on",
     'currency', v."currency",
-    'memo', 'Gift',
+    'memo', 'Gift', 'memoKey', 'accounting.gift', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', v."amount"::text),
       jsonb_build_object('role', 'revenue', 'credit', v."amount"::text, 'partyId', v."donor_id"))
@@ -2904,7 +2908,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:409210421e5cb1aa95642cdc6cc8069fdb201857b238d2248b653f1994558817
+-- @bsb-hash sha256:8d04c6627bfb38a938654ed1b9118b70d5b04faf9fcd44ddfe486e995462241d
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3211,7 +3215,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "app_private"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -3232,7 +3237,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "app_private"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "app_private"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
@@ -4299,7 +4305,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:755436ce24a4fd5026dedd5e6de38e096286c42e869ff6a83a440a2364e075ff
+-- @bsb-hash sha256:9b3a750780c4cfd519bbca29b86429475f5a64a9ceec676f1ce00c8da8888a6c
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4601,7 +4607,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -4622,7 +4629,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "better_supabase"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
@@ -5862,7 +5870,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:03ef1cc03b45127809a50a8dd801072984b5449376c6bfc87ae115c2becfa7e6
+-- @bsb-hash sha256:85ea033d56c09e92a4b87a9dd35846c7352c09663fbd44b918a976957064cf2e
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6149,7 +6157,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -6170,7 +6179,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "better_supabase"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
@@ -7237,7 +7247,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:25dd632d3f41d4bb934d55b7798233f515694b23b2f1bef8eaf40baf22832a4b
+-- @bsb-hash sha256:724f246ae266b551ee0d65e6f48f81d64c24a6fcb8324561f4936f6ea2ea4b07
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7539,7 +7549,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', -v_row."amount")),
       'donations', v_row."id"::text, 'Gift', 'donation:' || v_row."id"::text || ':posted', v_row."received_on"::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")));
+      jsonb_strip_nulls(jsonb_build_object('donationId', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id")),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
@@ -7560,7 +7571,8 @@ begin
       'Donations: ' || coalesce(v_fund."name", 'General'), v_row."currency"::text, 0::smallint,
       case when v_fund."id" is null then null else 'donation_fund' end, v_fund."id"::text, null, true, 'donations.read', 'donations', null), 'amount', v_row."amount")),
       'donations', v_row."id"::text, 'Gift refunded', 'donation:' || v_row."id"::text || ':refunded', null,
-      jsonb_build_object('donationId', v_row."id"));
+      jsonb_build_object('donationId', v_row."id"),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update "better_supabase"."donation_receipts" x set "voided_at" = now(), "void_reason" = 'the gift was refunded'
       where x."id" = v_row."receipt_id" and x."kind" = 'gift' and x."voided_at" is null;
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()

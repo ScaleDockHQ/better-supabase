@@ -22,7 +22,7 @@ export function donationAccountingSources(
     'organizationId', v.${d("tenant")},
     'entryDate', v.${d("receivedOn")},
     'currency', v.${d("currency")},
-    'memo', 'Gift',
+    'memo', 'Gift', 'memoKey', 'accounting.gift', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', v.${d("amount")}::text),
       jsonb_build_object('role', 'revenue', 'credit', v.${d("amount")}::text, 'partyId', v.${d("donorId")}))

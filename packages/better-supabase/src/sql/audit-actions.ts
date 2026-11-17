@@ -53,8 +53,13 @@ export interface BlockSqlAudit {
   readonly recordId?: string;
   /** A `text` expression people recognize the target by. */
   readonly targetLabel?: string;
-  /** A `text` expression that says what happened. */
+  /** A `text` expression that says what happened, in English. */
   readonly summary?: string;
+  /**
+   * A `jsonb` expression with the raw values `summary` names, stored with the
+   * event type as `summary_key` so an app can word it in its own locale.
+   */
+  readonly summaryParams?: string;
   /** A `jsonb` expression; defaults to the event payload. */
   readonly metadata?: string;
   /** A `uuid` expression for the actor; defaults to the caller. */

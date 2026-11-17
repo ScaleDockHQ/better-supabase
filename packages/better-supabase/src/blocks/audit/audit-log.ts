@@ -67,6 +67,14 @@ export interface AuditRecord<Columns extends AuditColumns = AuditColumns> {
   readonly targetType?: string;
   readonly targetLabel?: string;
   readonly summary?: string;
+  /**
+   * The summary's translation key: the event type for block actions, or the key
+   * `audit_event` got. Word it from `summaryParams` in the reader's locale and
+   * fall back to `summary`, the English text.
+   */
+  readonly summaryKey?: string;
+  /** The raw values the summary names (ids, ISO dates, minor units). */
+  readonly summaryParams?: Readonly<Record<string, unknown>>;
   readonly requestId?: string;
   readonly correlationId?: string;
   readonly scope?: string;
@@ -214,6 +222,10 @@ export interface AuditEventInput {
   readonly idempotencyKey?: string;
   readonly restricted?: Readonly<Record<string, unknown>>;
   readonly summary?: string;
+  /** The summary's translation key; default: `eventType`. */
+  readonly summaryKey?: string;
+  /** The raw values the summary names, for the key's message. */
+  readonly summaryParams?: Readonly<Record<string, unknown>>;
   readonly targetLabel?: string;
   readonly correlationId?: string;
   readonly actorId?: string;
@@ -376,6 +388,7 @@ const TEXT_KEYS = [
   "targetType",
   "targetLabel",
   "summary",
+  "summaryKey",
   "requestId",
   "correlationId",
   "scope",
@@ -404,6 +417,7 @@ function recordOfEntry<Columns extends AuditColumns>(
   const old = json("old");
   const next = json("new");
   const metadata = json("metadata");
+  const summaryParams = json("summaryParams");
   const columns = json("columns");
 
   return {
@@ -418,6 +432,7 @@ function recordOfEntry<Columns extends AuditColumns>(
     ...(old === undefined ? {} : { old }),
     ...(next === undefined ? {} : { new: next }),
     ...(metadata === undefined ? {} : { metadata }),
+    ...(summaryParams === undefined ? {} : { summaryParams }),
     ...(columns === undefined
       ? {}
       : {
@@ -510,6 +525,8 @@ function eventArgs(event: AuditEventInput): Record<string, unknown> {
     support_session: event.supportSessionId,
     impersonated_by: event.impersonatedBy,
     impersonation_reason: event.impersonationReason,
+    summary_key: event.summaryKey,
+    summary_params: event.summaryParams,
   };
 }
 

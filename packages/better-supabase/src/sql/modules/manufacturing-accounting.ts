@@ -24,7 +24,7 @@ export function manufacturingAccountingSources(
     'entryDate', (x.${po("completedAt")} at time zone 'UTC')::date,
     'currency', x.${po("currency")},
     'reference', x.${po("number")},
-    'memo', 'Production labor ' || x.${po("number")},
+    'memo', 'Production labor ' || x.${po("number")}, 'memoKey', 'accounting.production_order', 'memoParams', jsonb_build_object('number', x.${po("number")}),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'work_in_progress', 'debit', x.${po("laborCost")}::text),
       jsonb_build_object('role', 'expense', 'credit', x.${po("laborCost")}::text))

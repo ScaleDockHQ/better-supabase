@@ -791,7 +791,7 @@ export function partyPaymentSource(
     'entryDate', (y.${tx("effectiveAt")} at time zone 'UTC')::date,
     'currency', y.${tx("metadata")} ->> 'currency',
     'reference', y.${tx("metadata")} ->> 'reference',
-    'memo', 'Payment on account',
+    'memo', 'Payment on account', 'memoKey', 'accounting.invoice_party_payment', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', p.amount::text),
       jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', y.${tx("metadata")} ->> 'partyId'))

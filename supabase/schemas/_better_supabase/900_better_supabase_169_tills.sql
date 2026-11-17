@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:42d42923484c26c99e01be45d77046f5a2f089a2f42b2bd128b254fdd821907d
+-- @bsb-hash sha256:971fea4da51f3520550334dfce9bbb4e07e7834f8f298e56c91c6194972cca19
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1171,7 +1171,7 @@ as $$
     'entryDate', (v."counted_at" at time zone 'UTC')::date,
     'currency', x."currency",
     'reference', left(v."session_id"::text, 8),
-    'memo', left('Till count: ' || x."name", 500),
+    'memo', left('Till count: ' || x."name", 500), 'memoKey', 'accounting.till_count', 'memoParams', jsonb_build_object('till', x."name"),
     'lines', case when v."variance_amount" > 0 then jsonb_build_array(
       jsonb_build_object('accountId', x."account_id", 'debit', v."variance_amount"::text),
       jsonb_build_object('role', 'suspense', 'credit', v."variance_amount"::text))
@@ -1201,7 +1201,7 @@ as $$
     'entryDate', v."deposited_on",
     'currency', x."currency",
     'reference', left(coalesce(v."reference", v."id"::text), 100),
-    'memo', left('Cash deposit: ' || x."name", 500),
+    'memo', left('Cash deposit: ' || x."name", 500), 'memoKey', 'accounting.till_deposit', 'memoParams', jsonb_build_object('till', x."name"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', v."amount"::text),
       jsonb_build_object('accountId', x."account_id", 'credit', v."amount"::text))

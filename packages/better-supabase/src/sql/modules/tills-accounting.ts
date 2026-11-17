@@ -31,7 +31,7 @@ export function tillsAccountingSources(
     'entryDate', (v.${c("countedAt")} at time zone 'UTC')::date,
     'currency', x.${t("currency")},
     'reference', left(v.${c("session")}::text, 8),
-    'memo', left('Till count: ' || x.${t("name")}, 500),
+    'memo', left('Till count: ' || x.${t("name")}, 500), 'memoKey', 'accounting.till_count', 'memoParams', jsonb_build_object('till', x.${t("name")}),
     'lines', case when v.${c("variance")} > 0 then jsonb_build_array(
       jsonb_build_object('accountId', x.${t("account")}, 'debit', v.${c("variance")}::text),
       jsonb_build_object('role', 'suspense', 'credit', v.${c("variance")}::text))
@@ -56,7 +56,7 @@ export function tillsAccountingSources(
     'entryDate', v.${d("depositedOn")},
     'currency', x.${t("currency")},
     'reference', left(coalesce(v.${d("reference")}, v.${d("id")}::text), 100),
-    'memo', left('Cash deposit: ' || x.${t("name")}, 500),
+    'memo', left('Cash deposit: ' || x.${t("name")}, 500), 'memoKey', 'accounting.till_deposit', 'memoParams', jsonb_build_object('till', x.${t("name")}),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', v.${d("amount")}::text),
       jsonb_build_object('accountId', x.${t("account")}, 'credit', v.${d("amount")}::text))

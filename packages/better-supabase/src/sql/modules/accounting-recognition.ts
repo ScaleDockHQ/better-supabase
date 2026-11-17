@@ -265,7 +265,7 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'organizationId', x.${s("tenant")}, 'entryDate', x.${s("startsOn")}, 'currency', x.${s("currency")},
-    'reference', x.${s("sourceType")} || ':' || x.${s("sourceId")}, 'memo', 'Defer revenue',
+    'reference', x.${s("sourceType")} || ':' || x.${s("sourceId")}, 'memo', 'Defer revenue', 'memoKey', 'accounting.revenue_deferral', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'revenue', 'debit', x.${s("amount")}::text),
       jsonb_build_object('role', 'deferred_revenue', 'credit', x.${s("amount")}::text)))
@@ -284,7 +284,7 @@ set search_path = ''
 as $$
   select jsonb_build_object(
     'organizationId', y.${r("tenant")}, 'entryDate', y.${r("dueOn")}, 'currency', x.${s("currency")},
-    'reference', x.${s("sourceType")} || ':' || x.${s("sourceId")}, 'memo', 'Recognize revenue',
+    'reference', x.${s("sourceType")} || ':' || x.${s("sourceId")}, 'memo', 'Recognize revenue', 'memoKey', 'accounting.revenue_recognition', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'deferred_revenue', 'debit', y.${r("amount")}::text),
       jsonb_build_object('role', 'revenue', 'credit', y.${r("amount")}::text)))

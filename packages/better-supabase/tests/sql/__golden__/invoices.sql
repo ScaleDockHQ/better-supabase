@@ -4532,7 +4532,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:1cf79e76a6de58ee7bf2e5f630e36b07b02acd5e8ac516809198a8c2c122355d
+-- @bsb-hash sha256:8d65a1cd537e7f049ed571bb249c99ab45a281ad536b904975a0e4653d876403
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9698,7 +9698,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', inv."currency",
     'reference', coalesce(y."metadata" ->> 'reference', inv."identifier"),
-    'memo', 'Payment of ' || coalesce(inv."identifier", inv."title"),
+    'memo', 'Payment of ' || coalesce(inv."identifier", inv."title"), 'memoKey', 'accounting.invoice_payment', 'memoParams', jsonb_build_object('invoice', coalesce(inv."identifier", inv."title")),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', case when inv."direction" = 'purchase' then 'credit' else 'debit' end, p.amount::text),
       jsonb_strip_nulls(jsonb_build_object('role', case when inv."direction" = 'purchase' then 'payable' else 'receivable' end, case when inv."direction" = 'purchase' then 'debit' else 'credit' end, p.amount::text, 'partyId', inv."company_id"::text)))
@@ -9728,7 +9728,7 @@ as $$
     'entryDate', (c."created_at" at time zone 'UTC')::date,
     'currency', inv."currency",
     'reference', inv."identifier",
-    'memo', 'Charge on ' || coalesce(inv."identifier", inv."title"),
+    'memo', 'Charge on ' || coalesce(inv."identifier", inv."title"), 'memoKey', 'accounting.invoice_charge', 'memoParams', jsonb_build_object('invoice', coalesce(inv."identifier", inv."title")),
     'lines', jsonb_build_array(
       jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', c."amount"::text, 'partyId', inv."company_id"::text)),
       jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', c."amount"::text, 'description', c."description")))
@@ -9753,7 +9753,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', inv."currency",
     'reference', inv."identifier",
-    'memo', 'Early payment discount on ' || coalesce(inv."identifier", inv."title"),
+    'memo', 'Early payment discount on ' || coalesce(inv."identifier", inv."title"), 'memoKey', 'accounting.invoice_discount', 'memoParams', jsonb_build_object('invoice', coalesce(inv."identifier", inv."title")),
     'lines', case when inv."direction" = 'purchase' then jsonb_build_array(
         jsonb_strip_nulls(jsonb_build_object('role', 'payable', 'debit', d.amount::text, 'partyId', inv."company_id"::text)),
         jsonb_build_object('role', 'expense', 'credit', d.amount::text, 'description', 'Early payment discount'))
@@ -9786,7 +9786,7 @@ as $$
     'organizationId', inv."tenant_id",
     'currency', inv."currency",
     'reference', inv."identifier",
-    'memo', 'Write-off of ' || coalesce(inv."identifier", inv."title"),
+    'memo', 'Write-off of ' || coalesce(inv."identifier", inv."title"), 'memoKey', 'accounting.invoice_write_off', 'memoParams', jsonb_build_object('invoice', coalesce(inv."identifier", inv."title")),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'expense', 'debit', b.balance::text),
       jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', b.balance::text, 'partyId', inv."company_id"::text)))
@@ -9811,7 +9811,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', y."metadata" ->> 'currency',
     'reference', y."metadata" ->> 'reference',
-    'memo', 'Payment on account',
+    'memo', 'Payment on account', 'memoKey', 'accounting.invoice_party_payment', 'memoParams', '{}'::jsonb,
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', p.amount::text),
       jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', y."metadata" ->> 'partyId'))

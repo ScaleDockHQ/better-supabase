@@ -2583,7 +2583,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:a56f9e1d994a7b8f71eb7e283c730295d8aed16696ab58d525ee6a39032ad296
+-- @bsb-hash sha256:6d98f8ea8b8e4de2c7eda8a952f430d93bd1da74aed586971255754b186ca151
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5089,7 +5089,7 @@ as $$
     'entryDate', (x."completed_at" at time zone 'UTC')::date,
     'currency', x."currency",
     'reference', x."number",
-    'memo', 'Production labor ' || x."number",
+    'memo', 'Production labor ' || x."number", 'memoKey', 'accounting.production_order', 'memoParams', jsonb_build_object('number', x."number"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'work_in_progress', 'debit', x."labor_cost"::text),
       jsonb_build_object('role', 'expense', 'credit', x."labor_cost"::text))

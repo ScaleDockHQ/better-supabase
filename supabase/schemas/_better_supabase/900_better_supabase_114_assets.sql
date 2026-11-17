@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:4c69dcca94a7994bdfd795b2c0307f2a7f56da13960aa6b89ce51b2430b8ccfd
+-- @bsb-hash sha256:0ebb5b41a15b99579e20e93c496dedf9b3f10fd2242e3eccfacd2f13d9f638d9
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1786,7 +1786,7 @@ as $$
     'entryDate', (y."period_start" + interval '1 month' - interval '1 day')::date,
     'currency', a."currency",
     'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Depreciation of ' || a."name" || ' for ' || to_char(y."period_start", 'YYYY-MM'), 500),
+    'memo', left('Depreciation of ' || a."name" || ' for ' || to_char(y."period_start", 'YYYY-MM'), 500), 'memoKey', 'accounting.asset_depreciation', 'memoParams', jsonb_build_object('asset', a."name", 'periodStart', y."period_start"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'depreciation_expense', 'debit', y."amount"::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'credit', y."amount"::text))
@@ -1810,7 +1810,7 @@ as $$
     'entryDate', a."disposed_on",
     'currency', a."currency",
     'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Disposal of ' || a."name", 500),
+    'memo', left('Disposal of ' || a."name", 500), 'memoKey', 'accounting.asset_disposal', 'memoParams', jsonb_build_object('asset', a."name"),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', a."disposal_amount"::text),
       jsonb_build_object('role', 'accumulated_depreciation', 'debit', q.total::text),

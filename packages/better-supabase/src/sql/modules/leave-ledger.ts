@@ -109,6 +109,7 @@ export function leaveLedgerFunctions(
       targetType: "leave_balance",
       recordId: "v_entry::text",
       summary: `'adjusted a leave balance by ' || adjust_leave_balance.amount::numeric(8, 2)::text`,
+      summaryParams: `jsonb_build_object('amount', adjust_leave_balance.amount)`,
     },
   });
 

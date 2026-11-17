@@ -114,7 +114,7 @@ const NAMES: BlockSqlNames = {
     transactions: {
       name: "ledger_transactions",
       app: {},
-      optional: ["memo"],
+      optional: ["memo", "memoKey", "memoParams"],
       lifecycle: { tenant: "tenant", export: true },
       columns: {
         id: "id",
@@ -123,6 +123,8 @@ const NAMES: BlockSqlNames = {
         referenceType: "reference_type",
         referenceId: "reference_id",
         memo: "memo",
+        memoKey: "memo_key",
+        memoParams: "memo_params",
         key: "idempotency_key",
         reverses: "reverses",
         metadata: "metadata",
@@ -264,7 +266,7 @@ create table if not exists ${transactions} (
   ${t("effectiveAt")} timestamptz not null default now(),
   ${t("actor")} uuid,
   ${t("createdAt")} timestamptz not null default now()
-);
+);${ctx.has("transactions", "memoKey") ? `\nalter table ${transactions} add column if not exists ${t("memoKey")} text;` : ""}${ctx.has("transactions", "memoParams") ? `\nalter table ${transactions} add column if not exists ${t("memoParams")} jsonb;` : ""}
 create unique index if not exists ${name("transactions", "key_idx")} on ${transactions} (${t("tenant")}, ${t("key")}) where ${t("key")} is not null;
 create unique index if not exists ${name("transactions", "reverses_idx")} on ${transactions} (${t("reverses")}) where ${t("reverses")} is not null;
 create index if not exists ${name("transactions", "reference_idx")} on ${transactions} (${t("tenant")}, ${t("referenceType")}, ${t("referenceId")}) where ${t("referenceType")} is not null;
@@ -541,6 +543,8 @@ function contract(): readonly BlockSqlContractFunction[] {
         "timestamptz",
         "jsonb",
         "uuid",
+        "text",
+        "jsonb",
       ],
       returns: "uuid",
     },
@@ -571,7 +575,7 @@ export const LEDGER: BlockSqlDefinition = {
   before: "inventory",
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
@@ -597,6 +601,12 @@ begin
 end;
 $$;`;
       },
+    },
+    {
+      from: 2,
+      description:
+        "ledger_transactions gets memo_key and memo_params, so an app can word a block's memo in its own locale; ledger_post() takes them after reverses and keeps memo as the English text.",
+      sql: () => "",
     },
   ],
   names: NAMES,

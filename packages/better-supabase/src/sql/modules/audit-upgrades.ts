@@ -116,4 +116,10 @@ export const AUDIT_UPGRADES: readonly BlockSqlUpgrade[] = [
     sql: () =>
       "drop function if exists better_supabase.audit(regclass, text[], boolean, text[], text, text, text, text, text, text, regprocedure, boolean, boolean);",
   },
+  {
+    from: 14,
+    description:
+      "Entries keep a translation key and its values next to the English summary: summary_key and summary_params on the log (managed tables; adopted ones map the columns they have), audit_event() takes them, and block actions write their event type as the key.",
+    sql: () => "",
+  },
 ];

@@ -4,6 +4,8 @@ import { BLOCK_HINT_MESSAGES } from "./hint-messages.generated.ts";
 
 export { BLOCK_HINT_MESSAGES } from "./hint-messages.generated.ts";
 
+export { BLOCK_MEMO_MESSAGES } from "./memo-messages.ts";
+
 /**
  * Words a code in the user's language. Return `undefined` to keep `english`,
  * the default message. With next-intl: `(code, english) => t.has(code) ?

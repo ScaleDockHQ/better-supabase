@@ -435,7 +435,8 @@ begin
         jsonb_build_object('account', ${cashAccount}, 'amount', v_row.${d("amount")}),
         jsonb_build_object('account', ${incomeAccount}, 'amount', -v_row.${d("amount")})),
       'donations', v_row.${d("id")}::text, 'Gift', 'donation:' || v_row.${d("id")}::text || ':posted', v_row.${d("receivedOn")}::timestamptz,
-      jsonb_strip_nulls(jsonb_build_object(${giftKey}, v_row.${d("id")}, 'donorType', v_row.${d("donorType")}, 'donorId', v_row.${d("donorId")}, 'fundId', v_row.${d("fund")})));
+      jsonb_strip_nulls(jsonb_build_object(${giftKey}, v_row.${d("id")}, 'donorType', v_row.${d("donorType")}, 'donorId', v_row.${d("donorId")}, 'fundId', v_row.${d("fund")})),
+      memo_key => 'donation.gift', memo_params => '{}'::jsonb);
     update ${donations} x set ${d("status")} = 'posted', ${d("transaction")} = v_tx, ${d("updatedAt")} = now()
       where x.${d("id")} = v_row.${d("id")}
       returning * into v_row;
@@ -452,7 +453,8 @@ begin
         jsonb_build_object('account', ${cashAccount}, 'amount', -v_row.${d("amount")}),
         jsonb_build_object('account', ${incomeAccount}, 'amount', v_row.${d("amount")})),
       'donations', v_row.${d("id")}::text, 'Gift refunded', 'donation:' || v_row.${d("id")}::text || ':refunded', null,
-      jsonb_build_object(${giftKey}, v_row.${d("id")}));
+      jsonb_build_object(${giftKey}, v_row.${d("id")}),
+      memo_key => 'donation.refund', memo_params => '{}'::jsonb);
     update ${receipts} x set ${r("voidedAt")} = now()${has("receipts", "voidReason") ? `, ${r("voidReason")} = 'the gift was refunded'` : ""}
       where x.${r("id")} = v_row.${d("receipt")} and x.${r("kind")} = 'gift' and x.${r("voidedAt")} is null;
     update ${donations} x set ${d("status")} = 'refunded', ${set("donations", "refundTransaction", "v_tx")}${d("receipt")} = null, ${d("updatedAt")} = now()

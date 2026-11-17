@@ -69,7 +69,7 @@ describe("the ledger upgrade from version 1", { timeout: 60_000 }, () => {
       expect(stack.url).not.toBe("");
     };
 
-    expect(plan?.steps).toHaveLength(1);
+    expect(plan?.steps.map((step) => step.from)).toEqual([1, 2]);
     await expect(boot()).resolves.toBeUndefined();
   });
 });

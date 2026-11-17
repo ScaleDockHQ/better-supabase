@@ -269,6 +269,11 @@ export function entryOf(value: unknown, fn: string): AccountingEntry {
     ...optional("sourceId", optionalText(row["sourceId"])),
     ...optional("reversesId", optionalText(row["reversesId"])),
     ...optional("memo", optionalText(row["memo"])),
+    ...optional("memoKey", optionalText(row["memoKey"])),
+    ...optional(
+      "memoParams",
+      isRecord(row["memoParams"]) ? row["memoParams"] : undefined,
+    ),
     ...optional(
       "lines",
       Array.isArray(row["lines"])

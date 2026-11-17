@@ -63,7 +63,8 @@ export function nativeSubscriptionsSql(ctx: BlockSqlContext): string {
       'Proration for ' || v_row.${c("plan")},
       'billing.proration:' || v_row.${c("id")}::text || ':' || extract(epoch from v_at)::text,
       v_at,
-      jsonb_build_object('plan', v_row.${c("plan")}, 'credit', v_credit, 'charge', v_charge));
+      jsonb_build_object('plan', v_row.${c("plan")}, 'credit', v_credit, 'charge', v_charge),
+      memo_key => 'billing.proration', memo_params => jsonb_build_object('plan', v_row.${c("plan")}));
   end if;`
     : "";
 

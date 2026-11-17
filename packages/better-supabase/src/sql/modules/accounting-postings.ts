@@ -4,7 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { fail, userGrant } from "../shared.ts";
 import { entryJson } from "./accounting-entries.ts";
-import { accountingSql } from "./accounting-shared.ts";
+import { accountingSql, entryMemoKey } from "./accounting-shared.ts";
 
 /**
  * Whether `autoPost` posts the entries blocks book, or leaves them as drafts
@@ -39,6 +39,13 @@ export function accountingPostingFunctions(ctx: BlockSqlContext): string {
   const j = (column: string): string => ctx.col("journals", column);
   const p = (column: string): string => ctx.col("periods", column);
   const e = (column: string): string => ctx.col("entries", column);
+
+  const memoKey = entryMemoKey(
+    ctx,
+    "nullif(v_doc ->> 'memoKey', '')",
+    "case when jsonb_typeof(v_doc -> 'memoParams') = 'object' then v_doc -> 'memoParams' end",
+  );
+
   const l = (column: string): string => ctx.col("lines", column);
   const t = (column: string): string => tx.col("codes", column);
   const fn = (name: string): string => ctx.fn(name);
@@ -218,9 +225,9 @@ begin
     end if;
     v_functionals[v_largest] := v_functionals[v_largest] - v_diff;
   end if;
-  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("sourceType")}, ${e("sourceId")}, ${e("memo")}, ${e("createdBy")}, ${e("period")})
+  insert into ${entries} (${e("tenant")}, ${e("journal")}, ${e("entryDate")}, ${e("reference")}, ${e("sourceType")}, ${e("sourceId")}, ${e("memo")}${memoKey.columns}, ${e("createdBy")}, ${e("period")})
   values (v_tenant, v_journal.${j("id")}, v_date, left(nullif(trim(v_doc ->> 'reference'), ''), 200),
-    accounting_post_source.source_type, accounting_post_source.source_id, left(nullif(trim(v_doc ->> 'memo'), ''), 2000), auth.uid(),
+    accounting_post_source.source_type, accounting_post_source.source_id, left(nullif(trim(v_doc ->> 'memo'), ''), 2000)${memoKey.values}, auth.uid(),
     (select y.${p("id")} from ${periods} y where y.${p("tenant")} = v_tenant and v_date >= y.${p("startsOn")} and v_date <= y.${p("endsOn")}))
   returning * into v_row;
   insert into ${lines} (${l("tenant")}, ${l("entry")}, ${l("position")}, ${l("account")}, ${l("debit")}, ${l("credit")}, ${l("currency")},

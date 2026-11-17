@@ -509,6 +509,30 @@ const { entries, total, next } = await audit
   .orThrow();
 ```
 
+## Translating summaries
+
+`summary` is English text. Each entry also keeps `summaryKey` and
+`summaryParams`, so a page in another locale words the entry itself. A block
+action's key is its event type (`accounting_entry.posted`), from the event
+table on [Events](/docs/extending/events), and an entry `audit_event` records
+gets the key you pass as `summary_key`, else its `event_type`.
+`summaryParams` holds the raw values the summary names: ids as ids, dates as
+ISO strings, amounts as numbers or minor units. It is null when the summary
+names no values, and row entries have no key. Fall back to `summary` for a key
+your catalog lacks:
+
+```ts
+const text = (entry: AuditRecord) =>
+  entry.summaryKey && t.has(`audit.${entry.summaryKey}`)
+    ? t(`audit.${entry.summaryKey}`, entry.summaryParams ?? {})
+    : (entry.summary ?? entry.eventType);
+```
+
+An app that ignores the keys keeps showing `summary` as before. Entries
+written before version 15 of the module have neither column filled. An
+adopted log stores them only when `blocks.audit.columns.log` maps
+`summaryKey` and `summaryParams`.
+
 ## Large logs
 
 A log of millions of entries needs a few habits on the audit screen:

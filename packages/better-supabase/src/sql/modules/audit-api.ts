@@ -32,6 +32,8 @@ const ENTRY_KEYS: readonly (readonly [string, string])[] = [
   ["targetType", "targetType"],
   ["targetLabel", "targetLabel"],
   ["summary", "summary"],
+  ["summaryKey", "summaryKey"],
+  ["summaryParams", "summaryParams"],
   ["requestId", "requestId"],
   ["correlationId", "correlationId"],
   ["scope", "scope"],

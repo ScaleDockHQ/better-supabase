@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
--- @bsb-block ledger@2 managed
--- @bsb-hash sha256:ec0b3b381ba7e4d35902906bae7f128f4a6ceccfe4674a37eefc0be454e5a057
+-- @bsb-block ledger@3 managed
+-- @bsb-hash sha256:dddba9f9cb30071ad8943632dd126caca8b8b3ce3add08b76bda6a88dfa10d8c
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,6 +50,8 @@ create table "better_supabase"."ledger_transactions" (
   "actor_id" uuid,
   "created_at" timestamptz not null default now()
 );
+alter table "better_supabase"."ledger_transactions" add column "memo_key" text;
+alter table "better_supabase"."ledger_transactions" add column "memo_params" jsonb;
 create unique index "ledger_transactions_key_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "idempotency_key") where "idempotency_key" is not null;
 create unique index "ledger_transactions_reverses_idx" on "better_supabase"."ledger_transactions" ("reverses") where "reverses" is not null;
 create index "ledger_transactions_reference_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "reference_type", "reference_id") where "reference_type" is not null;
@@ -261,8 +263,11 @@ revoke execute on function "better_supabase"."ledger_account_for"(uuid, text, te
 -- Posts a balanced transaction: lines is an array of {account, amount} with
 -- signed integer amounts in each account's unit, summing to zero per unit.
 -- With idempotency_key a second call returns the first transaction. Modules
--- that post to the ledger call it; it isn't granted to anyone.
-create or replace function "better_supabase"."ledger_post"(tenant uuid, kind text, lines jsonb, reference_type text default null, reference_id text default null, memo text default null, idempotency_key text default null, effective_at timestamptz default null, metadata jsonb default null, reverses uuid default null)
+-- that post to the ledger call it; it isn't granted to anyone. memo_key and
+-- memo_params name the memo for a translation catalog; memo stays its English
+-- text.
+
+create or replace function "better_supabase"."ledger_post"(tenant uuid, kind text, lines jsonb, reference_type text default null, reference_id text default null, memo text default null, idempotency_key text default null, effective_at timestamptz default null, metadata jsonb default null, reverses uuid default null, memo_key text default null, memo_params jsonb default null)
 returns uuid
 language plpgsql
 security definer
@@ -318,8 +323,8 @@ begin
         using ledger_post.tenant, ledger_post.kind, ledger_post.lines;
     end if;
   end;
-  insert into "better_supabase"."ledger_transactions" ("tenant_id", "kind", "reference_type", "reference_id", "memo", "idempotency_key", "reverses", "metadata", "effective_at", "actor_id")
-  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id, nullif(trim(ledger_post.memo), ''),
+  insert into "better_supabase"."ledger_transactions" ("tenant_id", "kind", "reference_type", "reference_id", "memo", "memo_key", "memo_params", "idempotency_key", "reverses", "metadata", "effective_at", "actor_id")
+  values (ledger_post.tenant, ledger_post.kind, ledger_post.reference_type, ledger_post.reference_id, nullif(trim(ledger_post.memo), ''), ledger_post.memo_key, ledger_post.memo_params,
     ledger_post.idempotency_key, ledger_post.reverses, coalesce(ledger_post.metadata, '{}'::jsonb), coalesce(ledger_post.effective_at, now()), auth.uid())
   returning * into v_row;
   insert into "better_supabase"."ledger_entries" ("tenant_id", "transaction_id", "account_id", "amount", "unit", "effective_at")
@@ -339,7 +344,7 @@ begin
   return v_row."id";
 end;
 $$;
-revoke execute on function "better_supabase"."ledger_post"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."ledger_post"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb, uuid, text, jsonb) from public, anon, authenticated;
 
 -- The entries of this organization whose ids are in the list.
 create or replace function "better_supabase"."get_many"(tenant uuid, ids uuid[])
@@ -465,7 +470,7 @@ begin
     post_ledger_transaction.reference_type, post_ledger_transaction.reference_id, post_ledger_transaction.memo,
     post_ledger_transaction.idempotency_key, post_ledger_transaction.effective_at, post_ledger_transaction.metadata);
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = v_id;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."post_ledger_transaction"(uuid, text, jsonb, text, text, text, text, timestamptz, jsonb) from public, anon;
@@ -506,10 +511,12 @@ begin
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
       from "better_supabase"."ledger_entries" y where y."transaction_id" = v_old."id"),
     v_old."reference_type", v_old."reference_id", coalesce(reverse_ledger_transaction.memo, v_old."memo"),
-    null, null, v_old."metadata", v_old."id");
+    null, null, v_old."metadata", v_old."id",
+    case when reverse_ledger_transaction.memo is null then v_old."memo_key" end,
+    case when reverse_ledger_transaction.memo is null then v_old."memo_params" end);
   select * into v_row from "better_supabase"."ledger_transactions" x where x."id" = v_id;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."reverse_ledger_transaction"(uuid, text) from public, anon;
@@ -796,7 +803,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'memoKey', r."memo_key", 'memoParams', r."memo_params", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -831,7 +838,7 @@ begin
   )) then
     raise exception 'ledger transaction not found' using errcode = 'P0002', hint = 'LEDGER_TRANSACTION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'referenceType', v_row."reference_type", 'referenceId', v_row."reference_id", 'memo', v_row."memo", 'memoKey', v_row."memo_key", 'memoParams', v_row."memo_params", 'idempotencyKey', v_row."idempotency_key", 'reverses', v_row."reverses", 'metadata', v_row."metadata", 'effectiveAt', v_row."effective_at", 'actorId', v_row."actor_id", 'createdAt', v_row."created_at", 'entries', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit") order by y."created_at", y."id") from "better_supabase"."ledger_entries" y where y."transaction_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_ledger_transaction"(uuid) from public, anon;
@@ -927,13 +934,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as res
 -- ==== data supabase/better-supabase-data/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block-data ledger
--- @bsb-hash sha256:a2971168d560bfd7120a8cf2d81b69cfcdc32f3e9d43086075d0d2e5878459f6
+-- @bsb-hash sha256:d6fff043a2bd36db9279ffde0a6e05ed2d0b76c491847a80d2057cb54e82905b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ledger', 2, 'managed')
+values ('ledger', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

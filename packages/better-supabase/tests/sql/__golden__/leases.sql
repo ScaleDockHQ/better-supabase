@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:781742ca369e8954787fbd04fd664b0b69b64fe2711efe98ab06a0a8401cba9c
+-- @bsb-hash sha256:a3d17acad6e318ffd26a4702c13b388d9f1a6a97d890f838dcf47d0bcb1102d9
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,7 +179,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -289,7 +290,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "better_supabase"."leases" x set
@@ -678,7 +680,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -732,7 +735,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     
     null;
   end if;
@@ -824,7 +828,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:bc0e16acd215651e54380c0b968e81a5436ae90bd99187a77217954030fe2fc9
+-- @bsb-hash sha256:5688b27a31a9823702f192e1fdc707e6fb3e669b3c872bb6e4ab2dc68d23d4ec
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1012,7 +1016,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -1142,7 +1147,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "better_supabase"."leases" x set
@@ -1541,7 +1547,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -1555,6 +1562,7 @@ begin
     target_type => 'lease_charge',
     record_id => v_charge."id"::text,
     summary => 'posted rent from ' || v_charge."period_start"::text,
+    summary_params => jsonb_build_object('periodStart', v_charge."period_start"),
     tenant => (v_charge."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_charge."tenant_id", 'id', v_charge."id", 'leaseId', v_charge."lease_id", 'periodStart', v_charge."period_start", 'periodEnd', v_charge."period_end", 'amount', v_charge."amount"::text, 'currency', v_charge."currency", 'transactionId', v_charge."transaction_id")
   );
@@ -1606,7 +1614,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('lease_payment', v_tx::text);
   end if;
@@ -1670,7 +1679,7 @@ as $$
     'organizationId', y."tenant_id",
     'entryDate', y."period_start",
     'currency', y."currency",
-    'memo', left('Rent from ' || y."period_start"::text || ': ' || coalesce(v."title", ''), 500),
+    'memo', left('Rent from ' || y."period_start"::text || ': ' || coalesce(v."title", ''), 500), 'memoKey', 'accounting.lease_rent', 'memoParams', jsonb_build_object('periodStart', y."period_start", 'lease', coalesce(v."title", '')),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'receivable', 'debit', y."amount"::text, 'partyId', v."party_id"),
       jsonb_build_object('role', 'revenue', 'credit', y."amount"::text))
@@ -1694,7 +1703,7 @@ as $$
     'entryDate', (y."effective_at" at time zone 'UTC')::date,
     'currency', v."currency",
     'reference', y."metadata" ->> 'reference',
-    'memo', left('Rent payment: ' || coalesce(v."title", ''), 500),
+    'memo', left('Rent payment: ' || coalesce(v."title", ''), 500), 'memoKey', 'accounting.lease_payment', 'memoParams', jsonb_build_object('lease', coalesce(v."title", '')),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'bank', 'debit', p.amount::text),
       jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', v."party_id"))
@@ -1766,7 +1775,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:1d6f4dcab38ab6658c4d4f3388d77dcb622227aa7719a07a19459ef20422eee0
+-- @bsb-hash sha256:3aef2dd30e3c681f96db04bcc31839ae6907db47d25a9b27e5b250d9d96927be
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1949,7 +1958,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "app_private"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -2059,7 +2069,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "app_private"."leases" x set
@@ -2448,7 +2459,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "app_private"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -2502,7 +2514,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     
     null;
   end if;
@@ -2594,7 +2607,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:059c40055ff1046319b883a8a9f871943150e8fbca6a0e49d96acc7edcf7f174
+-- @bsb-hash sha256:81137e669b1b3cfd64dea5c0ab2e0db75feba6d2cbb75cedcbef255128e3cf97
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2772,7 +2785,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -2882,7 +2896,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "better_supabase"."leases" x set
@@ -3271,7 +3286,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -3325,7 +3341,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     
     null;
   end if;
@@ -3505,7 +3522,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:723e83295f6e9bc56a0688caf5cc830a47d4e150ceab6886c9ab73662c4a26d8
+-- @bsb-hash sha256:1996f7ba1cce6ecdf0f0a5446033288a58ea686cf6877377079f355ea57e15e5
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3673,7 +3690,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -3783,7 +3801,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "better_supabase"."leases" x set
@@ -4172,7 +4191,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -4226,7 +4246,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     
     null;
   end if;
@@ -4318,7 +4339,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:c825edf3979d4fa45942e5bccf703e63394b6b56524ef27c99f3b15ac143c951
+-- @bsb-hash sha256:d2529e736ad6a824c5e1030c2307a147a680a2a74a5a4a65ccfeaffc0cfb2f82
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4496,7 +4517,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."org_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."deposit")),
       'leases', v_row."id"::text, 'Deposit received', 'leases.deposit:' || v_row."id"::text, null,
-      jsonb_build_object('leaseId', v_row."id"));
+      jsonb_build_object('leaseId', v_row."id"),
+      memo_key => 'lease.deposit', memo_params => '{}'::jsonb);
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
   update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
@@ -4606,7 +4628,8 @@ begin
           jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."org_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', v_held - v_deduction)),
         'leases', v_row."id"::text, 'Deposit refunded', 'leases.deposit_refund:' || v_row."id"::text, null,
-        jsonb_build_object('leaseId', v_row."id"));
+        jsonb_build_object('leaseId', v_row."id"),
+        memo_key => 'lease.deposit_refund', memo_params => '{}'::jsonb);
     end if;
   end if;
   update "better_supabase"."leases" x set
@@ -4995,7 +5018,8 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', -v_row."rent")),
           'leases', v_row."id"::text, 'Rent from ' || v_start::text,
           'leases.rent:' || v_row."id"::text || ':' || v_start::text, v_start::timestamptz,
-          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end));
+          jsonb_build_object('leaseId', v_row."id", 'periodStart', v_start, 'periodEnd', v_end),
+          memo_key => 'lease.rent', memo_params => jsonb_build_object('periodStart', v_start));
         insert into "better_supabase"."lease_charges" ("org_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."org_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
@@ -5049,7 +5073,8 @@ begin
         jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."org_id", 'rent_cash', 'leases.cash:' || v_row."currency", 'Rent received ' || v_row."currency",
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
-      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+      jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))),
+      memo_key => 'lease.payment', memo_params => '{}'::jsonb);
     
     null;
   end if;

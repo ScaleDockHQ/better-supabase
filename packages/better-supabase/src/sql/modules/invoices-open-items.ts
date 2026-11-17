@@ -184,7 +184,7 @@ export function discountSources(
     'entryDate', (y.${tx("effectiveAt")} at time zone 'UTC')::date,
     'currency', inv.${i("currency")},
     'reference', inv.${i("identifier")},
-    'memo', 'Early payment discount on ' || coalesce(inv.${i("identifier")}, inv.${i("title")}),
+    'memo', 'Early payment discount on ' || coalesce(inv.${i("identifier")}, inv.${i("title")}), 'memoKey', 'accounting.invoice_discount', 'memoParams', jsonb_build_object('invoice', coalesce(inv.${i("identifier")}, inv.${i("title")})),
     'lines', case when ${isPurchase} then jsonb_build_array(
         jsonb_strip_nulls(jsonb_build_object('role', 'payable', 'debit', d.amount::text, 'partyId', ${party("inv")})),
         jsonb_build_object('role', 'expense', 'credit', d.amount::text, 'description', 'Early payment discount'))
