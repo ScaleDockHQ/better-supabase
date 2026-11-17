@@ -1,5 +1,31 @@
 # better-supabase
 
+## 0.70.0
+
+### Minor Changes
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Doctor BS213 no longer reports a column that a row-level `before` trigger protects, once the trigger's comment names it with `better-supabase:guards(column, ...)`. Snapshots now record the marker and whether each trigger is disabled.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - The leave block takes `options.selfDecideWhenTopOfChain`. With `approvals: false`, a requester who holds the approve permission and has no manager above them in the employees block may decide their own request through `decide_leave_request`. It is off by default.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Audit entries, ledger transactions and accounting entries that blocks write now keep a translation key and its raw values next to the English text (`summaryKey` and `summaryParams`, `memoKey` and `memoParams`), so an app can word them in its own locale. `BLOCK_MEMO_MESSAGES` lists every memo key with its English text. The English `summary` and `memo` are unchanged. The audit module moves to version 15 and the ledger module to version 3; run `better-supabase upgrade`.
+  
+  `audit_event`, `audit_event_trusted` and `ledger_post` take two new trailing arguments, and the upgrade drops their old signatures. Calls by name or by position keep working. Only custom grants or comments on the old signatures, or views and functions that depend on them by signature, need attention: grant or comment again on the new signature.
+
+### Patch Changes
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Doctor BS206 now sees `col in (select f())` as a wrapped call when Postgres prints the helper without its schema, as it does for a function in `public`.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Doctor BS345 now says what its finding means since it checks uploads only: readers of a record can attach files to one they can't change. It names both places to set the upload key.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Entity list pages, such as the inventory block's `movementPage`, take `offset` and `total: true` and return the decoded `total` and `totalCapped`.
+
+- [#1060](https://github.com/ScaleDockHQ/better-supabase/pull/1060) [`e36bdb4`](https://github.com/ScaleDockHQ/better-supabase/commit/e36bdb4078f97b39943e3ac50ac48d72e7f23f93) Thanks [@mick340](https://github.com/mick340)! - PowerSync uploads now replay for tables that load on first use. Before, `createUploadConnector` and `uploadRoute` refused every queued `PUT` and `PATCH` on such a table as `unsupported` and dropped the change, because the lazy repository answered `false` to `"upsert" in repository`. A lazy repository now answers the `in` operator like its getter: before the table loads every method name is present, and after it loads the built repository answers.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - The ledger read policy now correctly exposes a whole transaction to a member who can read one of its entries. It compared each entry with itself instead of with the transaction, so members without `ledger.read` read no transactions at all. They now read every transaction that moved an account they can read; the transaction's entries on other accounts stay hidden unless they can read those accounts too.
+
+- [#1059](https://github.com/ScaleDockHQ/better-supabase/pull/1059) [`2afd4f9`](https://github.com/ScaleDockHQ/better-supabase/commit/2afd4f94115cc94f200a33a62630393bb62505f0) Thanks [@mick340](https://github.com/mick340)! - Blocks no longer create an index that already exists. Two block statements that build the same index, such as the `invited_by` index of tenant and platform invitations sharing one table, now render once. Over an adopted table, a partial or `gin` index is left out when the app's index has the same method, columns and `where`, and an app index that only shares its name with a block index (such as `team_members_user_idx`) now counts as the app's, so `team_members_membership_idx` and `webhook_endpoints_types_idx` no longer duplicate the app's indexes and doctor BS200 stops reporting them.
+
 ## 0.69.0
 
 ### Minor Changes
