@@ -15,6 +15,7 @@ import {
   uploadOutcome,
   uploadRoute,
 } from "../../src/powersync/connector.ts";
+import { defineSchema } from "../../src/schema/define.ts";
 import { capturingClient } from "../fixtures/client.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
@@ -492,5 +493,59 @@ describe("replaying managed columns", () => {
       name: "B",
       updated_at: "2026-09-21T08:00:00Z",
     });
+  });
+});
+
+describe("replaying a table that loads on first use", () => {
+  it("upserts and updates through the lazy repository", async () => {
+    const { client, requests } = capturingClient(() => ({
+      status: 201,
+      body: [{ id: "c" }],
+    }));
+
+    const tableLoaders = Object.fromEntries(
+      Object.entries(schema.meta.tables).map(([key, table]) => [
+        key,
+        () => Promise.resolve(table),
+      ]),
+    );
+
+    const db = createSupabase(
+      defineSchema({
+        ...schema.meta,
+        tables: {},
+        lazyTables: true,
+        tableLoaders,
+      }),
+    ).connect(client);
+
+    // SAFETY: the lazy schema keeps the fixture's table names.
+    const customers = (db as unknown as Record<string, object>)["customers"];
+
+    expect(customers !== undefined && "upsert" in customers).toBe(true);
+
+    const route = uploadRoute(customers as never);
+
+    expect(
+      (
+        await route(
+          put("c", {
+            organizationId: "00000000-0000-4000-8000-000000000001",
+            name: "A",
+          }),
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await route({
+          op: "PATCH",
+          table: "customers",
+          id: "c",
+          opData: { name: "B" },
+        })
+      ).ok,
+    ).toBe(true);
+    expect(requests).toHaveLength(2);
   });
 });

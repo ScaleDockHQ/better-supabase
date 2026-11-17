@@ -1915,12 +1915,12 @@
     "brotli": 677724
   },
   "/api/v1/[...path]/route": {
-    "raw": 1087878,
+    "raw": 1087894,
     "gzip": 343630,
     "brotli": 299478
   },
   "/api/v1/openapi.json/route": {
-    "raw": 1174295,
+    "raw": 1174311,
     "gzip": 373061,
     "brotli": 325617
   },
