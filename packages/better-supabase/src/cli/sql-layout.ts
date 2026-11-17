@@ -499,13 +499,15 @@ async function databaseTables(
     config.schemas,
   );
 
-  const blockIndexes = new Set(
+  const blockIndexes = new Map(
     [
       ...declaredIndexes(
         (await schemaTexts(config)).filter(writtenByBlocks),
         config.schemas,
       ).values(),
-    ].flatMap((list) => list.map((index) => index.name)),
+    ].flatMap((list) =>
+      list.map((index) => [index.name, index.columns.join(",")] as const),
+    ),
   );
 
   const tables: Record<string, string> = {};
@@ -543,21 +545,25 @@ async function databaseTables(
 
       indexes[name] = table.indexes
         .filter((index) => {
-          const method = index.method === undefined || index.method === "btree";
+          const btree = index.method === undefined || index.method === "btree";
 
-          if (!method || blockIndexes.has(index.name)) {
+          if (blockIndexes.get(index.name) === index.columns.join(",")) {
             return false;
           }
 
           return (
             !index.partial ||
-            (index.unique &&
+            (btree &&
+              index.unique &&
               notNullKeyPredicate(index.predicate ?? undefined, index.columns))
           );
         })
         .map((index) => ({
           name: index.name,
           columns: index.columns,
+          ...(index.method === undefined || index.method === "btree"
+            ? {}
+            : { method: index.method }),
           ...(index.unique ? { unique: true } : {}),
           plain: index.columns.every((column) =>
             /^[A-Za-z_][\w$]*$/.test(column),

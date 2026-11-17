@@ -264,7 +264,7 @@ drop policy "notes_read" on notes;`,
 });
 
 describe("declaredIndexes", () => {
-  it("collects the leading columns of full btree indexes and key constraints", () => {
+  it("collects the leading columns of indexes and key constraints, with the method and where of the others", () => {
     const indexes = declaredIndexes(
       [
         {
@@ -310,6 +310,13 @@ create index other_idx on private.things (id);`,
         unique: true,
         plain: true,
       },
+      {
+        name: "members_partial",
+        columns: ["team_id"],
+        plain: true,
+        where: "where team_id is not null",
+      },
+      { name: "members_gin", columns: ["email"], plain: true, method: "gin" },
       { columns: ["id"], unique: true, plain: true },
       { columns: ["email"], unique: true, plain: true },
       { columns: ["team_id", "user_id"], unique: true, plain: true },

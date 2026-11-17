@@ -15,6 +15,7 @@ import {
 } from "../../src/sql/over-app-tables.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
+import { declaredIndexes } from "../../src/sql/schema-scan.ts";
 import {
   ALONE,
   OVER,
@@ -337,6 +338,52 @@ create index if not exists other_idx on "public"."others" ("organization_id");
     expect(out).not.toContain("members_pair_idx");
   });
 
+  it("drops a partial or gin index only when the app's has the same method, columns and where", () => {
+    const out = withoutCoveredIndexes(sql, new Set(["public.members"]), {
+      "public.members": [
+        {
+          name: "app_team",
+          columns: ["team_id"],
+          where: "(team_id IS NOT NULL)",
+        },
+        { name: "app_tags", columns: ["tags"], method: "gin" },
+      ],
+    });
+
+    expect(out).not.toContain("members_partial on");
+    expect(out).not.toContain("members_gin on");
+    expect(out).toContain(
+      "-- public.members already has an index on (team_id), so this block adds none.",
+    );
+    expect(out).toContain("members_user_idx");
+  });
+
+  it("keeps a partial or gin index the app's index differs from", () => {
+    const out = withoutCoveredIndexes(sql, new Set(["public.members"]), {
+      "public.members": [
+        { columns: ["team_id"] },
+        { columns: ["team_id"], where: "where team_id > 0" },
+        { columns: ["tags"] },
+        { columns: ["tags"], method: "gist" },
+        { columns: ["user_id"], where: "user_id is not null" },
+      ],
+    });
+
+    expect(out).toContain("members_partial on");
+    expect(out).toContain("members_gin on");
+    expect(out).toContain("members_user_idx on");
+  });
+
+  it("counts an app index that only shares a name with a block index", () => {
+    const out = withoutCoveredIndexes(sql, new Set(["public.members"]), {
+      "public.members": [
+        { name: "members_user_idx", columns: ["organization_id", "user_id"] },
+      ],
+    });
+
+    expect(out).not.toContain("members_pair_idx on");
+  });
+
   it("leaves the SQL alone without app tables or known indexes", () => {
     expect(withoutCoveredIndexes(sql, new Set())).toBe(sql);
     expect(withoutCoveredIndexes(sql, new Set(["public.members"]), {})).toBe(
@@ -370,6 +417,41 @@ create index if not exists other_idx on "public"."others" ("organization_id");
     expect(out).toContain(
       "-- public.team_members already has an index on (organization_id, user_id)",
     );
+  });
+
+  it("skips the teams and webhooks indexes the app's declared indexes already build", () => {
+    const appSql = `create index team_members_user_idx on public.team_members (organization_id, user_id);
+create index team_members_user_id_idx on public.team_members (user_id);
+create index webhook_destinations_event_kinds_idx on public.webhook_destinations using gin (event_kinds);
+`;
+
+    const out = renderBlocks(["teams", "webhooks"], {
+      modules: {
+        teams: {
+          tables: { teams: "public.teams", members: "public.team_members" },
+          columns: { members: { tenant: "organization_id" } },
+        },
+        webhooks: {
+          tables: { endpoints: "public.webhook_destinations" },
+          columns: { endpoints: { eventTypes: "event_kinds" } },
+          options: { defaultFormat: "standard" },
+        },
+      },
+      ownTables: {
+        "public.teams": "app.sql",
+        "public.team_members": "app.sql",
+        "public.webhook_destinations": "app.sql",
+      },
+      ownIndexes: Object.fromEntries(
+        declaredIndexes([{ text: appSql }], ["public"]),
+      ),
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(out).not.toMatch(/create index[^;]*team_members_membership_idx/);
+    expect(out).not.toMatch(/create index[^;]*team_members_user_idx/);
+    expect(out).not.toMatch(/create index[^;]*webhook_endpoints_types_idx/);
   });
 });
 

@@ -4,6 +4,7 @@ import {
   closingParen,
   indexStatements,
   NAME,
+  normalizedPredicate,
   notNullKeyPredicate,
   qualified,
   splitTopLevel,
@@ -431,10 +432,37 @@ export function overAppTables(
 }
 
 /**
- * `sql` without the plain btree indexes it creates on the app's tables in
- * `appTables` that an index in `ownIndexes` already covers: one whose leading
- * columns are the same. An index named like one `sql` creates doesn't count,
- * since the block made it. Unique and partial indexes stay.
+ * Whether an index of the app's is one `sql` creates: the block's statement of
+ * that name has the same columns. An app index that only shares the name stays
+ * the app's, since the block's `if not exists` then builds nothing.
+ */
+function madeByBlock(sql: string): (own: OwnIndex) => boolean {
+  const created = new Map(
+    indexStatements(maskComments(sql)).map((index) => [index.name, index]),
+  );
+
+  return (own) => {
+    const block = own.name === undefined ? undefined : created.get(own.name);
+
+    return (
+      block !== undefined &&
+      block.columns.length === own.columns.length &&
+      block.columns.every((column, at) => own.columns[at] === column)
+    );
+  };
+}
+
+/** A full btree index of the app's, the kind a prefix of its columns can use. */
+const fullBtree = (own: OwnIndex): boolean =>
+  own.method === undefined && own.where === undefined;
+
+/**
+ * `sql` without the plain indexes it creates on the app's tables in `appTables`
+ * that an index in `ownIndexes` already covers. A full btree index is covered
+ * by one whose leading columns are the same; a partial or other-method index
+ * only by one with the same method, the same columns in the same order and the
+ * same `where`. An index the block itself made doesn't count. Unique indexes
+ * stay.
  */
 export function withoutCoveredIndexes(
   sql: string,
@@ -445,9 +473,7 @@ export function withoutCoveredIndexes(
     return sql;
   }
 
-  const blockIndexes = new Set(
-    indexStatements(maskComments(sql)).map((index) => index.name),
-  );
+  const byBlock = madeByBlock(sql);
 
   return statementSpans(sql)
     .map(([from, to]) => {
@@ -458,19 +484,35 @@ export function withoutCoveredIndexes(
         index === undefined ||
         !appTables.has(index.table) ||
         index.unique ||
-        index.partial ||
         !index.plain ||
-        index.method !== "btree"
+        index.columns.length === 0
       ) {
         return statement;
       }
 
-      const covered = (ownIndexes[index.table] ?? []).some(
-        (own) =>
-          !blockIndexes.has(own.name) &&
-          own.columns.length >= index.columns.length &&
-          index.columns.every((column, at) => own.columns[at] === column),
-      );
+      const full = !index.partial && index.method === "btree";
+      const where = normalizedPredicate(index.where);
+
+      const covered = (ownIndexes[index.table] ?? []).some((own) => {
+        if (byBlock(own) || own.plain === false) {
+          return false;
+        }
+
+        if (full) {
+          return (
+            fullBtree(own) &&
+            own.columns.length >= index.columns.length &&
+            index.columns.every((column, at) => own.columns[at] === column)
+          );
+        }
+
+        return (
+          (own.method ?? "btree") === index.method &&
+          normalizedPredicate(own.where) === where &&
+          own.columns.length === index.columns.length &&
+          index.columns.every((column, at) => own.columns[at] === column)
+        );
+      });
 
       if (!covered) {
         return statement;
@@ -496,9 +538,10 @@ export const IMPLIED_UNIQUE_MARK = "-- @bsb-implied-unique";
  * same columns is left out; so is one the module marks with
  * `IMPLIED_UNIQUE_MARK` when the app's key covers a subset of its columns. A
  * partial unique index whose `where` is exactly `<key column> is not null`
- * counts as that full key. The mark is removed from the rest. An index named
- * like one `sql` creates doesn't count, since the block made it. A `nulls not
- * distinct` index, any other partial index, and an expression key stay.
+ * counts as that full key. The mark is removed from the rest. An index `sql`
+ * creates under the same name and columns doesn't count, since the block made
+ * it. A `nulls not distinct` index, any other partial index, and an expression
+ * key stay.
  */
 export function withoutImpliedUniqueIndexes(
   sql: string,
@@ -521,9 +564,7 @@ export function withoutImpliedUniqueIndexes(
     return sql;
   }
 
-  const blockIndexes = new Set(
-    indexStatements(maskComments(sql)).map((index) => index.name),
-  );
+  const byBlock = madeByBlock(sql);
 
   return statementSpans(sql)
     .map(([from, to]) => {
@@ -552,7 +593,8 @@ export function withoutImpliedUniqueIndexes(
         (own) =>
           own.unique === true &&
           own.plain !== false &&
-          !blockIndexes.has(own.name) &&
+          fullBtree(own) &&
+          !byBlock(own) &&
           own.columns.every((column) => index.columns.includes(column)) &&
           (marked || own.columns.length === index.columns.length),
       );

@@ -130,8 +130,11 @@ describe("sql layout edges", () => {
 
     expect(indexes.map((index) => index.name)).toContain("coverage_open_idx");
     expect(indexes.map((index) => index.name)).toContain("coverage_plain_idx");
+    expect(indexes).toContainEqual(
+      expect.objectContaining({ name: "coverage_hash_idx", method: "hash" }),
+    );
     expect(indexes.map((index) => index.name)).not.toContain(
-      "coverage_hash_idx",
+      "coverage_partial_idx",
     );
     expect(indexes.map((index) => index.name)).not.toContain(
       "coverage_miss_idx",
