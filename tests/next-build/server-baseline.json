@@ -656,7 +656,7 @@
   },
   "/[locale]/(app)/maintenance/meters/[id]/page": {
     "raw": 3199586,
-    "gzip": 970997,
+    "gzip": 973428,
     "brotli": 807724
   },
   "/[locale]/(app)/maintenance/page": {
