@@ -47,7 +47,10 @@ function loadTable(
 
 /**
  * A repository whose methods wait for the table module. The getter that returns
- * it is synchronous; the module load happens inside the call.
+ * it is synchronous; the module load happens inside the call. The `in` operator
+ * agrees with the getter: before the load every method name is present, after
+ * it the built repository answers, so a caller that checks for a method with
+ * `in` sees the same repository a loaded table would give.
  */
 export function lazyRepository<S>(
   meta: SchemaMeta,
@@ -60,6 +63,13 @@ export function lazyRepository<S>(
   return new Proxy(
     {},
     {
+      has(_target, prop) {
+        if (typeof prop !== "string" || prop === "then") {
+          return false;
+        }
+
+        return meta.tables[key] === undefined || prop in build(state, key);
+      },
       get(_target, prop) {
         if (typeof prop !== "string" || prop === "then") {
           return;

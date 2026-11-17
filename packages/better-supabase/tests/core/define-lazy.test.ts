@@ -70,6 +70,38 @@ describe("lazyRepository", () => {
     expect(repo[Symbol.iterator as never]).toBeUndefined();
   });
 
+  it("answers the in operator like its getter", async () => {
+    const tables: Record<string, SchemaMeta["tables"][string]> = {
+      ...freshMeta().tables,
+    };
+
+    const meta: SchemaMeta = { ...freshMeta(), tables };
+    const table = loadedTable(meta);
+    let loaded = false;
+
+    const repo = lazyRepository(
+      meta,
+      {},
+      "lazyItems",
+      () => Promise.resolve(table),
+      () => ({ list: () => Promise.resolve(ok([])) }),
+      (registered) => {
+        tables["lazyItems"] = registered;
+        loaded = true;
+      },
+    );
+
+    expect("upsert" in repo).toBe(true);
+    expect("then" in repo).toBe(false);
+    expect(Symbol.iterator in repo).toBe(false);
+
+    await call(repo, "list");
+
+    expect(loaded).toBe(true);
+    expect("list" in repo).toBe(true);
+    expect("upsert" in repo).toBe(false);
+  });
+
   it("reports a name that is not a repository method", async () => {
     const meta = freshMeta();
 
