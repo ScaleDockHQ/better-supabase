@@ -302,6 +302,16 @@ describe("schema design rules", () => {
         "BS219",
       ),
     ).toEqual([]);
+    expect(
+      await run(
+        context(
+          withFunctions(
+            "begin case v_kind when 'a' then perform 1 from public.notes n where n.meta ? 'pinned'; else null; end case; end",
+          ),
+        ),
+        "BS219",
+      ),
+    ).toMatchObject([{ target: "public.notes.meta" }]);
   });
 
   it("flags column types to avoid (BS220)", async () => {

@@ -84,11 +84,14 @@ const CONTAINS = String.raw`(?:@>|<@|\?\||\?&|\?|&&)`;
 
 /**
  * The text without the parts where a containment operator can't filter rows
- * through an index: CASE expressions and negated ones, `not (... ? ...)`.
+ * through an index: CASE expressions and negated ones, `not (... ? ...)`. A
+ * plpgsql CASE statement (it holds a `;`) and a CASE with a query inside stay.
  */
 const filterText = (text: string): string =>
   text
-    .replaceAll(/\bcase\b[\s\S]*?\bend\b/gi, " ")
+    .replaceAll(/\bcase\b[^;]*?\bend\b(?!\s+case\b)/gi, (found) =>
+      /\bselect\b/i.test(found) ? found : " ",
+    )
     .replaceAll(/\bnot\s*\([^()]*\)/gi, " ");
 
 /**

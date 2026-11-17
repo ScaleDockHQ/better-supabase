@@ -1246,6 +1246,27 @@ describe("doctor rules", () => {
           ),
         ).toEqual([]);
       }
+
+      // A from or where after the call can read the row, so it still counts.
+      const correlated = snapshot((tables) => {
+        for (const name of names) {
+          table(tables, name).policies = [
+            memberPolicy(
+              `${name}_member`,
+              "(EXISTS ( SELECT private.is_member('k'::text) AS is_member FROM project_members pm WHERE (pm.project_id = id)))",
+            ),
+          ];
+        }
+      });
+
+      expect(
+        await codes(
+          context(withFunctions(correlated, [helper({})]), {
+            config: tight.config,
+          }),
+          "BS206",
+        ),
+      ).toEqual(["BS206"]);
     });
 
     it("flags overlapping permissive policies and defers to splinter's lint (BS207)", async () => {

@@ -477,11 +477,14 @@ function onlyWrapped(
 
   const any = new RegExp(`(?<![\\w."])${call}`, "gi");
 
-  // A select list or from item of a sub-query: `(select helper('k'))`,
-  // `col in (select helper('k'))`, a `union all select helper('k')` branch or
-  // `from helper('k') t(id)`.
+  // The whole select list or the only from item of an uncorrelated sub-query:
+  // `(select helper('k'))`, `col in (select helper('k'))`, a `union all
+  // select helper('k')` branch or `(select t.id from helper('k') t(id))`. A
+  // from or where after it could read the row, so it doesn't count.
+  const end = String.raw`\s*(?:\)|\bunion\b)`;
+
   const wrapped = new RegExp(
-    `\\b(?:select|from)\\s+${call}${LITERAL_ARGS}\\)`,
+    `\\bselect\\s+${call}${LITERAL_ARGS}\\)(?:\\s+as\\s+"?\\w+"?)?${end}|\\bfrom\\s+${call}${LITERAL_ARGS}\\)(?:\\s+(?:as\\s+)?"?\\w+"?(?:\\s*\\([^()]*\\))?)?${end}`,
     "gi",
   );
 
