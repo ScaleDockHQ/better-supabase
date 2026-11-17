@@ -13,7 +13,7 @@ whose readers see invoices through a key with row conditions, such as
 helpers check role and scope only, so an authorization provider refuses a
 conditioned key there, and the app maps `read` to an unconditioned key that
 fewer members hold. Members who see the invoice through the app's own select
-policy then got `INVOICE_NOT_FOUND` for an action they were simply not
+policy then got `INVOICE_NOT_FOUND` for an action they were not
 allowed to take.
 
 ## Decision
