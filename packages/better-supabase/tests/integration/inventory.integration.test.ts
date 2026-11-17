@@ -135,7 +135,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
     const page = (filters: Record<string, unknown>) =>
       call<{ items: Record<string, unknown>[] }>(
         "better_supabase.page_inventory_movements($1, $2::jsonb)",
-        [tenant, JSON.stringify(filters)],
+        [tenant, JSON.stringify({ ...filters, paged: true })],
       );
 
     const byVariant = await page({ variantId: tee });
