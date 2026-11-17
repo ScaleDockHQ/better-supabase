@@ -111,6 +111,29 @@ describe("inventory pages", () => {
     expect(lots.items).toEqual([lot]);
   });
 
+  it("pages movements by offset and decodes the total", async () => {
+    const transport = fieldsTransport({
+      page_inventory_movements: () => ({
+        items: [movement],
+        hasMore: true,
+        nextCursor: null,
+        total: 120,
+        totalCapped: false,
+      }),
+    });
+
+    const page = await createInventory({ transport })
+      .movementPage({ organizationId: "org-1", offset: 50, total: true })
+      .orThrow();
+
+    expect(page.total).toBe(120);
+    expect(page.totalCapped).toBe(false);
+    expect(transport.calls[0]).toEqual([
+      "page_inventory_movements",
+      { tenant: "org-1", filters: { paged: true, offset: 50, total: true } },
+    ]);
+  });
+
   it("pages locations, bins and variants with q and list filters", async () => {
     const location = {
       id: "l1",

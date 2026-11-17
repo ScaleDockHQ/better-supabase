@@ -3,10 +3,10 @@ import type {
   Count,
   FacetResult,
   ListPage,
-  PageOptions,
 } from "../../core/block-helpers.ts";
 import type {
   CountOptions,
+  EntityPageOptions,
   FacetOptions,
   RequiredTenantOption,
 } from "../../core/entity-list.ts";
@@ -230,7 +230,7 @@ export interface InventoryReads {
    * `q` matches a variant or location id. Quantities are text.
    */
   levelPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockLevelPageRead>>;
   /** The values of each facet (`status`, `locationId`) under the page's filters. */
   levelFacets(
@@ -246,7 +246,7 @@ export interface InventoryReads {
    * and `documentId` as lists; `q` matches the kind and the document id.
    */
   movementPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockMovementRead>>;
   /** The values of each facet (`kind`, `locationId`) under the page's filters. */
   movementFacets(
@@ -265,7 +265,7 @@ export interface InventoryReads {
    * lot code.
    */
   lotPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockLotRead>>;
   /** The values of each facet (`expiry`, `locationId`) under the page's filters. */
   lotFacets(
@@ -281,7 +281,7 @@ export interface InventoryReads {
    * name. Row level security decides which locations come back.
    */
   locationPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockLocationRead>>;
   /** The values of each facet (`kind`, `active`) under the page's filters. */
   locationFacets(
@@ -297,7 +297,7 @@ export interface InventoryReads {
    * `q` matches the code and the name.
    */
   binPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockBinRead>>;
   /** The values of each facet (`locationId`, `active`) under the page's filters. */
   binFacets(
@@ -310,7 +310,7 @@ export interface InventoryReads {
    * `filters` takes `productId` as a list; `q` matches the SKU and the title.
    */
   variantPage(
-    options: PageOptions & RequiredTenantOption,
+    options: EntityPageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<StockVariantRead>>;
   /** Variants declare no facets, so this returns an empty list. */
   variantFacets(

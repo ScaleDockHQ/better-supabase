@@ -3008,6 +3008,7 @@
       "EntityOfflineJoin",
       "EntityOfflineJoinTable",
       "EntityOfflineScope",
+      "EntityPageOptions",
       "EntityPartition",
       "EntityPartitionEvery",
       "EntityRename",

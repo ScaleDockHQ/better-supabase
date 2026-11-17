@@ -208,7 +208,10 @@ export type {
   ExportPage,
 } from "../core/entity-export.ts";
 
-export type { ExportableEntityList } from "../core/entity-list.ts";
+export type {
+  EntityPageOptions,
+  ExportableEntityList,
+} from "../core/entity-list.ts";
 
 export { createJobs, jobRef, jobResultOf, parseJobId } from "../core/jobs.ts";
 
