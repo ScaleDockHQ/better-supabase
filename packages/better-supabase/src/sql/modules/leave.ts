@@ -344,11 +344,12 @@ function build(ctx: BlockSqlContext): string {
 
   if (
     top !== "" &&
-    ctx.modules.permissions?.model === "custom" &&
-    ctx.modules.permissions.functions?.canUser === undefined
+    ((ctx.modules.permissions?.model === "custom" &&
+      ctx.modules.permissions.functions?.canUser === undefined) ||
+      ctx.providerCallerOnly === true)
   ) {
     throw new TypeError(
-      "blocks.leave.options.selfDecideWhenTopOfChain needs blocks.permissions.functions.canUser to find the other approvers",
+      "blocks.leave.options.selfDecideWhenTopOfChain needs an access model that answers for other users (blocks.permissions.functions.canUser, or the provider's idsWithFor and isPlatformFor) to find the other approvers",
     );
   }
 

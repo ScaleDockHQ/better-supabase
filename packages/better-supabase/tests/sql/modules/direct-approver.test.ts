@@ -4,6 +4,10 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import {
+  callerOnlyProvider,
+  moduleProvider,
+} from "../../fixtures/authorization-provider.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
@@ -382,6 +386,8 @@ begin
   insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id) values ('${HR_EMPLOYEE}', '${TENANT}', '${HR}', 'Hannah', null);
   insert into public.approvers values ('${HR}');
   ${refusedOwn(HR, "'2099-03-16', '2099-03-17'", "HR without a manager decided her own leave while Carol can approve")}
+  update better_supabase.memberships set disabled_at = now() where user_id = '${HR}';
+  ${decidesOwn(CAROL, "'2099-03-23', '2099-03-24'", "Carol could not decide her own leave with the other approver disabled")}
   delete from public.approvers where user_id = '${HR}';
 
   update better_supabase.employees set manager_id = '${BOB_EMPLOYEE}' where id = '${CAROL_EMPLOYEE}';
@@ -459,6 +465,106 @@ $$;`,
         },
       }),
     ).toThrow(/needs the employees block's tables/);
+  });
+});
+
+describe("a manager whose employment ended", BOOT, () => {
+  it("no longer decides leave or an expense directly", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_type uuid;
+  v_leave uuid;
+  v_expense uuid;
+begin
+  ${as(BOB)}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days', true, false) ->> 'id')::uuid;
+  update better_supabase.employees set start_date = '2020-01-01', end_date = current_date - 1 where id = '${BOB_EMPLOYEE}';
+  ${as(ALICE)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_expense);
+  ${decideOwn(BOB, "v_leave", "Bob decided leave after his employment ended")}
+  begin
+    perform better_supabase.decide_expense(v_expense, true);
+    raise exception 'Bob decided an expense after his employment ended';
+  exception when others then
+    if sqlerrm not like '%not allowed to decide%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+});
+
+const decideFunction = (sql: string): string => {
+  const start = sql.indexOf(
+    'create or replace function "better_supabase"."decide_leave_request"(',
+  );
+
+  return sql.slice(start, sql.indexOf("\n$$;", start) + 4);
+};
+
+describe("the self-decide check", () => {
+  it("renders the golden decide function with the option on", async () => {
+    const sql = renderBlocks(["employees", "leave"], {
+      modules: {
+        leave: {
+          options: {
+            owner: "employee",
+            approvals: false,
+            approver: "manager",
+            decider: "public.chain_decides",
+            selfDecideWhenTopOfChain: true,
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    await expect(decideFunction(sql)).toMatchFileSnapshot(
+      "../__golden__/leave-self-decide.sql",
+    );
+  });
+
+  it("refuses an access model that can't answer for other users", () => {
+    expect(() =>
+      renderBlocks(["employees", "leave"], {
+        modules: {
+          permissions: {
+            model: "custom",
+            functions: {
+              can: "app.can",
+              tenantIdsWith: "app.tenant_ids_with",
+              isPlatform: "app.is_platform",
+              canAssign: "app.can_assign",
+            },
+          },
+          leave: {
+            options: { approvals: false, selfDecideWhenTopOfChain: true },
+          },
+        },
+      }),
+    ).toThrow(/answers for other users/);
+  });
+
+  it("refuses a provider that answers only for the caller and accepts one that answers for others", () => {
+    const self = (accessProvider: typeof moduleProvider) => () =>
+      renderBlocks(["employees", "leave"], {
+        modules: {
+          permissions: { model: "provider" },
+          leave: {
+            options: { approvals: false, selfDecideWhenTopOfChain: true },
+          },
+        },
+        accessProvider,
+      });
+
+    expect(self(callerOnlyProvider)).toThrow(/answers for other users/);
+    expect(self(moduleProvider)).not.toThrow();
   });
 });
 

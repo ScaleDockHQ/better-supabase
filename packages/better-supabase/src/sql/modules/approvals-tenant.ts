@@ -220,11 +220,16 @@ export function otherDecider(
   const m = (column: string): string => members.col("memberships", column);
 
   const manager = args.manager
-    ? `\n        or ${managerMatch(ctx, { requester: args.requester, tenant: args.tenant, user: `om.${m("user")}`, ...(args.employee === undefined ? {} : { employee: args.employee }) })}`
+    ? managerMatch(ctx, {
+        requester: args.requester,
+        tenant: args.tenant,
+        user: `om.${m("user")}`,
+        ...(args.employee === undefined ? {} : { employee: args.employee }),
+      })
     : "";
 
   const chain = args.chain
-    ? `\n        or om.${m("user")} in (
+    ? `om.${m("user")} in (
           with recursive up(id) as (
             select me.${e("manager")} from ${table} me
             where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
@@ -239,7 +244,7 @@ export function otherDecider(
   return `exists (
       select 1 from ${members.table("memberships")} om
       where om.${m("tenant")} = ${args.tenant} and om.${m("user")} is distinct from ${args.requester}${activeMembership(ctx, "om")}
-        and (${ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)}${manager}${chain})
+        and (${[manager, chain, ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)].filter((check) => check !== "").join(" or ")})
     )`;
 }
 
