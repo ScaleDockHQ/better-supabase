@@ -191,6 +191,11 @@ export interface CatalogIndex {
    * snapshots.
    */
   readonly predicate?: string | null;
+  /**
+   * Each key as Postgres prints it, set only when one names an operator class,
+   * a collation or an expression the plain column doesn't have.
+   */
+  readonly keys?: readonly string[];
 }
 
 export interface CatalogPolicy {
@@ -233,6 +238,10 @@ export interface CatalogTrigger {
    * `A`). Absent when it fires, and in older snapshots.
    */
   readonly disabled?: true;
+  /** The trigger has a `when` condition. Absent without one. */
+  readonly conditional?: true;
+  /** The columns of an `update of` trigger. Absent for any update. */
+  readonly updateOf?: readonly string[];
   /**
    * Columns the trigger comment's `better-supabase:guards(...)` marker names,
    * which doctor BS213 treats as protected. Absent without a marker.

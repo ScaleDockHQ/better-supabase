@@ -56,6 +56,11 @@ select ix.indrelid::int8 as table_id, i.relname as name,
   ix.indisunique as unique, ix.indisprimary as primary,
   (ix.indpred is not null or 0 = any(ix.indkey::int2[])) as partial,
   am.amname as method, pg_get_expr(ix.indpred, ix.indrelid) as predicate,
+  case when exists (
+    select 1 from unnest((ix.indkey::int2[])[0:ix.indnkeyatts - 1]) with ordinality k(attnum, ord)
+    left join pg_attribute a on a.attrelid = ix.indrelid and a.attnum = k.attnum
+    where pg_get_indexdef(ix.indexrelid, k.ord::int, true) is distinct from quote_ident(a.attname)
+  ) then array(select pg_get_indexdef(ix.indexrelid, k::int, true) from generate_series(1, ix.indnkeyatts) k)::text[] end as keys,
   array(select a.attname from unnest((ix.indkey::int2[])[0:ix.indnkeyatts - 1]) with ordinality k(attnum, ord)
     join pg_attribute a on a.attrelid = ix.indrelid and a.attnum = k.attnum order by k.ord)::text[] as columns
 from pg_index ix
@@ -175,7 +180,12 @@ select t.tgrelid::int8 as table_id, t.tgname as name,
   case when t.tgtype & 7 = 7 then p.prosrc end as body,
   l.lanname as language,
   t.tgenabled not in ('O', 'A') as disabled,
-  obj_description(t.oid, 'pg_trigger') as trigger_comment
+  obj_description(t.oid, 'pg_trigger') as trigger_comment,
+  t.tgqual is not null as conditional,
+  case when cardinality(t.tgattr::int2[]) > 0 then array(
+    select a.attname from unnest(t.tgattr::int2[]) as k(attnum)
+    join pg_attribute a on a.attrelid = t.tgrelid and a.attnum = k.attnum order by a.attname
+  ) end::text[] as update_of
 from pg_trigger t
 join pg_class c on c.oid = t.tgrelid
 join pg_namespace n on n.oid = c.relnamespace
@@ -293,6 +303,7 @@ interface IndexRow {
   partial: boolean;
   method: string;
   predicate: string | null;
+  keys: string[] | null;
   columns: string[];
 }
 
@@ -413,6 +424,8 @@ interface TriggerRow {
   language: string;
   disabled: boolean;
   trigger_comment: string | null;
+  conditional?: boolean;
+  update_of?: string[] | null;
 }
 
 interface GrantRow {
@@ -599,6 +612,7 @@ export async function readExtras(
         partial: index.partial,
         method: index.method,
         predicate: index.predicate,
+        ...(index.keys ? { keys: index.keys } : {}),
       })),
       policies: (policies.get(id) ?? []).map((policy) => ({
         name: policy.name,
@@ -620,6 +634,8 @@ export async function readExtras(
         ...(trigger.comment === null ? {} : { comment: trigger.comment }),
         ...fillsOf(trigger),
         ...(trigger.disabled ? { disabled: true as const } : {}),
+        ...(trigger.conditional ? { conditional: true as const } : {}),
+        ...(trigger.update_of ? { updateOf: trigger.update_of } : {}),
         ...guardsOf(trigger.trigger_comment),
       })),
       grants: (grants.get(id) ?? []).map((grant) => ({

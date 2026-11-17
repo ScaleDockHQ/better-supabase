@@ -467,10 +467,26 @@ describe("doctor rules", () => {
       ["a statement trigger", { ...guard, level: "statement" as const }],
       ["a trigger without update", { ...guard, events: ["insert" as const] }],
       ["a marker naming another column", { ...guard, guards: ["user_id"] }],
+      [
+        "a trigger with a when condition",
+        { ...guard, conditional: true as const },
+      ],
+      ["an update of other columns", { ...guard, updateOf: ["user_id"] }],
     ])("keeps the column for %s", async (_, trigger) => {
       const findings = await runRules(context(guarded(trigger)), only);
       expect(findings[0]?.message).toContain(
         "authenticated may update org_id, role",
+      );
+    });
+
+    it("guards a column an update of trigger names", async () => {
+      const findings = await runRules(
+        context(guarded({ ...guard, updateOf: ["role", "user_id"] })),
+        only,
+      );
+
+      expect(findings[0]?.message).toContain(
+        "authenticated may update org_id, user_id.",
       );
     });
 

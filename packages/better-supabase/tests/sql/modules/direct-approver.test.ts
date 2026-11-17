@@ -355,6 +355,16 @@ begin
   ${as(CAROL)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
   ${decideOwn(CAROL, "v_leave", "Carol decided her own leave with a manager above her")}
+
+  update better_supabase.employees set status = 'offboarded' where id = '${BOB_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-05-04', '2099-05-05') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under an offboarded manager")}
+
+  update better_supabase.employees set status = 'active', user_id = null where id = '${BOB_EMPLOYEE}';
+  ${as(CAROL)}
+  v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-06-01', '2099-06-02') ->> 'id')::uuid;
+  ${decideOwn(CAROL, "v_leave", "Carol decided her own leave under a manager without a login")}
 end;
 $$;`,
         ["employees", "leave"],

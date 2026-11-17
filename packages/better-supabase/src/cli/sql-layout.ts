@@ -547,7 +547,10 @@ async function databaseTables(
         .filter((index) => {
           const btree = index.method === undefined || index.method === "btree";
 
-          if (blockIndexes.get(index.name) === index.columns.join(",")) {
+          if (
+            index.keys !== undefined ||
+            blockIndexes.get(index.name) === index.columns.join(",")
+          ) {
             return false;
           }
 

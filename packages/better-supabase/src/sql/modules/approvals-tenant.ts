@@ -171,9 +171,10 @@ export function managerMatch(
 }
 
 /**
- * SQL that is true when the requester has an employee record in the tenant and
- * no manager who could decide for them under `managerMatch`, or `undefined`
- * without the employees module.
+ * SQL that is true when the requester has an employee record in the tenant with
+ * no manager at all, or `undefined` without the employees module. A manager who
+ * is offboarded or has no login still counts, so a missing decider never lets
+ * someone decide for themselves.
  */
 export function topOfChain(
   ctx: BlockSqlContext,
@@ -184,18 +185,18 @@ export function topOfChain(
   },
 ): string | undefined {
   const employees = employeesOf(ctx);
-  const manager = managerOf(ctx, args.requester, args.tenant, args.employee);
 
-  if (employees === undefined || manager === undefined) {
+  if (employees === undefined) {
     return undefined;
   }
 
   const e = (column: string): string => employees.col("employees", column);
 
-  return `(exists (
+  return `exists (
       select 1 from ${employees.table("employees")} me
       where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
-    ) and not ${managerMatch(ctx, { ...args, user: manager })})`;
+        and me.${e("manager")} is null
+    )`;
 }
 
 /** What the request functions share with the rest of the module. */
