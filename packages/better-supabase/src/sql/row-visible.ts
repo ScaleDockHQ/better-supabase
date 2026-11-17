@@ -31,7 +31,7 @@ begin
     from pg_catalog.pg_policy p
     where p.polrelid = rel
       and p.polcmd in ('r', '*')
-      and (0::oid = any (p.polroles) or exists (select 1 from unnest(p.polroles) o where pg_catalog.pg_has_role(v_role, o, 'member')));
+      and (0::oid = any (p.polroles) or exists (select 1 from unnest(p.polroles) o where pg_catalog.pg_has_role(v_role, o, 'usage')));
   end if;
   execute format('select exists (select 1 from %s where %I = $1 and (%s))', rel, key_column, v_using)
     into v_found using key_value;
