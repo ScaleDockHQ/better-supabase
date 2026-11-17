@@ -1936,7 +1936,7 @@
   },
   "/api/webhooks/inbox/route": {
     "raw": 2984323,
-    "gzip": 896305,
+    "gzip": 898547,
     "brotli": 762149
   },
   "/api/work-orders/list/route": {
