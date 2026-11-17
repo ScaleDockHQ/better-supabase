@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:74feba6b49fe8c96d1993e72fade148b11500c95b62c44b18dcb97cd121ba57f
+-- @bsb-hash sha256:cf74fcabede94d7b8c1a369939d5df74f3e12c78832e7b7954a61776c15a8108
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ alter table "centrakit"."organization_invitations" add column if not exists "dec
 create unique index if not exists invitations_platform_open_email_idx
   on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "organization_id" is null;
 alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists platform_invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
+-- centrakit.organization_invitations already gets the same index as invitations_invited_by_idx, so this block adds no platform_invitations_invited_by_idx.
 
 alter table "centrakit"."organization_invitations" enable row level security;
 grant select on "centrakit"."organization_invitations" to authenticated;
