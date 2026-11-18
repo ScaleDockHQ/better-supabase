@@ -1,7 +1,0 @@
----
-"better-supabase": minor
----
-
-Managers whose employee record has an `end_date` before today lose their decision rights, as offboarded managers already do. This applies to the manager step of the approvals block and to the direct decide functions of leave, time entries and expenses. Requests such a manager would have decided now go to the fallback approvers: in the direct decide functions, the members who hold the block's approve permission; in the approvals block, the step's other approvers or, once it escalates, its `escalateTo` approvers. Run `better-supabase upgrade` and generate a migration to pick up the change.
-
-The leave block's `options.selfDecideWhenTopOfChain` now lets a requester with the approve permission decide their own request only when nobody else can decide it. Before, any approver without a manager could approve their own leave, even with other approvers in the organization, and an owner whose manager was offboarded or had no login was refused. Now another active member who holds the approve permission, or an active manager with a login whom the block lets decide (the direct manager under `approver: "manager"`, or anyone up the chain with a `decider`), blocks the self-decision. The option needs an access model that answers for other users: a custom model needs `functions.canUser`, and a provider needs `idsWithFor` and `isPlatformFor`. Otherwise rendering the block fails.
