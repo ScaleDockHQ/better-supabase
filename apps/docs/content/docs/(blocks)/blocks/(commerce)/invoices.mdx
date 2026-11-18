@@ -164,6 +164,19 @@ blocks: {
 | `paid`           | balance zero                       |
 | `void`           | cancelled before anything was paid |
 | `uncollectible`  | written off                        |
+| `credited`       | fully credited (`creditedStatus`)  |
+
+### The credited status
+
+By default an invoice that credit notes fully cover becomes `paid`. With `options.creditedStatus: true` it becomes `credited` instead, whether it was unpaid or already paid (record the refund as a negative payment afterwards; it stays `credited`). An invoice is fully credited when its credit notes reach its total plus its charges; a smaller credit leaves it `partially_paid` or `paid`. `credited` is closed: the credit note records `invoice.credited` with the organization and invoice id, never `invoice.paid`, and the invoice takes no charges. Voiding the credit note gives the credit back, and the invoice moves to the status its balance gives (`issued`, `partially_paid` or `paid`). Voiding an issued credit note gives its credit back with the option off too.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  invoices: { options: { creditedStatus: true } },
+}
+```
+
+The option is off by default, so a status column without a `credited` value keeps working. Turn it on once yours has one: the block's own table accepts it then, and an enum of yours needs `alter type ... add value 'credited'`. A [state machine](/docs/blocks/state-machine) over the invoices table writes the history and the `status.changed` event; give it transitions from `issued`, `partially_paid` and `paid` to `credited`, and from `credited` back to those three, and treat `credited` as a closed state next to `paid` and `void` in your own filters.
 
 Every invoice a read returns has `balance` and `overdue` (open and past its due date).
 

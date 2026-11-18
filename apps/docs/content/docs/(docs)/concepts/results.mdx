@@ -99,7 +99,7 @@ if v_row.status <> 'submitted' then
 end if;
 ```
 
-Keep `PT409` for a state the caller can resolve by reloading the record. A state the change can never pass, such as editing an approved record, stays a `55000` error with its own hint.
+Use `PT409` when the record's current state refuses the change and a reload shows why: already decided, already running, locked by its status, or a status change the record doesn't allow (`EXPENSE_LOCKED`, `EXPENSE_TRANSITION_INVALID`). A precondition outside the record, such as a closed period or a form that isn't published, stays a `55000` error with its own hint. Blocks move their remaining `55000` state refusals to `PT409` as they are touched (ADR 1091).
 
 ## Block hint codes
 
