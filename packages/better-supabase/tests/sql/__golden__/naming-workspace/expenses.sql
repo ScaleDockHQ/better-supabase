@@ -1,6 +1,6 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
--- @bsb-block expenses@1 managed
+-- @bsb-block expenses@2 managed
 -- @bsb-hash sha256:2a430490c322ce7b8aeea39279f5396ea464c806da3bbaea2b207c8b8c5bb032
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1353,13 +1353,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as re
 -- ==== data supabase/better-supabase-data/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block-data expenses
--- @bsb-hash sha256:acad5782117da37aa32eb5b47f0372cb87a9105ea9687dd5f8de16d1ca73932f
+-- @bsb-hash sha256:ae6a125f9a785b00eb4c30cad610f60e21a9e43c0cb59a8fda9e695849b3e7fd
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('expenses', 1, 'managed')
+values ('expenses', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

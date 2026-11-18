@@ -55,9 +55,9 @@ const SERVICE = `perform set_config('request.jwt.claims', '{"role":"service_role
 
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
+async function run(check: string, modules = BLOCKS): Promise<void> {
   const files = renderBlocks(["outbox", "invoices", "state-machine"], {
-    modules: BLOCKS,
+    modules,
   });
 
   const invoicesFirst = [
@@ -151,6 +151,35 @@ begin
   end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("restores a fully credited invoice from paid to issued when the credit note is voided, with the option off", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_note uuid;
+begin
+  ${SERVICE}
+  v_id := ${issued("Off")};
+  v_note := ${credit("v_id", 10_000)};
+  if ${status("v_id")} <> 'paid' then
+    raise exception 'credited without the option: %', ${status("v_id")};
+  end if;
+  perform better_supabase.void_invoice(v_note, 'wrong invoice');
+  if ${status("v_id")} <> 'issued' or (select paid_at from better_supabase.invoices where id = v_id) is not null then
+    raise exception 'after the void: %', ${status("v_id")};
+  end if;
+  if not exists (select 1 from better_supabase.outbox_events e where e.type = 'status.changed'
+      and e.payload ->> 'subjectId' = v_id::text and e.payload ->> 'from' = 'paid' and e.payload ->> 'to' = 'issued') then
+    raise exception 'no status.changed from paid to issued';
+  end if;
+end;
+$$;`,
+        { ...BLOCKS, invoices: {} },
+      ),
     ).resolves.toBeUndefined();
   });
 });

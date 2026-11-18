@@ -1,5 +1,5 @@
 -- better-supabase module: expenses
--- @bsb-block expenses@1 managed
+-- @bsb-block expenses@2 managed
 -- @bsb-hash sha256:e55bb9a3cdfc7ee094c56d3ee97675d7b756634bfe0f94b68e63de4c2613eab9
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

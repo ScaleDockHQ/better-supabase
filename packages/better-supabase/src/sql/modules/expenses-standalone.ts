@@ -1,4 +1,5 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
+import type { BlockSqlUpgrade } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -846,7 +847,8 @@ $$;
 ${userGrant(`${fn("reimburse_expense")}(uuid, text)`)}
 
 -- Takes an approved expense back to submitted for a new decision, with a
--- reason the audit keeps. A decider who isn't the owner may, until it is
+-- reason the audit keeps. A decider who isn't the owner or creator may (they
+-- too when nobody else can decide), until it is
 -- reimbursed${invoiced === undefined ? "" : " or invoiced"}.
 create or replace function ${fn("reopen_expense")}(expense_id uuid, reason text)
 returns jsonb
@@ -857,7 +859,7 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("reopen_expense.expense_id")}
-  if not (${SERVICE_CALLER} or (${decides("v_row")} and not ${selfOf("v_row", "auth.uid()")})) then
+  if not (${SERVICE_CALLER} or (${decides("v_row")} and (not ${selfOf("v_row", "auth.uid()")} or ${nobodyElse("v_row", creatorOr("v_row", "auth.uid()"))}))) then
     ${forbidden("not allowed to reopen this expense")}
   end if;
   if nullif(trim(reopen_expense.reason), '') is null then
@@ -1040,3 +1042,31 @@ $$;
 ${userGrant(`${fn("page_expenses")}(${idType}, jsonb)`)}
 `;
 }
+
+/**
+ * Version 1 to 2: an expense without a creator gets its owner's user, so rows
+ * from before the creator stamp (ADR 1091) don't fail closed. An owner without
+ * a user leaves the creator null.
+ */
+export const EXPENSE_CREATOR_BACKFILL: BlockSqlUpgrade = {
+  from: 1,
+  description:
+    "Expenses without a creator get their owner's user as created_by (ADR 1091).",
+  sql: (ctx) => {
+    if (!expensesStandalone(ctx) || !ctx.has("expenses", "createdBy")) {
+      return "";
+    }
+
+    const owner = recordOwner(ctx, {
+      block: "expenses",
+      table: "expenses",
+      noun: "expense",
+      helper: "expense_is_mine",
+    }).requester("x");
+
+    const creator = ctx.col("expenses", "createdBy");
+
+    return `update ${ctx.table("expenses")} x set ${creator} = ${owner}
+  where x.${creator} is null and ${owner} is not null;`;
+  },
+};

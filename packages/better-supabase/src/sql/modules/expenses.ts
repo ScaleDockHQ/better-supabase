@@ -25,6 +25,7 @@ import {
 } from "./expenses-functions.ts";
 import { standaloneContract } from "./expenses-standalone-contract.ts";
 import {
+  EXPENSE_CREATOR_BACKFILL,
   EXPENSE_SUBJECT,
   EXPENSE_TABLE,
   expensesStandalone,
@@ -470,6 +471,8 @@ const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 export const EXPENSES: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
   name: "expenses",
+  version: 2,
+  upgrades: [EXPENSE_CREATOR_BACKFILL],
   scopes: ["tenant"],
   title: "Expenses",
   description:

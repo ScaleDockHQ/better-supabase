@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
@@ -291,7 +292,9 @@ begin
   if better_supabase.decide_expense(v_hers, true) ->> 'decidedBy' <> '${BOB}' then
     raise exception 'the creator could not decide as the only approver';
   end if;
-  ${refused("perform better_supabase.reopen_expense(v_hers, 'typo')", "42501", "not allowed to reopen")}
+  if better_supabase.reopen_expense(v_hers, 'typo') ->> 'status' <> 'submitted' then
+    raise exception 'the creator could not reopen as the only decider';
+  end if;
   if better_supabase.decide_expense(v_mine, false, 'personal') ->> 'status' <> 'rejected' then
     raise exception 'the owner could not decide as the only approver';
   end if;
@@ -409,6 +412,10 @@ begin
   if better_supabase.decide_expense(v_id, true) ->> 'status' <> 'approved' then
     raise exception 'Carol could not decide once the creator is known';
   end if;
+  ${SERVICE}
+  update better_supabase.expenses set created_by = null where id = v_id;
+  ${as(CAROL)}
+  ${refused("perform better_supabase.reopen_expense(v_id, 'typo')", "42501", "not allowed to reopen")}
 end;
 $$;`),
     ).resolves.toBeUndefined();
@@ -547,6 +554,44 @@ create policy lines_client_write on better_supabase.expense_lines for all to aut
 `,
         },
       ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("backfills the owner as the creator on upgrade, and leaves an owner without a user", async () => {
+    const [plan] = upgradePlan(
+      [
+        { module: "employees", version: 999 },
+        { module: "expenses", version: 1 },
+      ],
+      { modules: BLOCKS },
+    );
+
+    const backfill = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(backfill).toContain("created_by");
+
+    await expect(
+      run(`do $$
+declare
+  v_known uuid;
+  v_orphan uuid;
+begin
+  ${SERVICE}
+  insert into better_supabase.employees (id, tenant_id, user_id, name) values ('${DAVE_EMPLOYEE}', '${TENANT}', null, 'Dave');
+  insert into better_supabase.expenses (tenant_id, employee_id, spent_on, amount, currency)
+    values ('${TENANT}', '${ALICE_EMPLOYEE}', '2099-03-02', 1, 'EUR') returning id into v_known;
+  insert into better_supabase.expenses (tenant_id, employee_id, spent_on, amount, currency)
+    values ('${TENANT}', '${DAVE_EMPLOYEE}', '2099-03-02', 1, 'EUR') returning id into v_orphan;
+  update better_supabase.expenses set created_by = null;
+  ${backfill.replaceAll("$$", "$bsb$")}
+  if (select created_by from better_supabase.expenses where id = v_known) is distinct from '${ALICE}' then
+    raise exception 'the backfill did not record the owner';
+  end if;
+  if (select created_by from better_supabase.expenses where id = v_orphan) is not null then
+    raise exception 'the backfill named a creator for an owner without a user';
+  end if;
+end;
+$$;`),
     ).resolves.toBeUndefined();
   });
 });
