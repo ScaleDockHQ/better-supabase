@@ -923,13 +923,13 @@ ${userGrant(`${fn("reverse_expense_reimbursement")}(uuid, text)`)}
 -- The expenses of expense_ids the caller decides as owner or creator, in one
 -- read for a list: expense_self_decides for each id.
 create or replace function ${fn("expense_self_decides_many")}(expense_ids uuid[])
-returns setof uuid
+returns uuid[]
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select v_row.${e("id")}
+  select coalesce(array_agg(v_row.${e("id")}), '{}'::uuid[])
   from ${table} v_row
   where v_row.${e("id")} = any (expense_self_decides_many.expense_ids)
     and auth.uid() is not null
@@ -946,7 +946,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select exists (select 1 from ${fn("expense_self_decides_many")}(array[expense_self_decides.expense_id]))
+  select cardinality(${fn("expense_self_decides_many")}(array[expense_self_decides.expense_id])) > 0
 $$;
 ${userGrant(`${fn("expense_self_decides")}(uuid)`)}
 

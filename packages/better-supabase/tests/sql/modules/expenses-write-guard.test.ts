@@ -271,7 +271,7 @@ begin
   ${SERVICE}
   ${refused(`perform better_supabase.decide_expense(v_mine, true, null, '${BOB}')`, "42501", "owner or creator decides only when nobody else can")}
 
-  if exists (select 1 from better_supabase.expense_self_decides_many(array[v_hers, v_mine])) then
+  if cardinality(better_supabase.expense_self_decides_many(array[v_hers, v_mine])) > 0 then
     raise exception 'the batch helper lets Bob self-decide while Carol can approve';
   end if;
 
@@ -280,7 +280,7 @@ begin
   if not better_supabase.expense_self_decides(v_hers) or not better_supabase.expense_self_decides(v_mine) then
     raise exception 'Bob does not self-decide as the only approver';
   end if;
-  if (select count(*) from better_supabase.expense_self_decides_many(array[v_hers, v_mine, gen_random_uuid()])) <> 2 then
+  if cardinality(better_supabase.expense_self_decides_many(array[v_hers, v_mine, gen_random_uuid()])) <> 2 then
     raise exception 'the batch helper does not answer like expense_self_decides';
   end if;
   ${as(ALICE)}

@@ -131,11 +131,7 @@ export function standaloneContract(
       returns: "jsonb",
     },
     { name: "expense_self_decides", args: ["uuid"], returns: "boolean" },
-    {
-      name: "expense_self_decides_many",
-      args: ["uuid[]"],
-      returns: "setof uuid",
-    },
+    { name: "expense_self_decides_many", args: ["uuid[]"], returns: "uuid[]" },
     { name: "get_expense", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_expenses",
