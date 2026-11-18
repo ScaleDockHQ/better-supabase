@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.72.0 (2026-11-18)
+
+- Expenses without reports keep their decision rules in the database (ADR 1090). Behaviour changes:
+
+  - A trigger on the expenses table stamps `decidedBy`, `decidedAt`, `reimbursedBy` and `reimbursedAt`, clears the decision when an expense goes back to submitted or draft, and refuses a client's own write to the status or those columns. A client's new row starts as a draft.
+  - The status moves only along the allowed transitions; an approved or reimbursed expense never goes straight to draft (`EXPENSE_TRANSITION_INVALID`).
+  - The owner and the creator (`createdBy`) can't approve or reject an expense unless nobody else can decide it (another approve key holder, or with `approver: "manager"` the owner's direct manager), as the leave block's `selfDecideWhenTopOfChain` rule. The audit entry carries `selfDecided`. With `standaloneApprovals`, the creator's decision of the approval request is refused too.
+  - Only the owner resubmits a rejected expense.
+  - The amount, currency, category and owner are frozen once approved, and against a client's own write once submitted; the owner changes only in draft, and a client needs the create or update key for it.
+  - `reopenExpense({ expenseId, reason })` takes an approved expense back to submitted, and `reverseExpenseReimbursement({ expenseId, reason })` takes a reimbursed one back to approved; both keep the reason in the audit and record `expense.reopened` and `expense.reimbursement_reversed`. `options.invoicedColumn` makes `reopenExpense` refuse an invoiced expense.
+  - `options.withdrawApproved` is removed: `withdrawExpense` refuses a decided expense with `EXPENSE_ALREADY_DECIDED`. Reopen it instead. `permissions.withdraw` (default the `update` key) now governs withdrawing someone else's submitted expense, not only an approved one.
+  - `reopenExpense` refuses the owner and the creator.
+  - State conflicts (`EXPENSE_ALREADY_SUBMITTED`, `EXPENSE_ALREADY_DECIDED`, `EXPENSE_ALREADY_OPEN`, `EXPENSE_ALREADY_REIMBURSED`, `EXPENSE_NOT_REIMBURSED`, `EXPENSE_INVOICED`) raise SQLSTATE `PT409`, which PostgREST answers with 409 and `mapDbError` maps to a `conflict` error.
+  - `expenseSelfDecides(id)` (`expense_self_decides`) and the leave block's `selfDecides(organizationId)` (`leave_self_decides`) tell an app whether the caller decides their own record.
+
 ## 0.71.0 (2026-11-18)
 
 - Managers whose employee record has an `end_date` before today lose their decision rights, as offboarded managers already do. This applies to the manager step of the approvals block and to the direct decide functions of leave, time entries and expenses. Requests such a manager would have decided now go to the fallback approvers: in the direct decide functions, the members who hold the block's approve permission; in the approvals block, the step's other approvers or, once it escalates, its `escalateTo` approvers. Run `better-supabase upgrade` and generate a migration to pick up the change.
