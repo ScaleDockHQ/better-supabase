@@ -495,7 +495,9 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
           ...managerArgs(row),
           permission: approve,
           manager: managerOn,
-          chain: managerOn,
+          // Only the direct manager decides (managerDecides), so only they
+          // count; a manager higher up would leave the expense with nobody.
+          chain: false,
           also: creator(row),
         })
       : undefined;
@@ -853,6 +855,12 @@ begin
   if not found or ${status("v_row")} <> 'submitted' then
     return;
   end if;
+  -- Approvals keeps the owner, its requester, out; this keeps the creator out
+  -- unless nobody else can decide (ADR 1090).
+  if expense_approval_decided.decided_by is not null and expense_approval_decided.decided_by = ${creator("v_row")}
+    and expense_approval_decided.decided_by is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row")} then
+    ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
+  end if;
   if expense_approval_decided.approved then
     update ${table} x set ${e("updatedAt")} = now()${setStatus("approved")}${set("approvedAt", "now()")}${set("decidedBy", "expense_approval_decided.decided_by")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(expense_approval_decided.note), '')")}
       where x.${e("id")} = v_row.${e("id")}
@@ -908,7 +916,7 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("reopen_expense.expense_id")}
-  if not (${SERVICE_CALLER} or (${decides("v_row")} and ${owner.requester("v_row")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or (${decides("v_row")} and ${owner.requester("v_row")} is distinct from auth.uid() and ${creator("v_row")} is distinct from auth.uid())) then
     ${forbidden("not allowed to reopen this expense")}
   end if;
   if nullif(trim(reopen_expense.reason), '') is null then

@@ -119,6 +119,9 @@ begin
   if pg_trigger_depth() = 1 and v_from in ('approved', 'reimbursed') and ${row("new", frozen)} is distinct from ${row("old", frozen)} then
     ${fail("EXPENSE_LOCKED", "an approved expense keeps its amount, currency, category and owner; reopen it first", "55000")}
   end if;
+  if v_client and v_from <> 'draft' and ${row("new", frozen)} is distinct from ${row("old", frozen)} then
+    ${fail("EXPENSE_LOCKED", "a submitted expense keeps its amount, currency, category and owner; withdraw it to draft first", "55000")}
+  end if;
   if v_from is not distinct from v_to then
     return new;
   end if;

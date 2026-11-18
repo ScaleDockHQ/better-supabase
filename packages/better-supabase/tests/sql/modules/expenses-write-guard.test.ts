@@ -9,8 +9,10 @@ const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
 const BOB = "33333333-3333-4333-8333-333333333333";
 const CAROL = "66666666-6666-4666-8666-666666666666";
+const DAVE = "77777777-7777-4777-8777-777777777777";
 const ALICE_EMPLOYEE = "44444444-4444-4444-8444-444444444444";
 const BOB_EMPLOYEE = "55555555-5555-4555-8555-555555555555";
+const DAVE_EMPLOYEE = "88888888-8888-4888-8888-888888888888";
 
 const ROLES = `
 do $$
@@ -93,8 +95,12 @@ const BLOCKS: AnyBlocksConfig = {
 
 const BOOT = { timeout: 180_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["employees", "expenses"], { modules: BLOCKS });
+async function run(
+  check: string,
+  names: readonly string[] = ["employees", "expenses"],
+  modules: AnyBlocksConfig = BLOCKS,
+): Promise<void> {
+  const files = renderBlocks(names, { modules });
 
   await using stack = await liteStack({
     driver: "pglite",
@@ -230,6 +236,8 @@ begin
   perform better_supabase.submit_expense(v_id);
   set local role authenticated;
   ${refused(`update better_supabase.expenses set employee_id = '${BOB_EMPLOYEE}' where id = v_id`, "55000", "changes owner only in draft")}
+  ${refused("update better_supabase.expenses set amount = 1 where id = v_id", "55000", "withdraw it to draft first")}
+  update better_supabase.expenses set description = 'Taxi home' where id = v_id;
   reset role;
 end;
 $$;`),
@@ -271,11 +279,70 @@ begin
   if better_supabase.decide_expense(v_hers, true) ->> 'decidedBy' <> '${BOB}' then
     raise exception 'the creator could not decide as the only approver';
   end if;
+  ${refused("perform better_supabase.reopen_expense(v_hers, 'typo')", "42501", "not allowed to reopen")}
   if better_supabase.decide_expense(v_mine, false, 'personal') ->> 'status' <> 'rejected' then
     raise exception 'the owner could not decide as the only approver';
   end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("lets the owner decide when their only manager has no login, whoever sits above", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_id uuid;
+begin
+  insert into auth.users (id) values ('${DAVE}');
+  insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${DAVE}', 'member');
+  insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id) values ('${DAVE_EMPLOYEE}', '${TENANT}', '${DAVE}', 'Dave', null);
+  update better_supabase.employees set user_id = null, manager_id = '${DAVE_EMPLOYEE}' where id = '${BOB_EMPLOYEE}';
+  delete from public.approvers;
+  insert into public.approvers values ('${ALICE}');
+  ${as(ALICE)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR', null, 'Taxi') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  if not better_supabase.expense_self_decides(v_id) then
+    raise exception 'a manager two levels up, who can''t decide, blocks Alice';
+  end if;
+  if better_supabase.decide_expense(v_id, true) ->> 'status' <> 'approved' then
+    raise exception 'Alice could not decide with nobody able to';
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps the creator out of an approval request's decision", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_request uuid;
+begin
+  insert into public.approvers values ('${BOB}');
+  ${as(BOB)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR', null, 'Taxi', employee_id => '${ALICE_EMPLOYEE}') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  v_request := (select r.id from better_supabase.approval_requests r where r.subject_id = v_id::text);
+  ${refused("perform better_supabase.decide_approval(v_request, 'approved')", "42501", "owner or creator decides only when nobody else can")}
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_request, 'approved');
+  if ${status("v_id")} <> 'approved' or (select decided_by from better_supabase.expenses where id = v_id) <> '${CAROL}' then
+    raise exception 'Carol could not approve through the request';
+  end if;
+end;
+$$;`,
+        ["employees", "approvals", "expenses"],
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: { owner: "employee", standaloneApprovals: true },
+          },
+        },
+      ),
     ).resolves.toBeUndefined();
   });
 });

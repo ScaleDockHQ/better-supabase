@@ -417,8 +417,8 @@ export interface Expenses<F extends object = Record<never, never>> {
   }): AsyncResult<Expense<F>>;
   /**
    * Takes an approved expense back to submitted for a new decision, with a
-   * reason the audit keeps. A decider who isn't the owner may, until it is
-   * reimbursed or invoiced (`options.invoicedColumn`). Records
+   * reason the audit keeps. A decider who is neither the owner nor the creator
+   * may, until it is reimbursed or invoiced (`options.invoicedColumn`). Records
    * `expense.reopened`.
    */
   reopenExpense(input: {

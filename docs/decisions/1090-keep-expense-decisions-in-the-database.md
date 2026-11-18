@@ -32,18 +32,24 @@ apps could not ask it, so CentraKit copied it into SQL of its own.
   `submitted` or `reimbursed`, and `reimbursed` to `approved`. The trigger
   stamps `decidedBy`/`decidedAt` and `reimbursedBy`/`reimbursedAt` and
   clears the decision when an expense goes back to submitted or draft. The
-  amount, currency, category and owner are frozen from approved onward; the
-  owner changes only in draft, and a client needs the create or update key.
+  amount, currency, category and owner are frozen from approved onward, and
+  for a client's own write from submitted onward; the owner changes only in
+  draft, and a client needs the create or update key.
   Writes from other triggers (`pg_trigger_depth() > 1`, such as an
   `on delete set null` foreign key) skip the freeze.
 - `decide_expense` refuses the owner and the creator (`createdBy`) unless no
   other eligible decider exists: an active member who holds the approve key,
-  or, with `approver: "manager"`, an active manager up the owner's chain.
+  or, with `approver: "manager"`, the owner's direct manager while active
+  with a login. Managers further up don't count, because `managerDecides`
+  lets only the direct manager decide; counting them would leave an expense
+  nobody can decide. With `standaloneApprovals`, the approvals block excludes
+  the owner as the requester and `expense_approval_decided` refuses the
+  creator under the same rule, so the decision rolls back.
   `otherDecider` takes the creator as `also` and no longer needs the
   employees block without `manager` or `chain`. The audit entry carries
   `selfDecided`. `expense_self_decides(id)` and `leave_self_decides(tenant)`
   expose the rule to apps.
-- `reopen_expense(id, reason)` (a decider who isn't the owner, not once
+- `reopen_expense(id, reason)` (a decider who is neither the owner nor the creator, not once
   reimbursed or invoiced through `options.invoicedColumn`) and
   `reverse_expense_reimbursement(id, reason)` (the reimburse key) are the
   only ways back, with the reason in the audit metadata.
@@ -52,6 +58,11 @@ apps could not ask it, so CentraKit copied it into SQL of its own.
 - A state conflict raises SQLSTATE `PT409` through `conflict()` in
   `src/sql/shared.ts`. PostgREST answers it with 409 and `mapDbError` maps it
   to `conflict`, next to `BS409`. Other blocks adopt it as they are touched.
+
+- Data migrations that must correct history disable the trigger for their own
+  transaction (`alter table ... disable trigger bsb_expense_guard`, the fix,
+  `enable trigger`) and never `session_replication_role = replica`, which also
+  skips foreign keys and the audit triggers. App code never bypasses it.
 
 ## Alternatives considered
 
@@ -67,6 +78,10 @@ apps could not ask it, so CentraKit copied it into SQL of its own.
 ## Consequences
 
 An app that wrote the status or decision columns itself must call the
-functions instead. The reports flow (`decide_expense_report`) keeps its rules;
-it moves to the same guard when a report app needs it. A custom access model
+functions instead. The reports flow keeps its function checks without the
+trigger, a follow-up for when a report app needs it; a report has no creator
+column because `create_expense_report` always creates it for the caller, so
+`decide_expense_report` refusing the owner already refuses the creator. The
+approvals block lists the creator as an eligible approver until it learns to
+exclude more users than the requester; the decision itself is refused. A custom access model
 that can't answer for other users never lets the owner or creator decide.
