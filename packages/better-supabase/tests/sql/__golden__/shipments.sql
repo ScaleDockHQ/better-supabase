@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:e522009d93c6ddaf00aff9303957b4eea1934ec081be12e3bac5f4acc4efab65
+-- @bsb-hash sha256:4f653400d6c795f7fb1290b656d44c60178f4ef5271a77c48176a9c2b323de2a
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -893,7 +893,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "better_supabase"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),
@@ -1049,7 +1049,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:d97795d33daeed2c603328cef4a761ff6bea410fb3e519b7eed26b98a5122e7d
+-- @bsb-hash sha256:e38460befc19d328d69f0c80f162b7fdd300ee73e7cf500a0c36de11a36d3834
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2096,7 +2096,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "better_supabase"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),
@@ -2603,7 +2603,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:2c26adae1ada1967986f86fcc91a27b99f18bfbcb44544e87e4a728467186c30
+-- @bsb-hash sha256:d16899c2e957e7ef79efb3192c08cb6afd940fb8cc6b7443ab4f7df512ba6509
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3500,7 +3500,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "app_private"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),
@@ -3656,7 +3656,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:7c0737939caf425d24dbdfef74c197fd2b39f9589bcc591d191971d3fb2d050f
+-- @bsb-hash sha256:064217b7c2f02dc3db338fa9d4a71c739204811ccb8e985f8c6f77cf0946322a
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4548,7 +4548,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "better_supabase"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),
@@ -4837,7 +4837,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:c98f33f64322cf4d5fe70ff1364617ece0a89328036e2cd9dfeeeb62d3cd27e8
+-- @bsb-hash sha256:4f07b7b684e0f98d1a6b5f4ea932dfe965bdc1a49f5ab006fa997875ab01f2eb
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5715,7 +5715,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "better_supabase"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),
@@ -5871,7 +5871,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:0121a1becaeb5c948493dd91c8c040ceb9044c91a188104be19eba39fe5c58e6
+-- @bsb-hash sha256:bf5fe6573a01f1d488467e009cfdc9899ebfc12a455886c7b868de59952571a1
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6763,7 +6763,7 @@ begin
     raise exception 'delivered_to needs 1 to 500 characters' using errcode = '22023', hint = 'SHIPMENT_PROOF_INVALID';
   end if;
   if v_ship."proof_recorded_at" is not null then
-    raise exception 'the proof of delivery is already recorded' using errcode = '55000', hint = 'SHIPMENT_PROOF_RECORDED';
+    raise exception 'the proof of delivery is already recorded' using errcode = 'PT409', hint = 'SHIPMENT_PROOF_RECORDED';
   end if;
   update "better_supabase"."shipments" x set
       "delivered_to" = btrim(record_delivery_proof.delivered_to),

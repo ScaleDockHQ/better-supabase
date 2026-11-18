@@ -6,6 +6,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -394,7 +395,7 @@ begin
   end if;
   if v_old.${t("reverses")} is not null
     or exists (select 1 from ${transactions} x where x.${t("reverses")} = v_old.${t("id")}) then
-    ${fail("LEDGER_ALREADY_REVERSED", "this transaction is a reversal or is already reversed", "55000")}
+    ${conflict("LEDGER_ALREADY_REVERSED", "this transaction is a reversal or is already reversed")}
   end if;
   v_id := ${fn("ledger_post")}(v_old.${t("tenant")}, v_old.${t("kind")},
     (select jsonb_agg(jsonb_build_object('account', y.${e("account")}, 'amount', (-y.${e("amount")})::text) order by y.${e("createdAt")}, y.${e("id")})

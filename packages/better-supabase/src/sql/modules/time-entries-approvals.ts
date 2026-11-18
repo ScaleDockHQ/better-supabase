@@ -2,7 +2,13 @@ import type { BlockSqlContext } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  fail,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+  conflict,
+} from "../shared.ts";
 import { byEmployee, entryLive } from "./time-entries-owner.ts";
 
 /** Timesheets this block submits to approvals. */
@@ -143,11 +149,11 @@ begin
     where s.${t("tenant")} = submit_timesheet.tenant and s.${t("user")} = v_me and s.${t("week")} = v_week
     for update;
   if v_sheet.${t("approvedAt")} is not null then
-    ${fail("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved", "55000")}
+    ${conflict("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved")}
   end if;
   select * into v_approval from ${ar} x where x.${a("id")} = v_sheet.${t("approval")};
   if v_approval.${a("status")} = 'pending' then
-    ${fail("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for approval", "55000")}
+    ${conflict("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for approval")}
   end if;
   ${ctx.hook("before_timesheet_submit", [
     ["uuid", `v_sheet.${t("id")}`],

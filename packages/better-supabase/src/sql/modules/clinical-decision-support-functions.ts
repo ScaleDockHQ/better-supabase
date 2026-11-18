@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, conflict } from "../shared.ts";
 import { decisionSupportSql } from "./clinical-decision-support-sql.ts";
 import {
   CARE_ALERT_DECISIONS,
@@ -259,7 +259,7 @@ begin
     ${sql.invalid("decision is acknowledged or overridden")}
   end if;
   if v_row.${a("status")} = 'resolved' or (v_row.${a("status")} = 'overridden') or (v_row.${a("status")} = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    ${fail("DECISION_SUPPORT_ALERT_STATUS", "this alert has already been decided or resolved", "55000")}
+    ${conflict("DECISION_SUPPORT_ALERT_STATUS", "this alert has already been decided or resolved")}
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row.${a("severity")} = 'critical') then
     ${sql.invalid("overriding an alert, or deciding on a critical one, needs a reason")}

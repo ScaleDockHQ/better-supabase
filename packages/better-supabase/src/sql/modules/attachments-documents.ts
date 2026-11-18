@@ -10,6 +10,7 @@ import {
   SERVICE_CALLER,
   raise,
   serviceGrant,
+  conflict,
 } from "../shared.ts";
 
 /** The entity `import_upsert_batch` takes for attachment records. */
@@ -482,7 +483,7 @@ begin
     ${fail("ATTACHMENT_FORBIDDEN", "not allowed to upload this attachment")}
   end if;
   if v_row.${c("uploadedAt")} is not null or v_row.${c("storage")} = 'stored' then
-    ${fail("ATTACHMENT_NOT_CLAIMABLE", "the file is already stored", "55000")}
+    ${conflict("ATTACHMENT_NOT_CLAIMABLE", "the file is already stored")}
   end if;
   update ${t} a set
     ${c("storage")} = 'pending_upload',
@@ -512,7 +513,7 @@ begin
     ${fail("ATTACHMENT_FORBIDDEN", "not allowed to manage this attachment")}
   end if;
   if v_row.${c("uploadedAt")} is not null or v_row.${c("storage")} = 'stored' then
-    ${fail("ATTACHMENT_NOT_CLAIMABLE", "the file is already stored", "55000")}
+    ${conflict("ATTACHMENT_NOT_CLAIMABLE", "the file is already stored")}
   end if;
   update ${t} a set ${c("storage")} = 'missing' where a.${c("id")} = v_row.${c("id")}
   returning * into v_row;

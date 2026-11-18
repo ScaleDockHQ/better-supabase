@@ -4,7 +4,13 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { booksAccounting } from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  conflict,
+} from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -160,7 +166,7 @@ export function depreciationPatch(
   if v_row.${s("disposedOn")} is not null and (
     ${patch} ?| ${keys} or coalesce(${patch} ->> 'status', 'retired') <> 'retired'
   ) then
-    ${fail("ASSETS_DISPOSED", "a disposed asset stays retired and its book value can't change", "55000")}
+    ${conflict("ASSETS_DISPOSED", "a disposed asset stays retired and its book value can't change")}
   end if;
   if ${patch} ? 'currency' and not ${patch} ? 'acquisitionCost' and v_row.${s("acquisitionCost")} is not null
     and upper(${patch} ->> 'currency') is distinct from v_row.${s("currency")} then
@@ -390,7 +396,7 @@ begin
     ${fail("ASSETS_FORBIDDEN", "not allowed to manage assets")}
   end if;
   if v_row.${s("disposedOn")} is not null then
-    ${fail("ASSETS_DISPOSED", "the asset is already disposed of", "55000")}
+    ${conflict("ASSETS_DISPOSED", "the asset is already disposed of")}
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row.${s("acquiredOn")}, dispose_asset.disposed_on) then

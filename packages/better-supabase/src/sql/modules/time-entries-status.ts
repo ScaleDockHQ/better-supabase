@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import {
+  fail,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+  conflict,
+} from "../shared.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options.userTimeZone";
@@ -357,10 +363,10 @@ ${
     where s.${t("tenant")} = submit_timesheet.tenant and s.${owner.timesheets} = ${by ? "v_owner" : "v_me"} and s.${t("week")} = v_week
     for update;
   if ${is("v_sheet", ["approved"])} then
-    ${fail("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved", "55000")}
+    ${conflict("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved")}
   end if;
   if ${is("v_sheet", ["submitted"])}${linked === undefined ? "" : ` and ${pendingApproval("v_sheet")}`} then
-    ${fail("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for a decision", "55000")}
+    ${conflict("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for a decision")}
   end if;
   ${ctx.hook("before_timesheet_submit", [
     ["uuid", `v_sheet.${t("id")}`],

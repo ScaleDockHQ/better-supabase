@@ -1,6 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, conflict } from "../shared.ts";
 import { purgeBypass } from "./ledger.ts";
 
 /** The proof-of-delivery columns of the shipments table, for the module's names. */
@@ -112,7 +112,7 @@ ${parts.findForWrite("record_delivery_proof.shipment_id")}
     ${fail("SHIPMENT_PROOF_INVALID", "delivered_to needs 1 to 500 characters", "22023")}
   end if;
   if ${recorded} then
-    ${fail("SHIPMENT_PROOF_RECORDED", "the proof of delivery is already recorded", "55000")}
+    ${conflict("SHIPMENT_PROOF_RECORDED", "the proof of delivery is already recorded")}
   end if;
   update ${shipments} x set${set("deliveredTo", "btrim(record_delivery_proof.delivered_to)")}${set("proofReference", "record_delivery_proof.proof_reference")}${set("proofAttachment", "record_delivery_proof.attachment_id")}${set("proofRecordedAt", "now()")}
     ${h("updatedAt")} = now()

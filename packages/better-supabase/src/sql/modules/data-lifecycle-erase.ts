@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { SERVICE_CALLER, fail } from "../shared.ts";
+import { SERVICE_CALLER, fail, conflict } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** One module table an erasure reaches. */
@@ -155,7 +155,7 @@ begin
     ${fail("DSAR_INVALID", "only an erasure request is executed", "22023")}
   end if;
   if v_row.${c("closedAt")} is not null then
-    ${fail("DSAR_CLOSED", "the request is already fulfilled or refused", "55000")}
+    ${conflict("DSAR_CLOSED", "the request is already fulfilled or refused")}
   end if;
   if v_row.${c("verifiedAt")} is null then
     ${fail("DSAR_UNVERIFIED", "verify the requester's identity first", "55000")}
