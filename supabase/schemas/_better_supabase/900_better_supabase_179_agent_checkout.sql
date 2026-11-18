@@ -1,6 +1,6 @@
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:5379310f15f6145958cb3327a68b86a2fce87e000153db54b8229e014f144abf
+-- @bsb-hash sha256:d94763e2acab204e701a9ba90327679928db213d1cc372d920d96e05dffd18af
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -601,7 +601,7 @@ begin
     raise exception 'only a closed mandate is consumed' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
   end if;
   if v_row."status" <> 'active' then
-    raise exception 'the mandate was already used or revoked' using errcode = '55000', hint = 'AGENT_MANDATE_USED';
+    raise exception 'the mandate was already used or revoked' using errcode = 'PT409', hint = 'AGENT_MANDATE_USED';
   end if;
   if v_row."expires_at" <= now() then
     raise exception 'the mandate expired' using errcode = '55000', hint = 'AGENT_MANDATE_EXPIRED';

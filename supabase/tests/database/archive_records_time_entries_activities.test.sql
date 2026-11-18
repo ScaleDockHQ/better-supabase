@@ -32,7 +32,7 @@ select better_supabase.archive_time_entry('00000000-0000-4000-8000-00000000e101'
 select is(pg_temp.n('time_entry.archived'), 1, 'archiving twice records nothing more');
 select throws_ok(
   $$select better_supabase.archive_time_entry('00000000-0000-4000-8000-00000000e103')$$,
-  '55000', null, 'a running timer is not archived'
+  'PT409', null, 'a running timer is not archived'
 );
 
 select is(

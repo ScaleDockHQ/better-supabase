@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:6010866fe79beb6931f6825ae42bf3f019beb6025eab83b45eca88c8adb6963d
+-- @bsb-hash sha256:30a2b105a2ca8043dbd321e6a4a44fcc31ac929042b7b251e3f5fe62d79f3b43
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -194,6 +194,9 @@ begin
   ) then
     return false;
   end if;
+  if coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) ? v_me::text then
+    return false;
+  end if;
   if v_me = v_req."requested_by" then
     if v_req."policy" ->> 'mode' = 'confirm' then
       return true;
@@ -291,6 +294,7 @@ begin
   )
   select q."id" from q
   where not exists (select 1 from "better_supabase"."approval_decisions" x where x."request_id" = q."id" and x."step" = q."step" and x."approver" = q.bsb_me)
+    and not (coalesce(q."policy" -> 'excludedUserIds', '[]'::jsonb) ? q.bsb_me::text)
     and ((q.bsb_me = q."requested_by" and q."policy" ->> 'mode' = 'confirm')
       or ((q.bsb_me is distinct from q."requested_by" or coalesce((q."policy" ->> 'selfApproval')::boolean, false))
         and (case when q."subject_type" = 'support_request' then ("better_supabase"."support_request_approvable"(q."subject_id"::uuid))
@@ -407,7 +411,7 @@ begin
       'summary', left(v_req."action" || coalesce(': ' || v_req."reason", ''), 140),
       'recipients', to_jsonb(v_recipients),
       'permission', v_permission,
-      'exclude', case when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) or approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb else jsonb_build_array(v_req."requested_by") end,
+      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) else jsonb_build_array(v_req."requested_by") || coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) end,
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req."id"::text || ':' || v_req."step"::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req."id", 'action', v_req."action", 'step', v_req."step")
@@ -535,6 +539,7 @@ begin
         where m."organization_id" = open_approval.tenant
           and coalesce(better_supabase.can_user(m."user_id", 'tenant', open_approval.tenant, (e.value -> 'approvers' ->> 'permission')), false)) as u(id)
         where u.id is not null and (u.id is distinct from v_requester or coalesce((v_policy ->> 'selfApproval')::boolean, false))
+          and not (coalesce(v_policy -> 'excludedUserIds', '[]'::jsonb) ? u.id::text)
       ) h on e.value -> 'required' = '"all"'::jsonb
     ));
     if exists (select 1 from jsonb_array_elements(v_policy -> 'steps') e where e.value -> 'required' = '0'::jsonb) then
@@ -1271,6 +1276,9 @@ begin
       and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
       raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
     end if;
+    if v_actor is not null and coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) ? v_actor::text then
+      raise exception 'this user is left out of deciding this request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+    end if;
     if v_actor is not null and exists (
       select 1 from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."approver" = v_actor
@@ -1496,6 +1504,9 @@ begin
   if v_actor is not null and v_actor = v_req."requested_by" and coalesce(v_req."policy" ->> 'mode', 'authorize') <> 'confirm'
     and not coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then
     raise exception 'the requester can''t decide their own request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
+  end if;
+  if v_actor is not null and coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) ? v_actor::text then
+    raise exception 'this user is left out of deciding this request' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
   for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
     v_decision := v_each ->> 'decision';

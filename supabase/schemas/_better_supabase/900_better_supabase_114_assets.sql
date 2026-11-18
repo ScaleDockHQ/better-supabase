@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:0ebb5b41a15b99579e20e93c496dedf9b3f10fd2242e3eccfacd2f13d9f638d9
+-- @bsb-hash sha256:f0e464d6192886ffa26c595171de4e1b569149c45cc03f663764dc9778c4964d
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -531,7 +531,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -1606,7 +1606,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then

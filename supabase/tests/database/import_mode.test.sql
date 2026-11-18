@@ -36,7 +36,7 @@ set local role service_role;
 
 select throws_ok(
   format($$select better_supabase.begin_import_session(%L::uuid)$$, current_setting('better_supabase.run')),
-  '55000',
+  'PT409',
   null,
   'a pending run takes no session'
 );

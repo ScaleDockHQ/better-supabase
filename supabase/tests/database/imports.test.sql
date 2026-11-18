@@ -61,7 +61,7 @@ set local role service_role;
 
 select throws_ok(
   format($$select better_supabase.import_upsert_batch(%L::uuid, 'customer', '[]'::jsonb)$$, current_setting('bsb.run1')),
-  '55000',
+  'PT409',
   null,
   'a pending run takes no items'
 );
