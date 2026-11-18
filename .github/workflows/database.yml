@@ -17,6 +17,9 @@ on:
       - "pnpm-workspace.yaml"
       - "packages/better-supabase/src/workflow-sdk/world/**"
       - "packages/better-supabase/tests/workflow-sdk/world/**"
+      - "scripts/pgtap-shard.ts"
+      - "scripts/pgtap-durations.json"
+      - "packages/better-supabase/tests/unit-shard.ts"
   pull_request:
     branches: [main]
     paths:
@@ -33,6 +36,9 @@ on:
       - "pnpm-workspace.yaml"
       - "packages/better-supabase/src/workflow-sdk/world/**"
       - "packages/better-supabase/tests/workflow-sdk/world/**"
+      - "scripts/pgtap-shard.ts"
+      - "scripts/pgtap-durations.json"
+      - "packages/better-supabase/tests/unit-shard.ts"
 
 permissions:
   contents: read
