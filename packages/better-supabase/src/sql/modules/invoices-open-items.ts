@@ -353,7 +353,12 @@ ${openItemsStoreSql(ctx, {
   partyOf,
   invoiceKind: (alias) => h.kd(`${alias}.${i("kind")}`, ["invoice"]),
   openStatus: (alias) =>
-    h.st(`${alias}.${i("status")}`, ["issued", "partially_paid", "paid"]),
+    h.st(`${alias}.${i("status")}`, [
+      "issued",
+      "partially_paid",
+      "paid",
+      ...(ctx.flag("creditedStatus", false) ? ["credited"] : []),
+    ]),
 })}
 -- Everything a party still owes or is owed on an invoice date: open invoices
 -- and bills with their balance as of the day (payments dated later don't
@@ -411,7 +416,7 @@ begin
         from ${t("invoices")} x
         where x.${i("tenant")} = open_items_for_party.tenant
           and ${h.kd(`x.${i("kind")}`, ["invoice"])}
-          and ${h.st(`x.${i("status")}`, ["issued", "partially_paid", "paid"])}
+          and ${h.st(`x.${i("status")}`, ["issued", "partially_paid", "paid", ...(ctx.flag("creditedStatus", false) ? ["credited"] : [])])}
           and x.${i("issuedOn")} <= v_as_of
           and (open_items_for_party.party_id is null or ${ofParty("x", "open_items_for_party.party_id")})
         union all

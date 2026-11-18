@@ -44,6 +44,14 @@ export type InvoicesSqlOptions = {
   readonly linePositionKey?: boolean;
   readonly paymentsAfterWriteOff?: boolean;
   /**
+   * `true` moves an invoice whose credit notes cover its total and charges to
+   * the `credited` status, unpaid or paid (a refund follows), instead of
+   * `paid`. It is a closed status: no `invoice.paid` event, no charges. Voiding
+   * the credit note moves the invoice back to the status its balance gives. The
+   * status column needs a `credited` value. Default `false`.
+   */
+  readonly creditedStatus?: boolean;
+  /**
    * `true` also sends the `invoice.totals_corrected` event when
    * `recompute_invoice_totals` corrects an invoice. The correction is always
    * audited, and by default it sends no event. Default `false`.
@@ -107,6 +115,7 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     providerPaymentMethods: option.strings({ default: ["stripe", "order"] }),
     linePositionKey: option.boolean({ default: true }),
     paymentsAfterWriteOff: option.boolean({ default: false }),
+    creditedStatus: option.boolean({ default: false }),
     correctionEvents: option.boolean({ default: false }),
     depositKind: option.string(),
     depositLine:
