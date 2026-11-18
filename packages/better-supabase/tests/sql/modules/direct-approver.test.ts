@@ -322,6 +322,9 @@ const decideOwn = (who: string, request: string, expected: string): string => `
 const decidesOwn = (who: string, dates: string, expected: string): string => `
   ${as(who)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, ${dates}) ->> 'id')::uuid;
+  if not better_supabase.leave_self_decides('${TENANT}') then
+    raise exception 'leave_self_decides: ${expected}';
+  end if;
   perform better_supabase.decide_leave_request(v_leave, true);
   if (select approved_at is null or decided_by is distinct from '${who}'::uuid from better_supabase.leave_requests where id = v_leave) then
     raise exception '${expected}';
@@ -330,6 +333,9 @@ const decidesOwn = (who: string, dates: string, expected: string): string => `
 const refusedOwn = (who: string, dates: string, expected: string): string => `
   ${as(who)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, ${dates}) ->> 'id')::uuid;
+  if better_supabase.leave_self_decides('${TENANT}') then
+    raise exception 'leave_self_decides: ${expected}';
+  end if;
   ${decideOwn(who, "v_leave", expected)}`;
 
 const topBlocks = (

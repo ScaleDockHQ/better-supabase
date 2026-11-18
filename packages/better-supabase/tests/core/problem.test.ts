@@ -12,6 +12,23 @@ import {
   toProblem,
 } from "../../src/core/problem.ts";
 
+describe("a state conflict from a block function", () => {
+  it("maps PT409 to a conflict that keeps the hint", () => {
+    const error = mapDbError({
+      code: "PT409",
+      message: "this expense is already decided",
+      hint: "EXPENSE_ALREADY_DECIDED",
+    });
+
+    expect(error).toMatchObject({
+      kind: "conflict",
+      status: 409,
+      hint: "EXPENSE_ALREADY_DECIDED",
+    });
+    expect(problemResponse(error).status).toBe(409);
+  });
+});
+
 describe("rate_limited", () => {
   const error = mapDbError({
     code: "BS429",

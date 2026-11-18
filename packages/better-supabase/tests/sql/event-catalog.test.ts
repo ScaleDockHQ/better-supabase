@@ -83,6 +83,8 @@ const OPTIONAL = new Set([
   "expense.rejected",
   "expense.reimbursed",
   "expense.withdrawn",
+  "expense.reopened",
+  "expense.reimbursement_reversed",
   "expense.purged",
   "object.uploaded",
   "pipeline.stage_changed",

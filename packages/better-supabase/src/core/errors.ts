@@ -637,8 +637,10 @@ function mapBuiltin(raw: RawDbError): DbError {
       return dbError("conflict", message, { ...base, ...extra });
     }
 
-    case "BS409": {
-      // The SQLSTATE of `STALE_WRITE` (src/core/stale-write.ts).
+    case "BS409":
+    case "PT409": {
+      // BS409 is the SQLSTATE of `STALE_WRITE` (src/core/stale-write.ts), PT409
+      // the one block functions raise a state conflict with (ADR 1090).
       return dbError("conflict", message, base);
     }
 

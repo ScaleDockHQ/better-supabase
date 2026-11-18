@@ -206,7 +206,7 @@
   },
   "/[locale]/(app)/chat/page": {
     "raw": 1444598,
-    "gzip": 461988,
+    "gzip": 463146,
     "brotli": 405116
   },
   "/[locale]/(app)/community/page": {

@@ -12,7 +12,7 @@ export interface ErrorCodeEntry {
 export { ERROR_CODES };
 
 const PATTERNS = [
-  /fail\(\s*["']([A-Z][A-Z0-9_]+)["']\s*,\s*["']([^"']*)["']/gu,
+  /(?:fail|conflict)\(\s*["']([A-Z][A-Z0-9_]+)["']\s*,\s*["']([^"']*)["']/gu,
   /hint = '([A-Z][A-Z0-9_]+)'/gu,
   /'code',\s*'([A-Z][A-Z0-9_]+)'(?:\s*,\s*'message',\s*'([^']*)')?/gu,
 ];

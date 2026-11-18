@@ -395,6 +395,12 @@ export interface Leave<F extends object = Record<never, never>> {
     };
   }): AsyncResult<LeaveRequest<F>>;
   /**
+   * Whether the caller decides their own leave in the organization: they hold
+   * `leave.approve` and nobody else can decide it. Needs
+   * `options.selfDecideWhenTopOfChain`.
+   */
+  selfDecides(organizationId: string): AsyncResult<boolean>;
+  /**
    * The approved leave behind a `leave_feed` share link (subject id: the
    * organization's id), a year back and everything ahead, for an iCal feed.
    * `null` for an unknown or revoked token, or when the link's creator can no
@@ -804,6 +810,12 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => requestOf(value, "decide_leave_request"),
       ).andThen(fields.row),
+    selfDecides: (organizationId) =>
+      call(
+        "leave_self_decides",
+        { tenant: organizationId },
+        (value) => value === true,
+      ),
     feed: (token) =>
       call("leave_feed", { token }, (value) => {
         if (value === null || value === undefined) {

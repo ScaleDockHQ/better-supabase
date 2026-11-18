@@ -330,7 +330,11 @@ function build(ctx: BlockSqlContext): string {
       })
     : "";
 
-  if (top === undefined) {
+  if (
+    top === undefined ||
+    (top !== "" &&
+      !(ctx.installed("employees") && ctx.of("employees").mode !== "custom"))
+  ) {
     throw new TypeError(
       "blocks.leave.options.selfDecideWhenTopOfChain needs the employees block's tables",
     );
@@ -358,7 +362,33 @@ function build(ctx: BlockSqlContext): string {
       ? ""
       : ` or (coalesce(${owner.requester("v_row")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and not ${top})`;
 
-  const decide = `
+  const ownTop = otherDecider(ctx, {
+    requester: "auth.uid()",
+    tenant: "leave_self_decides.tenant",
+    permission: approve,
+    manager: manager !== "",
+    chain: decider !== "",
+  });
+
+  const selfDecides =
+    top === ""
+      ? ""
+      : `
+-- Whether the caller decides their own leave in the tenant: they hold the
+-- approve permission and nobody else can decide it. Apps show the rule with it.
+create or replace function ${fn("leave_self_decides")}(tenant ${ctx.idType})
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select auth.uid() is not null and coalesce(${ctx.can("tenant", "leave_self_decides.tenant", approve)}, false) and not ${ownTop ?? "true"}
+$$;
+${userGrant(`${fn("leave_self_decides")}(${ctx.idType})`)}
+`;
+
+  const decide = `${selfDecides}
 -- Approves or rejects a pending request without the approvals block, as the
 -- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}${decider ? "\n-- So does a caller the app's options.decider function accepts." : ""}${top ? "\n-- A requester with the approve permission decides their own request when\n-- nobody else can decide it (options.selfDecideWhenTopOfChain)." : ""}
 drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);

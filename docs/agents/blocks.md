@@ -185,7 +185,10 @@ codemod; a new block uses the convention from the start.
   `serviceGrant`, `serviceOnly`, `sha256Hex` and `pageSize`. Don't copy them
   into a module.
 - Raise errors with an `errcode` and a `hint` such as `API_KEY_FORBIDDEN`;
-  the TypeScript side passes the hint through as the `DbError` hint.
+  the TypeScript side passes the hint through as the `DbError` hint. A
+  conflict with the record's state ("already decided", "already open") uses
+  `conflict(hint, message)` from `shared.ts`, which raises SQLSTATE `PT409`:
+  PostgREST answers 409 and `mapDbError` returns a `conflict` (ADR 1090).
 - Module functions never create temporary tables. `supabase db lint` runs
   plpgsql_check, which reports a table created at runtime as missing
   (42P01) and fails every adopter's lint; use a `materialized` CTE instead.

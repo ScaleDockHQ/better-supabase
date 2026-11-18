@@ -391,7 +391,10 @@ export interface Expenses<F extends object = Record<never, never>> {
     update: ExpenseUpdate<F>;
   }): AsyncResult<Expense<F>>;
   submitExpense(expenseId: string): AsyncResult<Expense<F>>;
-  /** Moves a submitted expense back to draft. */
+  /**
+   * Moves a submitted expense back to draft. A decided one answers a `conflict`
+   * with the hint `EXPENSE_ALREADY_DECIDED`.
+   */
   withdrawExpense(expenseId: string): AsyncResult<Expense<F>>;
   /**
    * Removes a draft expense for good (with `permissions.deleteSubmitted`, a
@@ -412,6 +415,29 @@ export interface Expenses<F extends object = Record<never, never>> {
     expenseId: string;
     input?: { readonly reference?: string } | undefined;
   }): AsyncResult<Expense<F>>;
+  /**
+   * Takes an approved expense back to submitted for a new decision, with a
+   * reason the audit keeps. A decider who is neither the owner nor the creator
+   * may, until it is reimbursed or invoiced (`options.invoicedColumn`). Records
+   * `expense.reopened`.
+   */
+  reopenExpense(input: {
+    expenseId: string;
+    reason: string;
+  }): AsyncResult<Expense<F>>;
+  /**
+   * Takes a reimbursed expense back to approved, with the reimburse key and a
+   * reason the audit keeps. Records `expense.reimbursement_reversed`.
+   */
+  reverseExpenseReimbursement(input: {
+    expenseId: string;
+    reason: string;
+  }): AsyncResult<Expense<F>>;
+  /**
+   * Whether the caller decides this expense as its owner or creator, which
+   * `decideExpense` allows only when nobody else can decide it.
+   */
+  expenseSelfDecides(expenseId: string): AsyncResult<boolean>;
   getExpense(expenseId: string): AsyncResult<Expense<F>>;
   /**
    * The caller's expenses, newest spend first.
@@ -1004,6 +1030,24 @@ export function createExpenses<
         { expense_id: expenseId, reference: input.reference ?? null },
         expense("reimburse_expense"),
       ).andThen(fields.row),
+    reopenExpense: ({ expenseId, reason }) =>
+      call(
+        "reopen_expense",
+        { expense_id: expenseId, reason },
+        expense("reopen_expense"),
+      ).andThen(fields.row),
+    reverseExpenseReimbursement: ({ expenseId, reason }) =>
+      call(
+        "reverse_expense_reimbursement",
+        { expense_id: expenseId, reason },
+        expense("reverse_expense_reimbursement"),
+      ).andThen(fields.row),
+    expenseSelfDecides: (expenseId) =>
+      call(
+        "expense_self_decides",
+        { expense_id: expenseId },
+        (value) => value === true,
+      ),
     getExpense: (expenseId) =>
       call(
         "get_expense",
