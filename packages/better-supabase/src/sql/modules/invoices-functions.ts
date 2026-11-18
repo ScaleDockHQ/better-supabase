@@ -39,6 +39,7 @@ import {
   transitionReasonSql,
   updateExtraColumns,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { linked } from "./banking-sql.ts";
@@ -430,25 +431,44 @@ export function invoiceFunctions(
   };
 
   const afterWriteOff = ctx.flag("paymentsAfterWriteOff", false);
+  const creditedOn = ctx.flag("creditedStatus", false);
 
+  // The statuses of an issued invoice that still settles, with credited when
+  // options.creditedStatus is on.
+  const settling = (writtenOff: boolean): readonly string[] => [
+    "issued",
+    "partially_paid",
+    "paid",
+    ...(writtenOff ? ["uncollectible"] : []),
+    ...(creditedOn ? ["credited"] : []),
+  ];
+
+  // Whether credit notes cover the invoice's total and charges.
+  const fullyCredited = (alias: string): string =>
+    `(${alias}.${i("creditedTotal")} > 0 and ${alias}.${i("creditedTotal")} >= ${alias}.${i("total")}${charges ? ` + ${charged(alias)}` : ""})`;
+
+  // The status update runs only for a settling status, so the alias keeps the
+  // row (an update that matches nothing would clear it).
   const settle = (alias: string, writtenOff = false): string => `
   update ${t("invoices")} x set
     ${i("paidTotal")} = ${ledger.paidTotal("x")},
     ${i("updatedAt")} = now()
   where x.${i("id")} = ${alias}.${i("id")}
   returning * into ${alias};
-  update ${t("invoices")} x set
-    ${i("status")} = ${ctx.cast(
-      "invoices",
-      "status",
-      `case
+  if ${st(`${alias}.${i("status")}`, settling(writtenOff))} then
+    update ${t("invoices")} x set
+      ${i("status")} = ${ctx.cast(
+        "invoices",
+        "status",
+        `case${creditedOn ? `\n      when ${fullyCredited("x")} then 'credited'` : ""}
       when ${balance("x")} <= 0 then 'paid'${writtenOff ? `\n      when ${st(`x.${i("status")}`, ["uncollectible"])} then 'uncollectible'` : ""}
       when x.${i("paidTotal")} > 0 or x.${i("creditedTotal")} > 0 then 'partially_paid'
       else 'issued' end`,
-    )},
-    ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
-  where x.${i("id")} = ${alias}.${i("id")} and ${st(`x.${i("status")}`, writtenOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"])}
-  returning * into ${alias};`;
+      )},
+      ${i("paidAt")} = case${creditedOn ? ` when ${fullyCredited("x")} then x.${i("paidAt")}` : ""} when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
+    where x.${i("id")} = ${alias}.${i("id")}
+    returning * into ${alias};
+  end if;`;
 
   const keep = (logical: string, value: string, key: string): string =>
     has(logical)
@@ -915,12 +935,13 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;${early.declare}
 begin
   ${load("v_row", "issue_invoice.invoice", n.issue, "issue")}
   ${invoiceTemplatesOn(ctx) ? `if v_row.${i("template")} is not null then\n    ${fail("INVOICE_TEMPLATE", "a template invoice cannot be issued", "22023")}\n  end if;` : ""}
   if ${st(`v_row.${i("status")}`, ["draft"], true)} then
-    ${fail("INVOICE_NOT_DRAFT", "the invoice was already issued", "55000")}
+    ${conflict("INVOICE_NOT_DRAFT", "the invoice was already issued")}
   end if;
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${i("id")}) then
     ${fail("INVOICE_EMPTY", "an invoice needs a line before it is issued", "23514")}
@@ -947,11 +968,12 @@ begin
   returning * into v_row;
   ${record("invoice.issued", "v_row", `, 'total', v_row.${i("total")}::text, 'currency', v_row.${i("currency")}, 'dueOn', v_row.${i("dueOn")}`)}
   if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
+    v_was := v_original.${i("status")}::text;
     update ${t("invoices")} x set ${i("creditedTotal")} = x.${i("creditedTotal")} + v_row.${i("total")}, ${i("updatedAt")} = now()
     where x.${i("id")} = v_original.${i("id")}
     returning * into v_original;${settle("v_original")}
     ${record("invoice.credited", "v_original", `, 'creditNoteId', v_row.${i("id")}, 'amount', v_row.${i("total")}::text`)}
-    if ${st(`v_original.${i("status")}`, ["paid"])} then
+    if ${st(`v_original.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
       ${record("invoice.paid", "v_original", `, 'total', v_original.${i("total")}::text`)}
     end if;
   end if;
@@ -985,7 +1007,7 @@ declare
   v_was text;
 begin
   ${load("v_row", "record_invoice_payment.invoice", n.payment, "record a payment on", true, settleKey("v_row"))}
-  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, afterWriteOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"], true)} then
+  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, settling(afterWriteOff), true)} then
     ${fail("INVOICE_NOT_PAYABLE", "only an issued invoice takes payments", "55000")}
   end if;
   if coalesce(record_invoice_payment.amount, 0) = 0 then
@@ -1236,16 +1258,24 @@ set search_path = ''
 as $$
 declare
   v_row ${t("invoices")};
+  v_original ${t("invoices")};
+  v_issued boolean;
 begin
   ${load("v_row", "void_invoice.invoice", n.void, "void")}
   if ${st(`v_row.${i("status")}`, ["draft", "issued"], true)} or v_row.${i("paidTotal")} <> 0 or v_row.${i("creditedTotal")} <> 0 then
     ${fail("INVOICE_NOT_VOIDABLE", "an invoice with payments or credits is credited, not voided", "55000")}
   end if;
+  v_issued := ${st(`v_row.${i("status")}`, ["issued"])};
   ${transitionActorSql("void_invoice.actor", "INVOICE_ACTOR_INVALID")}
   ${transitionReasonSql("void_invoice.reason")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "void")}, ${i("voidedAt")} = now(),
     ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
+  if v_issued and ${kd(`v_row.${i("kind")}`, ["credit_note"])} and v_row.${i("original")} is not null then
+    update ${t("invoices")} x set ${i("creditedTotal")} = greatest(x.${i("creditedTotal")} - v_row.${i("total")}, 0), ${i("updatedAt")} = now()
+    where x.${i("id")} = v_row.${i("original")}
+    returning * into v_original;${settle("v_original")}
+  end if;
   ${unbookSource(ctx, "invoice", `v_row.${i("tenant")}`, `v_row.${i("id")}`)}${voidCharges}
   ${transitionReasonSql()}
   ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
@@ -1310,7 +1340,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from ${ledger.transactions} y where y.${ledger.tx("reverses")} = reverse_invoice_payment.payment) then
-    ${fail("INVOICE_PAYMENT_REVERSED", "this payment is a reversal or is already reversed", "55000")}
+    ${conflict("INVOICE_PAYMENT_REVERSED", "this payment is a reversal or is already reversed")}
   end if;
   ${transitionActorSql("reverse_invoice_payment.actor", "INVOICE_ACTOR_INVALID")}
   ${transitionReasonSql("reverse_invoice_payment.reason")}

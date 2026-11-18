@@ -114,7 +114,7 @@ select is(
 );
 select throws_ok(
   format($$select better_supabase.reverse_ledger_transaction('%s')$$, current_setting('test.bonus')),
-  '55000',
+  'PT409',
   'this transaction is a reversal or is already reversed',
   'a transaction reverses once'
 );

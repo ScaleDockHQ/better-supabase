@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:812633f7e0c304be30dff3a4126510ca5e856310adae03ae81c676ec17e3ed89
+-- @bsb-hash sha256:4dc275ea141b3f6906b083063816c82db5066dddd32f0e14e6e2f6ed0999febf
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -535,7 +535,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")

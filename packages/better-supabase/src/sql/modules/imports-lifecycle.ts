@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, serviceGrant } from "../shared.ts";
+import { fail, serviceGrant, conflict } from "../shared.ts";
 
 /** Lease heartbeats, reference rows and the entity list an override can call. */
 export function importLifecycleSql(
@@ -32,7 +32,7 @@ begin
   where r.${r("id")} = heartbeat_import_run.run and r.${r("status")} = 'running'
   returning r.${r("leaseUntil")} into v_until;
   if v_until is null then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+    ${conflict("IMPORT_RUN_NOT_RUNNING", "the import is not running")}
   end if;
   return v_until;
 end;

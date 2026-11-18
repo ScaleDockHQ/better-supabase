@@ -84,7 +84,8 @@ export type InvoiceStatus =
   | "partially_paid"
   | "paid"
   | "void"
-  | "uncollectible";
+  | "uncollectible"
+  | "credited";
 
 const STATUSES: readonly InvoiceStatus[] = [
   "draft",
@@ -93,6 +94,7 @@ const STATUSES: readonly InvoiceStatus[] = [
   "paid",
   "void",
   "uncollectible",
+  "credited",
 ];
 
 export interface InvoicePayment {

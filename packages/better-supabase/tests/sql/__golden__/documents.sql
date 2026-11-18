@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:8a8a3ec9d9f7f39482453a627fb8863c2937da55bd933aee275f06ca8597967e
+-- @bsb-hash sha256:9e24b50b6ba47671554d9998b58799753da5d098afa6917994f5dc236abf9c65
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -362,7 +362,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "tenant_id", "payload", "actor")
@@ -538,7 +538,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:be98f86891ce7adda8d37adaf904d657e3105a56eed7720340187044833f0772
+-- @bsb-hash sha256:a228382cfe3f564babd627c3ad99cc09282eb3bedd0d1fbfa1cfb158355a789a
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -907,7 +907,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "tenant_id", "payload", "actor")
@@ -1224,7 +1224,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:d29f02fe01a22daf27ea8a321966d31f130d81a958cbe7b29fae5ba4890a61f5
+-- @bsb-hash sha256:09665eb66b9fcf83192d27cdaa22bc25389db5475e0173f7909e8ff7629115f3
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1590,7 +1590,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "app_private"."document_updates" ("document_id", "tenant_id", "payload", "actor")
@@ -1766,7 +1766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2ad2d221d2e5ef54c9bb5b89a8096bdca69afe178b38d15d8df36115371576cb
+-- @bsb-hash sha256:9dee786cd9798e667836a6fbe872065c59e39fc39344324560195c87df77f4b7
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2127,7 +2127,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "tenant_id", "payload", "actor")
@@ -2402,7 +2402,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:1dfd5d46c7a958eb72fdc034f657e16fb5e0c3f839d854afdfdc757d54115d3d
+-- @bsb-hash sha256:0b81696f2ac9f40b854fc5df87387a80f15b2cf394d181b8f92f8028ea2f04bb
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2756,7 +2756,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "tenant_id", "payload", "actor")
@@ -2932,7 +2932,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:29249bef3a4ee340fcdf09fdb44264d0ff3d0814bf7b52a3834b7c6afdee966d
+-- @bsb-hash sha256:19dd9287fb18e4f476940551665c62fa86f97b3e05dffb006ff36feefe3a78f5
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3293,7 +3293,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "org_id", "payload", "actor")

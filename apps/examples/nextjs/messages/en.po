@@ -5765,6 +5765,11 @@ msgid "Uncollectible"
 msgstr "Uncollectible"
 
 #: src/features/billing/components/invoices-table.tsx
+msgctxt "billing.ChZ06t"
+msgid "Credited"
+msgstr "Credited"
+
+#: src/features/billing/components/invoices-table.tsx
 msgctxt "billing.6dqYnF"
 msgid "Invoices"
 msgstr "Invoices"

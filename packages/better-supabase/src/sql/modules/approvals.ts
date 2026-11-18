@@ -114,6 +114,13 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       ? `${row}.${c("policy")}`
       : `${ctx.fn("approval_policy")}(${row}.${c("subjectType")}, ${row}.${c("action")})`;
 
+  // The users a request's snapshot leaves out of deciding, next to the
+  // requester (open_approval callers set excludedUserIds, such as a creator).
+  const excluded = (row: string): string =>
+    has("policy")
+      ? `coalesce(${row}.${c("policy")} -> 'excludedUserIds', '[]'::jsonb)`
+      : "'[]'::jsonb";
+
   // A request without a step column stays on its single step 0.
   const stepOf = (row: string): string =>
     has("step") ? `${row}.${c("step")}` : "0";
@@ -633,7 +640,12 @@ ${indent}end if;`;
     where ${tenantless ? `case when n.t is null then ${ctx.staff("n.p")} else ${ctx.can("tenant", "n.t", "n.p")} end` : ctx.can("tenant", "n.t", "n.p")}
   )
   select q.${c("id")} from q
-  where not ${decidedHere("q")}
+  where not ${decidedHere("q")}${
+    has("policy")
+      ? `
+    and not (coalesce(${policyOf("q")} -> 'excludedUserIds', '[]'::jsonb) ? q.bsb_me::text)`
+      : ""
+  }
     and ((q.bsb_me = q.${c("requestedBy")} and ${policyOf("q")} ->> 'mode' = 'confirm')
       or ((q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false))
         and ${linkedSet.length === 0 ? setCore : `(case ${linkedSet.join("\n          ")}\n          else ${setCore} end)`}))`;
@@ -656,6 +668,7 @@ ${indent}end if;`;
     stepsRefusal,
     linkedReject,
     commentRefusal,
+    excluded,
   };
 
   const allHolders = allHoldersSql(kit, holders);
@@ -731,7 +744,7 @@ ${indent}end if;`;
       'summary', left(v_req.${c("action")}${has("reason") ? ` || coalesce(': ' || v_req.${c("reason")}, '')` : ""}, 140),
       'recipients', to_jsonb(v_recipients),
       'permission', v_permission,
-      'exclude', case when coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) or approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb else jsonb_build_array(v_req.${c("requestedBy")}) end,
+      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then ${excluded("v_req")} else jsonb_build_array(v_req.${c("requestedBy")}) || ${excluded("v_req")} end,
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req.${c("id")}::text || ':' || ${stepOf("v_req")}::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req.${c("id")}, 'action', v_req.${c("action")}, 'step', ${stepOf("v_req")})
@@ -881,7 +894,14 @@ begin
     where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")} and x.${d("approver")} = v_me
   ) then
     return false;
-  end if;
+  end if;${
+    has("policy")
+      ? `
+  if coalesce(${policyOf("v_req")} -> 'excludedUserIds', '[]'::jsonb) ? v_me::text then
+    return false;
+  end if;`
+      : ""
+  }
   if v_me = v_req.${c("requestedBy")} then
     if ${policyOf("v_req")} ->> 'mode' = 'confirm' then
       return true;

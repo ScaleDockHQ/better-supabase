@@ -11,7 +11,7 @@ import type { BlockSqlOperations } from "./permissions-model.ts";
 
 import { hasLegalEntityColumn } from "../numbering-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, serviceGrant, userGrant, conflict } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 
 const INVOICE = [
@@ -377,7 +377,7 @@ begin
     ${fail("INVOICE_APPROVAL_NOT_REQUIRED", "no approval level applies to this bill", "55000")}
   end if;
   if v_state ->> 'status' = 'approved' then
-    ${fail("INVOICE_ALREADY_APPROVED", "the bill has every approval it needs", "55000")}
+    ${conflict("INVOICE_ALREADY_APPROVED", "the bill has every approval it needs")}
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver

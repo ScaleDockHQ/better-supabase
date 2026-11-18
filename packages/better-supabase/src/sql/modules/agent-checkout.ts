@@ -22,6 +22,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import {
   AGENT_MANDATE_STATUSES,
@@ -606,7 +607,7 @@ begin
     ${fail("AGENT_MANDATE_INVALID", "only a closed mandate is consumed", "22023")}
   end if;
   if v_row.${m("status")} <> 'active' then
-    ${fail("AGENT_MANDATE_USED", "the mandate was already used or revoked", "55000")}
+    ${conflict("AGENT_MANDATE_USED", "the mandate was already used or revoked")}
   end if;
   if v_row.${m("expiresAt")} <= now() then
     ${fail("AGENT_MANDATE_EXPIRED", "the mandate expired", "55000")}

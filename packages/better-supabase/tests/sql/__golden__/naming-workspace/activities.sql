@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:9a1e3c6b464ade54586737a183f5f4da3f46ea9c8deb374dc6b798088790d3d3
+-- @bsb-hash sha256:9b41dc8851ce46f0144d09b32e45eb6b413546e8c1bc4888255c1c06be0fafc5
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -569,7 +569,7 @@ begin
     raise exception 'say why the activity is in error' using errcode = '23502', hint = 'ACTIVITY_REASON_REQUIRED';
   end if;
   if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null) and x."marked_error_at" is not null) then
-    raise exception 'the activity is already marked in error' using errcode = '55000', hint = 'ACTIVITY_ALREADY_MARKED_ERROR';
+    raise exception 'the activity is already marked in error' using errcode = 'PT409', hint = 'ACTIVITY_ALREADY_MARKED_ERROR';
   end if;
   update "better_supabase"."activities" x set
     "marked_error_at" = now(),

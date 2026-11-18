@@ -14,6 +14,7 @@ import {
   pageSize,
   writeExtraColumns,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { requireSettings } from "./accounting-setup.ts";
 import {
@@ -453,7 +454,7 @@ begin
     ${entryNotFound}
   end if;
   if v_row.${e("status")} = 'reversed' then
-    ${fail("ACCOUNTING_ENTRY_REVERSED", "the entry is already reversed", "55000")}
+    ${conflict("ACCOUNTING_ENTRY_REVERSED", "the entry is already reversed")}
   end if;
   if v_row.${e("status")} <> 'posted' then
     ${invalid("only a posted entry can be reversed; delete a draft instead")}

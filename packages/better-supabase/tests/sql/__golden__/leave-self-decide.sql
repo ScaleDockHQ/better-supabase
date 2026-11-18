@@ -45,7 +45,7 @@ begin
     raise exception 'not allowed to decide this leave request; only the service role decides for another user, never for the requester' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if not (v_row."cancelled_at" is null and v_row."approved_at" is null and v_row."rejected_at" is null) then
-    raise exception 'this leave request was already decided or cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request was already decided or cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if decide_leave_request.approved is null then
     raise exception 'approved must be true or false' using errcode = '22023', hint = 'LEAVE_INVALID';

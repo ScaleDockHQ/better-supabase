@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 import { sqlString, sqlIdent } from "../../core/template.ts";
-import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { fail, SERVICE_CALLER, userGrant, conflict } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The note categories `options.noteCategories` falls back to. */
@@ -429,7 +429,7 @@ begin
     ${fail("ACTIVITY_REASON_REQUIRED", "say why the activity is in error", "23502")}
   end if;
   if exists (select 1 from ${t("activities")} x where x.${e("id")} = v_id and ${editable("x")} and x.${e("markedErrorAt")} is not null) then
-    ${fail("ACTIVITY_ALREADY_MARKED_ERROR", "the activity is already marked in error", "55000")}
+    ${conflict("ACTIVITY_ALREADY_MARKED_ERROR", "the activity is already marked in error")}
   end if;
   update ${t("activities")} x set
     ${sets().join(",\n    ")}

@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, conflict } from "../shared.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options";
@@ -167,7 +167,7 @@ begin
     ${fail("TIME_ENTRY_NOT_FOUND", "no such entry of yours", "P0002")}
   end if;
   if ${running("v_row")} then
-    ${fail("TIME_TIMER_RUNNING", "this timer is already running", "55000")}
+    ${conflict("TIME_TIMER_RUNNING", "this timer is already running")}
   end if;
   if not (${entryLive(ctx, "v_row")}) then
     ${fail("TIME_ENTRY_ARCHIVED", "restore this entry before resuming it", "55000")}

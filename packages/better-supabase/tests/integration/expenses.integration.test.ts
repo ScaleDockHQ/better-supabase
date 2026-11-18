@@ -285,6 +285,15 @@ describe.skipIf(!live)("expenses", () => {
 
       await expenses.submitExpense(claim.id).orThrow();
       expect(await expenses.expenseSelfDecides(claim.id).orThrow()).toBe(true);
+      expect([
+        ...(await expenses.expenseSelfDecidesMany([claim.id]).orThrow()),
+      ]).toEqual([claim.id]);
+      expect(
+        await s.value(
+          "(select created_by::text from better_supabase.expenses where id = $1)",
+          [claim.id],
+        ),
+      ).toBe(owner.id);
 
       const approved = await expenses
         .decideExpense({ expenseId: claim.id, decision: { approved: true } })
@@ -351,6 +360,9 @@ describe.skipIf(!live)("expenses", () => {
 
       await expenses.submitExpense(own.id).orThrow();
       expect(await expenses.expenseSelfDecides(own.id).orThrow()).toBe(false);
+      expect(
+        (await expenses.expenseSelfDecidesMany([own.id]).orThrow()).size,
+      ).toBe(0);
       expect(
         await expenses
           .decideExpense({ expenseId: own.id, decision: { approved: true } })

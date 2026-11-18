@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@3 managed
--- @bsb-hash sha256:41ca86f308c777bae6306292594ef4f9dc6673e2a54428fa96da6c036f918bf2
+-- @bsb-hash sha256:ffe96d64344f1b6f27a0e27a8b112f55e4862e59961dd2260e0e3627b370dda6
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -426,7 +426,7 @@ begin
     raise exception 'not allowed to cancel this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   if v_run."status" not in ('pending', 'running') then
-    raise exception 'this import already finished' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+    raise exception 'this import already finished' using errcode = 'PT409', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
   update "centrakit"."import_runs" r set "status" = better_supabase.as_column_type('canceled', (null::"centrakit"."import_runs")."status"), "finished_at" = now()
   where r."id" = cancel_import_run.id;
@@ -1114,7 +1114,7 @@ begin
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
   if v_status <> 'running' then
-    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+    raise exception 'the import is not running' using errcode = 'PT409', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
   perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
   perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
@@ -1151,7 +1151,7 @@ begin
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+    raise exception 'the import is not running' using errcode = 'PT409', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
   if coalesce((v_run."plan" ->> 'unordered')::boolean, false) is distinct from true
     and jsonb_typeof(v_run."plan" -> 'waves') = 'array'
@@ -1278,7 +1278,7 @@ begin
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+    raise exception 'the import is not running' using errcode = 'PT409', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
   v_counts := v_run."counts";
 
@@ -1352,7 +1352,7 @@ begin
   where r."id" = heartbeat_import_run.run and r."status" = 'running'
   returning r."lease_expires_at" into v_until;
   if v_until is null then
-    raise exception 'the import is not running' using errcode = '55000', hint = 'IMPORT_RUN_NOT_RUNNING';
+    raise exception 'the import is not running' using errcode = 'PT409', hint = 'IMPORT_RUN_NOT_RUNNING';
   end if;
   return v_until;
 end;

@@ -41,7 +41,7 @@ select is(
 );
 select throws_ok(
   format($$select api.update_asset(%L, '{"status":"available"}')$$, current_setting('test.asset')),
-  '55000',
+  'PT409',
   'a disposed asset stays retired and its book value can''t change',
   'a disposed asset cannot come back'
 );

@@ -14,6 +14,7 @@ import {
   serviceGrant,
   sha256HexSql,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { batchSql } from "./imports-batch.ts";
 import { chunkFunctions, chunkTable } from "./imports-chunks.ts";
@@ -402,7 +403,7 @@ begin
     ${fail("IMPORT_FORBIDDEN", "not allowed to cancel this import")}
   end if;
   if v_run.${r("status")} not in ('pending', 'running') then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "this import already finished", "55000")}
+    ${conflict("IMPORT_RUN_NOT_RUNNING", "this import already finished")}
   end if;
   update ${runs} r set ${r("status")} = ${ctx.cast("runs", "status", "'canceled'")}, ${r("finishedAt")} = now()
   where r.${r("id")} = cancel_import_run.id;
@@ -700,7 +701,7 @@ begin
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;
   if v_status <> 'running' then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+    ${conflict("IMPORT_RUN_NOT_RUNNING", "the import is not running")}
   end if;
   perform set_config('better_supabase.import_run', begin_import_session.run::text, true);
   perform set_config('better_supabase.correlation_id', 'import:' || begin_import_session.run::text, true);
@@ -736,7 +737,7 @@ begin
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;
   if v_run.${r("status")} <> 'running' then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+    ${conflict("IMPORT_RUN_NOT_RUNNING", "the import is not running")}
   end if;
   if coalesce((v_run.${r("plan")} ->> 'unordered')::boolean, false) is distinct from true
     and jsonb_typeof(v_run.${r("plan")} -> 'waves') = 'array'
@@ -849,7 +850,7 @@ begin
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;
   if v_run.${r("status")} <> 'running' then
-    ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
+    ${conflict("IMPORT_RUN_NOT_RUNNING", "the import is not running")}
   end if;
   v_counts := v_run.${r("counts")};
 
