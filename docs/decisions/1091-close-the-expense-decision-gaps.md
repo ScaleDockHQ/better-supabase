@@ -64,6 +64,10 @@ refused. Reports had none of the write guards.
 
 ## Consequences
 
-Expense rows created before this release with an empty `created_by` are
-decided only when nobody else can; backfill the column. Apps that catch
+The expenses module moves to version 2, whose upgrade step backfills an
+empty `created_by` with the owner's user, so only rows whose owner has no user
+keep failing closed. `reopen_expense` follows the same "nobody else can"
+escape as `decide_expense`. Voiding a credit note restores the original
+invoice's derived status from this release on; credit notes voided earlier
+are not restored. Apps that catch
 `55000` for the converted codes now get `PT409` (HTTP 409, `conflict`).
