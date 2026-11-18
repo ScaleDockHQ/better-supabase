@@ -1472,7 +1472,7 @@
   "/api/collections/list/route": {
     "raw": 2763189,
     "gzip": 832265,
-    "brotli": 704748
+    "brotli": 706524
   },
   "/api/commission-plans/list/route": {
     "raw": 2650470,
@@ -1752,7 +1752,7 @@
   "/api/passes/list/route": {
     "raw": 2763389,
     "gzip": 832212,
-    "brotli": 704691
+    "brotli": 706457
   },
   "/api/periods/export/route": {
     "raw": 2650536,
