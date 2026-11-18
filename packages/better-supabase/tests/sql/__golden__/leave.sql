@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:d0678c85ec01c1b943f38b1e07c355dbabeee033b48f1b0967392abcf6fba287
+-- @bsb-hash sha256:4bb1b68e1fd1c47b00cd10b5b7ce473e07d18f98cab57a409d9394da028681d0
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -661,7 +661,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -725,7 +725,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -845,7 +845,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then
@@ -1392,7 +1392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f4ba20631ef80b98ef85f568f21e8f3a8c19d51d968d01494531813ef0effce8
+-- @bsb-hash sha256:857f13a5a0008e2bb2c90b9c0726b99585adc9d4463a5d254b87834866d665db
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2152,7 +2152,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -2232,7 +2232,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -2368,7 +2368,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then
@@ -3150,7 +3150,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a1f7072693ca97e6aa600298ce7d57842543c05da65d6cf4562b7cab8cdb5364
+-- @bsb-hash sha256:01eec1893db2a444e84610b80963c5d06d035c385bb7ddb15322d0cd88429c5c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3815,7 +3815,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -3879,7 +3879,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -3999,7 +3999,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "app_private"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then
@@ -4546,7 +4546,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:0e5c17f64e7b3ac6e3f05a6ec42e577be44b7fa6a0143e8a4f8956df79d2824d
+-- @bsb-hash sha256:8ce66dc13b751e5ab6de1974e7eac4398e22c21b27d61ed65d3a83bd1b944a82
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5206,7 +5206,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -5270,7 +5270,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -5390,7 +5390,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then
@@ -6113,7 +6113,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:10f91564f3930234e96abacdcd78dd743f49d081f0e2e4e3cbff52b994028a87
+-- @bsb-hash sha256:6bd2d76cc1770c212261399b0b1847b0bb1b624e96435539263732b4fcfc4455
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6759,7 +6759,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -6823,7 +6823,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -6937,7 +6937,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then
@@ -7484,7 +7484,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:1b40a742cb3453a0626522adb100ad1fdf6a286b660a70bfbe940e6c6bf67d6a
+-- @bsb-hash sha256:aaafc41ab02b5d5c9c7312f870df5938b0041703e7ecbf28f0ef7ac754084011
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8144,7 +8144,7 @@ begin
     raise exception 'not allowed to cancel this leave request' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_row."cancelled_at" is not null then
-    raise exception 'this leave request is already cancelled' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then
     raise exception 'leave that has started can only be cancelled by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -8208,7 +8208,7 @@ begin
   end if;
   v_status := case when v_row."cancelled_at" is not null then 'cancelled' when v_row."approved_at" is not null then 'approved' when v_approval."status" in ('rejected', 'expired') then 'rejected' when v_approval."status" = 'cancelled' then 'cancelled' else 'pending' end;
   if v_status not in ('pending', 'approved') then
-    raise exception 'only a pending or approved leave request changes' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only a pending or approved leave request changes' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if v_status = 'approved' and not v_manager then
     raise exception 'approved leave is changed by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
@@ -8328,7 +8328,7 @@ begin
     raise exception 'approved leave is split by a manager' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if v_old."approved_at" is null or v_old."cancelled_at" is not null then
-    raise exception 'only approved leave is split' using errcode = '55000', hint = 'LEAVE_REQUEST_CLOSED';
+    raise exception 'only approved leave is split' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   select * into v_type from "better_supabase"."leave_types" x where x."id" = v_old."type_id";
   if v_type."unit" = 'hours' then

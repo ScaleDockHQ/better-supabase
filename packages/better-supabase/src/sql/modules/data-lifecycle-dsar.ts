@@ -12,7 +12,13 @@ import {
   listDeclare,
   searchPattern,
 } from "../list-template.ts";
-import { SERVICE_CALLER, fail, lockTable, userGrant } from "../shared.ts";
+import {
+  SERVICE_CALLER,
+  fail,
+  lockTable,
+  userGrant,
+  conflict,
+} from "../shared.ts";
 import { lifecycleJson } from "./data-lifecycle-app.ts";
 import { eraseSql } from "./data-lifecycle-erase.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -303,7 +309,7 @@ begin
     ${closed}
   end if;
   if v_row.${c("extendedAt")} is not null then
-    ${fail("DSAR_EXTENDED", "the due date was already extended once", "55000")}
+    ${conflict("DSAR_EXTENDED", "the due date was already extended once")}
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     ${fail("DSAR_INVALID", "reason is required", "22023")}

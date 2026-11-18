@@ -260,13 +260,13 @@ select set_config(
 );
 select throws_ok(
   format($$select better_supabase.claim_attachment_upload(%L::uuid)$$, (select id from better_supabase.attachments where external_id = 'f-2')),
-  '55000',
+  'PT409',
   null,
   'a stored file can''t be claimed'
 );
 select throws_ok(
   format($$select better_supabase.mark_attachment_missing(%L::uuid)$$, (select id from better_supabase.attachments where external_id = 'f-2')),
-  '55000',
+  'PT409',
   null,
   'a stored file can''t be marked missing'
 );

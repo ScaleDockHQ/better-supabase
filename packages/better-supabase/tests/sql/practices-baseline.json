@@ -207,7 +207,8 @@
     "security-definer-functions": 9
   },
   "expenses": {
-    "security-definer-functions": 110
+    "security-definer-functions": 116,
+    "row-triggers": 12
   },
   "field-encryption": {
     "security-definer-functions": 32

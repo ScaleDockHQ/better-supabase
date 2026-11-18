@@ -334,7 +334,7 @@ function matchFunctions(
       sum(case when ${inclusive} then round((${amount} - ${discount}) * 10000.0 / (10000 + ${rate})) else ${amount} - ${discount} end) as net
     from ${t("lines")} il join ${t("invoices")} b on b.${i("id")} = il.${l("parent")}
     where b.${i("purchaseOrder")} = v_row.${i("purchaseOrder")} and b.${i("direction")} = 'purchase'
-      and ${h.kd(`b.${i("kind")}`, ["invoice"])} and (b.${i("id")} = v_row.${i("id")} or ${h.st(`b.${i("status")}`, ["issued", "partially_paid", "paid"])})
+      and ${h.kd(`b.${i("kind")}`, ["invoice"])} and (b.${i("id")} = v_row.${i("id")} or ${h.st(`b.${i("status")}`, ["issued", "partially_paid", "paid", ...(ctx.flag("creditedStatus", false) ? ["credited"] : [])])})
       and ${product} is not null
     group by 1, 2
   ),

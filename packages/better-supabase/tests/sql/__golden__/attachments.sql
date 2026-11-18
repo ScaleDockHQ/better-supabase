@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:896f1d66f933cbc81dfbace1855c37f6026021a81f7cc2e201e5d48471139f7c
+-- @bsb-hash sha256:51496aec0ece0e8591234f3836b9f0afb013d3c4680c11b002647d142682badd
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -661,7 +661,7 @@ begin
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set
     "storage_status" = 'pending_upload',
@@ -694,7 +694,7 @@ begin
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set "storage_status" = 'missing' where a."id" = v_row."id"
   returning * into v_row;
@@ -1421,7 +1421,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:003a548b24726fa53455a9ac6b8a06916b44ddcf35f614836797da4810626c93
+-- @bsb-hash sha256:5b11c01d82d6df477179db452a978acab46ae081aaf7f20e285ab7f8fd38663d
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2099,7 +2099,7 @@ begin
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set
     "storage_status" = 'pending_upload',
@@ -2132,7 +2132,7 @@ begin
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set "storage_status" = 'missing' where a."id" = v_row."id"
   returning * into v_row;
@@ -2986,7 +2986,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:daf009e99d45e940fba80f7d1784d590546b21b260d22cc5498a4884eed7c19b
+-- @bsb-hash sha256:21ccf0466412da5155f57c73dfedc92ce046227af92a33f20134128deb53bb57
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3651,7 +3651,7 @@ begin
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "app_private"."attachments" a set
     "storage_status" = 'pending_upload',
@@ -3684,7 +3684,7 @@ begin
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "app_private"."attachments" a set "storage_status" = 'missing' where a."id" = v_row."id"
   returning * into v_row;
@@ -4411,7 +4411,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:ee868a22c0c9dcec2263a005d1ca56fd0069ff89cfef096c094e25b419d2ba2d
+-- @bsb-hash sha256:7b278e07f721912e8c3cf0697e85dfaa5221f59b74f45b677bce683a4d7f440b
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5071,7 +5071,7 @@ begin
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set
     "storage_status" = 'pending_upload',
@@ -5104,7 +5104,7 @@ begin
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set "storage_status" = 'missing' where a."id" = v_row."id"
   returning * into v_row;
@@ -7260,7 +7260,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:0758cbcadcb95602770108c2dc8a3313e5da45a28310e01ebd48518fcd31a327
+-- @bsb-hash sha256:5bb15a1cacf6a4d950fd480393fbebea52ab05bc97c559842b19e185529c5ff4
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7920,7 +7920,7 @@ begin
     raise exception 'not allowed to upload this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set
     "storage_status" = 'pending_upload',
@@ -7953,7 +7953,7 @@ begin
     raise exception 'not allowed to manage this attachment' using errcode = '42501', hint = 'ATTACHMENT_FORBIDDEN';
   end if;
   if v_row."uploaded_at" is not null or v_row."storage_status" = 'stored' then
-    raise exception 'the file is already stored' using errcode = '55000', hint = 'ATTACHMENT_NOT_CLAIMABLE';
+    raise exception 'the file is already stored' using errcode = 'PT409', hint = 'ATTACHMENT_NOT_CLAIMABLE';
   end if;
   update "better_supabase"."attachments" a set "storage_status" = 'missing' where a."id" = v_row."id"
   returning * into v_row;

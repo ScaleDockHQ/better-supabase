@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:914e51cafd7cdfd6632a4e65c55aa0344ce77bd7e7445c97336b363e3aa69142
+-- @bsb-hash sha256:d8bcf87728ba6c146f2fdcd8eb4872962e19027946347c4afa07d9940044a390
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -505,7 +505,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
@@ -948,7 +948,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:002a3002c428ef12d7e95d0262fd1d1953d4bbd5c358edab33006640f93babf5
+-- @bsb-hash sha256:e9d2ce4849e00d48fd3067c55a2131bc54ce9893ebf898790e25ea7d8aa30e61
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1483,7 +1483,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
@@ -1941,7 +1941,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:6c03a7c5ef3446d954245bb3629e15e87b55635b7a8a9726d387c8537ff7460f
+-- @bsb-hash sha256:87d39bd74db2971165d9c838b87ad16390e204b94d3d0a89a6ef214b679f43ef
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2450,7 +2450,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "app_private"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "app_private"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
@@ -2893,7 +2893,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:a0c8953af0478b6b95e0ef347af7989001f28b9fdea41ddc3f6c3a5dfef1de40
+-- @bsb-hash sha256:a922142b76ced6ebc8a0e97745c9c9f3b5ae5ebb15398ad718220723e85b6e75
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3397,7 +3397,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
@@ -3959,7 +3959,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:344a77d3d929f388e51024b0d8633d9dcdd760b9b9a0231cb53f9924269b6d99
+-- @bsb-hash sha256:021898d92bf74a38f62a163561ec0eb5efe95b829f3a9436826729f970935885
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4446,7 +4446,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."tenant_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")
@@ -4889,7 +4889,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:81ee43da6e9ddd0888a5c0ea9f1c2fd5463d6e1bd415b7ee25cbfb5f4379b43c
+-- @bsb-hash sha256:6a3848f350c1794b964aa04ab11d1b6e9636866712e4486edc6bf29676cdb335
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5393,7 +5393,7 @@ begin
   end if;
   if v_old."reverses" is not null
     or exists (select 1 from "better_supabase"."ledger_transactions" x where x."reverses" = v_old."id") then
-    raise exception 'this transaction is a reversal or is already reversed' using errcode = '55000', hint = 'LEDGER_ALREADY_REVERSED';
+    raise exception 'this transaction is a reversal or is already reversed' using errcode = 'PT409', hint = 'LEDGER_ALREADY_REVERSED';
   end if;
   v_id := "better_supabase"."ledger_post"(v_old."org_id", v_old."kind",
     (select jsonb_agg(jsonb_build_object('account', y."account_id", 'amount', (-y."amount")::text) order by y."created_at", y."id")

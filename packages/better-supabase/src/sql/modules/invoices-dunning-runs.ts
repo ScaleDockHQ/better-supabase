@@ -3,7 +3,7 @@ import type { CollectionHelpers } from "./invoices-collections.ts";
 import type { InvoiceNames } from "./invoices-names.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, userGrant, conflict } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 
 /**
@@ -435,7 +435,7 @@ begin
       ${fail("INVOICE_NOT_PAYABLE", "only an open sales invoice goes to collection", "55000")}
     end if;
     if v_row.${i("collectionStatus")} is not null then
-      ${fail("INVOICE_ALREADY_HANDED_OVER", "the invoice was handed over to collection already", "55000")}
+      ${conflict("INVOICE_ALREADY_HANDED_OVER", "the invoice was handed over to collection already")}
     end if;
     update ${t("invoices")} x set
       ${i("collectionStatus")} = 'handed_over',

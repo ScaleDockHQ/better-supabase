@@ -165,7 +165,7 @@ export function itemsSql(
   sql: ApprovalItemsSql,
 ): string {
   const { requests, decisions, c, d, has, fn, stepOf, policyOf } = k;
-  const { record, json, decided, notFound, also, alsoValue } = k;
+  const { record, json, decided, notFound, also, alsoValue, excluded } = k;
   const items = ctx.table("items");
   const i = (column: string): string => ctx.col("items", column);
   const extras = ctx.extraColumns("items", ITEM_KEYS);
@@ -307,6 +307,9 @@ begin
   if v_actor is not null and v_actor = v_req.${c("requestedBy")} and coalesce(${policyOf("v_req")} ->> 'mode', 'authorize') <> 'confirm'
     and not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then
     ${fail("APPROVAL_FORBIDDEN", "the requester can't decide their own request")}
+  end if;
+  if v_actor is not null and ${excluded("v_req")} ? v_actor::text then
+    ${fail("APPROVAL_FORBIDDEN", "this user is left out of deciding this request")}
   end if;
   for v_each in select e.value from jsonb_array_elements(decide_approval_items.decisions) e loop
     v_decision := v_each ->> 'decision';

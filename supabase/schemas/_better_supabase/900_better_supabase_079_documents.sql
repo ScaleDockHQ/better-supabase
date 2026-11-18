@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2b94f94fb6307f04ee83d346b58986d3303d18d461e6443538451b0612eb405b
+-- @bsb-hash sha256:de571aebcaa4077d7c43e853e6cd33af5982085cb1ca33eeff7da1cc6842b1f9
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1645,7 +1645,7 @@ begin
     raise exception 'not allowed to decide suggestions on this document' using errcode = '42501', hint = 'DOCUMENT_FORBIDDEN';
   end if;
   if v_suggestion."status" <> 'open' then
-    raise exception 'the suggestion was already decided' using errcode = '55000', hint = 'DOCUMENT_SUGGESTION_CLOSED';
+    raise exception 'the suggestion was already decided' using errcode = 'PT409', hint = 'DOCUMENT_SUGGESTION_CLOSED';
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     insert into "better_supabase"."document_updates" ("document_id", "tenant_id", "payload", "actor")

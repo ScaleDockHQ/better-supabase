@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:37f2ac3bafcb80559d20730a19e4437d47a303be302fdaae9eb9f5fa6927ec87
+-- @bsb-hash sha256:2540ac0fca856006129e36433af7868855c6d88a899188fcf7493e48c3198e8f
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -486,7 +486,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -922,7 +922,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
@@ -1782,7 +1782,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:9db0ce098130ce52f8e5dc6089490ced7b00ae6f90fdb2ea17f76c233da9f380
+-- @bsb-hash sha256:e3792ee182e6f9c12d4a245c735529b4eb71794d267b9b3413cfefc8e898aabb
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2306,7 +2306,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -2769,7 +2769,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
@@ -4800,7 +4800,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:7ac8066f779878b63aa9800b55e5ee27490aff1db7bcbadd929758d707fe0b0b
+-- @bsb-hash sha256:ce7197047378d7ad6132178c8be5ab361f5b59983ff7b61b400f60cb017d92a8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5290,7 +5290,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -5726,7 +5726,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
@@ -6586,7 +6586,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:21f711d23b2e7c8097c1e4d06f6c2333a819a65998312f91e566695ad781a3a7
+-- @bsb-hash sha256:2c943e86f33c167239b4080ff6e7919bb0612b62018e0955cb54bf67bf85e3e0
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7071,7 +7071,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -7507,7 +7507,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
@@ -8770,7 +8770,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:3e776165fd97d2bdbb66b42c0da7cd8272af52162affae5cb723542aaf146d66
+-- @bsb-hash sha256:72342877d6529ac71a9643b13426fa63db63d00d75b739103abb6904140fc11d
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9233,7 +9233,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -9669,7 +9669,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
@@ -10527,7 +10527,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:d3ca8ff5cd87b9e60f475dfe0a52a98a9d327109e075c6b7a5444090d2ba7cbf
+-- @bsb-hash sha256:a21b04012fabfa8236680266182dc25fb31c234d867918ba619f61b8076449dd
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11012,7 +11012,7 @@ begin
     raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
   end if;
   if v_row."extended_at" is not null then
-    raise exception 'the due date was already extended once' using errcode = '55000', hint = 'DSAR_EXTENDED';
+    raise exception 'the due date was already extended once' using errcode = 'PT409', hint = 'DSAR_EXTENDED';
   end if;
   if extend_data_subject_request.reason is null or length(trim(extend_data_subject_request.reason)) = 0 then
     raise exception 'reason is required' using errcode = '22023', hint = 'DSAR_INVALID';
@@ -11448,7 +11448,7 @@ begin
     raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
   if v_row."closed_at" is not null then
-    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+    raise exception 'the request is already fulfilled or refused' using errcode = 'PT409', hint = 'DSAR_CLOSED';
   end if;
   if v_row."verified_at" is null then
     raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';

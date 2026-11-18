@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks
 -- @bsb-block webhooks@8 managed
--- @bsb-hash sha256:76c3398de4e52b63537ef38d9e23facc4add966b633bf13b8aab850d70e95685
+-- @bsb-hash sha256:0d8e6eb8e1bbcf0dc270e0becc23e06a406edd604f7f4ac79c1bf11b09adc13a
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -363,7 +363,7 @@ begin
     raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
   end if;
   if v_status in ('pending', 'processing') then
-    raise exception 'The delivery is still in progress' using errcode = '55000', hint = 'WEBHOOK_DELIVERY_IN_PROGRESS';
+    raise exception 'The delivery is still in progress' using errcode = 'PT409', hint = 'WEBHOOK_DELIVERY_IN_PROGRESS';
   end if;
   if not v_enabled then
     raise exception 'Webhook endpoint is disabled' using errcode = '55000', hint = 'WEBHOOK_ENDPOINT_DISABLED';

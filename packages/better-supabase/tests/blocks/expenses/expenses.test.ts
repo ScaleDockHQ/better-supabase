@@ -438,6 +438,19 @@ describe("createExpenses", () => {
     ]);
   });
 
+  it("asks which expenses of a list the caller decides as owner or creator", async () => {
+    const fake = fakeTransport({ expense_self_decides_many: ["exp-1", 7] });
+
+    const expenses = createExpenses({ transport: fake.transport });
+
+    expect([
+      ...(await expenses.expenseSelfDecidesMany(["exp-1", "exp-2"]).orThrow()),
+    ]).toEqual(["exp-1"]);
+    expect(fake.calls).toEqual([
+      ["expense_self_decides_many", { expense_ids: ["exp-1", "exp-2"] }],
+    ]);
+  });
+
   it("rejects a finding of an unknown kind", async () => {
     const expenses = createExpenses({
       transport: fakeTransport({

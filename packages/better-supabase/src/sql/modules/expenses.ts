@@ -23,12 +23,13 @@ import {
   expenseApprovals,
   expensesFunctions,
 } from "./expenses-functions.ts";
+import { standaloneContract } from "./expenses-standalone-contract.ts";
 import {
+  EXPENSE_CREATOR_BACKFILL,
   EXPENSE_SUBJECT,
   EXPENSE_TABLE,
   expensesStandalone,
   standaloneApprovals,
-  standaloneContract,
 } from "./expenses-standalone.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -132,6 +133,8 @@ const NAMES: BlockSqlNames = {
     "owner",
     "companyExpenses",
     "invoicedColumn",
+    "invoicedCheck",
+    "decider",
     "standaloneApprovals",
     "policy",
     "approver",
@@ -468,6 +471,8 @@ const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 export const EXPENSES: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
   name: "expenses",
+  version: 2,
+  upgrades: [EXPENSE_CREATOR_BACKFILL],
   scopes: ["tenant"],
   title: "Expenses",
   description:
@@ -491,6 +496,10 @@ export const EXPENSES: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   names: NAMES,
   contract,
-  internal: ["approve_expense_report", "expense_report_violations"],
+  internal: [
+    "approve_expense_report",
+    "expense_report_violations",
+    "expense_report_state",
+  ],
   build,
 };

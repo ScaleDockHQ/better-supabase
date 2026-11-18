@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:75b507c6202c44ef48af0989ac057bfaee703ea78867dc6e756a0ace2c9ea06d
+-- @bsb-hash sha256:b78d3ed6a7c4d07cb1244f985d7b4e3b0b1d3eacee8e6ef3ca08fadec216e507
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -474,7 +474,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -1481,7 +1481,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
@@ -1721,7 +1721,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:601268fc43b827038f29dc9be16ddbe68089024b6e5af5f6506690f6f9406f82
+-- @bsb-hash sha256:555334cfe4645aa5215f4442e7caa98eb5902c1c8f4506bf9e6c492273b932ce
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2247,7 +2247,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -3319,7 +3319,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
@@ -3631,7 +3631,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2c8f7a11251c905182656cc8e579a9f9ad02f177455bedba4f7898c1158fc593
+-- @bsb-hash sha256:c96ac5f3daca552b141bd724d41ef88bb9aa918016c06abc896b18a4e115e07e
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4109,7 +4109,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -5116,7 +5116,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
@@ -5356,7 +5356,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:0597cfb21b80f5c0461da710f584768807e56f8fb57b04a873ec97a329b0e410
+-- @bsb-hash sha256:c920ebf07ceec914359d86c3753e31c3eb011544990b15d612211936adb601d1
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5829,7 +5829,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -6836,7 +6836,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
@@ -7335,7 +7335,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:e7ef1a59ccaa86bc7192357812d26d218325c743f568650ebef66389f52e80d6
+-- @bsb-hash sha256:3331987a810f59574086b9941e9a624f0c187961887f1950564bb23df84fe7eb
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7790,7 +7790,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -8793,7 +8793,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
@@ -9031,7 +9031,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:958c7b6eec1b2b25d4b4d65aa990f32eb23832b3458f4e2a5c22a9560f6f6f30
+-- @bsb-hash sha256:e79d5e3cda0cf16b5cfd5320cd9f38587d995d36beb8f10bbfe15726183ece88
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9504,7 +9504,7 @@ begin
   if v_row."disposed_on" is not null and (
     update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
   ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
     and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
@@ -10511,7 +10511,7 @@ begin
     raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
   end if;
   if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
+    raise exception 'the asset is already disposed of' using errcode = 'PT409', hint = 'ASSETS_DISPOSED';
   end if;
   if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
     or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then

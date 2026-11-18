@@ -16,6 +16,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { subjectWritable } from "../subject-write.ts";
 import {
@@ -728,7 +729,7 @@ begin
     ${fail("DOCUMENT_FORBIDDEN", "not allowed to decide suggestions on this document")}
   end if;
   if v_suggestion.${g("status")} <> 'open' then
-    ${fail("DOCUMENT_SUGGESTION_CLOSED", "the suggestion was already decided", "55000")}
+    ${conflict("DOCUMENT_SUGGESTION_CLOSED", "the suggestion was already decided")}
   end if;
   if decide_document_suggestion.decision = 'accepted' then
     ${append(`v_suggestion.${g("update")}`, `v_suggestion.${g("createdBy")}`)}

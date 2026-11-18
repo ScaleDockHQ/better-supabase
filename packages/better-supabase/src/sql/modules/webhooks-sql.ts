@@ -10,6 +10,7 @@ import {
   dropExpiredPartitions,
   fail,
   serviceGrant,
+  conflict,
 } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -824,7 +825,7 @@ begin
   ${endpointTenant(n, "v_endpoint")}
   ${guard(n, "v_tenant", "manage")}
   if v_status in (${n.status("pending")}, ${n.status("delivering")}) then
-    ${fail("WEBHOOK_DELIVERY_IN_PROGRESS", "The delivery is still in progress", "55000")}
+    ${conflict("WEBHOOK_DELIVERY_IN_PROGRESS", "The delivery is still in progress")}
   end if;
   if not v_enabled then
     ${fail("WEBHOOK_ENDPOINT_DISABLED", "Webhook endpoint is disabled", "55000")}

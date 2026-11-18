@@ -217,7 +217,7 @@ select throws_ok(
 );
 select throws_ok(
   format($$select better_supabase.mark_activity_error('%s', 'Again')$$, current_setting('test.subject')),
-  '55000',
+  'PT409',
   'the activity is already marked in error',
   'a note is marked in error once'
 );

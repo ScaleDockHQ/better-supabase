@@ -64,19 +64,26 @@ begin
     rep := gen_random_uuid();
 
     insert into better_supabase.expense_reports (
-      id, tenant_id, user_id, title, currency, submitted_at, approved_at, reimbursed_at)
+      id, tenant_id, user_id, title, currency, submitted_at)
     values (
       rep, t, '00000000-0000-4000-8000-0000000000a1',
       (array['Conference trip', 'Client dinner', 'Office supplies', 'Train tickets'])[1 + g % 4] || ' ' || g,
       'EUR',
-      case when g % 4 <> 0 then now() - (g || ' days')::interval end,
-      case when g % 4 in (2, 3) then now() - (g || ' days')::interval end,
-      case when g % 4 = 3 then now() - (g || ' days')::interval end);
+      case when g % 4 <> 0 then now() - (g || ' days')::interval end);
 
     insert into better_supabase.expense_lines (tenant_id, report_id, category_id, spent_on, description, merchant, amount)
     values
       (t, rep, cat, current_date - g, 'Receipt A', 'Cafe Central', g * 1250),
       (t, rep, cat, current_date - g - 1, 'Receipt B', 'NS', g * 840);
+
+    -- The report guard freezes the lines of an approved report, so the
+    -- decision and the reimbursement come after them, one step at a time.
+    if g % 4 in (2, 3) then
+      update better_supabase.expense_reports set approved_at = now() - (g || ' days')::interval where id = rep;
+    end if;
+    if g % 4 = 3 then
+      update better_supabase.expense_reports set reimbursed_at = now() - (g || ' days')::interval where id = rep;
+    end if;
   end loop;
 
   for g in 1..6 loop

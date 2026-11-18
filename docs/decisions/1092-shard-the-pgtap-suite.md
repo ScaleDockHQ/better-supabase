@@ -1,4 +1,4 @@
-# 1091: Shard the pgTAP suite across three Schema jobs
+# 1092: Shard the pgTAP suite across three Schema jobs
 
 - Status: accepted
 - Date: 2026-11-18

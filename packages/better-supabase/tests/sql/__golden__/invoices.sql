@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:0b84b40912392e3053c2d78ec85ba6b3fd78a2a63a4caaec83ccc1b5d71277be
+-- @bsb-hash sha256:8fbb5e212ff91738c295e638eb132b43a529f318de7e6233d42346f9fffbb3fb
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -803,6 +803,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -821,7 +822,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -917,6 +918,7 @@ begin
   returning * into v_row;
   null;
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -925,16 +927,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     null;
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       null;
     end if;
   end if;
@@ -1061,14 +1065,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -1624,6 +1630,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."invoices";
+  v_original "better_supabase"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1642,6 +1650,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -1657,6 +1666,26 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "better_supabase"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -1760,7 +1789,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -1787,14 +1816,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -1868,14 +1899,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -1931,14 +1964,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -2253,14 +2288,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -2585,7 +2622,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "better_supabase"."invoices" x set
       "collection_status" = 'handed_over',
@@ -2807,7 +2844,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -3604,14 +3641,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -3636,14 +3675,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
       null;
     else
@@ -3739,14 +3780,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
     end if;
     if v_alloc."source" = 'credit' then
@@ -3762,14 +3805,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;
@@ -4532,7 +4577,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8d65a1cd537e7f049ed571bb249c99ab45a281ad536b904975a0e4653d876403
+-- @bsb-hash sha256:368f2baaaef0c94815f6b5d16993315dc4b710316a2b48910dfe625bb549ece9
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5377,6 +5422,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
   v_early_bps integer;
   v_early_days integer;
@@ -5397,7 +5443,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -5520,6 +5566,7 @@ begin
   returning * into v_row;
   perform "better_supabase".emit_event('invoice.issued', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text, 'currency', v_row."currency", 'dueOn', v_row."due_on"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -5528,16 +5575,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     perform "better_supabase".emit_event('invoice.credited', jsonb_build_object('organizationId', v_original."tenant_id", 'invoiceId', v_original."id", 'subjectType', 'invoice', 'subjectId', v_original."id"::text, 'identifier', v_original."identifier", 'creditNoteId', v_row."id", 'amount', v_row."total"::text), 'invoices/' || v_original."id"::text, (v_original."tenant_id"::text)::text, null, 'better-supabase/invoices');
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_original."tenant_id", 'invoiceId', v_original."id", 'subjectType', 'invoice', 'subjectId', v_original."id"::text, 'identifier', v_original."identifier", 'total', v_original."total"::text), 'invoices/' || v_original."id"::text, (v_original."tenant_id"::text)::text, null, 'better-supabase/invoices');
     end if;
   end if;
@@ -5671,14 +5720,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('invoice_payment', v_payment::text);
   end if;
@@ -6236,6 +6287,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."invoices";
+  v_original "better_supabase"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -6254,6 +6307,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -6269,6 +6323,26 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "better_supabase"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice', v_row."id"::text);
   perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', c."id"::text)
   from "better_supabase"."invoice_charges" c where c."invoice_id" = v_row."id";
@@ -6396,7 +6470,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -6423,14 +6497,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_payment', reverse_invoice_payment.payment::text);
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.payment_reversed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'reason', nullif(trim(reverse_invoice_payment.reason), '')), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
@@ -6514,14 +6590,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('invoice_charge', v_charge::text);
   end if;
@@ -6589,14 +6667,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_charge', remove_invoice_charge.charge::text);
   perform "better_supabase".emit_event('invoice.charge_removed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
@@ -7051,14 +7131,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   perform "better_supabase".emit_event('invoice.credit_applied', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', v_payment, 'partyId', apply_party_credit.party_id, 'amount', apply_party_credit.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
     event_type => 'invoice.credit_applied',
@@ -7432,7 +7514,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "better_supabase"."invoices" x set
       "collection_status" = 'handed_over',
@@ -7664,7 +7746,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -8521,14 +8603,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -8553,14 +8637,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       if not better_supabase.import_run() is not null then
     perform "better_supabase"."accounting_post_source"('invoice_discount', v_disc::text);
   end if;
@@ -8680,14 +8766,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_discount', v_alloc."discount_payment_id"::text);
     end if;
     if v_alloc."source" = 'credit' then
@@ -8703,14 +8791,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;
@@ -10075,7 +10165,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:f90cd616a510dd83c42f2950bd4fb79b158a40ad6f1a17103221414b5c141041
+-- @bsb-hash sha256:065ac61c7779a5060beb0e1ff9fb8df45db3c6f6211ea9d6e3591cbad7057ba8
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10882,6 +10972,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -10900,7 +10991,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "app_private"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -10996,6 +11087,7 @@ begin
   returning * into v_row;
   null;
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "app_private"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -11004,16 +11096,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     null;
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       null;
     end if;
   end if;
@@ -11140,14 +11234,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -11703,6 +11799,8 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."invoices";
+  v_original "app_private"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -11721,6 +11819,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -11736,6 +11835,26 @@ begin
   update "app_private"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "app_private"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "app_private"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -11839,7 +11958,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -11866,14 +11985,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -11947,14 +12068,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -12010,14 +12133,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -12332,14 +12457,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -12664,7 +12791,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "app_private"."invoices" x set
       "collection_status" = 'handed_over',
@@ -12886,7 +13013,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -13683,14 +13810,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "app_private"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -13715,14 +13844,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
       null;
     else
@@ -13818,14 +13949,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
     end if;
     if v_alloc."source" = 'credit' then
@@ -13841,14 +13974,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "app_private"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "app_private"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "app_private"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;
@@ -14611,7 +14746,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:37fa3e233616c8ded4db7a4a8d08f9fea271ea6675ae5dceff1505a39cc3b353
+-- @bsb-hash sha256:e6c1a1928db7ec8b5d8903f31b7a92f4ace5fdde43ec1207122bd3ffe72b2672
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15413,6 +15548,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -15431,7 +15567,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -15527,6 +15663,7 @@ begin
   returning * into v_row;
   null;
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -15535,16 +15672,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     null;
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       null;
     end if;
   end if;
@@ -15671,14 +15810,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -16234,6 +16375,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."invoices";
+  v_original "better_supabase"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -16252,6 +16395,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -16267,6 +16411,26 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "better_supabase"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -16370,7 +16534,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -16397,14 +16561,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -16478,14 +16644,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -16541,14 +16709,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -16863,14 +17033,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -17195,7 +17367,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "better_supabase"."invoices" x set
       "collection_status" = 'handed_over',
@@ -17417,7 +17589,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -18214,14 +18386,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -18246,14 +18420,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
       null;
     else
@@ -18349,14 +18525,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
     end if;
     if v_alloc."source" = 'credit' then
@@ -18372,14 +18550,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;
@@ -19719,7 +19899,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:95b021eccfa7551ce0cecb00ee228ed7613309f484ae1796f06c7064aedddca7
+-- @bsb-hash sha256:527fde4c2bd4bbab85267ab5a4a387ac788f6f6fce94a2d4a39f4b7b22bd4f7b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20488,6 +20668,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -20506,7 +20687,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -20602,6 +20783,7 @@ begin
   returning * into v_row;
   null;
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -20610,16 +20792,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     null;
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       null;
     end if;
   end if;
@@ -20746,14 +20930,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -21309,6 +21495,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."invoices";
+  v_original "better_supabase"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -21327,6 +21515,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -21342,6 +21531,26 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "better_supabase"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end, (null::"better_supabase"."invoices")."status"),
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -21445,7 +21654,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -21472,14 +21681,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -21553,14 +21764,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -21616,14 +21829,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -21938,14 +22153,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -22270,7 +22487,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "better_supabase"."invoices" x set
       "collection_status" = 'handed_over',
@@ -22492,7 +22709,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -23286,14 +23503,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -23318,14 +23537,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
       null;
     else
@@ -23421,14 +23642,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
     end if;
     if v_alloc."source" = 'credit' then
@@ -23444,14 +23667,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = better_supabase.as_column_type(case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = better_supabase.as_column_type(case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end, (null::"better_supabase"."invoices")."status"),
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;
@@ -24214,7 +24439,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:72f623abc6ef511fab94186d8dafac453dbe58ccaedae01b90fe95b3aa7e7ab5
+-- @bsb-hash sha256:7e9a4ef1a12981bd734aa0c4339c04fe2be039b0f71bc01c47614908d043a450
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25016,6 +25241,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_issued_on date := coalesce(issue_invoice.issued_on, current_date);
+  v_was text;
   v_warnings jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -25034,7 +25260,7 @@ begin
   end if;
   
   if v_row."status" <> 'draft' then
-    raise exception 'the invoice was already issued' using errcode = '55000', hint = 'INVOICE_NOT_DRAFT';
+    raise exception 'the invoice was already issued' using errcode = 'PT409', hint = 'INVOICE_NOT_DRAFT';
   end if;
   if not exists (select 1 from "better_supabase"."invoice_lines" x where x."parent_id" = v_row."id") then
     raise exception 'an invoice needs a line before it is issued' using errcode = '23514', hint = 'INVOICE_EMPTY';
@@ -25130,6 +25356,7 @@ begin
   returning * into v_row;
   null;
   if v_row."kind" = 'credit_note' then
+    v_was := v_original."status"::text;
     update "better_supabase"."invoices" x set "credited_total" = x."credited_total" + v_row."total", "updated_at" = now()
     where x."id" = v_original."id"
     returning * into v_original;
@@ -25138,16 +25365,18 @@ begin
     "updated_at" = now()
   where x."id" = v_original."id"
   returning * into v_original;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_original."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_original;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
     null;
-    if v_original."status" = 'paid' then
+    if v_original."status" = 'paid' and v_was <> 'paid' then
       null;
     end if;
   end if;
@@ -25274,14 +25503,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -25837,6 +26068,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."invoices";
+  v_original "better_supabase"."invoices";
+  v_issued boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -25855,6 +26088,7 @@ begin
   if v_row."status" not in ('draft', 'issued') or v_row."paid_total" <> 0 or v_row."credited_total" <> 0 then
     raise exception 'an invoice with payments or credits is credited, not voided' using errcode = '55000', hint = 'INVOICE_NOT_VOIDABLE';
   end if;
+  v_issued := v_row."status" = 'issued';
   if void_invoice.actor is not null then
     if jsonb_typeof(void_invoice.actor) <> 'object' then
       raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
@@ -25870,6 +26104,26 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  if v_issued and v_row."kind" = 'credit_note' and v_row."original_id" is not null then
+    update "better_supabase"."invoices" x set "credited_total" = greatest(x."credited_total" - v_row."total", 0), "updated_at" = now()
+    where x."id" = v_row."original_id"
+    returning * into v_original;
+  update "better_supabase"."invoices" x set
+    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."org_id" = x."org_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "updated_at" = now()
+  where x."id" = v_original."id"
+  returning * into v_original;
+  if v_original."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
+      when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
+      when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
+      else 'issued' end,
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_original."id"
+    returning * into v_original;
+  end if;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -25973,7 +26227,7 @@ begin
   end if;
   if (v_meta ->> 'reversal')::boolean is true
     or exists (select 1 from "better_supabase"."ledger_transactions" y where y."reverses" = reverse_invoice_payment.payment) then
-    raise exception 'this payment is a reversal or is already reversed' using errcode = '55000', hint = 'INVOICE_PAYMENT_REVERSED';
+    raise exception 'this payment is a reversal or is already reversed' using errcode = 'PT409', hint = 'INVOICE_PAYMENT_REVERSED';
   end if;
   if reverse_invoice_payment.actor is not null then
     if jsonb_typeof(reverse_invoice_payment.actor) <> 'object' then
@@ -26000,14 +26254,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   perform set_config('better_supabase.transition_reason', '', true);
   null;
@@ -26081,14 +26337,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -26144,14 +26402,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   
   null;
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -26466,14 +26726,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -26798,7 +27060,7 @@ begin
       raise exception 'only an open sales invoice goes to collection' using errcode = '55000', hint = 'INVOICE_NOT_PAYABLE';
     end if;
     if v_row."collection_status" is not null then
-      raise exception 'the invoice was handed over to collection already' using errcode = '55000', hint = 'INVOICE_ALREADY_HANDED_OVER';
+      raise exception 'the invoice was handed over to collection already' using errcode = 'PT409', hint = 'INVOICE_ALREADY_HANDED_OVER';
     end if;
     update "better_supabase"."invoices" x set
       "collection_status" = 'handed_over',
@@ -27020,7 +27282,7 @@ begin
     raise exception 'no approval level applies to this bill' using errcode = '55000', hint = 'INVOICE_APPROVAL_NOT_REQUIRED';
   end if;
   if v_state ->> 'status' = 'approved' then
-    raise exception 'the bill has every approval it needs' using errcode = '55000', hint = 'INVOICE_ALREADY_APPROVED';
+    raise exception 'the bill has every approval it needs' using errcode = 'PT409', hint = 'INVOICE_ALREADY_APPROVED';
   end if;
   for v_level in
     select (p.value ->> 'level')::integer as level, (p.value ->> 'approverId')::uuid as approver
@@ -27817,14 +28079,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."record_invoice_payment"(v_row."id", v_alloc.amount, v_currency, v_received::timestamptz,
         v_method, v_ref, v_note, allocate_payment.actor, null);
@@ -27849,14 +28113,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
       null;
     else
@@ -27952,14 +28218,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
       
     end if;
     if v_alloc."source" = 'credit' then
@@ -27975,14 +28243,16 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  update "better_supabase"."invoices" x set
-    "status" = case
+  if v_row."status" in ('issued', 'partially_paid', 'paid') then
+    update "better_supabase"."invoices" x set
+      "status" = case
       when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then 'paid'
       when x."paid_total" > 0 or x."credited_total" > 0 then 'partially_paid'
       else 'issued' end,
-    "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
-  where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
-  returning * into v_row;
+      "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
+    where x."id" = v_row."id"
+    returning * into v_row;
+  end if;
     else
       perform "better_supabase"."reverse_invoice_payment"(v_alloc."payment_id", 'Unallocated', unallocate_payment.actor);
     end if;

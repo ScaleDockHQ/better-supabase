@@ -20,6 +20,7 @@ import {
   SERVICE_CALLER,
   updateExtraColumns,
   userGrant,
+  conflict,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { managerDecides } from "./direct-approver.ts";
@@ -28,6 +29,7 @@ import {
   expenseStandaloneSql,
   expensesStandalone,
 } from "./expenses-standalone.ts";
+import { expenseReportGuardSql } from "./expenses-write-guard.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 
 /** Reports the expenses block submits to approvals. */
@@ -214,7 +216,7 @@ begin${loadReport("decide_expense_report.report_id", true)}
     ${forbidden("only the service role decides for another user, never for the owner")}
   end if;
   if ${status("v_row", "")} <> 'submitted' then
-    ${fail("EXPENSE_REPORT_LOCKED", "only a submitted report is decided", "55000")}
+    ${conflict("EXPENSE_REPORT_LOCKED", "only a submitted report is decided")}
   end if;
   if decide_expense_report.approved is null then
     ${invalid("EXPENSE_REPORT_INVALID", "approved must be true or false")}
@@ -456,7 +458,7 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
 
   const editable = `
   if ${status("v_row", "v_approval")} not in ('draft', 'rejected') then
-    ${fail("EXPENSE_REPORT_LOCKED", "only a draft or rejected report can change", "55000")}
+    ${conflict("EXPENSE_REPORT_LOCKED", "only a draft or rejected report can change")}
   end if;`;
 
   const reader = `
@@ -662,7 +664,12 @@ ${userGrant(`${fn("page_expense_categories")}(${idType}, jsonb)`)}
 ${
   standalone
     ? expenseStandaloneSql(ctx)
-    : `
+    : `${expenseReportGuardSql(ctx, {
+        forbidden,
+        ...(approvals === undefined
+          ? {}
+          : { approvals: { table: ar, col: a } }),
+      })}
 -- The spend policy findings of a report, empty when it may be submitted:
 -- a category total over its limit, a line over its category's receipt
 -- threshold without a receipt, and a line in an archived category.
@@ -928,7 +935,7 @@ begin${loadReport("reimburse_expense_report.report_id", true)}
     ${forbidden("not allowed to reimburse expenses")}
   end if;
   if ${status("v_row", "v_approval")} <> 'approved' then
-    ${fail("EXPENSE_REPORT_LOCKED", "only an approved report can be reimbursed", "55000")}
+    ${conflict("EXPENSE_REPORT_LOCKED", "only an approved report can be reimbursed")}
   end if;
   v_tx := ${ledger?.fn("ledger_post") ?? ""}(v_row.${r("tenant")}, 'expense.reimbursed',
     jsonb_build_array(
@@ -963,7 +970,7 @@ begin${loadReport("cancel_expense_report.report_id", true)}
     ${forbidden("not allowed to cancel this expense report")}
   end if;
   if ${status("v_row", "v_approval")} not in ('draft', 'submitted', 'rejected') then
-    ${fail("EXPENSE_REPORT_LOCKED", "an approved, reimbursed or cancelled report can't be cancelled", "55000")}
+    ${conflict("EXPENSE_REPORT_LOCKED", "an approved, reimbursed or cancelled report can't be cancelled")}
   end if;
 ${
   approvals === undefined

@@ -5765,6 +5765,11 @@ msgid "Uncollectible"
 msgstr "Oninbaar"
 
 #: src/features/billing/components/invoices-table.tsx
+msgctxt "billing.ChZ06t"
+msgid "Credited"
+msgstr "Gecrediteerd"
+
+#: src/features/billing/components/invoices-table.tsx
 msgctxt "billing.6dqYnF"
 msgid "Invoices"
 msgstr "Facturen"

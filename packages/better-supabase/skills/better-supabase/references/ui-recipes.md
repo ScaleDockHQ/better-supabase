@@ -18410,6 +18410,10 @@ export async function InvoicesTable() {
         return <Badge variant="destructive-light">{t("Uncollectible")}</Badge>;
       }
 
+      case "credited": {
+        return <Badge variant="outline">{t("Credited")}</Badge>;
+      }
+
       default: {
         const unknown: never = value;
 

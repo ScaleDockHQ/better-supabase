@@ -22,6 +22,8 @@ export interface ApprovalSqlKit {
   readonly stepsRefusal: string;
   readonly linkedReject: string;
   readonly commentRefusal: (arg: string) => string;
+  /** The users the request's snapshot leaves out of deciding, as jsonb. */
+  readonly excluded: (row: string) => string;
 }
 
 // A step with required "all" asks every holder of its permission when the
@@ -48,6 +50,7 @@ export function allHoldersSql(
         select coalesce(jsonb_agg(distinct to_jsonb(u.id::text)), '[]'::jsonb) as users
         from (${holders}) as u(id)
         where u.id is not null and (u.id is distinct from v_requester or coalesce((v_policy ->> 'selfApproval')::boolean, false))
+          and not (coalesce(v_policy -> 'excludedUserIds', '[]'::jsonb) ? u.id::text)
       ) h on e.value -> 'required' = '"all"'::jsonb
     ));
     if exists (select 1 from jsonb_array_elements(v_policy -> 'steps') e where e.value -> 'required' = '0'::jsonb) then
@@ -78,6 +81,7 @@ export function decideSql(ctx: BlockSqlContext, k: ApprovalSqlKit): string {
     stepsRefusal,
     linkedReject,
     commentRefusal,
+    excluded,
   } = k;
 
   const delegation = ctx.has("decisions", "delegateTo");
@@ -129,6 +133,9 @@ begin
     if v_actor is not null and v_actor = v_req.${c("requestedBy")} and coalesce(${policyOf("v_req")} ->> 'mode', 'authorize') <> 'confirm'
       and not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then
       ${fail("APPROVAL_FORBIDDEN", "the requester can't decide their own request")}
+    end if;
+    if v_actor is not null and ${excluded("v_req")} ? v_actor::text then
+      ${fail("APPROVAL_FORBIDDEN", "this user is left out of deciding this request")}
     end if;
     if v_actor is not null and exists (
       select 1 from ${decisions} x

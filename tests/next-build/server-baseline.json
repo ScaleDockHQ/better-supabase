@@ -1377,7 +1377,7 @@
   "/api/assets/list/route": {
     "raw": 2763991,
     "gzip": 832457,
-    "brotli": 704870
+    "brotli": 706656
   },
   "/api/assignment-queues/list/route": {
     "raw": 2654762,
@@ -1467,7 +1467,7 @@
   "/api/checkout-sessions/list/route": {
     "raw": 2762796,
     "gzip": 832035,
-    "brotli": 704391
+    "brotli": 706272
   },
   "/api/collections/list/route": {
     "raw": 2763189,
@@ -1677,7 +1677,7 @@
   "/api/leases/list/route": {
     "raw": 2764320,
     "gzip": 832545,
-    "brotli": 704962
+    "brotli": 706743
   },
   "/api/leave/list/route": {
     "raw": 2773962,
@@ -1857,7 +1857,7 @@
   "/api/risks/register/route": {
     "raw": 2772645,
     "gzip": 835861,
-    "brotli": 707809
+    "brotli": 709685
   },
   "/api/scores/list/route": {
     "raw": 2653470,
@@ -1927,7 +1927,7 @@
   "/api/warranty/list/route": {
     "raw": 2763558,
     "gzip": 832360,
-    "brotli": 704782
+    "brotli": 706583
   },
   "/api/webhooks/channels/[adapter]/route": {
     "raw": 1410732,

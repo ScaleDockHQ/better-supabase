@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
--- @bsb-block expenses@1 managed
--- @bsb-hash sha256:f6978135e970a825be8a6d63026e31be5e6bfdaec8dd8cdb04a8949c030e8e3f
+-- @bsb-block expenses@2 managed
+-- @bsb-hash sha256:600ee1744c1229fbe69740d14d73a5a4e8cbd338af28bbaa3c91ad46fcb8ae6a
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -438,6 +438,103 @@ $$;
 revoke execute on function "better_supabase"."page_expense_categories"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."page_expense_categories"(uuid, jsonb) to authenticated, service_role;
 
+-- Whether a report is open to its owner (a draft or rejected one), locked
+-- (approved, reimbursed or cancelled) or submitted. The guards below run as
+-- the writer, who may not read the report or its approval request.
+create or replace function "better_supabase"."expense_report_state"(report_id uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when (case when p."cancelled_at" is not null then 'cancelled' when p."reimbursed_at" is not null then 'reimbursed' when p."approved_at" is not null then 'approved' when p."submitted_at" is not null then 'submitted' else 'draft' end) in ('approved', 'reimbursed', 'cancelled') then 'locked' when ((case when p."cancelled_at" is not null then 'cancelled' when p."reimbursed_at" is not null then 'reimbursed' when p."approved_at" is not null then 'approved' when p."submitted_at" is not null then 'submitted' else 'draft' end) = 'draft' or ((case when p."cancelled_at" is not null then 'cancelled' when p."reimbursed_at" is not null then 'reimbursed' when p."approved_at" is not null then 'approved' when p."submitted_at" is not null then 'submitted' else 'draft' end) = 'submitted' and exists (select 1 from "better_supabase"."approval_requests" ap where ap."id" = p."approval_id" and ap."status" in ('rejected', 'expired')))) then 'open' else 'submitted' end
+  from "better_supabase"."expense_reports" p where p."id" = expense_report_state.report_id
+$$;
+revoke execute on function "better_supabase"."expense_report_state"(uuid) from public, anon;
+grant execute on function "better_supabase"."expense_report_state"(uuid) to authenticated, service_role;
+
+-- Guards every write to an expense report (ADR 1090): clients never write its
+-- stamp columns or its owner, a status moves only along the allowed
+-- transitions, the trigger stamps the decider and clears a decision on a
+-- resubmission, and the owner and currency are frozen once approved, and for a
+-- client once submitted.
+create or replace function "better_supabase"."expense_report_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_client boolean := current_user::text in ('authenticated', 'anon') and pg_trigger_depth() = 1;
+  v_from text;
+  v_to text := (case when new."cancelled_at" is not null then 'cancelled' when new."reimbursed_at" is not null then 'reimbursed' when new."approved_at" is not null then 'approved' when new."submitted_at" is not null then 'submitted' else 'draft' end);
+begin
+  if tg_op = 'INSERT' then
+    if v_client and (coalesce(new."submitted_at"::text, new."approved_at"::text, new."approval_transaction_id"::text, new."reimbursed_at"::text, new."reimbursement_transaction_id"::text, new."cancelled_at"::text, new."approval_id"::text) is not null or new."user_id" is distinct from auth.uid()) then
+      raise exception 'a new expense report is a draft of the caller; the expense functions submit and decide it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
+    end if;
+    return new;
+  end if;
+  v_from := (case when old."cancelled_at" is not null then 'cancelled' when old."reimbursed_at" is not null then 'reimbursed' when old."approved_at" is not null then 'approved' when old."submitted_at" is not null then 'submitted' else 'draft' end);
+  if v_client and ((new."submitted_at", new."approved_at", new."approval_transaction_id", new."reimbursed_at", new."reimbursement_transaction_id", new."cancelled_at", new."approval_id") is distinct from (old."submitted_at", old."approved_at", old."approval_transaction_id", old."reimbursed_at", old."reimbursement_transaction_id", old."cancelled_at", old."approval_id") or new."user_id" is distinct from old."user_id") then
+    raise exception 'an expense report''s owner, status and decision change only through the expense functions' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
+  end if;
+  if pg_trigger_depth() = 1 and v_from in ('approved', 'reimbursed', 'cancelled') and (new."user_id", new."currency") is distinct from (old."user_id", old."currency") then
+    raise exception 'an approved, reimbursed or cancelled report keeps its owner and currency' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
+  end if;
+  if v_client and "better_supabase"."expense_report_state"(old."id") <> 'open' and (new."user_id", new."currency") is distinct from (old."user_id", old."currency") then
+    raise exception 'a submitted report keeps its owner and currency' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
+  end if;
+  if v_from is not distinct from v_to then
+    return new;
+  end if;
+  if (v_from, v_to) not in (('draft', 'submitted'), ('rejected', 'submitted'), ('submitted', 'approved'), ('submitted', 'rejected'), ('draft', 'cancelled'), ('submitted', 'cancelled'), ('rejected', 'cancelled'), ('approved', 'reimbursed')) then
+    raise exception 'this status change is not allowed for an expense report' using errcode = 'PT409', hint = 'EXPENSE_TRANSITION_INVALID';
+  end if;
+  if v_to = 'submitted' then
+    null;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."expense_report_guard"() from public, anon, authenticated;
+create trigger bsb_expense_report_guard
+  before insert or update on "better_supabase"."expense_reports"
+  for each row execute function "better_supabase"."expense_report_guard"();
+
+-- Keeps the lines of a report as they were once it is approved, and a client's
+-- own writes to a submitted report's lines out.
+create or replace function "better_supabase"."expense_line_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_client boolean := current_user::text in ('authenticated', 'anon');
+  v_state text;
+begin
+  if pg_trigger_depth() > 1 then
+    return coalesce(new, old);
+  end if;
+  foreach v_state in array array[
+    case when tg_op <> 'INSERT' then "better_supabase"."expense_report_state"(old."report_id") end,
+    case when tg_op <> 'DELETE' then "better_supabase"."expense_report_state"(new."report_id") end
+  ] loop
+    if v_state = 'locked' then
+      raise exception 'an approved, reimbursed or cancelled report keeps its lines' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
+    end if;
+    if v_client and v_state is distinct from 'open' and v_state is not null then
+      raise exception 'only a draft or rejected report''s lines change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
+    end if;
+  end loop;
+  return coalesce(new, old);
+end;
+$$;
+revoke execute on function "better_supabase"."expense_line_guard"() from public, anon, authenticated;
+create trigger bsb_expense_line_guard
+  before insert or update or delete on "better_supabase"."expense_lines"
+  for each row execute function "better_supabase"."expense_line_guard"();
+
 -- The spend policy findings of a report, empty when it may be submitted:
 -- a category total over its limit, a line over its category's receipt
 -- threshold without a receipt, and a line in an archived category.
@@ -533,7 +630,7 @@ begin
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
-    raise exception 'only a draft or rejected report can change' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   select * into v_category from "better_supabase"."expense_categories" c
     where c."id" = add_expense_line.category_id and c."tenant_id" = v_row."tenant_id" and c."archived_at" is null;
@@ -599,7 +696,7 @@ begin
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
-    raise exception 'only a draft or rejected report can change' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   if update_expense_line.category_id is not null then
   select * into v_category from "better_supabase"."expense_categories" c
@@ -664,7 +761,7 @@ begin
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
-    raise exception 'only a draft or rejected report can change' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   delete from "better_supabase"."expense_lines" l where l."id" = v_line."id";
   update "better_supabase"."expense_reports" x set "updated_at" = now() where x."id" = v_row."id"
@@ -728,7 +825,7 @@ begin
     raise exception 'only the member who owns the report can change it' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'rejected') then
-    raise exception 'only a draft or rejected report can change' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'only a draft or rejected report can change' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   if not exists (select 1 from "better_supabase"."expense_lines" l where l."report_id" = v_row."id") then
     raise exception 'a report needs at least one line' using errcode = '22023', hint = 'EXPENSE_REPORT_EMPTY';
@@ -821,7 +918,7 @@ begin
     raise exception 'not allowed to reimburse expenses' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) <> 'approved' then
-    raise exception 'only an approved report can be reimbursed' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'only an approved report can be reimbursed' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   v_tx := "better_supabase"."ledger_post"(v_row."tenant_id", 'expense.reimbursed',
     jsonb_build_array(
@@ -867,7 +964,7 @@ begin
     raise exception 'not allowed to cancel this expense report' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
   end if;
   if (case when v_row."cancelled_at" is not null then 'cancelled' when v_row."reimbursed_at" is not null then 'reimbursed' when v_row."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) not in ('draft', 'submitted', 'rejected') then
-    raise exception 'an approved, reimbursed or cancelled report can''t be cancelled' using errcode = '55000', hint = 'EXPENSE_REPORT_LOCKED';
+    raise exception 'an approved, reimbursed or cancelled report can''t be cancelled' using errcode = 'PT409', hint = 'EXPENSE_REPORT_LOCKED';
   end if;
   update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
     where p."id" = v_row."approval_id" and p."status" = 'pending';
@@ -1256,13 +1353,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."expense_lines" as re
 -- ==== data supabase/better-supabase-data/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block-data expenses
--- @bsb-hash sha256:acad5782117da37aa32eb5b47f0372cb87a9105ea9687dd5f8de16d1ca73932f
+-- @bsb-hash sha256:ae6a125f9a785b00eb4c30cad610f60e21a9e43c0cb59a8fda9e695849b3e7fd
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('expenses', 1, 'managed')
+values ('expenses', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

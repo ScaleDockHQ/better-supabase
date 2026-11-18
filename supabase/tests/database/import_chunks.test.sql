@@ -44,7 +44,7 @@ select better_supabase.store_import_chunk(current_setting('bsb.run')::uuid, 'cus
 select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
 select throws_ok(
   format($$select better_supabase.process_import_chunk(%L::uuid, 'customer', 2)$$, current_setting('bsb.run')),
-  '55000', null, 'a finished run refuses the chunk');
+  'PT409', null, 'a finished run refuses the chunk');
 select is((select status from better_supabase.import_chunks where run_id = current_setting('bsb.run')::uuid and chunk = 2), 'pending', 'the failed chunk stays pending');
 
 -- A worker that gives up marks the chunk failed; a queue sees it and stops retrying.

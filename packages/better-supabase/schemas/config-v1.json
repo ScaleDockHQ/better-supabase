@@ -6130,6 +6130,9 @@
                 "type": "string",
                 "default": ""
               },
+              "invoicedCheck": {
+                "type": "string"
+              },
               "standaloneApprovals": {
                 "type": "boolean",
                 "default": false
@@ -6138,6 +6141,9 @@
               "approver": {
                 "type": "string",
                 "default": "permission"
+              },
+              "decider": {
+                "type": "string"
               }
             }
           }
@@ -6604,6 +6610,10 @@
                 "default": true
               },
               "paymentsAfterWriteOff": {
+                "type": "boolean",
+                "default": false
+              },
+              "creditedStatus": {
                 "type": "boolean",
                 "default": false
               },

@@ -22,6 +22,7 @@ import {
   SERVICE_CALLER,
   userGrant,
   updateExtraColumns,
+  conflict,
 } from "../shared.ts";
 import { managerMatch, otherDecider } from "./approvals-tenant.ts";
 import { deciderCall, managerDecides } from "./direct-approver.ts";
@@ -409,7 +410,7 @@ begin
     ${forbidden("not allowed to decide this leave request; only the service role decides for another user, never for the requester")}
   end if;
   if not (${pendingIn("v_row", "")}) then
-    ${fail("LEAVE_REQUEST_CLOSED", "this leave request was already decided or cancelled", "55000")}
+    ${conflict("LEAVE_REQUEST_CLOSED", "this leave request was already decided or cancelled")}
   end if;
   if decide_leave_request.approved is null then
     ${invalid("approved must be true or false")}
@@ -733,7 +734,7 @@ ${reapproves ? `  v_holder := ${reapproveHolder};\n` : ""}  if not (v_manager${r
   end if;
   v_status := ${status("v_row", approvals === undefined ? "v_row" : "v_approval")};
   if v_status not in ('pending', 'approved') then
-    ${fail("LEAVE_REQUEST_CLOSED", "only a pending or approved leave request changes", "55000")}
+    ${conflict("LEAVE_REQUEST_CLOSED", "only a pending or approved leave request changes")}
   end if;${
     reapproves
       ? `
@@ -830,7 +831,7 @@ begin
     ${forbidden("approved leave is split by a manager")}
   end if;
   if v_old.${q("approvedAt")} is null or v_old.${q("cancelledAt")} is not null then
-    ${fail("LEAVE_REQUEST_CLOSED", "only approved leave is split", "55000")}
+    ${conflict("LEAVE_REQUEST_CLOSED", "only approved leave is split")}
   end if;
   select * into v_type from ${types} x where x.${ty("id")} = v_old.${q("type")};
   if v_type.${ty("unit")} = 'hours' then
@@ -1177,7 +1178,7 @@ begin
     ${forbidden("not allowed to cancel this leave request")}
   end if;
   if v_row.${q("cancelledAt")} is not null then
-    ${fail("LEAVE_REQUEST_CLOSED", "this leave request is already cancelled", "55000")}
+    ${conflict("LEAVE_REQUEST_CLOSED", "this leave request is already cancelled")}
   end if;
   if not v_manager and v_row.${q("approvedAt")} is not null and v_row.${q("startsOn")} <= current_date then
     ${forbidden("leave that has started can only be cancelled by a manager")}

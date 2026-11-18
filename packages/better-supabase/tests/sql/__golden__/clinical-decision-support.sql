@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:f8bd05376ae0a5b7502b1afe3cac90a242826ab5eaf99c8caf733c8066123e34
+-- @bsb-hash sha256:f0f6385e1a47d338c659b1b34d57893a3b628a458bb98fecf1e8e641f6a12cd0
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -609,7 +609,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
@@ -697,7 +697,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:e0ff021477b06f264048a0552c585942fb0091d6b1bdba9e5daa7b536b2f2a48
+-- @bsb-hash sha256:872ec76e47ee4233cc4ed52b759a49558dc6fd139d3dc2504346f00e44ee5595
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1384,7 +1384,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
@@ -1486,7 +1486,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:8af98ea8a21fa787db41ce909a674df9e43622d10b1651fa9f0d02ce026143fe
+-- @bsb-hash sha256:0a8155a5773b1167d6b53d8d540d4f38eca38e1f16855fc2602144ced3bb4cc5
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2099,7 +2099,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
@@ -2187,7 +2187,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:6812c7f1c9a8491bff3d2d4ce04a75bd77724d5c7ffc3ea46df10fe66995848f
+-- @bsb-hash sha256:8c4f195ff485f386735d5cc5adbf15af0cd30e407e361f9d40d6ce016dcd3822
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2795,7 +2795,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
@@ -2980,7 +2980,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:65f500eebcbdf6a6f57db0c0e6bc592e029c2fdf904c927a6a5fed6a7a0e663a
+-- @bsb-hash sha256:9d7060e082fd3e91bd75faabe01a2c0bf10ffeb6052abdcd9533939fc743963c
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3581,7 +3581,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
@@ -3669,7 +3669,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:39bbf1e448bbd66dd4d44c825d9e33f43b089dd3bb84bd459672af33997f0002
+-- @bsb-hash sha256:84ca26cb9fdd0e675fe4c40e7bae01a2e376cf735438ca383bf29d8ce7b5d341
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4277,7 +4277,7 @@ begin
     raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = 'PT409', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
     raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';

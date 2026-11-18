@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { archiveRestoreFunctions } from "../archive-sql.ts";
-import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { conflict, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { byEmployee } from "./time-entries-owner.ts";
 import { timerOptions } from "./time-entries-timers.ts";
 
@@ -58,7 +58,7 @@ export function archiveSql(
   end if;`,
           beforeArchive: `
   if ${h.running("v_row")} then
-    ${fail("TIME_TIMER_RUNNING", "stop the running timer before archiving it", "55000")}
+    ${conflict("TIME_TIMER_RUNNING", "stop the running timer before archiving it")}
   end if;`,
           beforeRestore: `
   ${h.overlap("v_row")}`,

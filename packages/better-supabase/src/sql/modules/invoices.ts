@@ -212,6 +212,7 @@ const NAMES: BlockSqlNames = {
     "providerPaymentMethods",
     "linePositionKey",
     "paymentsAfterWriteOff",
+    "creditedStatus",
     "depositKind",
     "searchColumn",
     "depositLine",
@@ -472,7 +473,7 @@ create table if not exists ${t("invoices")} (
   ${i("original")} uuid references ${t("invoices")} (${i("id")}),
   ${i("title")} text not null check (length(${i("title")}) between 1 and 300),${column("companyType", "text")}${column("companyId", "text")}${column("contactType", "text")}${column("contactId", "text")}
   ${i("currency")} char(3) not null check (${i("currency")} ~ '^[A-Z]{3}$'),
-  ${i("status")} text not null default 'draft' check (${i("status")} in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible')),
+  ${i("status")} text not null default 'draft' check (${i("status")} in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible'${ctx.flag("creditedStatus", false) ? ", 'credited'" : ""})),
   ${i("termsDays")} integer not null default 30 check (${i("termsDays")} >= 0),
   ${i("issuedOn")} date,${column("suppliedOn", "date")}
   ${i("dueOn")} date,

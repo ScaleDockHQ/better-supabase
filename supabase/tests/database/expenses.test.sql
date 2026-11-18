@@ -117,7 +117,7 @@ select throws_ok(
     $$select better_supabase.add_expense_line(%L, %L, '2026-10-02', 1000, 'Taxi')$$,
     current_setting('test.report'), current_setting('test.travel')
   ),
-  '55000',
+  'PT409',
   'only a draft or rejected report can change',
   'a submitted report is locked'
 );
@@ -165,7 +165,7 @@ select is(
 );
 select throws_ok(
   format($$select better_supabase.reimburse_expense_report(%L)$$, current_setting('test.report')),
-  '55000',
+  'PT409',
   'only an approved report can be reimbursed',
   'a report is reimbursed once'
 );
