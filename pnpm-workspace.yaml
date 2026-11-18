@@ -529,6 +529,11 @@ auditConfig:
     # shadcn in apps/marketing (dev tooling, never shipped). Remove it once a
     # fixed braces ships or shadcn drops micromatch (ADR 0002).
     - GHSA-vfj7-8cjw-p6xm
+    # picomatch <=4.0.7 has no patched release (ReDoS via extglobs). It reaches
+    # the tree only through dev tooling (vitest, nuxt, expo, shadcn, workflow
+    # examples); the published package does not depend on it. Remove it once
+    # a fixed picomatch ships.
+    - GHSA-fc5q-39xc-vjpf
     # zod <4.6.6 has no patched 3.x release. The override above lifts every
     # zod 4; zod 3 stays only for @expo/cli in apps/examples/expo-powersync
     # (dev tooling, never shipped). Remove it once @expo/cli moves to zod 4.
