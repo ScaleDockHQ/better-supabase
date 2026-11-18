@@ -23,6 +23,14 @@ export type ExpensesSqlOptions = {
    */
   readonly invoicedColumn?: string;
   /**
+   * Without reports: an app function `"schema.function"`, `(expense_id uuid)
+   * returns boolean`, that says whether the expense counts as invoiced, for
+   * example only while its invoice isn't cancelled. `reopenExpense` refuses the
+   * expense when it answers true or null. Use it instead of `invoicedColumn`,
+   * not with it.
+   */
+  readonly invoicedCheck?: string;
+  /**
    * Without reports: each submitted expense files a request with the approvals
    * block, whose final decision approves or rejects it. `decideExpense` is
    * refused while that request waits. The expense's owner is the requester;
@@ -40,6 +48,14 @@ export type ExpensesSqlOptions = {
    * approve permission. Default `"permission"`.
    */
   readonly approver?: "permission" | "manager";
+  /**
+   * Without reports: an app function `"schema.function"`, `(id uuid) returns
+   * boolean`, that lets more callers decide an expense through `decideExpense`,
+   * such as the managers up the owner's reporting chain. A null answer denies.
+   * With it, the owner or creator decides only when no active manager up the
+   * chain can either, as in the leave block.
+   */
+  readonly decider?: string;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -48,9 +64,11 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     owner: option.string<"user" | "employee">({ default: "user" }),
     companyExpenses: option.boolean({ default: false }),
     invoicedColumn: option.string({ default: "" }),
+    invoicedCheck: option.string(),
     standaloneApprovals: option.boolean({ default: false }),
     policy: option.unknown(),
     approver: option.string<"permission" | "manager">({
       default: "permission",
     }),
+    decider: option.string(),
   });

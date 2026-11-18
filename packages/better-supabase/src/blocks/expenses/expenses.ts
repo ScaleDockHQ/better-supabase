@@ -247,6 +247,12 @@ export interface ExpenseInput<F extends object = Record<never, never>> {
    * `options.companyExpenses` and `expenses.manage`.
    */
   readonly company?: boolean;
+  /**
+   * The user who records the expense, such as the member who emailed the
+   * receipt. Only the service role names someone else; the default is the
+   * caller. Needs the `createdBy` column.
+   */
+  readonly createdBy?: string;
   readonly fields?: Partial<F>;
 }
 
@@ -438,6 +444,13 @@ export interface Expenses<F extends object = Record<never, never>> {
    * `decideExpense` allows only when nobody else can decide it.
    */
   expenseSelfDecides(expenseId: string): AsyncResult<boolean>;
+  /**
+   * The ids among `expenseIds` the caller decides as owner or creator, in one
+   * call for a list instead of `expenseSelfDecides` per row.
+   */
+  expenseSelfDecidesMany(
+    expenseIds: readonly string[],
+  ): AsyncResult<ReadonlySet<string>>;
   getExpense(expenseId: string): AsyncResult<Expense<F>>;
   /**
    * The caller's expenses, newest spend first.
@@ -959,6 +972,7 @@ export function createExpenses<
                 user_id: input.userId ?? null,
                 ...optional("employee_id", input.employeeId),
                 ...(input.company === true ? { company: true } : {}),
+                ...optional("created_by", input.createdBy),
                 ...(checked === undefined ? {} : { fields: checked }),
               },
               expense("create_expense"),
@@ -1042,6 +1056,17 @@ export function createExpenses<
         { expense_id: expenseId, reason },
         expense("reverse_expense_reimbursement"),
       ).andThen(fields.row),
+    expenseSelfDecidesMany: (expenseIds) =>
+      call(
+        "expense_self_decides_many",
+        { expense_ids: expenseIds },
+        (value) =>
+          new Set(
+            Array.isArray(value)
+              ? value.filter((id): id is string => typeof id === "string")
+              : [],
+          ),
+      ),
     expenseSelfDecides: (expenseId) =>
       call(
         "expense_self_decides",

@@ -1,8 +1,4 @@
-import type {
-  BlockSqlContext,
-  BlockSqlContractFunction,
-  BlockSqlTableSpec,
-} from "../context.ts";
+import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -26,7 +22,11 @@ import {
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
-import { managerDecides } from "./direct-approver.ts";
+import { deciderCall, managerDecides } from "./direct-approver.ts";
+import {
+  EXPENSE_RESERVED,
+  invoicedCheck,
+} from "./expenses-standalone-contract.ts";
 import { expenseGuardSql } from "./expenses-write-guard.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
@@ -37,8 +37,6 @@ export const expenseKey = (ctx: BlockSqlContext, action: string): string =>
     ctx.config.permissions[action] ??
       ctx.permissionKey("manage", moduleOperations("expenses").manage),
   );
-
-const EXPENSE_RESERVED = ["fields"] as const;
 
 const STATUSES = ["draft", "submitted", "approved", "rejected", "reimbursed"];
 
@@ -153,94 +151,6 @@ export function expensesStandalone(ctx: BlockSqlContext): boolean {
   return reports;
 }
 
-export function standaloneContract(
-  ctx: BlockSqlContext,
-): readonly BlockSqlContractFunction[] {
-  const employee = ownerIsEmployee(ctx, "blocks.expenses.options")
-    ? ["uuid"]
-    : [];
-
-  const company = ctx.flag("companyExpenses", false) ? ["boolean"] : [];
-
-  const extra = extraFieldsArg(
-    ctx.extraColumns("expenses", EXPENSE_RESERVED),
-  ).contract;
-
-  return [
-    {
-      name: "save_expense_category",
-      args: ["{id}", "text", "text", "text", "bigint", "bigint"],
-      returns: "jsonb",
-    },
-    { name: "archive_expense_category", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_expense_categories",
-      args: ["{id}", "boolean"],
-      returns: "jsonb",
-    },
-    {
-      name: "page_expense_categories",
-      args: ["{id}", "jsonb"],
-      returns: "jsonb",
-    },
-    { name: "page_expenses", args: ["{id}", "jsonb"], returns: "jsonb" },
-    {
-      name: "create_expense",
-      args: [
-        "{id}",
-        "date",
-        "bigint",
-        "text",
-        "uuid",
-        "text",
-        "text",
-        "uuid",
-        ...employee,
-        ...company,
-        ...extra,
-      ],
-      returns: "jsonb",
-    },
-    {
-      name: "update_expense",
-      args: [
-        "uuid",
-        "date",
-        "bigint",
-        "text",
-        "uuid",
-        "text",
-        "text",
-        "text[]",
-        ...extra,
-      ],
-      returns: "jsonb",
-    },
-    { name: "submit_expense", args: ["uuid"], returns: "jsonb" },
-    { name: "withdraw_expense", args: ["uuid"], returns: "jsonb" },
-    { name: "purge_expense", args: ["uuid"], returns: "boolean" },
-    {
-      name: "decide_expense",
-      args: ["uuid", "boolean", "text", "uuid"],
-      returns: "jsonb",
-    },
-    { name: "reimburse_expense", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "reopen_expense", args: ["uuid", "text"], returns: "jsonb" },
-    {
-      name: "reverse_expense_reimbursement",
-      args: ["uuid", "text"],
-      returns: "jsonb",
-    },
-    { name: "expense_self_decides", args: ["uuid"], returns: "boolean" },
-    { name: "get_expense", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_expenses",
-      args: ["{id}", "uuid", "text", "boolean", "integer", ...employee],
-      returns: "jsonb",
-    },
-  ];
-}
-
 export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const owner = recordOwner(ctx, {
     block: "expenses",
@@ -273,13 +183,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   );
 
   const reimburse = expenseKey(ctx, "reimburse");
-  const invoiced = ctx.text("invoicedColumn", "");
-
-  if (invoiced !== "" && !/^[a-z_][a-z0-9_]{0,62}$/.test(invoiced)) {
-    throw new TypeError(
-      "blocks.expenses.options.invoicedColumn names a column of the expenses table, such as invoice_id",
-    );
-  }
+  const invoiced = invoicedCheck(ctx);
 
   const withdrawOthers = sqlString(
     ctx.config.permissions["withdraw"] ??
@@ -306,13 +210,14 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   // The pending approval request of v_row, when approvals decide expenses.
   const pending = `exists (select 1 from ${ar} x where x.${a("subjectType")} = ${sqlString(EXPENSE_SUBJECT)} and x.${a("subjectId")} = v_row.${e("id")}::text and x.${a("status")} = 'pending')`;
 
-  const openApproval =
+  // `exclude` adds to the policy snapshot, such as the users to leave out.
+  const openApprovalWith = (exclude: string): string =>
     linked === undefined
       ? ""
       : `
   perform ${linked.fn("open_approval")}(
     v_row.${e("tenant")}, ${sqlString(EXPENSE_SUBJECT)}, v_row.${e("id")}::text, 'approve',
-    ${sqlString(standalonePolicy(ctx))}::jsonb${employee ? ` || jsonb_build_object('managerOf', v_row.${e("employee")}::text)` : ""}, null,
+    ${sqlString(standalonePolicy(ctx))}::jsonb${employee ? ` || jsonb_build_object('managerOf', v_row.${e("employee")}::text)` : ""}${exclude}, null,
     jsonb_build_object('userId', ${owner.requester("v_row")}${employee ? `, 'employeeId', v_row.${e("employee")}` : ""}, 'amount', v_row.${e("amount")}::text, 'currency', v_row.${e("currency")}, 'spentOn', v_row.${e("spentOn")}),
     ${owner.requester("v_row")}
   );`;
@@ -462,8 +367,16 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const managed = (row: string, key: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, key)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
 
-  const creator = (row: string): string =>
-    has("createdBy") ? `${row}.${e("createdBy")}` : "null";
+  // The creator to keep out of a decision. An expense without one on record
+  // fails closed: the decider counts as its creator (ADR 1090).
+  const creatorOr = (row: string, decider: string): string =>
+    has("createdBy")
+      ? `coalesce(${row}.${e("createdBy")}, ${decider})`
+      : "null";
+
+  // Whether `decider` decides this expense as its owner or creator.
+  const selfOf = (row: string, decider: string): string =>
+    `coalesce(${decider} = ${owner.requester(row)} or ${decider} = ${creatorOr(row, decider)}, false)`;
 
   const managerArgs = (row: string) =>
     ({
@@ -472,9 +385,18 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
       ...(employee ? { employee: `${row}.${e("employee")}::text` } : {}),
     }) as const;
 
-  // Who may decide: the approve key, or the owner's manager (options.approver).
+  // Who may decide: the approve key, the owner's manager (options.approver),
+  // or a caller the app's options.decider function accepts.
   const decides = (row: string): string =>
-    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))})`;
+    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`)})`;
+
+  const deciderOn = deciderCall(ctx, "blocks.expenses.options", "null") !== "";
+
+  if (deciderOn && linked !== undefined) {
+    throw new TypeError(
+      "blocks.expenses.options.decider needs standaloneApprovals off; with the approvals block its policy picks the approvers",
+    );
+  }
 
   // Another active member who holds the approve key, or, with the manager as
   // approver, an active manager up the owner's chain. The owner or creator
@@ -489,21 +411,34 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const managerOn =
     managerDecides(ctx, "blocks.expenses.options", managerArgs("v_row")) !== "";
 
-  const nobodyElse = (row: string): string => {
+  // `also` is the creator to leave out, next to the owner.
+  const nobodyElse = (row: string, also: string): string => {
     const other = answersForOthers
       ? otherDecider(ctx, {
           ...managerArgs(row),
           permission: approve,
           manager: managerOn,
-          // Only the direct manager decides (managerDecides), so only they
-          // count; a manager higher up would leave the expense with nobody.
-          chain: false,
-          also: creator(row),
+          // Without options.decider only the direct manager decides
+          // (managerDecides), so a manager higher up would leave the expense
+          // with nobody. An app's decider may accept the chain, as in leave.
+          chain: deciderOn,
+          also,
         })
       : undefined;
 
     return other === undefined ? "false" : `not ${other}`;
   };
+
+  // The approvals queue leaves the creator out while someone else can decide.
+  const cb = has("createdBy") ? `v_row.${e("createdBy")}` : "";
+
+  // Without a policy column the snapshot can't carry the list; the creator
+  // still can't decide (expense_approval_decided).
+  const openApproval = openApprovalWith(
+    has("createdBy") && linked?.has("requests", "policy") === true
+      ? ` || case when ${cb} is not null and ${cb} is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", cb)} then jsonb_build_object('excludedUserIds', jsonb_build_array(${cb}::text)) else '{}'::jsonb end`
+      : "",
+  );
 
   const ownerOrManager = (key: string): string => `
   if not (${mine("v_row")} or ${managed("v_row", key)}) then
@@ -512,7 +447,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   const editable = `
   if ${status("v_row")} not in ('draft', 'rejected') then
-    ${fail("EXPENSE_LOCKED", "only a draft or rejected expense can change", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only a draft or rejected expense can change")}
   end if;`;
 
   const categoryCheck = (category: string, tenant: string): string =>
@@ -532,14 +467,16 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     : "v_owner";
 
   const createBase = `${idType}, date, bigint, text, uuid, text, text, uuid`;
-  const createTypes = `${createBase}${employee ? ", uuid" : ""}${company ? ", boolean" : ""}`;
+  const createTypes = `${createBase}${employee ? ", uuid" : ""}${company ? ", boolean" : ""}, uuid`;
 
   const createDrops = [false, true]
     .flatMap((withEmployee) =>
       [false, true].flatMap((withCompany) =>
-        [false, true].map(
-          (withFields) =>
-            `${createBase}${withEmployee ? ", uuid" : ""}${withCompany ? ", boolean" : ""}${withFields ? ", jsonb" : ""}`,
+        [false, true].flatMap((withCreator) =>
+          [false, true].map(
+            (withFields) =>
+              `${createBase}${withEmployee ? ", uuid" : ""}${withCompany ? ", boolean" : ""}${withCreator ? ", uuid" : ""}${withFields ? ", jsonb" : ""}`,
+          ),
         ),
       ),
     )
@@ -573,6 +510,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
       : ["user"],
     createOthers,
     updateOthers,
+    requester: owner.requester,
   });
 
   const ownTable = ctx.owns("expenses")
@@ -596,7 +534,7 @@ ${renderPolicy(makePolicy({ table, name: ctx.naming.rename("expenses_read"), com
     : "";
 
   return `${owner.helper}${ownTable}
-${createDrops}create or replace function ${fn("create_expense")}(tenant ${idType}, spent_on date, amount bigint, currency text, category_id uuid default null, description text default null, merchant text default null, user_id uuid default null${employee ? ", employee_id uuid default null" : ""}${company ? ", company boolean default false" : ""}${extra.param})
+${createDrops}create or replace function ${fn("create_expense")}(tenant ${idType}, spent_on date, amount bigint, currency text, category_id uuid default null, description text default null, merchant text default null, user_id uuid default null${employee ? ", employee_id uuid default null" : ""}${company ? ", company boolean default false" : ""}, created_by uuid default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -643,6 +581,9 @@ ${
     ${invalid("the user is not a member of this organization")}
   end if;`
   }${company ? "\n  end if;" : ""}
+  if create_expense.created_by is not null and not ${SERVICE_CALLER} and create_expense.created_by is distinct from auth.uid() then
+    ${forbidden("only the service role records an expense for another creator")}
+  end if;${unsupported("createdBy", "create_expense.created_by")}
   if create_expense.spent_on is null then
     ${invalid("an expense needs spent_on")}
   end if;
@@ -653,7 +594,7 @@ ${
     ${invalid("currency must be a three-letter currency code")}
   end if;${categoryCheck("create_expense.category_id", "create_expense.tenant")}${unsupported("description", "nullif(trim(create_expense.description), '')")}${unsupported("merchant", "nullif(trim(create_expense.merchant), '')")}
   insert into ${table} (${e("tenant")}, ${ownerInsert}${has("category") ? `, ${e("category")}` : ""}, ${e("spentOn")}${has("description") ? `, ${e("description")}` : ""}${has("merchant") ? `, ${e("merchant")}` : ""}, ${e("amount")}, ${e("currency")}${statusColumn ? `, ${e("status")}` : ""}${has("createdBy") ? `, ${e("createdBy")}` : ""}${inserted.columns})
-  values (create_expense.tenant, ${ownerValues}${has("category") ? ", create_expense.category_id" : ""}, create_expense.spent_on${has("description") ? ", nullif(trim(create_expense.description), '')" : ""}${has("merchant") ? ", nullif(trim(create_expense.merchant), '')" : ""}, create_expense.amount, create_expense.currency${statusColumn ? `, ${ctx.cast("expenses", "status", "'draft'")}` : ""}${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
+  values (create_expense.tenant, ${ownerValues}${has("category") ? ", create_expense.category_id" : ""}, create_expense.spent_on${has("description") ? ", nullif(trim(create_expense.description), '')" : ""}${has("merchant") ? ", nullif(trim(create_expense.merchant), '')" : ""}, create_expense.amount, create_expense.currency${statusColumn ? `, ${ctx.cast("expenses", "status", "'draft'")}` : ""}${has("createdBy") ? `, coalesce(create_expense.created_by${extra.param === "" ? "" : `, case when ${SERVICE_CALLER} then nullif(create_expense.fields ->> ${sqlString(ctx.colName("expenses", "createdBy"))}, '')::uuid end`}, auth.uid())` : ""}${inserted.values})
   returning * into v_row;
   ${record("expense.created", "recorded an expense")}
   return ${json("v_row")};
@@ -735,7 +676,7 @@ begin${load("withdraw_expense.expense_id")}${ownerOrManager(withdrawOthers)}
     ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided; it can't be withdrawn")}
   end if;
   if ${status("v_row")} <> 'submitted' then
-    ${fail("EXPENSE_LOCKED", "only a submitted expense is withdrawn", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only a submitted expense is withdrawn")}
   end if;
   update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
@@ -770,7 +711,7 @@ begin${load("purge_expense.expense_id")}${
   end if;`
   }
   if ${status("v_row")} <> 'draft'${deleteSubmitted === undefined ? "" : ` and ${status("v_row")} not in ('submitted', 'approved')`} then
-    ${fail("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is purged" : "only a draft, submitted or approved expense is purged", "55000")}
+    ${conflict("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is purged" : "only a draft, submitted or approved expense is purged")}
   end if;
 ${cancelApproval}
   delete from ${table} x where x.${e("id")} = v_row.${e("id")};
@@ -801,21 +742,21 @@ begin${load("decide_expense.expense_id")}
     ${forbidden("only the service role decides for another user")}
   end if;
   v_decider := coalesce(decide_expense.decided_by, auth.uid());
-  v_self := coalesce(v_decider = ${owner.requester("v_row")} or v_decider = ${creator("v_row")}, false);
-  if v_self and not ${nobodyElse("v_row")} then
+  v_self := ${selfOf("v_row", "v_decider")};
+  if v_self and not ${nobodyElse("v_row", creatorOr("v_row", "v_decider"))} then
     ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
   end if;
   if ${status("v_row")} in ('approved', 'rejected', 'reimbursed') then
     ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided")}
   end if;
   if ${status("v_row")} <> 'submitted' then
-    ${fail("EXPENSE_LOCKED", "only a submitted expense is decided", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only a submitted expense is decided")}
   end if;${
     linked === undefined
       ? ""
       : `
   if ${pending} then
-    ${fail("EXPENSE_IN_APPROVAL", "this expense is decided through its approval request", "55000")}
+    ${conflict("EXPENSE_IN_APPROVAL", "this expense is decided through its approval request")}
   end if;`
   }
   if decide_expense.approved is null then
@@ -857,8 +798,8 @@ begin
   end if;
   -- Approvals keeps the owner, its requester, out; this keeps the creator out
   -- unless nobody else can decide (ADR 1090).
-  if expense_approval_decided.decided_by is not null and expense_approval_decided.decided_by = ${creator("v_row")}
-    and expense_approval_decided.decided_by is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row")} then
+  if expense_approval_decided.decided_by is not null and expense_approval_decided.decided_by = ${creatorOr("v_row", "expense_approval_decided.decided_by")}
+    and expense_approval_decided.decided_by is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", creatorOr("v_row", "expense_approval_decided.decided_by"))} then
     ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
   end if;
   if expense_approval_decided.approved then
@@ -893,7 +834,7 @@ begin${load("reimburse_expense.expense_id")}
     ${conflict("EXPENSE_ALREADY_REIMBURSED", "this expense is already reimbursed")}
   end if;
   if ${status("v_row")} <> 'approved' then
-    ${fail("EXPENSE_LOCKED", "only an approved expense is reimbursed", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only an approved expense is reimbursed")}
   end if;${unsupported("reimbursement", "nullif(trim(reimburse_expense.reference), '')")}
   update ${table} x set ${e("reimbursedAt")} = now()${setStatus("reimbursed")}${set("reimbursedBy", "auth.uid()")}${set("reimbursement", "nullif(trim(reimburse_expense.reference), '')")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
@@ -906,7 +847,7 @@ ${userGrant(`${fn("reimburse_expense")}(uuid, text)`)}
 
 -- Takes an approved expense back to submitted for a new decision, with a
 -- reason the audit keeps. A decider who isn't the owner may, until it is
--- reimbursed${invoiced === "" ? "" : " or invoiced"}.
+-- reimbursed${invoiced === undefined ? "" : " or invoiced"}.
 create or replace function ${fn("reopen_expense")}(expense_id uuid, reason text)
 returns jsonb
 language plpgsql
@@ -916,7 +857,7 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("reopen_expense.expense_id")}
-  if not (${SERVICE_CALLER} or (${decides("v_row")} and ${owner.requester("v_row")} is distinct from auth.uid() and ${creator("v_row")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or (${decides("v_row")} and not ${selfOf("v_row", "auth.uid()")})) then
     ${forbidden("not allowed to reopen this expense")}
   end if;
   if nullif(trim(reopen_expense.reason), '') is null then
@@ -929,12 +870,12 @@ begin${load("reopen_expense.expense_id")}
     ${conflict("EXPENSE_ALREADY_REIMBURSED", "a reimbursed expense can't be reopened")}
   end if;
   if ${status("v_row")} <> 'approved' then
-    ${fail("EXPENSE_LOCKED", "only an approved expense is reopened", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only an approved expense is reopened")}
   end if;${
-    invoiced === ""
+    invoiced === undefined
       ? ""
       : `
-  if v_row.${sqlIdent(invoiced)} is not null then
+  if ${invoiced("v_row")} then
     ${conflict("EXPENSE_INVOICED", "an invoiced expense can't be reopened")}
   end if;`
   }
@@ -968,7 +909,7 @@ begin${load("reverse_expense_reimbursement.expense_id")}
     ${conflict("EXPENSE_NOT_REIMBURSED", "this expense is not reimbursed")}
   end if;
   if ${status("v_row")} <> 'reimbursed' then
-    ${fail("EXPENSE_LOCKED", "only a reimbursed expense has a reimbursement to reverse", "55000")}
+    ${conflict("EXPENSE_LOCKED", "only a reimbursed expense has a reimbursement to reverse")}
   end if;
   update ${table} x set ${e("reimbursedAt")} = null${setStatus("approved")}${set("reimbursement", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
@@ -979,6 +920,23 @@ end;
 $$;
 ${userGrant(`${fn("reverse_expense_reimbursement")}(uuid, text)`)}
 
+-- The expenses of expense_ids the caller decides as owner or creator, in one
+-- read for a list: expense_self_decides for each id.
+create or replace function ${fn("expense_self_decides_many")}(expense_ids uuid[])
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select v_row.${e("id")}
+  from ${table} v_row
+  where v_row.${e("id")} = any (expense_self_decides_many.expense_ids)
+    and auth.uid() is not null
+    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row")} and ${nobodyElse("v_row", creatorOr("v_row", "auth.uid()"))}
+$$;
+${userGrant(`${fn("expense_self_decides_many")}(uuid[])`)}
+
 -- Whether the caller decides this expense as its owner or creator: they may
 -- decide it and nobody else can. Apps show the rule with it.
 create or replace function ${fn("expense_self_decides")}(expense_id uuid)
@@ -988,10 +946,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((
-    select (auth.uid() = ${owner.requester("v_row")} or auth.uid() = ${creator("v_row")}) and ${decides("v_row")} and ${nobodyElse("v_row")}
-    from ${table} v_row where v_row.${e("id")} = expense_self_decides.expense_id
-  ), false)
+  select exists (select 1 from ${fn("expense_self_decides_many")}(array[expense_self_decides.expense_id]))
 $$;
 ${userGrant(`${fn("expense_self_decides")}(uuid)`)}
 
