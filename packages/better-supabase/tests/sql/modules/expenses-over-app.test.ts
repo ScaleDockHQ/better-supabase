@@ -658,7 +658,7 @@ $$;`,
     }
   });
 
-  it("withdraws approved expenses and deletes submitted ones when the config allows it", async () => {
+  it("refuses to withdraw a decided expense, reopens and reverses with a reason, and deletes submitted ones when the config allows it", async () => {
     const payroll = "88888888-8888-4888-8888-888888888888";
 
     const refused = (call: string, reason: string): string => `begin
@@ -699,27 +699,37 @@ begin
   perform better_supabase.decide_expense(v_paid, true);
   perform better_supabase.reimburse_expense(v_paid, 'batch-1');
   ${AS(ALICE)}
-  v_expense := better_supabase.withdraw_expense(v_id);
-  if v_expense ->> 'status' <> 'draft' or v_expense ->> 'decidedBy' is not null or v_expense ->> 'submittedAt' is not null then
-    raise exception 'withdrawn %', v_expense;
+  ${refused("better_supabase.withdraw_expense(v_id)", "already decided")}
+  ${refused("better_supabase.reopen_expense(v_id, 'typo')", "not allowed to reopen")}
+  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
+  ${AS(BOB)}
+  ${refused("better_supabase.reopen_expense(v_id, ' ')", "needs a reason")}
+  v_expense := better_supabase.reopen_expense(v_id, 'wrong amount');
+  if v_expense ->> 'status' <> 'submitted' or v_expense ->> 'decidedBy' is not null or v_expense ->> 'decidedAt' is not null then
+    raise exception 'reopened %', v_expense;
   end if;
-  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
-  ${refused("better_supabase.withdraw_expense(v_paid)", "submitted or approved")}
-  perform better_supabase.submit_expense(v_id);
-  ${AS(BOB)}
-  perform better_supabase.decide_expense(v_id, true);
-  ${AS(payroll)}
-  ${refused("better_supabase.withdraw_expense(v_id)", "not allowed")}
-  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
-  ${AS(BOB)}
+  ${refused("better_supabase.reopen_expense(v_id, 'again')", "already open")}
+  ${refused("better_supabase.reopen_expense(v_paid, 'late')", "reimbursed expense")}
+  ${AS(ALICE)}
   if better_supabase.withdraw_expense(v_id) ->> 'status' <> 'draft' then
-    raise exception 'withdrawn by a key holder';
+    raise exception 'withdrawn after the reopen';
   end if;
+  ${AS(payroll)}
+  ${refused("better_supabase.purge_expense(v_other)", "not allowed")}
+  ${refused("better_supabase.reverse_expense_reimbursement(v_paid, 'bounced')", "not allowed")}
+  ${AS(BOB)}
   if not better_supabase.purge_expense(v_other) then
     raise exception 'approved expense not deleted';
   end if;
   ${refused("better_supabase.get_expense(v_other)", "no such expense")}
   ${refused("better_supabase.purge_expense(v_paid)", "only a draft")}
+  ${refused("better_supabase.reverse_expense_reimbursement(v_paid, '')", "needs a reason")}
+  v_expense := better_supabase.reverse_expense_reimbursement(v_paid, 'the transfer bounced');
+  if v_expense ->> 'status' <> 'approved' or v_expense ->> 'reimbursedAt' is not null or v_expense ->> 'reimbursement' is not null
+    or (select reimbursed_by from better_supabase.expenses where id = v_paid) is not null or v_expense ->> 'decidedBy' is null then
+    raise exception 'reversed %', v_expense;
+  end if;
+  ${refused("better_supabase.reverse_expense_reimbursement(v_paid, 'twice')", "not reimbursed")}
 end;
 $$;`,
         {
@@ -731,7 +741,6 @@ $$;`,
               withdraw: "expense.withdraw",
               deleteSubmitted: "expense.purge",
             },
-            options: { withdrawApproved: true },
           },
         },
         {},
@@ -754,7 +763,7 @@ $$;`,
     expect(body("withdraw_expense")).toContain(
       "only a submitted expense is withdrawn",
     );
-    expect(body("withdraw_expense")).toContain("not in ('submitted')");
+    expect(body("withdraw_expense")).toContain("EXPENSE_ALREADY_DECIDED");
     expect(body("purge_expense")).toContain("only a draft expense is purged");
     expect(body("purge_expense")).not.toContain("'approved'");
   });

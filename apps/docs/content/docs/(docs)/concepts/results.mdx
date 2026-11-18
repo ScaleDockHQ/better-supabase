@@ -41,7 +41,7 @@ A `DbException` has the `DbError` as `error` and `cause`, and its own
 | `not_found`       | 404    | `get`, `update`, `delete` with no row, `PGRST116`, `P0002` (`no_data_found`)                                                                                                                                                                                                                                                                   |
 | `unauthorized`    | 401    | Missing or expired JWT                                                                                                                                                                                                                                                                                                                         |
 | `forbidden`       | 403    | `42501`, RLS `WITH CHECK` failures; `25006`, a write in a read-only transaction (with a hint); guards with `aal` set `required` ([MFA](/docs/auth/mfa-sso)); an [authorizer](/docs/extending/authorizers) refusal sets `permission`, and `approval` with `code: "APPROVAL_REQUIRED"`; a refusal that names the missing keys sets `permissions` |
-| `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`; hint `STALE_WRITE` when an update's `expectedVersion` no longer matches (see [Stale writes](#stale-writes))                                                                                                                                                                         |
+| `conflict`        | 409    | `23505` unique violation, with `constraint` and `columns`; hint `STALE_WRITE` when an update's `expectedVersion` no longer matches (see [Stale writes](#stale-writes)); SQLSTATE `PT409` from a block function in a state conflict, with its hint (see [Conflicts from functions](#conflicts-from-functions))                                  |
 | `foreign_key`     | 409    | `23503`                                                                                                                                                                                                                                                                                                                                        |
 | `check`           | 422    | `23514`, with `constraint`; a `jsonb-schemas` check is `validation` instead                                                                                                                                                                                                                                                                    |
 | `not_null`        | 422    | `23502`, with `column`                                                                                                                                                                                                                                                                                                                         |
@@ -87,6 +87,19 @@ if (!saved.ok && isStaleWrite(saved.error)) {
 ```
 
 The entities that take `expectedVersion` declare `expectedVersion: true` in their manifest `entities`. A change without one is last writer wins, as before.
+
+## Conflicts from functions
+
+A block function that refuses a change because of the record's state, such as deciding an expense that is already decided, raises SQLSTATE `PT409` with a hint (`EXPENSE_ALREADY_DECIDED`). PostgREST answers that SQLSTATE with HTTP 409, and `mapDbError` maps it to a `conflict` error that keeps the hint, so a client calling the function directly and one going through the typed client or an adapter see the same 409. Your own functions can follow the pattern:
+
+```sql
+if v_row.status <> 'submitted' then
+  raise exception 'this claim is already decided'
+    using errcode = 'PT409', hint = 'CLAIM_ALREADY_DECIDED';
+end if;
+```
+
+Keep `PT409` for a state the caller can resolve by reloading the record. A state the change can never pass, such as editing an approved record, stays a `55000` error with its own hint.
 
 ## Block hint codes
 

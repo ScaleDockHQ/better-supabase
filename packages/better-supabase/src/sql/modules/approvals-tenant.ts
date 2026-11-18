@@ -195,7 +195,8 @@ export function managerMatch(
  * set (as `managerMatch` lets them decide), or, when `chain` is set, an active
  * manager anywhere up the requester's reporting chain who has a login, since an
  * app's decider may accept them. A requester may decide their own request only
- * when this is false.
+ * when this is false. `also` names one more user who doesn't count, such as the
+ * record's creator. Without `manager` and `chain` it needs no employees.
  */
 export function otherDecider(
   ctx: BlockSqlContext,
@@ -206,16 +207,15 @@ export function otherDecider(
     readonly manager: boolean;
     readonly chain: boolean;
     readonly employee?: string;
+    readonly also?: string;
   },
 ): string | undefined {
   const employees = employeesOf(ctx);
 
-  if (employees === undefined) {
+  if (employees === undefined && (args.manager || args.chain)) {
     return undefined;
   }
 
-  const e = (column: string): string => employees.col("employees", column);
-  const table = employees.table("employees");
   const members = ctx.of("memberships");
   const m = (column: string): string => members.col("memberships", column);
 
@@ -228,24 +228,43 @@ export function otherDecider(
       })
     : "";
 
-  const chain = args.chain
-    ? `om.${m("user")} in (
+  const chain =
+    args.chain && employees !== undefined
+      ? chainMembers(employees, args.requester, args.tenant, args.employee)
+      : "";
+
+  const also =
+    args.also === undefined
+      ? ""
+      : ` and om.${m("user")} is distinct from ${args.also}`;
+
+  return `exists (
+      select 1 from ${members.table("memberships")} om
+      where om.${m("tenant")} = ${args.tenant} and om.${m("user")} is distinct from ${args.requester}${also}${activeMembership(ctx, "om")}
+        and (${[manager, chain === "" ? "" : `om.${m("user")} in ${chain}`, ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)].filter((check) => check !== "").join(" or ")})
+    )`;
+}
+
+/** The users of the active managers up the requester's reporting chain. */
+function chainMembers(
+  employees: NonNullable<ReturnType<typeof employeesOf>>,
+  requester: string,
+  tenant: string,
+  employee?: string,
+): string {
+  const e = (column: string): string => employees.col("employees", column);
+  const table = employees.table("employees");
+
+  return `(
           with recursive up(id) as (
             select me.${e("manager")} from ${table} me
-            where me.${e("tenant")} = ${args.tenant} and ${employeeWho(e, args.requester, args.employee)}
+            where me.${e("tenant")} = ${tenant} and ${employeeWho(e, requester, employee)}
             union
             select boss.${e("manager")} from up join ${table} boss on boss.${e("id")} = up.id
           )
           select mgr.${e("user")} from up join ${table} mgr on mgr.${e("id")} = up.id
           where ${employedNow(employees, "mgr")}
-        )`
-    : "";
-
-  return `exists (
-      select 1 from ${members.table("memberships")} om
-      where om.${m("tenant")} = ${args.tenant} and om.${m("user")} is distinct from ${args.requester}${activeMembership(ctx, "om")}
-        and (${[manager, chain, ctx.scope.canUser(`om.${m("user")}`, args.tenant, args.permission)].filter((check) => check !== "").join(" or ")})
-    )`;
+        )`;
 }
 
 /** What the request functions share with the rest of the module. */

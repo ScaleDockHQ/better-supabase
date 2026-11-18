@@ -6126,9 +6126,9 @@
                 "type": "boolean",
                 "default": false
               },
-              "withdrawApproved": {
-                "type": "boolean",
-                "default": false
+              "invoicedColumn": {
+                "type": "string",
+                "default": ""
               },
               "standaloneApprovals": {
                 "type": "boolean",

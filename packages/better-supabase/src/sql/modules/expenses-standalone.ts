@@ -14,6 +14,7 @@ import {
 } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  conflict,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -24,7 +25,9 @@ import {
   updateExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { otherDecider } from "./approvals-tenant.ts";
 import { managerDecides } from "./direct-approver.ts";
+import { expenseGuardSql } from "./expenses-write-guard.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
@@ -222,6 +225,13 @@ export function standaloneContract(
       returns: "jsonb",
     },
     { name: "reimburse_expense", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "reopen_expense", args: ["uuid", "text"], returns: "jsonb" },
+    {
+      name: "reverse_expense_reimbursement",
+      args: ["uuid", "text"],
+      returns: "jsonb",
+    },
+    { name: "expense_self_decides", args: ["uuid"], returns: "boolean" },
     { name: "get_expense", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_expenses",
@@ -263,7 +273,13 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   );
 
   const reimburse = expenseKey(ctx, "reimburse");
-  const withdrawApproved = ctx.flag("withdrawApproved", false);
+  const invoiced = ctx.text("invoicedColumn", "");
+
+  if (invoiced !== "" && !/^[a-z_][a-z0-9_]{0,62}$/.test(invoiced)) {
+    throw new TypeError(
+      "blocks.expenses.options.invoicedColumn names a column of the expenses table, such as invoice_id",
+    );
+  }
 
   const withdrawOthers = sqlString(
     ctx.config.permissions["withdraw"] ??
@@ -358,19 +374,35 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${userOf(row)}${owner.json(row)}, 'categoryId', ${or(row, "category")}, 'spentOn', ${row}.${e("spentOn")}, 'description', ${or(row, "description")}, 'merchant', ${or(row, "merchant")}, 'amount', ${row}.${e("amount")}::text, 'currency', ${row}.${e("currency")}, 'status', ${status(row)}, 'submittedAt', ${row}.${e("submittedAt")}, 'decidedBy', ${or(row, "decidedBy")}, 'decidedAt', ${or(row, "decidedAt")}, 'decisionNote', ${or(row, "decisionNote")}, 'reimbursedAt', ${row}.${e("reimbursedAt")}, 'reimbursement', ${or(row, "reimbursement")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
 
-  const record = (type: string, summary: string): string =>
+  const payload = `jsonb_build_object('organizationId', v_row.${e("tenant")}, 'id', v_row.${e("id")}, 'userId', ${userOf("v_row")}${owner.json("v_row")}, 'status', ${status("v_row")}, 'amount', v_row.${e("amount")}::text, 'currency', v_row.${e("currency")})`;
+
+  // `metadata` adds keys to the audit entry only, such as a reason.
+  const record = (
+    type: string,
+    summary: string,
+    metadata?: { readonly summary: string; readonly keys: string },
+  ): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', v_row.${e("tenant")}, 'id', v_row.${e("id")}, 'userId', ${userOf("v_row")}${owner.json("v_row")}, 'status', ${status("v_row")}, 'amount', v_row.${e("amount")}::text, 'currency', v_row.${e("currency")})`,
+      payload,
       subject: `'expenses/' || v_row.${e("id")}::text`,
       tenant: `v_row.${e("tenant")}`,
       audit: {
         category: "data",
         targetType: "expense",
         recordId: `v_row.${e("id")}::text`,
-        summary: sqlString(summary),
+        summary: metadata?.summary ?? sqlString(summary),
+        ...(metadata === undefined
+          ? {}
+          : { metadata: `${payload} || jsonb_build_object(${metadata.keys})` }),
       },
     });
+
+  const selfAudit = (verb: string) =>
+    ({
+      summary: `case when v_self then ${sqlString(`${verb} an expense nobody else could decide (self-decided)`)} else ${sqlString(`${verb} an expense`)} end`,
+      keys: "'selfDecided', v_self",
+    }) as const;
 
   const load = (id: string): string => `
   select * into v_row from ${table} x where x.${e("id")} = ${id} for update;
@@ -429,6 +461,47 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   const managed = (row: string, key: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, key)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
+
+  const creator = (row: string): string =>
+    has("createdBy") ? `${row}.${e("createdBy")}` : "null";
+
+  const managerArgs = (row: string) =>
+    ({
+      requester: owner.requester(row),
+      tenant: `${row}.${e("tenant")}`,
+      ...(employee ? { employee: `${row}.${e("employee")}::text` } : {}),
+    }) as const;
+
+  // Who may decide: the approve key, or the owner's manager (options.approver).
+  const decides = (row: string): string =>
+    `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))})`;
+
+  // Another active member who holds the approve key, or, with the manager as
+  // approver, an active manager up the owner's chain. The owner or creator
+  // decides only without one; an access model that can't answer for other
+  // users never lets them.
+  const answersForOthers = !(
+    (ctx.modules.permissions?.model === "custom" &&
+      ctx.modules.permissions.functions?.canUser === undefined) ||
+    ctx.providerCallerOnly === true
+  );
+
+  const managerOn =
+    managerDecides(ctx, "blocks.expenses.options", managerArgs("v_row")) !== "";
+
+  const nobodyElse = (row: string): string => {
+    const other = answersForOthers
+      ? otherDecider(ctx, {
+          ...managerArgs(row),
+          permission: approve,
+          manager: managerOn,
+          chain: managerOn,
+          also: creator(row),
+        })
+      : undefined;
+
+    return other === undefined ? "false" : `not ${other}`;
+  };
 
   const ownerOrManager = (key: string): string => `
   if not (${mine("v_row")} or ${managed("v_row", key)}) then
@@ -489,6 +562,16 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     `${sqlString(name)} = any (coalesce(update_expense.clear, '{}'::text[]))`;
 
   const listTypes = `${idType}, uuid, text, boolean, integer`;
+
+  const guard = expenseGuardSql(ctx, {
+    status,
+    forbidden,
+    owners: employee
+      ? [...(has("user") ? ["user"] : []), "employee"]
+      : ["user"],
+    createOthers,
+    updateOthers,
+  });
 
   const ownTable = ctx.owns("expenses")
     ? `
@@ -609,6 +692,7 @@ end;
 $$;
 ${userGrant(`${fn("update_expense")}(${updateTypes}${extra.type})`)}
 
+${guard}
 create or replace function ${fn("submit_expense")}(expense_id uuid)
 returns jsonb
 language plpgsql
@@ -617,7 +701,16 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}${editable}
+begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
+  if ${status("v_row")} = 'submitted' then
+    ${conflict("EXPENSE_ALREADY_SUBMITTED", "this expense is already submitted")}
+  end if;
+  if ${status("v_row")} in ('approved', 'reimbursed') then
+    ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided")}
+  end if;${editable}
+  if ${status("v_row")} = 'rejected' and not ${mine("v_row")} then
+    ${forbidden("only the owner resubmits a rejected expense")}
+  end if;
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;${openApproval}
@@ -635,11 +728,14 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("withdraw_expense.expense_id")}${ownerOrManager(withdrawApproved ? withdrawOthers : updateOthers)}
-  if ${status("v_row")} not in (${withdrawApproved ? "'submitted', 'approved'" : "'submitted'"}) then
-    ${fail("EXPENSE_LOCKED", withdrawApproved ? "only a submitted or approved expense is withdrawn" : "only a submitted expense is withdrawn", "55000")}
+begin${load("withdraw_expense.expense_id")}${ownerOrManager(withdrawOthers)}
+  if ${status("v_row")} in ('approved', 'rejected', 'reimbursed') then
+    ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided; it can't be withdrawn")}
   end if;
-  update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}${withdrawApproved ? `${set("approvedAt", "null")}${set("decidedBy", "null")}${set("decidedAt", "null")}` : ""}, ${e("updatedAt")} = now()
+  if ${status("v_row")} <> 'submitted' then
+    ${fail("EXPENSE_LOCKED", "only a submitted expense is withdrawn", "55000")}
+  end if;
+  update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;${cancelApproval}
   ${record("expense.withdrawn", "withdrew an expense")}
@@ -682,7 +778,8 @@ end;
 $$;
 ${userGrant(`${fn("purge_expense")}(uuid)`)}
 
--- The service role names the user it decides for in decided_by.
+-- The service role names the user it decides for in decided_by. The owner or
+-- creator decides only when nobody else can (ADR 1090); the audit entry says so.
 drop function if exists ${fn("decide_expense")}(uuid, boolean, text);
 create or replace function ${fn("decide_expense")}(expense_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
@@ -692,21 +789,22 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
+  v_decider uuid;
+  v_self boolean;
 begin${load("decide_expense.expense_id")}
-  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${e("tenant")}`, approve)}${managerDecides(
-    ctx,
-    "blocks.expenses.options",
-    {
-      requester: owner.requester("v_row"),
-      tenant: `v_row.${e("tenant")}`,
-      ...(employee ? { employee: `v_row.${e("employee")}::text` } : {}),
-    },
-  )}) and ${owner.requester("v_row")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or ${decides("v_row")}) then
     ${forbidden("not allowed to decide this expense")}
   end if;
-  if decide_expense.decided_by is not null and (not ${SERVICE_CALLER} and decide_expense.decided_by is distinct from auth.uid()
-    or decide_expense.decided_by = ${owner.requester("v_row")}) then
-    ${forbidden("only the service role decides for another user, never for the owner")}
+  if decide_expense.decided_by is not null and not ${SERVICE_CALLER} and decide_expense.decided_by is distinct from auth.uid() then
+    ${forbidden("only the service role decides for another user")}
+  end if;
+  v_decider := coalesce(decide_expense.decided_by, auth.uid());
+  v_self := coalesce(v_decider = ${owner.requester("v_row")} or v_decider = ${creator("v_row")}, false);
+  if v_self and not ${nobodyElse("v_row")} then
+    ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
+  end if;
+  if ${status("v_row")} in ('approved', 'rejected', 'reimbursed') then
+    ${conflict("EXPENSE_ALREADY_DECIDED", "this expense is already decided")}
   end if;
   if ${status("v_row")} <> 'submitted' then
     ${fail("EXPENSE_LOCKED", "only a submitted expense is decided", "55000")}
@@ -725,12 +823,12 @@ begin${load("decide_expense.expense_id")}
     update ${table} x set ${e("updatedAt")} = now()${setStatus("approved")}${set("approvedAt", "now()")}${set("decidedBy", "coalesce(decide_expense.decided_by, auth.uid())")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
       where x.${e("id")} = v_row.${e("id")}
       returning * into v_row;
-    ${record("expense.approved", "approved an expense")}
+    ${record("expense.approved", "approved an expense", selfAudit("approved"))}
   else
     update ${table} x set ${e("updatedAt")} = now()${setStatus("rejected")}${set("rejectedAt", "now()")}${set("decidedBy", "coalesce(decide_expense.decided_by, auth.uid())")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
       where x.${e("id")} = v_row.${e("id")}
       returning * into v_row;
-    ${record("expense.rejected", "rejected an expense")}
+    ${record("expense.rejected", "rejected an expense", selfAudit("rejected"))}
   end if;
   return ${json("v_row")};
 end;
@@ -783,6 +881,9 @@ begin${load("reimburse_expense.expense_id")}
   if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, reimburse)}) then
     ${forbidden("not allowed to reimburse expenses")}
   end if;
+  if ${status("v_row")} = 'reimbursed' then
+    ${conflict("EXPENSE_ALREADY_REIMBURSED", "this expense is already reimbursed")}
+  end if;
   if ${status("v_row")} <> 'approved' then
     ${fail("EXPENSE_LOCKED", "only an approved expense is reimbursed", "55000")}
   end if;${unsupported("reimbursement", "nullif(trim(reimburse_expense.reference), '')")}
@@ -794,6 +895,97 @@ begin${load("reimburse_expense.expense_id")}
 end;
 $$;
 ${userGrant(`${fn("reimburse_expense")}(uuid, text)`)}
+
+-- Takes an approved expense back to submitted for a new decision, with a
+-- reason the audit keeps. A decider who isn't the owner may, until it is
+-- reimbursed${invoiced === "" ? "" : " or invoiced"}.
+create or replace function ${fn("reopen_expense")}(expense_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table}%rowtype;
+begin${load("reopen_expense.expense_id")}
+  if not (${SERVICE_CALLER} or (${decides("v_row")} and ${owner.requester("v_row")} is distinct from auth.uid())) then
+    ${forbidden("not allowed to reopen this expense")}
+  end if;
+  if nullif(trim(reopen_expense.reason), '') is null then
+    ${invalid("reopening an expense needs a reason")}
+  end if;
+  if ${status("v_row")} = 'submitted' then
+    ${conflict("EXPENSE_ALREADY_OPEN", "this expense is already open for a decision")}
+  end if;
+  if ${status("v_row")} = 'reimbursed' then
+    ${conflict("EXPENSE_ALREADY_REIMBURSED", "a reimbursed expense can't be reopened")}
+  end if;
+  if ${status("v_row")} <> 'approved' then
+    ${fail("EXPENSE_LOCKED", "only an approved expense is reopened", "55000")}
+  end if;${
+    invoiced === ""
+      ? ""
+      : `
+  if v_row.${sqlIdent(invoiced)} is not null then
+    ${conflict("EXPENSE_INVOICED", "an invoiced expense can't be reopened")}
+  end if;`
+  }
+  update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("approvedAt", "null")}${set("rejectedAt", "null")}, ${e("updatedAt")} = now()
+    where x.${e("id")} = v_row.${e("id")}
+    returning * into v_row;${openApproval}
+  ${record("expense.reopened", "reopened an expense", { summary: sqlString("reopened an expense"), keys: "'reason', trim(reopen_expense.reason)" })}
+  return ${json("v_row")};
+end;
+$$;
+${userGrant(`${fn("reopen_expense")}(uuid, text)`)}
+
+-- Takes a reimbursed expense back to approved, as a holder of the reimburse
+-- key, with a reason the audit keeps. Otherwise reimbursed is final.
+create or replace function ${fn("reverse_expense_reimbursement")}(expense_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table}%rowtype;
+begin${load("reverse_expense_reimbursement.expense_id")}
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, reimburse)}) then
+    ${forbidden("not allowed to reverse a reimbursement")}
+  end if;
+  if nullif(trim(reverse_expense_reimbursement.reason), '') is null then
+    ${invalid("reversing a reimbursement needs a reason")}
+  end if;
+  if ${status("v_row")} = 'approved' then
+    ${conflict("EXPENSE_NOT_REIMBURSED", "this expense is not reimbursed")}
+  end if;
+  if ${status("v_row")} <> 'reimbursed' then
+    ${fail("EXPENSE_LOCKED", "only a reimbursed expense has a reimbursement to reverse", "55000")}
+  end if;
+  update ${table} x set ${e("reimbursedAt")} = null${setStatus("approved")}${set("reimbursement", "null")}, ${e("updatedAt")} = now()
+    where x.${e("id")} = v_row.${e("id")}
+    returning * into v_row;
+  ${record("expense.reimbursement_reversed", "reversed the reimbursement of an expense", { summary: sqlString("reversed the reimbursement of an expense"), keys: "'reason', trim(reverse_expense_reimbursement.reason)" })}
+  return ${json("v_row")};
+end;
+$$;
+${userGrant(`${fn("reverse_expense_reimbursement")}(uuid, text)`)}
+
+-- Whether the caller decides this expense as its owner or creator: they may
+-- decide it and nobody else can. Apps show the rule with it.
+create or replace function ${fn("expense_self_decides")}(expense_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select (auth.uid() = ${owner.requester("v_row")} or auth.uid() = ${creator("v_row")}) and ${decides("v_row")} and ${nobodyElse("v_row")}
+    from ${table} v_row where v_row.${e("id")} = expense_self_decides.expense_id
+  ), false)
+$$;
+${userGrant(`${fn("expense_self_decides")}(uuid)`)}
 
 create or replace function ${fn("get_expense")}(expense_id uuid)
 returns jsonb

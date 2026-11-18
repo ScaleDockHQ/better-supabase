@@ -63,6 +63,8 @@ const NOT_LITERAL = [
   "expenses: expense.created",
   "expenses: expense.submitted",
   "expenses: expense.rejected",
+  "expenses: expense.reopened",
+  "expenses: expense.reimbursement_reversed",
   "expenses: expense.withdrawn",
   "expenses: expense.purged",
   "shipments: shipment.return_received",

@@ -18907,6 +18907,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense.approved",
           "expense.rejected",
           "expense.reimbursed",
+          "expense.reopened",
+          "expense.reimbursement_reversed",
           "expense.withdrawn",
           "expense.purged",
           "expense_category.archived",

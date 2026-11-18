@@ -27,6 +27,17 @@ const hint = (result: Result<unknown>): string =>
 
 const day = (text: string): Temporal.PlainDate => Temporal.PlainDate.from(text);
 
+const audit = (
+  s: BlockSession,
+  type: string,
+  id: string,
+): Promise<Record<string, unknown>> =>
+  s.value(
+    `(select metadata from better_supabase.audit_events
+      where event_type = $1 and record_id = $2 order by occurred_at desc limit 1)`,
+    [type, id],
+  );
+
 describe.skipIf(!live)("expenses", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
@@ -241,6 +252,146 @@ describe.skipIf(!live)("expenses", () => {
       );
     } finally {
       await s.close();
+    }
+  });
+
+  it("keeps the decision rules of a standalone expense on the live stack", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const ada = await s.user("ada");
+      await s.install(
+        ["organizations", "outbox", "audit", "attachments", "expenses"],
+        { modules: { expenses: { tables: { reports: null, lines: null } } } },
+      );
+      const tenant = await s.organization(owner, { member: ada });
+
+      const expenses = createExpenses({
+        transport: sqlTransport(s.sql),
+        tenant,
+      });
+
+      await s.as(owner);
+
+      const claim = await expenses
+        .createExpense({
+          spentOn: day("2026-10-01"),
+          amount: money(4500n, "EUR"),
+          description: "Taxi",
+          userId: ada.id,
+        })
+        .orThrow();
+
+      await expenses.submitExpense(claim.id).orThrow();
+      expect(await expenses.expenseSelfDecides(claim.id).orThrow()).toBe(true);
+
+      const approved = await expenses
+        .decideExpense({ expenseId: claim.id, decision: { approved: true } })
+        .orThrow();
+
+      expect(approved.decidedBy).toBe(owner.id);
+      expect(await audit(s, "expense.approved", claim.id)).toMatchObject({
+        selfDecided: true,
+      });
+
+      const again = await expenses.decideExpense({
+        expenseId: claim.id,
+        decision: { approved: true },
+      });
+
+      expect(again.ok ? "ok" : [again.error.kind, again.error.hint]).toEqual([
+        "conflict",
+        "EXPENSE_ALREADY_DECIDED",
+      ]);
+
+      await s.as(ada);
+      expect(
+        await expenses
+          .reopenExpense({ expenseId: claim.id, reason: "typo" })
+          .then(hint),
+      ).toBe("EXPENSES_FORBIDDEN");
+
+      await s.asRole(ada);
+      await expect(
+        s.client.query(
+          "update better_supabase.expenses set decided_by = $1 where id = $2",
+          [ada.id, claim.id],
+        ),
+      ).rejects.toThrow(/only through the expense functions|permission denied/);
+    } finally {
+      await s.close();
+    }
+
+    const t = await BlockSession.open(pool);
+
+    try {
+      const owner = await t.user("owner");
+      const bea = await t.user("bea");
+      await t.install(
+        ["organizations", "outbox", "audit", "attachments", "expenses"],
+        { modules: { expenses: { tables: { reports: null, lines: null } } } },
+      );
+      const tenant = await t.organization(owner, { admin: bea });
+
+      const expenses = createExpenses({
+        transport: sqlTransport(t.sql),
+        tenant,
+      });
+
+      await t.as(owner);
+
+      const own = await expenses
+        .createExpense({
+          spentOn: day("2026-10-02"),
+          amount: money(900n, "EUR"),
+          description: "Parking",
+        })
+        .orThrow();
+
+      await expenses.submitExpense(own.id).orThrow();
+      expect(await expenses.expenseSelfDecides(own.id).orThrow()).toBe(false);
+      expect(
+        await expenses
+          .decideExpense({ expenseId: own.id, decision: { approved: true } })
+          .then(hint),
+      ).toBe("EXPENSES_FORBIDDEN");
+
+      await t.as(bea);
+      await expenses
+        .decideExpense({ expenseId: own.id, decision: { approved: true } })
+        .orThrow();
+
+      const reopened = await expenses
+        .reopenExpense({ expenseId: own.id, reason: "wrong amount" })
+        .orThrow();
+
+      expect(reopened.status).toBe("submitted");
+      expect(reopened.decidedBy).toBeUndefined();
+      expect(await audit(t, "expense.reopened", own.id)).toMatchObject({
+        reason: "wrong amount",
+      });
+
+      await expenses
+        .decideExpense({ expenseId: own.id, decision: { approved: true } })
+        .orThrow();
+      await expenses
+        .reimburseExpense({ expenseId: own.id, input: { reference: "SEPA-1" } })
+        .orThrow();
+
+      const reversed = await expenses
+        .reverseExpenseReimbursement({
+          expenseId: own.id,
+          reason: "the transfer bounced",
+        })
+        .orThrow();
+
+      expect(reversed.status).toBe("approved");
+      expect(
+        await audit(t, "expense.reimbursement_reversed", own.id),
+      ).toMatchObject({ reason: "the transfer bounced" });
+    } finally {
+      await t.close();
     }
   });
 });

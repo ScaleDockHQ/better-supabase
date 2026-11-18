@@ -69,6 +69,10 @@ export type ExpensesEvents = {
   readonly "expense.approved": ExpenseEventData;
   readonly "expense.rejected": ExpenseEventData;
   readonly "expense.reimbursed": ExpenseEventData;
+  /** An approved expense went back to submitted for a new decision. */
+  readonly "expense.reopened": ExpenseEventData;
+  /** A reimbursed expense went back to approved. */
+  readonly "expense.reimbursement_reversed": ExpenseEventData;
   /** A submitted expense went back to draft. */
   readonly "expense.withdrawn": ExpenseEventData;
   /** An expense was removed for good. */
@@ -90,6 +94,8 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense.approved": event<ExpenseEventData>(),
   "expense.rejected": event<ExpenseEventData>(),
   "expense.reimbursed": event<ExpenseEventData>(),
+  "expense.reopened": event<ExpenseEventData>(),
+  "expense.reimbursement_reversed": event<ExpenseEventData>(),
   "expense.withdrawn": event<ExpenseEventData>(),
   "expense.purged": event<ExpenseEventData>(),
   "expense_category.archived": event<ExpenseCategoryEventData>(),

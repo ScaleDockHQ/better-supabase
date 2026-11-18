@@ -180,6 +180,9 @@ export function leaveContract(
           },
         ]
       : []),
+    ...(leaveStatusMode(ctx) && ctx.flag("selfDecideWhenTopOfChain", false)
+      ? [{ name: "leave_self_decides", args: ["{id}"], returns: "boolean" }]
+      : []),
     ...(ctx.installed("share-links")
       ? [{ name: "leave_feed", args: ["text"], returns: "jsonb" }]
       : []),

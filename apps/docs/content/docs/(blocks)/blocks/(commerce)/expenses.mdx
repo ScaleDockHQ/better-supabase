@@ -234,25 +234,41 @@ An expense belongs to a member (`user`), or with `options.owner: "employee"` to 
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `createExpense(input)`                    | the owner with `expenses.submit`, their manager, or `expenses.manage`; takes `employeeId`                                                                                    |
 | `updateExpense(id, update)`               | the same, while the expense is a draft or rejected; a key left out keeps its value, `null` clears `categoryId`, `description` or `merchant`, and `fields` sets extra columns |
-| `submitExpense(id)`                       | the same, for a draft or rejected expense                                                                                                                                    |
+| `submitExpense(id)`                       | the same, for a draft expense; only the owner resubmits a rejected one                                                                                                       |
 | `withdrawExpense(id)`                     | the same, for a submitted expense, which goes back to draft                                                                                                                  |
 | `purgeExpense(id)`                        | the same, for a draft expense                                                                                                                                                |
-| `decideExpense(id, { approved, note? })`  | the service role, or `expenses.approve` for someone else's submitted expense                                                                                                 |
+| `decideExpense(id, { approved, note? })`  | the service role, or `expenses.approve` for a submitted expense the caller neither owns nor created, unless nobody else can decide it                                        |
+| `reopenExpense({ expenseId, reason })`    | a decider who isn't the owner, for an approved expense that isn't reimbursed or invoiced; it goes back to submitted                                                          |
 | `reimburseExpense(id, { reference? })`    | the service role or `expenses.manage`, for an approved expense                                                                                                               |
+| `reverseExpenseReimbursement(...)`        | the reimburse key, with `{ expenseId, reason }`, for a reimbursed expense, which goes back to approved                                                                       |
+| `expenseSelfDecides(id)`                  | whether the caller decides the expense as its owner or creator, for a UI that shows the rule                                                                                 |
 | `getExpense(id)`, `listExpenses(options)` | the owner, their manager, or `expenses.read`; `listExpenses` takes `status`, `userId`, `employeeId` and `everyone`                                                           |
 
-Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected`, `expense.reimbursed`, `expense.withdrawn` or `expense.purged`. `purgeExpense` removes a draft expense for good; a rejected or reimbursed expense is a record of what was claimed, so it stays and its status is the archive. Extra columns (`options.extraColumns`) are written in the insert itself, so a `not null` column without a default or a check across columns holds from the first write.
+Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected`, `expense.reimbursed`, `expense.reopened`, `expense.reimbursement_reversed`, `expense.withdrawn` or `expense.purged`. `purgeExpense` removes a draft expense for good; a rejected or reimbursed expense is a record of what was claimed, so it stays and its status is the archive. Extra columns (`options.extraColumns`) are written in the insert itself, so a `not null` column without a default or a check across columns holds from the first write.
 
-Two opt-in options loosen what can change after submitting. With `options.withdrawApproved: true`, `withdrawExpense` also takes an approved expense that isn't reimbursed back to draft, for example to correct an amount, and clears `approvedAt`, `decidedBy` and `decidedAt`. The owner may do that, and so may a holder of `permissions.withdraw` (the `update` key when unset). `permissions.deleteSubmitted` names a key whose holders may delete a submitted or approved expense that isn't reimbursed; a reimbursed expense stays. Without them, only a submitted expense is withdrawn and only a draft is deleted.
+`permissions.deleteSubmitted` names a key whose holders may delete a submitted or approved expense that isn't reimbursed; a reimbursed expense stays. Without it, only a draft is deleted.
+
+### Decision rules
+
+The database keeps an expense's decision honest, for the functions and for an app that writes the table itself (ADR 1090):
+
+- **Allowed transitions.** `draft` and `submitted` go both ways (the owner, or the `update` key); `submitted` goes to `approved` or `rejected` (a decider); `rejected` goes to `draft` or `submitted` (the owner); `approved` goes back to `submitted` with `reopenExpense` and to `reimbursed` with the reimburse key; `reimbursed` goes back to `approved` only with `reverseExpenseReimbursement`. Every other change fails with `EXPENSE_TRANSITION_INVALID`, so an approved or reimbursed expense never goes straight to draft, and `withdrawExpense` refuses a decided expense.
+- **Stamped by the database.** A trigger on the expenses table sets `decidedBy` and `decidedAt` when an expense is approved or rejected, `reimbursedBy` and `reimbursedAt` when it is reimbursed, and clears the decision when it goes back to submitted or draft. A client's own insert or update (as `authenticated` or `anon`, not through a block function) can't write the status or any of these columns, and a new row starts as a draft.
+- **The owner or creator never decides.** Neither the expense's owner nor its creator (`createdBy`) may approve or reject it, unless nobody else can: no other active member holds `expenses.approve`, and, with `approver: "manager"`, no active manager up the owner's chain has a login. That is the leave block's `selfDecideWhenTopOfChain` rule. The audit entry of such a decision carries `selfDecided: true`, and `expenseSelfDecides(id)` (`expense_self_decides` in SQL) tells a UI whether the caller is in that case. An access model that can't answer for other users never lets them.
+- **Frozen once approved.** The amount, currency, category and owner of an approved or reimbursed expense don't change; reopen it first. The owner changes only in draft, and a client needs the `create` or `update` key for it.
+- **Reasons in the audit.** `reopenExpense` and `reverseExpenseReimbursement` need a reason, which the audit entry keeps as `metadata.reason`.
+
+With `options.invoicedColumn`, a column of yours that is set once the expense is billed onward, `reopenExpense` refuses an invoiced expense:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
   expenses: {
-    options: { withdrawApproved: true },
-    permissions: { withdraw: "expense.withdraw", deleteSubmitted: "expense.delete_any" },
+    options: { invoicedColumn: "invoice_id" },
   },
 }
 ```
+
+A state conflict, such as deciding an expense that is already decided, fails with SQLSTATE `PT409`: PostgREST answers HTTP 409, and the typed client returns a `conflict` error with the hint (see [Errors](#errors)).
 
 With `options.companyExpenses: true`, `createExpense({ company: true, ... })` records an expense of the organization itself, without a member or employee. It needs `expenses.manage` (or the service role), and the owner column must allow null; the block's own table does. `listExpenses({ everyone: true })` returns them with the rest.
 
@@ -275,16 +291,16 @@ expenses: {
 
 `expenses.manage` covers everything done for someone else. Name a key per action in `permissions` to split it; an action without its own key checks `manage`.
 
-| Key               | What it allows                                                                   |
-| ----------------- | -------------------------------------------------------------------------------- |
-| `create`          | `createExpense` for another member or employee, and company expenses             |
-| `update`          | `updateExpense`, `submitExpense` and `withdrawExpense` on someone else's expense |
-| `purge`           | `purgeExpense` on someone else's expense; falls back to `delete`, then `manage`  |
-| `withdraw`        | `withdrawExpense` on someone else's approved expense, with `withdrawApproved`    |
-| `delete`          | the former key of `purgeExpense`, still read when `purge` is unset               |
-| `deleteSubmitted` | `purgeExpense` on a submitted or approved expense; no fallback                   |
-| `reimburse`       | `reimburseExpense`, and `reimburse_expense_report` with reports                  |
-| `categories`      | `save_expense_category` and `archive_expense_category`                           |
+| Key               | What it allows                                                                    |
+| ----------------- | --------------------------------------------------------------------------------- |
+| `create`          | `createExpense` for another member or employee, and company expenses              |
+| `update`          | `updateExpense`, `submitExpense` and `withdrawExpense` on someone else's expense  |
+| `purge`           | `purgeExpense` on someone else's expense; falls back to `delete`, then `manage`   |
+| `withdraw`        | `withdrawExpense` on someone else's submitted expense; falls back to `update`     |
+| `delete`          | the former key of `purgeExpense`, still read when `purge` is unset                |
+| `deleteSubmitted` | `purgeExpense` on a submitted or approved expense; no fallback                    |
+| `reimburse`       | `reimburseExpense`, `reverseExpenseReimbursement`, and `reimburse_expense_report` |
+| `categories`      | `save_expense_category` and `archive_expense_category`                            |
 
 A payroll role that may only mark expenses reimbursed:
 
@@ -323,6 +339,13 @@ The owner and their manager keep their own access, whatever these keys say.
 | `EXPENSE_REPORT_NOT_FOUND`     | no report with this id that the caller can read                                 |
 | `EXPENSE_INVALID`              | an expense's day, amount, currency or decision isn't valid                      |
 | `EXPENSE_LOCKED`               | the expense isn't in a status that allows the change                            |
+| `EXPENSE_TRANSITION_INVALID`   | a direct write moves the status along a transition the block doesn't allow      |
+| `EXPENSE_ALREADY_SUBMITTED`    | 409: the expense is already submitted                                           |
+| `EXPENSE_ALREADY_DECIDED`      | 409: the expense is already approved, rejected or reimbursed                    |
+| `EXPENSE_ALREADY_OPEN`         | 409: `reopenExpense` on an expense that is already submitted                    |
+| `EXPENSE_ALREADY_REIMBURSED`   | 409: the expense is already reimbursed, so it can't be reimbursed or reopened   |
+| `EXPENSE_NOT_REIMBURSED`       | 409: `reverseExpenseReimbursement` on an expense that isn't reimbursed          |
+| `EXPENSE_INVOICED`             | 409: `reopenExpense` on an expense whose `invoicedColumn` is set                |
 | `EXPENSE_IN_APPROVAL`          | the expense waits for its approval request (`standaloneApprovals`)              |
 | `EXPENSE_NOT_FOUND`            | no expense with this id that the caller can read                                |
 | `EXPENSE_EMPLOYEE_INVALID`     | no employee has this id, or the caller has no employee record                   |

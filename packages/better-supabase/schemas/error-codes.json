@@ -2141,6 +2141,22 @@
     "message": "the evidence task isn"
   },
   {
+    "code": "EXPENSE_ALREADY_DECIDED",
+    "message": "this expense is already decided"
+  },
+  {
+    "code": "EXPENSE_ALREADY_OPEN",
+    "message": "this expense is already open for a decision"
+  },
+  {
+    "code": "EXPENSE_ALREADY_REIMBURSED",
+    "message": "this expense is already reimbursed"
+  },
+  {
+    "code": "EXPENSE_ALREADY_SUBMITTED",
+    "message": "this expense is already submitted"
+  },
+  {
     "code": "EXPENSE_CATEGORY_INVALID",
     "message": "the category is unknown, archived or not in this organization"
   },
@@ -2157,6 +2173,10 @@
     "message": "this expense is decided through its approval request"
   },
   {
+    "code": "EXPENSE_INVOICED",
+    "message": "an invoiced expense can"
+  },
+  {
     "code": "EXPENSE_LINE_NOT_FOUND",
     "message": "no such expense line"
   },
@@ -2169,6 +2189,10 @@
     "message": "no such expense"
   },
   {
+    "code": "EXPENSE_NOT_REIMBURSED",
+    "message": "this expense is not reimbursed"
+  },
+  {
     "code": "EXPENSE_REJECTION_UNSUPPORTED",
     "message": "this expense reports table has no rejected_at column"
   },
@@ -2179,6 +2203,10 @@
   {
     "code": "EXPENSE_REPORT_NOT_FOUND",
     "message": "no such expense report"
+  },
+  {
+    "code": "EXPENSE_TRANSITION_INVALID",
+    "message": "this status change is not allowed for an expense"
   },
   {
     "code": "FAVORITE_FORBIDDEN",

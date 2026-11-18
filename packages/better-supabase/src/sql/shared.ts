@@ -1300,6 +1300,14 @@ export const fail = (
   errcode = "42501",
 ): string => raise(message, errcode, code);
 
+/**
+ * `fail` for a conflict with the record's current state, such as one already
+ * decided or already open. PostgREST answers SQLSTATE `PT409` with HTTP 409 and
+ * `mapDbError` maps it to a `conflict` error with the hint (ADR 1090).
+ */
+export const conflict = (code: string, message: string): string =>
+  raise(message, "PT409", code);
+
 /** The hex SHA-256 of a `text` expression, as tokens and codes are stored. */
 export const sha256HexSql = (value: string): string =>
   `encode(extensions.digest(${value}, 'sha256'), 'hex')`;

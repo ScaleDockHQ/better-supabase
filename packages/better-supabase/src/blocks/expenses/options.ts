@@ -17,11 +17,11 @@ export type ExpensesSqlOptions = {
    */
   readonly companyExpenses?: boolean;
   /**
-   * Without reports: `withdrawExpense` also takes an approved expense that
-   * isn't reimbursed back to draft and clears its decision. The owner may, and
-   * so may a holder of `permissions.withdraw` (default the `update` key).
+   * Without reports: a column of the expenses table that is set once the
+   * expense is billed onward, such as `invoice_id`. `reopenExpense` refuses an
+   * expense where it isn't null (`EXPENSE_INVOICED`, a 409 conflict).
    */
-  readonly withdrawApproved?: boolean;
+  readonly invoicedColumn?: string;
   /**
    * Without reports: each submitted expense files a request with the approvals
    * block, whose final decision approves or rejects it. `decideExpense` is
@@ -47,7 +47,7 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
     companyExpenses: option.boolean({ default: false }),
-    withdrawApproved: option.boolean({ default: false }),
+    invoicedColumn: option.string({ default: "" }),
     standaloneApprovals: option.boolean({ default: false }),
     policy: option.unknown(),
     approver: option.string<"permission" | "manager">({
