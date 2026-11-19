@@ -185,6 +185,11 @@ and it returns the store using that namespace for its time values unless the
 store was given one itself. `start` should refuse
 an admin without permission with an error whose `code` is `42501`.
 
+Session ids must be UUIDs. The support cookie and every lookup ignore any other
+value, so `support.start` fails with an `unexpected` error whose `code` is
+`SUPPORT_SESSION_ID` when the store returns another id, and
+`testSupportSessionStore` checks it.
+
 ## NotificationChannel
 
 Sends one [notification](/docs/blocks/notifications) delivery on a channel

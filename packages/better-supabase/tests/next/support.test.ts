@@ -233,6 +233,9 @@ describe("support sessions in Next.js", () => {
     await expect(bsb.context()).rejects.toMatchObject(expected);
     await expect(bsb.claims()).rejects.toMatchObject(expected);
     await expect(bsb.cached()).rejects.toMatchObject(expected);
+    await expect(bsb.bootstrap({ rpc: "home" })).rejects.toMatchObject(
+      expected,
+    );
   });
 
   it("runs as the admin when the cookie is malformed, even with unavailable: throw", async () => {

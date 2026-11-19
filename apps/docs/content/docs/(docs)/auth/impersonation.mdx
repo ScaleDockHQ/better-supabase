@@ -151,16 +151,16 @@ import { SUPPORT_UNAVAILABLE_DIGEST } from "better-supabase/react";
 
 export default function AppError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   if (error.digest === SUPPORT_UNAVAILABLE_DIGEST) {
     return (
       <div>
         <p>The support session could not be loaded.</p>
-        <button onClick={reset} type="button">
+        <button onClick={retry} type="button">
           Try again
         </button>
       </div>
@@ -170,6 +170,9 @@ export default function AppError({
   throw error;
 }
 ```
+
+`retry()` renders the segment again on the server, so it loads the session
+again; `reset()` would only re-render the error on the client.
 
 A cookie whose value is not a UUID names no session. `resolve` and `current`
 return `undefined` for it without a lookup, even with `unavailable: 'throw'`,

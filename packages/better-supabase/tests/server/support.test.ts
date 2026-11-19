@@ -777,8 +777,52 @@ describe("support sessions on the server", () => {
     const stopped = await server.support.stop(admin(), "not-a-uuid").orThrow();
     expect(stopped.ended).toBe(false);
     expect(stopped.cookie).toContain("Max-Age=0");
+    expect(await server.support.revoke(admin(), "not-a-uuid").orThrow()).toBe(
+      false,
+    );
     expect(get).not.toHaveBeenCalled();
     expect(end).not.toHaveBeenCalled();
+  });
+
+  it("looks up an upper-case session id in lower case", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const get = vi.spyOn(store, "get");
+
+    const active = await server.support.resolve(
+      session.id.toUpperCase(),
+      admin(),
+    );
+
+    expect(active?.session.id).toBe(session.id);
+    expect(get).toHaveBeenCalledWith(session.id, ADMIN, expect.anything());
+  });
+
+  it("refuses a store that starts a session with a non-UUID id", async () => {
+    const store = memorySupportStore();
+
+    const { server } = setup({
+      support: supportSessions({
+        store: {
+          ...store,
+          start: async (input) => ({ ...(await store.start(input)), id: "42" }),
+        },
+      }),
+    });
+
+    const started = await server.support.start(admin(), {
+      targetUserId: TARGET,
+      reason: "r",
+    });
+
+    expect(started.error).toMatchObject({
+      kind: "unexpected",
+      code: "SUPPORT_SESSION_ID",
+    });
   });
 
   it("ends the stats call when the store throws synchronously", async () => {
@@ -940,7 +984,7 @@ describe("support sessions on the server", () => {
       }),
     });
 
-    expect((await server.support.revoke(admin(), "s1")).error?.kind).toBe(
+    expect((await server.support.revoke(admin(), SESSION)).error?.kind).toBe(
       "timeout",
     );
     expect((await server.support.list(admin())).error?.kind).toBe("timeout");

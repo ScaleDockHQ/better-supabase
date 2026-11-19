@@ -1,6 +1,7 @@
 import type { SupportSessionStore } from "../../auth/support.ts";
 import type { ConformanceReport } from "../conformance.ts";
 
+import { SUPPORT_SESSION_ID } from "../../auth/support-view.ts";
 import { conform, expect, same } from "../conformance.ts";
 import { hasName } from "./executor.ts";
 
@@ -55,9 +56,7 @@ export function testSupportSessionStore(
 
         try {
           expect(
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-              session.id,
-            ),
+            SUPPORT_SESSION_ID.test(session.id),
             "start must return a UUID id",
           );
           expect(session.adminId === admin.id, "adminId must round-trip");
