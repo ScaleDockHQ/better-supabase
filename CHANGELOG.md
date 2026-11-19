@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.74.0 (2026-11-19)
+
+- Expense, invoice and leave follow-ups:
+
+  - An expense without a creator, such as a company expense the service role recorded, no longer counts every decider as its creator (ADR 1093). Before, two or more approvers each saw the other as someone else who could decide, so nobody could decide it. A service caller acting for a user must now pass `createdBy`; without it the user who recorded the expense may decide it unless they are its owner. An expense with a creator keeps the rule that its owner or creator decides only when nobody else can.
+  - `recomputeStatus(invoiceId)` (`recompute_invoice_status(invoice uuid)`) derives an issued invoice's status, paid total and credited total from its ledger payments, imported allocations and issued credit notes, including `credited` with `options.creditedStatus`, so an app never writes the status itself. The paid total never drops below the stored one, so an import's row settlement keeps its total. A draft, void or uncollectible invoice keeps its status but gets its totals rewritten, and `invoice.paid` is recorded only for an invoice that was never paid. It also restores invoices whose credit notes were voided before 0.73. Needs `invoices.manage`, or `invoices.purchase` for a purchase invoice.
+  - `requestSelfDecides(requestId)` (`leave_request_self_decides(request_id uuid)`) tells whether the caller decides a leave request as its requester under `options.selfDecideWhenTopOfChain`, and `decide_leave_request` uses the same function.
+
 ## 0.73.0 (2026-11-18)
 
 - **Breaking:** 51 state refusals in 26 block modules move from SQLSTATE `55000` to `PT409`, so PostgREST answers HTTP 409 instead of 500 and `mapDbError` returns a `conflict` error. The hints are unchanged: `EXPENSE_LOCKED`, `EXPENSE_TRANSITION_INVALID`, `EXPENSE_REPORT_LOCKED`, `EXPENSE_IN_APPROVAL`, `LEAVE_REQUEST_CLOSED`, `IMPORT_RUN_NOT_RUNNING`, `TIME_TIMER_RUNNING`, `TIME_ENTRIES_TIMESHEET_APPROVED`, `TIME_ENTRIES_TIMESHEET_SUBMITTED`, `WEBHOOK_DELIVERY_IN_PROGRESS`, `LEDGER_ALREADY_REVERSED`, `ACCOUNTING_ENTRY_REVERSED`, `PERIOD_CLOSED` (fiscal year already closed), `INVOICE_ALREADY_APPROVED`, `INVOICE_NOT_DRAFT`, `INVOICE_PAYMENT_REVERSED`, `INVOICE_ALREADY_HANDED_OVER`, `ACTIVITY_ALREADY_MARKED_ERROR`, `AGENT_MANDATE_USED`, `ASSETS_DISPOSED`, `ATTACHMENT_NOT_CLAIMABLE`, `DECISION_SUPPORT_ALERT_STATUS`, `DSAR_CLOSED`, `DSAR_EXTENDED`, `DOCUMENT_SUGGESTION_CLOSED` and `SHIPMENT_PROOF_RECORDED`. Code that catches `55000` for them must catch `PT409`.
