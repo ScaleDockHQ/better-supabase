@@ -112,7 +112,7 @@
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 3674027,
     "gzip": 1092692,
-    "brotli": 906610
+    "brotli": 908922
   },
   "/[locale]/(app)/assistant/evals/page": {
     "raw": 3168224,
