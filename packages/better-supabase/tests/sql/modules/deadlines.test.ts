@@ -18,6 +18,23 @@ const sqlOf = (
     .join("\n");
 
 describe("deadlines module", () => {
+  it("checks the prune key, manage by default, to delete every state", () => {
+    const check = (permissions?: Record<string, string>): string | undefined =>
+      /pending_only, true\) and not .*?'([\w.]+)'\), false\)/.exec(
+        sqlOf(BASE, {
+          modules: { deadlines: permissions ? { permissions } : {} },
+        }),
+      )?.[1];
+
+    expect(check()).toBe("deadlines.manage");
+    expect(check({ manage: "organization.update" })).toBe(
+      "organization.update",
+    );
+    expect(
+      check({ manage: "organization.update", prune: "organization.delete" }),
+    ).toBe("organization.delete");
+  });
+
   it("renders the rule set, version and deadline tables and the frozen trigger", () => {
     const sql = sqlOf();
 

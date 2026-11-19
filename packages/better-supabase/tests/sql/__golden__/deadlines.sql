@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:ed8e7084575a81a251f13f2a64d421ae7738c6c58f4c4f78fe179ee126ca5207
+-- @bsb-hash sha256:390edce3dfa32a3cbf9b844a56d3da55f92158c33ea3073d98c538af3bf4ccae
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2005,7 +2005,9 @@ grant execute on function "better_supabase"."get_deadline"(uuid) to authenticate
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -2021,6 +2023,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
@@ -2172,7 +2177,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:5941bd3dd335cab7f1545e4f2da367c3b7599198722793fca1d9286f8268115d
+-- @bsb-hash sha256:8494891de0c65f32505bc60737e659fdcbfe6858ccc786e2297af5febf23ca89
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4205,7 +4210,9 @@ grant execute on function "better_supabase"."get_deadline"(uuid) to authenticate
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -4221,6 +4228,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
@@ -4375,7 +4385,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:081bcf6ef1691c98d12349e6bc534fec2a904f766eaa572d54a3e13a23e062ac
+-- @bsb-hash sha256:5f53840317430d10ef7e490211294118292695b99b787d15fd0307d8772fe931
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6384,7 +6394,9 @@ grant execute on function "app_private"."get_deadline"(uuid) to authenticated, s
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "app_private"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -6400,6 +6412,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
@@ -6551,7 +6566,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:1a52490b0cd40e8ca4bcaa7fcdd34acb422e0f801cc9766a0ee1323860caffb1
+-- @bsb-hash sha256:74230e8c7a5ae81f70075a7abbaa455b66b1d513a8a26771d791a414ebd66050
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8555,7 +8570,9 @@ grant execute on function "better_supabase"."get_deadline"(uuid) to authenticate
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -8571,6 +8588,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
@@ -8852,7 +8872,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d473334b9bffff72c66314f90f4e123abae2618b0d83a13c105c900a1be301bd
+-- @bsb-hash sha256:1240544bc2d47c4d92b77dfce6ee1f7d0d66f101098b951b30b71a4007f7259a
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10845,7 +10865,9 @@ grant execute on function "better_supabase"."get_deadline"(uuid) to authenticate
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -10861,6 +10883,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
@@ -11012,7 +11037,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:10af32e9bc9f43ebb86c8506292d1450e5f646c5f7e82c14adc7069ef3fa4412
+-- @bsb-hash sha256:799d41eba2dc2915a4d549c7af9b185a8c074a5a97a8ca0433027842ae813798
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13016,7 +13041,9 @@ grant execute on function "better_supabase"."get_deadline"(uuid) to authenticate
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -13032,6 +13059,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.manage'), false))) then
+    raise exception 'not allowed to delete settled deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
     raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';

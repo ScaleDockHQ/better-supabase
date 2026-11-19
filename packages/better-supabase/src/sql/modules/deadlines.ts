@@ -321,6 +321,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const read = ctx.permission("read", OPERATIONS["deadlines.read"]);
   const write = ctx.permission("write", OPERATIONS["deadlines.write"]);
 
+  const prune = ctx.permission(
+    "prune",
+    ctx.permissionKey("manage", OPERATIONS["deadlines.manage"]),
+  );
+
   const approvals = ctx.installed("approvals")
     ? ctx.of("approvals")
     : undefined;
@@ -984,7 +989,7 @@ $$;
 ${userGrant(`${fn("list_deadlines")}(${idType}, jsonb)`)}
 
 ${deadlinePageSql({ allowed: mayRead, d, deadlines, fn, idType, json, missing })}
-${deadlinePruneSql({ allowed: (tenant) => allowed(tenant, write), visible, d, deadlines, fn, idType })}${tableCascades(ctx, subjects, "deadlines")}`;
+${deadlinePruneSql({ allowed: (tenant) => allowed(tenant, write), prunes: (tenant) => allowed(tenant, prune), visible, d, deadlines, fn, idType })}${tableCascades(ctx, subjects, "deadlines")}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
