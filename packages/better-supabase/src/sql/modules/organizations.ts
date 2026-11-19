@@ -39,6 +39,10 @@ import {
   organizationReads,
 } from "./organizations-reads.ts";
 import { assignableRole, checkRole, roleValue } from "./organizations-roles.ts";
+import {
+  organizationReturns,
+  soleOwnedSql,
+} from "./organizations-sole-owned.ts";
 import { memberSuspension } from "./organizations-suspension.ts";
 import {
   accessModel,
@@ -881,6 +885,7 @@ begin
 end;
 $$;
 
+${soleOwnedSql(ctx, n, id, (alias) => isOwner(ctx, n, alias))}
 -- Makes new_owner an owner in one transaction; a calling owner becomes
 -- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function ${ctx.fn("transfer_ownership")}(organization ${id}, new_owner uuid, former_role text default ${former})
@@ -1013,6 +1018,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["update_member_roles", `${id}, uuid[], text`],
   ["remove_member", `${id}, uuid`],
   ["leave_organization", id],
+  ["sole_owned_organizations", "uuid"],
   ["transfer_ownership", `${id}, uuid, text`],
   ["mark_used", id],
   ["switch_organization", id],
@@ -1111,17 +1117,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
     functionsOf(ctx, "{id}").map(([name, args]) => ({
       name,
       args: args === "" ? [] : args.split(", "),
-      returns:
-        name === "create_organization"
-          ? "{id}"
-          : name === "switch_organization" ||
-              name === "update_member_roles" ||
-              name === "page_organization_invitations" ||
-              name === "page_organization_members"
-            ? "jsonb"
-            : name.startsWith("list_")
-              ? "record"
-              : "boolean",
+      returns: organizationReturns(name),
     })),
   build: organizationsSql,
 };
