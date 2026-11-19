@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:ca0a8d6d0a1dca1f9f6d26b1418e3f13c2bb2e30a3c4be08de546a9286bcb22a
+-- @bsb-hash sha256:36b8d0fae663be87dc1bc6ee9e3d6735f93a0e16d2312eb0bafec67ef8c1042b
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,6 +54,7 @@ alter table "better_supabase"."team_members"
   foreign key ("tenant_id", "team_id")
   references "better_supabase"."teams" ("tenant_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "better_supabase"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and

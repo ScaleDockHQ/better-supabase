@@ -306,6 +306,7 @@ alter table ${members}
   foreign key (${memberTenant}, ${memberTeam})
   references ${teams} (${tenant}, ${id})
   on delete cascade;
+create index if not exists ${ctx.naming.rename("team_members_tenant_team_idx")} on ${members} (${memberTenant}, ${memberTeam});
 `
     : "";
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:6872039aa1f5c7dd4cbd411ce01138887efbfa5eb839241bf92e03cd2fa68c0b
+-- @bsb-hash sha256:da8761fb2d836c9da421117f220b699110d0cdb349ec053298e16a3f1bd9af48
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,6 +54,7 @@ alter table "better_supabase"."team_members"
   foreign key ("tenant_id", "team_id")
   references "better_supabase"."teams" ("tenant_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "better_supabase"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -667,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:80b61faa037fba85b91d44d81f424c7f1d54deb21b1a538af08ba185f1766a30
+-- @bsb-hash sha256:2121d2aef54edc01010b5e875af5569da78cbeb0f7e0915301ff4837f3f76c29
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -724,6 +725,7 @@ alter table "better_supabase"."team_members"
   foreign key ("tenant_id", "team_id")
   references "better_supabase"."teams" ("tenant_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "better_supabase"."team_members" ("tenant_id", "team_id");
 
 alter table "better_supabase"."inbox_conversations"
   add constraint conversations_team_fkey
@@ -1521,7 +1523,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:e3d0c55505289d1d1d99041f1de79a3c8028d27c864eaef0db70b4575313a382
+-- @bsb-hash sha256:2ba4c7ad8828d06650e469fb3f48431621deb14177e46dcb49e778d11f943527
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1579,6 +1581,7 @@ alter table "app_private"."team_members"
   foreign key ("tenant_id", "team_id")
   references "app_private"."teams" ("tenant_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "app_private"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -2192,7 +2195,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:b461f252d9a2e7f1e6119211798ea43148d8ec34f236e89065be030b13d9716f
+-- @bsb-hash sha256:11ec0ca46010c1e4d5120489f828aba8bab902213fecab8e4f6ba0e0259d6a7e
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2245,6 +2248,7 @@ alter table "better_supabase"."team_members"
   foreign key ("tenant_id", "team_id")
   references "better_supabase"."teams" ("tenant_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "better_supabase"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -2955,7 +2959,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:5d538039c5a5f14b1fcc5f3dcd424c75358b5bd3ddfc84d00d6da5488789cfa3
+-- @bsb-hash sha256:dede773bb97f7a29e0ae0b45da6d5789b5f444fe20596f209d996a69b3bbeded
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2991,6 +2995,7 @@ grant all on "better_supabase"."team_members" to service_role;
 create policy bsb_team_members_select on "better_supabase"."team_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create index if not exists team_members_tenant_team_idx on "better_supabase"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and
@@ -3604,7 +3609,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:136b9f7fea707a5df260d8a4f8e8711c1e56480c55bcf9aee1bafc441dcc9a9c
+-- @bsb-hash sha256:081a5316a3ea6bb0b95f6317ffc725aef9041fa3da4d93845a33f60c0686111c
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3657,6 +3662,7 @@ alter table "better_supabase"."team_members"
   foreign key ("org_id", "team_id")
   references "better_supabase"."teams" ("org_id", "id")
   on delete cascade;
+create index team_members_tenant_team_idx on "better_supabase"."team_members" ("org_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and
