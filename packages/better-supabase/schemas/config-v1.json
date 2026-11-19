@@ -927,6 +927,9 @@
                 "canAssignFor": {
                   "type": "string"
                 },
+                "roleIn": {
+                  "type": "string"
+                },
                 "permissionsFor": {
                   "type": "string",
                   "description": "The permission keys {user} holds in {tenant}, as a text[]."

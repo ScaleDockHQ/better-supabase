@@ -550,7 +550,7 @@ ${renderPolicy(makePolicy({ table: m, name: "bsb_memberships_read", command: "se
 
   return `${schemaPreamble(ctx)}
 grant usage on schema better_supabase to supabase_auth_admin;
-${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${membershipRolesSql(ctx)}${roleScope(ctx)}${sameTenantSql(ctx, layout)}${accessHelpers ? "" : disabledHelpers(ctx)}
+${deferBodies ? "set check_function_bodies = off;\n" : ""}${table}${membershipRolesSql(ctx, layout)}${roleScope(ctx)}${sameTenantSql(ctx, layout)}${accessHelpers ? "" : disabledHelpers(ctx)}
 ${currentTenant(ctx)}
 
 -- Policies compare against the set once per statement:
