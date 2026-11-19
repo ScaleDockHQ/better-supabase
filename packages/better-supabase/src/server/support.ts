@@ -19,6 +19,7 @@ import type {
 import type { DbError } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
 import type { ProblemFormat } from "../core/problem.ts";
+import type { StatsRecorder } from "../core/stats.ts";
 
 import {
   clearSupportCookie,
@@ -213,6 +214,7 @@ export interface SupportApi {
   current(
     request: Request,
     auth: SupportCaller,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined>;
   /**
    * The running session `sessionId` for the admin in `auth`, if any. Use it
@@ -253,6 +255,14 @@ export interface SupportApi {
  * it.
  */
 const CLAIMS_TTL_MS = 60_000;
+
+/**
+ * How long one session lookup serves the lookups that follow it: a render that
+ * builds many contexts loads the session once, and a revoke on another instance
+ * applies within it.
+ */
+const SESSION_REUSE_MS = 1000;
+
 const CLAIMS_CACHE_SIZE = 1000;
 
 const denied = (message: string, code: string): DbError =>
@@ -352,12 +362,13 @@ function createSupport(
   };
 
   /**
-   * Target claims per support session; the session itself is loaded every time,
-   * so revoking stays immediate.
+   * Target claims per support session. The session itself is reused for at most
+   * `SESSION_REUSE_MS`, and a stop or revoke on this instance drops it at
+   * once.
    */
   const claimsCache = boundedTtlCache<
     string,
-    Readonly<Record<string, unknown>>
+    Promise<Readonly<Record<string, unknown>>>
   >({ max: CLAIMS_CACHE_SIZE });
 
   const cachedTargetClaims = async (
@@ -369,14 +380,52 @@ function createSupport(
       return cached;
     }
 
-    const claims = await targetClaims(store, session.targetUserId);
+    const claims = targetClaims(store, session.targetUserId);
     claimsCache.set(
       session.id,
       claims,
       Math.min(session.expiresAt.epochMilliseconds, Date.now() + CLAIMS_TTL_MS),
     );
+    claims.catch(() => {
+      if (claimsCache.get(session.id) === claims) {
+        claimsCache.delete(session.id);
+      }
+    });
 
     return claims;
+  };
+
+  const sessionLookups = boundedTtlCache<
+    string,
+    {
+      readonly adminId: string;
+      readonly session: Promise<SupportSession | undefined>;
+    }
+  >({ max: CLAIMS_CACHE_SIZE });
+
+  const loadSession = (
+    id: string,
+    auth: UserAuth,
+    stats?: StatsRecorder,
+  ): Promise<SupportSession | undefined> => {
+    const reused = sessionLookups.get(id);
+
+    if (reused?.adminId === auth.user.id) {
+      return reused.session;
+    }
+
+    const end = stats?.begin("support_sessions");
+    const session = store.get(id, auth.user.id, auth.claims).finally(end);
+    const entry = { adminId: auth.user.id, session };
+
+    sessionLookups.set(id, entry, Date.now() + SESSION_REUSE_MS);
+    session.catch(() => {
+      if (sessionLookups.get(id) === entry) {
+        sessionLookups.delete(id);
+      }
+    });
+
+    return session;
   };
 
   const checkPolicy = (
@@ -557,6 +606,7 @@ function createSupport(
   const resolve = async (
     id: string,
     auth: AuthState,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined> => {
     if (auth.kind !== "user") {
       return;
@@ -575,7 +625,7 @@ function createSupport(
     let claims: Readonly<Record<string, unknown>>;
 
     try {
-      session = await store.get(id, auth.user.id, auth.claims);
+      session = await loadSession(id, auth, stats);
 
       if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
         return;
@@ -901,6 +951,7 @@ function createSupport(
             return ok({ ended: false, cookie });
           }
 
+          sessionLookups.delete(sessionId);
           const ended = await store.end(sessionId, "admin", admin.claims);
 
           if (ended) {
@@ -930,6 +981,8 @@ function createSupport(
         }
 
         try {
+          sessionLookups.delete(sessionId);
+
           return ok(await store.end(sessionId, "revoked", caller.claims));
         } catch (cause) {
           return err(storeError(cause));
@@ -937,10 +990,10 @@ function createSupport(
       });
     },
 
-    async current(request, auth) {
+    async current(request, auth, stats) {
       const id = sessionIdOf(request);
 
-      return id ? resolve(id, toAuthState(auth)) : undefined;
+      return id ? resolve(id, toAuthState(auth), stats) : undefined;
     },
 
     resolve: (id, auth) => resolve(id, toAuthState(auth)),

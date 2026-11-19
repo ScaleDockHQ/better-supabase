@@ -320,7 +320,7 @@ export function createNext<
           (options.tenant
             ? options.tenant(request, resolution.auth)
             : rootParam(options.rootParams?.tenant)),
-        base.support.current(request, resolution.auth),
+        base.support.current(request, resolution.auth, statsFor(request).stats),
       ]);
 
       // Both tenants take the resolver's path, so they get the same checks.

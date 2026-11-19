@@ -14,6 +14,7 @@ import type { SupportOptions } from "../../src/server/support.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { dbTransport } from "../../src/core/block-transport.ts";
 import { createSupabase } from "../../src/core/define.ts";
+import { StatsRecorder } from "../../src/core/stats.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
 import { supportSessions as denyingSupportSessions } from "../../src/server/support.ts";
@@ -527,7 +528,7 @@ describe("support sessions on the server", () => {
     expect(ctx.support?.session.id).toBe(session.id);
   });
 
-  it("loads the session every time but reuses the target's claims", async () => {
+  it("loads the session once per short window and reuses the target's claims", async () => {
     const { server, store } = setup();
     const claims = vi.spyOn(store, "claims");
     const get = vi.spyOn(store, "get");
@@ -541,11 +542,90 @@ describe("support sessions on the server", () => {
     });
 
     claims.mockClear();
-    await server.support.current(cookie, admin());
-    await server.support.current(cookie, admin());
-    expect(get).toHaveBeenCalledTimes(2);
-    expect(claims).toHaveBeenCalledOnce();
+    get.mockClear();
+    vi.useFakeTimers({ toFake: ["Date"] });
+
+    try {
+      await Promise.all([
+        server.support.current(cookie, admin()),
+        server.support.current(cookie, admin()),
+      ]);
+      await server.support.current(cookie, admin());
+      expect(get).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(1001);
+      await server.support.current(cookie, admin());
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(claims).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+
     await server.support.revoke(admin(), session.id).orThrow();
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+  });
+
+  it("never reuses a session lookup for another admin or after a failure", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const get = vi.spyOn(store, "get");
+    get.mockRejectedValueOnce(new Error("down"));
+
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+    expect((await server.support.current(cookie, admin()))?.session.id).toBe(
+      session.id,
+    );
+    expect(
+      await server.support.current(cookie, {
+        ...admin(),
+        user: { id: TARGET },
+      } as AuthState),
+    ).toBeUndefined();
+    expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts each session lookup in the request's database stats", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const stats = new StatsRecorder();
+
+    await server.support.current(cookie, admin(), stats);
+    await server.support.current(cookie, admin(), stats);
+    expect(stats.snapshot()).toMatchObject({
+      calls: 1,
+      tables: ["support_sessions"],
+    });
+  });
+
+  it("drops the reused session when the admin stops it", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    expect(await server.support.current(cookie, admin())).toBeDefined();
+    await server.support.stop(admin(), session.id).orThrow();
     expect(await server.support.current(cookie, admin())).toBeUndefined();
   });
 
