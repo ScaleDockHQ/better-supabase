@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:7d691e92f0bb7697e67a4ee45105cabba0636c14c5805775a1e388303a357b81
+-- @bsb-hash sha256:70d9fe6110af8b3ec0f429c146c91084fd2dd5e8629a8dceb10c061916172bb0
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,20 +455,21 @@ begin
     or (approval_policy_tighten.own ? 'selfApproval' and jsonb_typeof(approval_policy_tighten.own -> 'selfApproval') <> 'boolean')
     or (approval_policy_tighten.own ? 'managerOf' and true)
     or (approval_policy_tighten.own ->> 'expiresIn' is not null and (approval_policy_tighten.own ->> 'expiresIn')::interval <= interval '0') then
-    raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+    raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
   end if;
   for v_step in select * from jsonb_array_elements(v_steps) loop
     if jsonb_typeof(v_step) <> 'object' then
-      raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+      raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
     for v_who in select a.w from (values (v_step -> 'approvers', true), (v_step -> 'escalateTo', v_step ? 'escalateTo')) a(w, checked) where a.checked loop
       if jsonb_typeof(v_who) is distinct from 'object'
-        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager'])
+        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager', 'decider'])
         or (v_who ? 'manager' and true)
+        or (v_who ? 'decider' and v_who -> 'decider' <> 'true'::jsonb)
         or (v_who ? 'users' and (jsonb_typeof(v_who -> 'users') <> 'array'
           or exists (select 1 from jsonb_array_elements(v_who -> 'users') u
             where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))) then
-        raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+        raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
       end if;
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
@@ -479,7 +480,7 @@ begin
         and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
-      raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+      raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
   v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
@@ -506,7 +507,7 @@ begin
   ) || case when approval_policy_tighten.own ? 'managerOf' then jsonb_build_object('managerOf', approval_policy_tighten.own -> 'managerOf') else '{}'::jsonb end;
 exception
   when invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
-    raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+    raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
 end;
 $$;
 revoke execute on function "better_supabase"."approval_policy_tighten"(jsonb, jsonb) from public, anon, authenticated;

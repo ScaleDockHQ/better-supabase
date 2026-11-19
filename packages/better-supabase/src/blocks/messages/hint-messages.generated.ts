@@ -199,7 +199,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "APPROVAL_NOT_FOUND": "Approval request not found.",
   "APPROVAL_NOT_REQUIRED": "No approval is required for this request.",
   "APPROVAL_PENDING": "This record already has a pending request for that action.",
-  "APPROVAL_POLICY_INVALID": "Policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }.",
+  "APPROVAL_POLICY_INVALID": "Policy must be { steps: [{ approvers: { permission, role, team, users, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }.",
   "APPROVAL_POLICY_UNKNOWN": "No approval policy for this subject type and action.",
   "APPROVAL_WAIT_TIMEOUT": "Approval wait timeout.",
   "ASSETS_ASSIGNEE_INVALID": "An assignee needs a lowercase type and an id.",

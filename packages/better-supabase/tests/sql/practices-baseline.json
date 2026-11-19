@@ -321,7 +321,7 @@
     "row-triggers": 1
   },
   "memberships-many-roles": {
-    "security-definer-functions": 60,
+    "security-definer-functions": 61,
     "row-triggers": 6
   },
   "memberships-summary-many": {
@@ -377,7 +377,7 @@
     "security-definer-functions": 241
   },
   "organizations": {
-    "security-definer-functions": 116,
+    "security-definer-functions": 122,
     "row-triggers": 12
   },
   "outbox": {

@@ -339,7 +339,7 @@ export interface BlockNameRegistry {
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
-    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachment_subject_writable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -377,7 +377,7 @@ export interface BlockNameRegistry {
   };
   readonly "banking": {
     readonly tables: {
-      readonly "accounts": "id" | "tenant" | "name" | "iban" | "bic" | "currency" | "holder" | "isPrimary" | "journal" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "accounts": "id" | "tenant" | "name" | "iban" | "bic" | "currency" | "holder" | "isPrimary" | "position" | "journal" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "rules": "id" | "tenant" | "name" | "conditions" | "account" | "party" | "dimensions" | "priority" | "active" | "createdAt" | "updatedAt";
       readonly "statements": "id" | "tenant" | "account" | "reference" | "fromOn" | "untilOn" | "openingBalance" | "closingBalance" | "format" | "attachment" | "importedBy" | "createdAt";
       readonly "transactions": "id" | "tenant" | "account" | "statement" | "bookedOn" | "valueOn" | "amount" | "currency" | "counterpartyName" | "counterpartyIban" | "remittance" | "structuredReference" | "endToEndId" | "externalId" | "status" | "rule" | "matchedAt" | "matchedBy" | "createdAt" | "updatedAt";
@@ -390,7 +390,7 @@ export interface BlockNameRegistry {
     readonly hooks: "after_bank_statement_import" | "before_bank_transaction_match" | "after_bank_transaction_match";
     readonly entities: {
       readonly "bank_transaction": "id" | "tenant_id" | "account_id" | "statement_id" | "booked_on" | "value_on" | "amount" | "currency" | "counterparty_name" | "counterparty_iban" | "remittance" | "structured_reference" | "end_to_end_id" | "external_id" | "status" | "rule_id" | "matched_at" | "matched_by" | "created_at" | "updated_at";
-      readonly "bank_account": "id" | "tenant_id" | "name" | "iban" | "bic" | "currency" | "holder" | "is_primary" | "journal_id" | "archived_at" | "created_at" | "updated_at";
+      readonly "bank_account": "id" | "tenant_id" | "name" | "iban" | "bic" | "currency" | "holder" | "is_primary" | "position" | "journal_id" | "archived_at" | "created_at" | "updated_at";
       readonly "bank_statement": "id" | "tenant_id" | "account_id" | "reference" | "from_on" | "until_on" | "opening_balance" | "closing_balance" | "format" | "attachment_id" | "imported_by" | "created_at";
       readonly "bank_match": "id" | "tenant_id" | "transaction_id" | "target_type" | "target_id" | "amount" | "created_by" | "created_at";
       readonly "bank_rule": "id" | "tenant_id" | "name" | "conditions" | "account_id" | "party_id" | "dimensions" | "priority" | "active" | "created_at" | "updated_at";
@@ -1749,7 +1749,7 @@ export interface BlockNameRegistry {
       readonly "profiles": "tenant" | "vatId" | "registrationId" | "defaultRate" | "currency" | "updatedAt";
       readonly "paymentAccounts": "id" | "tenant" | "iban" | "bic" | "holder" | "label" | "isPrimary" | "updatedAt";
     };
-    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "page_organization_members" | "remove_member" | "remove_member_role" | "resume_member" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
+    readonly functions: "add_member_role" | "create_organization" | "delete_organization" | "ensure_organization_owner" | "guard_membership" | "guard_membership_role" | "import_organization_profile" | "leave_organization" | "list_members" | "list_my_organizations" | "mark_used" | "organization_overview" | "organization_profile_updated_at" | "organization_slug_problem" | "page_organization_members" | "remove_member" | "remove_member_role" | "resume_member" | "sole_owned_organizations" | "suspend_member" | "switch_organization" | "transfer_ownership" | "update_member_role" | "update_member_roles" | "update_organization";
     readonly actions: "update" | "delete" | "listMembers" | "removeMember" | "suspendMember" | "updateRole" | "transferOwnership" | "create" | "readPlatform" | "updatePlatform" | "deletePlatform" | "updateRolePlatform" | "removeMemberPlatform";
     readonly hooks: "before_organization_create" | "after_organization_create" | "before_organization_update" | "after_organization_update" | "after_member_change";
     readonly entities: {};
