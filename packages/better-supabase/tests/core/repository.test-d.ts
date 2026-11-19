@@ -449,3 +449,19 @@ describe("$search", () => {
     void plain[0]!.$score;
   });
 });
+
+describe("unknown include keys", () => {
+  it("rejects an include that names no relation", () => {
+    // @ts-expect-error `note` is not a relation of customers
+    void db.customers.list({ include: { note: true } });
+    // @ts-expect-error `note` is not a relation, next to one that is
+    void db.customers.list({ include: { notes: true, note: true } });
+    // @ts-expect-error `note` is not a relation of customers
+    void db.customers.get("c1", { include: { note: true } });
+    // @ts-expect-error `note` is not a relation of customers
+    void db.customers.page({ size: 10, include: { invoice: true } });
+    void db.customers.list({
+      include: { notes: true, _count: { notes: true } },
+    });
+  });
+});
