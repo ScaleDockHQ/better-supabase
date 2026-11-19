@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:a29d08a596874b0f339c01a99dc8921d2bfefdbf502382e7b561b6a810b8bf10
+-- @bsb-hash sha256:a29629b366d20121747f16fe65f066e74021e60de2063ddd5508d953dd8bd2b1
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_team.tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_team.tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   if v_slug is null or v_slug = '' then
@@ -115,7 +115,7 @@ begin
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   update "centrakit"."teams" as t
@@ -154,7 +154,7 @@ begin
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   update "centrakit"."teams" set "status" = 'archived', "updated_at" = now() where "id" = archive_team.team;
@@ -188,7 +188,7 @@ begin
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   delete from "centrakit"."teams" where "id" = purge_team.team;
@@ -207,6 +207,31 @@ $$;
 revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
+-- purge_team for each of team_ids in one call, all or nothing; returns how many
+-- it purged.
+create or replace function "better_supabase"."purge_teams"(team_ids uuid[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_team uuid;
+  v_count integer := 0;
+begin
+  if coalesce(cardinality(purge_teams.team_ids), 0) > 1000 then
+    raise exception 'purge at most 1000 teams in one call' using errcode = '22023', hint = 'TEAM_INVALID';
+  end if;
+  for v_team in select distinct x from unnest(purge_teams.team_ids) x where x is not null loop
+    perform "better_supabase"."purge_team"(v_team);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."purge_teams"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."purge_teams"(uuid[]) to authenticated, service_role;
+
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean
 language plpgsql
@@ -223,7 +248,7 @@ begin
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   if not exists (
@@ -267,7 +292,7 @@ begin
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   delete from "centrakit"."team_members"
@@ -317,7 +342,7 @@ declare
   v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
   v_result jsonb;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_teams.tenant, 'teams.read'), false)) then
     raise exception 'not allowed to read teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
@@ -597,7 +622,7 @@ begin
   if v_row is null then
     return null;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'teams.read'), false)) then
     raise exception 'not allowed to read teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
   return v_row;
