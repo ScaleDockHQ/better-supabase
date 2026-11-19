@@ -42,6 +42,14 @@ describe("error codes", () => {
         text: "raise exception 'nope'\n  using errcode = '22023', hint = 'APP_NOPE';\n",
       }),
     ).toEqual([]);
+    expect(
+      raisesWithoutCode({
+        path: "supabase/schemas/app.sql",
+        text: "raise exception using\n  errcode = '22023',\n  message = 'app_nope',\n  detail = 'one; two',\n  hint = 'APP_NOPE';\nraise exception 'later' using errcode = '22023';\n",
+      }).map((finding) => finding.message),
+    ).toEqual([
+      "supabase/schemas/app.sql:6 raises without a hint code. Pass the stable code as hint, as fail(code, message) does, so an app can translate it.",
+    ]);
   });
 
   it("skips migrations and the files the blocks wrote (BS627)", async () => {

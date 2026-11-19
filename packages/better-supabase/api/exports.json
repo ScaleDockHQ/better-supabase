@@ -11834,6 +11834,7 @@
       "Deadline",
       "DeadlineBasis",
       "DeadlineCitation",
+      "DeadlineComputeOutcome",
       "DeadlineCount",
       "DeadlineCounting",
       "DeadlineEventData",

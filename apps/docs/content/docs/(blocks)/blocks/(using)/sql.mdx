@@ -1598,6 +1598,14 @@ and a provider with the `rowsWith` template (see
 `can_subject_for`, row grants count only when the provider also has
 `rowsWithFor`, and `owner` compares the column with the given user.
 
+Blocks that check a record action in their own policies run the same grants on
+the record's row. The `attachments` upload and manage checks, and the
+`deadlines` read check when `blocks.deadlines.permissions.read` is the record
+type's read key, let in a member whose key covers only their own or their
+team's records: register `upload: { key: "jobs.update", rows: "jobs" }`, and
+an own-level grant attaches files to that member's jobs only. A plain key is
+still checked in the tenant (ADR 1094).
+
 `check` names a schema-qualified function, such as
 `better_supabase.drive_node_writable`, that answers for the caller
 (`auth.uid()`). Use it when the grants live in your own tables, as the drive's

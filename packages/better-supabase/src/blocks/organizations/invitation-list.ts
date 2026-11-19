@@ -55,3 +55,17 @@ export function invitationList(
     rowOf: (row) => invitationRowOf(row),
   });
 }
+
+/** What `updateInvitation` changes; a missing key keeps the current value. */
+export interface InvitationChanges {
+  readonly email?: string;
+  /** A role name, or a role id or key under the catalog model. */
+  readonly role?: string;
+  /** Replaces the profile fields to fill in on sign-up. */
+  readonly prefill?: Readonly<Record<string, unknown>>;
+  /** Replaces the roles or team ids granted on accept; others stay. */
+  readonly onAccept?: {
+    readonly roles?: readonly string[];
+    readonly teams?: readonly string[];
+  };
+}

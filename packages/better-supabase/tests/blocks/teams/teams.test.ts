@@ -132,4 +132,21 @@ describe("teams.setMembers and setArchived", () => {
     expect(await teams.purge("t1").orThrow()).toBe(true);
     expect(calls).toEqual([["purge_team", { team: "t1" }]]);
   });
+
+  it("purges several teams in one purge_teams call", async () => {
+    const calls: [string, unknown][] = [];
+
+    const teams = createTeams({
+      transport: {
+        call(_schema: string, fn: string, args: Record<string, unknown>) {
+          calls.push([fn, args]);
+
+          return Promise.resolve(2);
+        },
+      },
+    });
+
+    expect(await teams.purgeMany(["t1", "t2"]).orThrow()).toBe(2);
+    expect(calls).toEqual([["purge_teams", { team_ids: ["t1", "t2"] }]]);
+  });
 });

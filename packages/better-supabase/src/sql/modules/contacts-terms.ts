@@ -5,7 +5,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 import { DELIVERY_CHANNELS } from "../../blocks/contacts/roles.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
 import { EMAIL_PATTERN } from "./contacts-identities.ts";
 import { lookup } from "./contacts-roles.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -97,7 +97,7 @@ export function termsFunctions(
     `jsonb_build_object('id', ${alias}.${d("id")}, 'organizationId', ${alias}.${d("tenant")}, 'partyId', ${alias}.${d("party")}, 'documentType', ${alias}.${d("documentType")}, 'channel', ${alias}.${d("channel")}, 'copies', ${alias}.${d("copies")}, 'email', ${alias}.${d("email")})`;
 
   const allowed = (tenant: string, permission: string): string =>
-    `(auth.role() = 'service_role' or ${scope.can(tenant, permission)})`;
+    `(${SERVICE_CALLER} or ${scope.can(tenant, permission)})`;
 
   const invalidTerm = fail(
     "PAYMENT_TERM_INVALID",

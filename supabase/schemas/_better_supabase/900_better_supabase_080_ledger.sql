@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@3 managed
--- @bsb-hash sha256:4dc275ea141b3f6906b083063816c82db5066dddd32f0e14e6e2f6ed0999febf
+-- @bsb-hash sha256:a492991886a4e154b6435e54befb9e783cbe6b6c86d865769537eceff46f4dd6
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,6 +51,7 @@ create table "better_supabase"."ledger_transactions" (
 );
 alter table "better_supabase"."ledger_transactions" add column "memo_key" text;
 alter table "better_supabase"."ledger_transactions" add column "memo_params" jsonb;
+create unique index "bsb_ledger_transactions_tenant_id_key" on "better_supabase"."ledger_transactions" ("tenant_id", "id");
 create unique index "ledger_transactions_key_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "idempotency_key") where "idempotency_key" is not null;
 create unique index "ledger_transactions_reverses_idx" on "better_supabase"."ledger_transactions" ("reverses") where "reverses" is not null;
 create index "ledger_transactions_reference_idx" on "better_supabase"."ledger_transactions" ("tenant_id", "reference_type", "reference_id") where "reference_type" is not null;

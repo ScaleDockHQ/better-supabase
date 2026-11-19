@@ -47,6 +47,7 @@ const relationships = [
 function check(
   code: "BS634" | "BS635",
   text: string,
+  views: readonly { schema: string; name: string }[] = [],
 ): readonly {
   message: string;
   target?: string;
@@ -59,7 +60,7 @@ function check(
   // SAFETY: both rules read only `sources` and the snapshot's relationships.
   const findings = rule?.check({
     sources,
-    snapshot: { generator: { relationships } },
+    snapshot: { generator: { relationships, views, materializedViews: [] } },
   } as unknown as DoctorContext);
 
   if (!Array.isArray(findings)) {
@@ -274,6 +275,25 @@ describe("BS635", () => {
       "waits for db.orders.list at line 2, then reads db.customers.list",
     );
     expect(findings[0]?.message).toContain("include: { customer: true }");
+  });
+
+  it("suggests no include on a view, which has no relations", () => {
+    const findings = check(
+      "BS635",
+      lines(
+        "export async function load(db: Db) {",
+        "  const ordersResult = await db.orders.list({ limit: 20 });",
+        "  const orders = ordersResult.orThrow();",
+        "  const customerIds = orders.map((order) => order.customerId);",
+        "  const customers = await db.customers.list({",
+        "    where: { id: { in: customerIds } },",
+        "  });",
+        "}",
+      ),
+      [{ schema: "public", name: "orders" }],
+    );
+
+    expect(findings).toEqual([]);
   });
 
   it("follows Promise.all destructuring and composite foreign keys", () => {

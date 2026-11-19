@@ -963,21 +963,26 @@ export function subjectAccess<A extends string>(
 
   const entries = subjects.map(([type, subject]) => {
     const keys = new Map<string, string>();
+    const rows = new Map<string, SubjectPermission>();
     const raw = subject.extra["permissions"];
 
     // `read` in the registry is the subject's own read key (`subject.permission`), not this module's action.
     for (const [key, entry] of Object.entries(
       ctx.subjects[type]?.permissions ?? {},
     )) {
-      const value = subjectPermissionKey(entry);
+      if (key === "read" || !allowed.has(key)) {
+        continue;
+      }
 
-      if (
-        key !== "read" &&
-        allowed.has(key) &&
-        value !== undefined &&
-        value.length > 0
-      ) {
+      const value = subjectPermissionKey(entry);
+      const parts = subjectPermissionOf(entry);
+
+      if (value !== undefined && value.length > 0) {
         keys.set(key, value);
+      }
+
+      if (parts !== undefined && grantsPerRow(parts)) {
+        rows.set(key, parts);
       }
     }
 
@@ -1000,26 +1005,67 @@ export function subjectAccess<A extends string>(
         }
 
         keys.set(key, value);
+        rows.delete(key);
       }
     }
 
-    return { type, keys, scope: subjectScope(ctx, provider, type, subject) };
+    return {
+      type,
+      subject,
+      keys,
+      rows,
+      scope: subjectScope(ctx, provider, type, subject),
+    };
   });
 
   const keyed = (action: A) =>
     entries.flatMap((entry) => {
       const key = entry.keys.get(action);
+      const row = entry.rows.get(action);
 
-      return key === undefined && entry.scope === undefined
+      return key === undefined && entry.scope === undefined && row === undefined
         ? []
         : [
             {
               type: entry.type,
+              subject: entry.subject,
               key: key === undefined ? permission(action) : sqlString(key),
+              row,
               scope: entry.scope,
             },
           ];
     });
+
+  // A registered action that grants per row, to an owner or through a check
+  // runs on the subject row, so an own or team grant counts as it does in
+  // can_subject; a tenant key alone would miss it.
+  const onRow = (
+    entry: ReturnType<typeof keyed>[number],
+    tenant: string,
+    id: string,
+    asSet: boolean,
+  ): string | undefined => {
+    if (entry.row === undefined) {
+      return undefined;
+    }
+
+    const subject: Subject = {
+      ...entry.subject,
+      read: {
+        entry: entry.row,
+        ...(ctx.subjects[entry.type]?.scope === undefined
+          ? {}
+          : { scope: ctx.subjects[entry.type]!.scope! }),
+      },
+    };
+
+    const tenantMatch =
+      subject.tenant === false
+        ? ""
+        : ` and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, tenant)}`;
+
+    return `exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, id)}${tenantMatch} and ${recordGrant(ctx, `records.${entry.type}.permissions`, subject, tenant, asSet)})`;
+  };
 
   const onRecord = (
     scope: string | undefined,
@@ -1036,15 +1082,17 @@ export function subjectAccess<A extends string>(
 
   const branches = (
     action: A,
+    tenant: string,
     type: string,
     id: string,
     check: (key: string) => string,
+    asSet: boolean,
   ): string => {
     const list = keyed(action);
 
     const parts = list.map(
       (entry) =>
-        `(${type} = ${sqlString(entry.type)} and (${check(entry.key)}${onRecord(entry.scope, id, entry.key)}))`,
+        `(${type} = ${sqlString(entry.type)} and (${onRow(entry, tenant, id, asSet) ?? check(entry.key)}${onRecord(entry.scope, id, entry.key)}))`,
     );
 
     parts.push(
@@ -1054,7 +1102,9 @@ export function subjectAccess<A extends string>(
     return `(${parts.join(" or ")})`;
   };
 
-  const scoped = entries.some((entry) => entry.scope !== undefined);
+  const scoped = entries.some(
+    (entry) => entry.scope !== undefined || entry.rows.size > 0,
+  );
 
   const can = (tenant: string, key: string): string =>
     ctx.can("tenant", tenant, key);
@@ -1082,7 +1132,14 @@ export function subjectAccess<A extends string>(
     }
 
     if (scoped) {
-      return branches(action, type, id, (key) => can(tenant, key));
+      return branches(
+        action,
+        tenant,
+        type,
+        id,
+        (key) => can(tenant, key),
+        false,
+      );
     }
 
     const cases = list.map(
@@ -1109,7 +1166,14 @@ export function subjectAccess<A extends string>(
       const check =
         keyed(action).length === 0
           ? ctx.scope.check(tenant, permission(action))
-          : branches(action, type, id, (key) => ctx.scope.check(tenant, key));
+          : branches(
+              action,
+              tenant,
+              type,
+              id,
+              (key) => ctx.scope.check(tenant, key),
+              true,
+            );
 
       return orGuest(check, tenant, type, id, action);
     },
@@ -1128,6 +1192,15 @@ export function subjectAccess<A extends string>(
     },
   };
 }
+
+/**
+ * Whether a registered permission grants per row, to an owner or through a
+ * check.
+ */
+const grantsPerRow = (entry: SubjectPermission): boolean =>
+  entry.rows !== undefined ||
+  entry.owner !== undefined ||
+  entry.check !== undefined;
 
 /** `on.<type>.scope`, checked against the provider's scopes. */
 function subjectScope(

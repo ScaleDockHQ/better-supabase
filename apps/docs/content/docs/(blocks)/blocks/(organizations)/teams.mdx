@@ -3,7 +3,7 @@ title: Teams
 description: Tenant teams and their members, shared with the inbox.
 ---
 
-`teams` stores a tenant's teams and who is on them. Creating, changing, archiving, restoring and purging a team, and changing its members, needs `teams.manage`. `blocks.teams.permissions` can split it: `create` checks `create_team`, `update` checks `update_team`, `archive_team` and `restore_team`, `purge` checks `purge_team` (the hard delete; archive keeps the row), and `members` checks `add_team_member` and `remove_team_member`. An action you leave unset checks `manage`, so a config without them behaves as before. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
+`teams` stores a tenant's teams and who is on them. Creating, changing, archiving, restoring and purging a team, and changing its members, needs `teams.manage`. `blocks.teams.permissions` can split it: `create` checks `create_team`, `update` checks `update_team`, `archive_team` and `restore_team`, `purge` checks `purge_team` and `purge_teams` (the hard delete; archive keeps the row; `purgeMany(ids)` purges up to 1000 teams in one call, all or nothing), and `members` checks `add_team_member` and `remove_team_member`. An action you leave unset checks `manage`, so a config without them behaves as before. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
 
 ```bash
 better-supabase add teams
@@ -17,6 +17,10 @@ import { createTeams } from "better-supabase/blocks/teams";
 | -------------- | ------------------------------------------------------------- |
 | `teams`        | Name, slug, description and status                            |
 | `team_members` | A user on a team, with a foreign key to the tenant membership |
+
+`teams` has a unique `(tenant_id, id)` index, and `team_members` references it
+with `(tenant_id, team_id)`, so a member row can't point at another
+tenant's team. An app table can use the same composite foreign key.
 
 `options.teamIdType` is `uuid` (the default) or `bigint`. The inbox needs `uuid`.
 

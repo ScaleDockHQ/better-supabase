@@ -291,6 +291,28 @@ describe("policy security rules", () => {
     expect(await run(context(withFunction(serviceOnly)), "BS112")).toEqual([]);
     const revoked = withFunction(open, { ...definer, execute: [] });
     expect(await run(context(revoked), "BS112")).toEqual([]);
+    const contract = `${open} and better_supabase.can('tenant', organization, 'notes.delete')`;
+    expect(await run(context(withFunction(contract)), "BS112")).toEqual([]);
+
+    const provided = `${open} and "authz".has('notes.delete')`;
+    const plain = context(withFunction(provided));
+
+    expect(await run(plain, "BS112")).toHaveLength(1);
+
+    const withProvider = {
+      ...plain,
+      config: {
+        ...plain.config,
+        authorization: {
+          requires: [
+            { function: "authz.ids_organization", role: "authenticated" },
+          ],
+        },
+      },
+      // SAFETY: the rule reads only the provider's requires.
+    } as unknown as DoctorContext;
+
+    expect(await run(withProvider, "BS112")).toEqual([]);
   });
 
   it("flags security definer functions open to the API roles that nothing exposes (BS116)", async () => {

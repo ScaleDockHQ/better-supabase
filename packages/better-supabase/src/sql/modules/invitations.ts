@@ -38,6 +38,7 @@ import {
   inviteJson,
   myInvitations,
   organizationJson,
+  resendInvitations,
   updateInvitation,
 } from "./invitations-rows.ts";
 import {
@@ -937,11 +938,12 @@ function invitationsSql(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 grant execute on function ${ctx.fn(fn)}(${args}) to ${roles};`;
 
   return `${schemaPreamble(ctx)}
-${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${acceptingInvitation(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
+${tenantTableSql(ctx)}${platformTableSql(ctx)}${platformRoleScope(ctx)}${invitationExtra(ctx)}${invite(ctx)}${resendInvitations(ctx, sqlString(ctx.text("validFor", "7 days")))}${updateInvitation(ctx)}${close(ctx)}${preview(ctx)}${acceptingInvitation(ctx)}${accept(ctx, layout)}${accept(ctx, layout, "id")}${myInvitations(ctx)}
 ${grant("invite_member", `${id}, text, text, interval, jsonb${extraFieldsArg(tenantTable(ctx).extras).type}${onAcceptParam(ctx).type}`, "authenticated, service_role")}
 ${grant("create_invitation", `${id}, text, text, interval`, "authenticated, service_role")}
 ${grant("resend_invitation", "uuid, interval", "authenticated, service_role")}
-${grant("update_invitation", "uuid, text, text, jsonb", "authenticated, service_role")}
+${grant("resend_invitations", "uuid[], interval", "authenticated, service_role")}
+${grant("update_invitation", `uuid, text, text, jsonb${onAcceptParam(ctx).type}`, "authenticated, service_role")}
 ${grant("revoke_invitation", "uuid", "authenticated, service_role")}
 ${grant("decline_invitation", "text", "anon, authenticated, service_role", "public")}
 ${grant("invitation_preview", "text", "anon, authenticated, service_role", "public")}
@@ -990,8 +992,19 @@ export const INVITATIONS: BlockSqlDefinition = {
     { name: "revoke_invitation", args: ["uuid"], returns: "boolean" },
     { name: "resend_invitation", args: ["uuid", "interval"], returns: "jsonb" },
     {
+      name: "resend_invitations",
+      args: ["uuid[]", "interval"],
+      returns: "jsonb",
+    },
+    {
       name: "update_invitation",
-      args: ["uuid", "text", "text", "jsonb"],
+      args: [
+        "uuid",
+        "text",
+        "text",
+        "jsonb",
+        ...(onAcceptParam(ctx).type === "" ? [] : ["jsonb"]),
+      ],
       returns: "jsonb",
     },
   ],

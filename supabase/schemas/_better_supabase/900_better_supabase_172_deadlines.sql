@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:335097ef065a9e33a0c3ca745216be1778bfda082561161111b75ec558b38c06
+-- @bsb-hash sha256:f08471ec312eb9e22d8ade4ca87727d4390d6e6bb09e833d168121c0f9fcad58
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2156,6 +2156,150 @@ $$;
 revoke execute on function "better_supabase"."get_deadline"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_deadline"(uuid) to authenticated, service_role;
 
+
+-- Deletes a subject's deadlines and returns how many: the pending ones of every
+-- jurisdiction but keep_jurisdiction (all pending ones without it), or with
+-- pending_only false every deadline, satisfied history included, as when the
+-- subject goes. Needs deadlines.write and read access to the subject.
+create or replace function "better_supabase"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_count integer;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (prune_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', prune_deadlines.tenant, 'deadlines.write'), false))) then
+    raise exception 'not allowed to prune deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(prune_deadlines.subject_type, prune_deadlines.subject_id, prune_deadlines.tenant)) then
+    raise exception 'not allowed to prune deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."deadlines" x
+  where x."tenant_id" = prune_deadlines.tenant
+    and x."subject_type" = prune_deadlines.subject_type
+    and x."subject_id" = prune_deadlines.subject_id
+    and (not coalesce(prune_deadlines.pending_only, true) or x."state" = 'pending')
+    and (prune_deadlines.keep_jurisdiction is null or x."jurisdiction" <> prune_deadlines.keep_jurisdiction);
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."prune_deadlines"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."prune_deadlines"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+-- compute_deadlines for up to 1000 subjects in one call. items is a list of
+-- { subjectType, subjectId, jurisdiction, kind, facts, asOf, group }; with prune,
+-- each subject's pending deadlines of other jurisdictions go first. One failed
+-- item doesn't undo the others: it answers { ok: false, hint, message }, the
+-- rest { ok: true, deadlines }, in the order given.
+create or replace function "better_supabase"."compute_deadlines_many"(tenant uuid, items jsonb, prune boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_item jsonb;
+  v_out jsonb := '[]'::jsonb;
+  v_hint text;
+  v_message text;
+begin
+  if jsonb_typeof(compute_deadlines_many.items) is distinct from 'array' or jsonb_array_length(compute_deadlines_many.items) > 1000 then
+    raise exception 'items is a list of at most 1000 subjects' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  for v_item in select value from jsonb_array_elements(compute_deadlines_many.items) loop
+    begin
+      if compute_deadlines_many.prune then
+        perform "better_supabase"."prune_deadlines"(compute_deadlines_many.tenant, v_item ->> 'subjectType', v_item ->> 'subjectId', v_item ->> 'jurisdiction');
+      end if;
+      v_out := v_out || jsonb_build_array(jsonb_build_object(
+        'subjectType', v_item ->> 'subjectType',
+        'subjectId', v_item ->> 'subjectId',
+        'ok', true,
+        'deadlines', "better_supabase"."compute_deadlines"(
+          compute_deadlines_many.tenant,
+          v_item ->> 'subjectType',
+          v_item ->> 'subjectId',
+          v_item ->> 'jurisdiction',
+          v_item ->> 'kind',
+          coalesce(v_item -> 'facts', '{}'::jsonb),
+          coalesce((v_item ->> 'asOf')::date, current_date),
+          v_item ->> 'group'
+        )
+      ));
+    exception when others then
+      get stacked diagnostics v_hint = pg_exception_hint, v_message = message_text;
+      v_out := v_out || jsonb_build_array(jsonb_build_object(
+        'subjectType', v_item ->> 'subjectType',
+        'subjectId', v_item ->> 'subjectId',
+        'ok', false,
+        'hint', nullif(v_hint, ''),
+        'message', v_message
+      ));
+    end;
+  end loop;
+  return v_out;
+end;
+$$;
+revoke execute on function "better_supabase"."compute_deadlines_many"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."compute_deadlines_many"(uuid, jsonb, boolean) to authenticated, service_role;
+
+-- on with cascade: deleting a subject row deletes its deadlines rows.
+create or replace function "better_supabase"."deadlines_subject_deleted_product"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."deadlines" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."deadlines" x where x."subject_type" = v_type and x."subject_id" = v_id and x."tenant_id" = v_tenant::uuid;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."deadlines_subject_deleted_product"() from public, anon, authenticated;
+create trigger "bsb_deadlines_product_cascade"
+  after delete on "better_supabase"."products"
+  for each row execute function "better_supabase"."deadlines_subject_deleted_product"();
+
+create or replace function "better_supabase"."deadlines_subject_deleted_product_variant"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text := 'product_variant';
+  v_id text := old."id"::text;
+  v_tenant text := old."tenant_id"::text;
+begin
+  if v_tenant is null then
+    delete from "better_supabase"."deadlines" x where x."subject_type" = v_type and x."subject_id" = v_id;
+  else
+    delete from "better_supabase"."deadlines" x where x."subject_type" = v_type and x."subject_id" = v_id and x."tenant_id" = v_tenant::uuid;
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."deadlines_subject_deleted_product_variant"() from public, anon, authenticated;
+create trigger "bsb_deadlines_product_variant_cascade"
+  after delete on "better_supabase"."product_variants"
+  for each row execute function "better_supabase"."deadlines_subject_deleted_product_variant"();
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2391,3 +2535,21 @@ set search_path = ''
 as $$ select "better_supabase"."get_deadline"($1) $$;
 revoke execute on function "api"."get_deadline"(uuid) from public, anon;
 grant execute on function "api"."get_deadline"(uuid) to authenticated, service_role;
+
+create or replace function "api"."prune_deadlines"(tenant uuid, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."prune_deadlines"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."prune_deadlines"(uuid, text, text, text, boolean) from public, anon;
+grant execute on function "api"."prune_deadlines"(uuid, text, text, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."compute_deadlines_many"(tenant uuid, items jsonb, prune boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."compute_deadlines_many"($1, $2, $3) $$;
+revoke execute on function "api"."compute_deadlines_many"(uuid, jsonb, boolean) from public, anon;
+grant execute on function "api"."compute_deadlines_many"(uuid, jsonb, boolean) to authenticated, service_role;

@@ -169,6 +169,39 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("replaces an open invitation's extra roles and keeps its teams", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_invite jsonb;
+  v_team uuid;
+begin
+  insert into better_supabase.teams (tenant_id, name, slug) values ('${TENANT}', 'Ops', 'ops') returning id into v_team;
+  ${as(ALICE)}
+  v_invite := better_supabase.invite_member('${TENANT}', 'carol@example.com', 'member', '7 days', '{}',
+    jsonb_build_object('roles', array['viewer'], 'teams', array[v_team]));
+  perform better_supabase.update_invitation((v_invite ->> 'id')::uuid, null, null, null,
+    jsonb_build_object('roles', array['admin']));
+  perform set_config('request.jwt.claims', '{"sub":"${CAROL}","role":"authenticated","email":"carol@example.com"}', true);
+  perform set_config('request.jwt.claim.sub', '${CAROL}', true);
+  perform better_supabase.accept_invitation(v_invite ->> 'token');
+  if ${ROLE_SET(CAROL)} <> array['admin', 'member'] then
+    raise exception 'roles %', ${ROLE_SET(CAROL)};
+  end if;
+  if not exists (select 1 from better_supabase.team_members where team_id = v_team and user_id = '${CAROL}') then
+    raise exception 'not in the team';
+  end if;
+end;
+$$;`,
+        ["memberships", "permissions", "organizations", "invitations", "teams"],
+        {
+          invitations: { options: { onAccept: { roles: true, teams: true } } },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses an invitation role above the inviter's ceiling", async () => {
     await expect(
       run(

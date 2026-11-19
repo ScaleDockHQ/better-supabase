@@ -106,11 +106,17 @@ export function onAcceptParam(ctx: BlockSqlContext): {
 }
 
 /**
- * Checks `on_accept` in `invite_member` and stores it on row `created`: every
- * role must be declared and within the caller's ceiling, every team in the
- * tenant.
+ * Checks `on_accept` in `invite_member` and stores it on row `row`: every role
+ * must be declared and within the caller's ceiling, every team in the tenant.
+ * With `partial`, as in `update_invitation`, a key `on_accept` leaves out keeps
+ * the stored value.
  */
-export function onAcceptInvite(ctx: BlockSqlContext, t: InviteTable): string {
+export function onAcceptInvite(
+  ctx: BlockSqlContext,
+  t: InviteTable,
+  row = "created",
+  partial = false,
+): string {
   const on = onAcceptOf(ctx);
 
   if (!on.roles && !on.teams) {
@@ -118,7 +124,14 @@ export function onAcceptInvite(ctx: BlockSqlContext, t: InviteTable): string {
   }
 
   const keys = [...(on.roles ? ["roles"] : []), ...(on.teams ? ["teams"] : [])];
-  const id = `created.${t.col("id")}`;
+  const id = `${row}.${t.col("id")}`;
+
+  const only = (key: string, sql: string): string =>
+    partial && sql !== ""
+      ? `
+      if on_accept ? ${sqlString(key)} then${sql.replaceAll("\n", "\n  ")}
+      end if;`
+      : sql;
 
   const roles = on.roles
     ? `
@@ -168,7 +181,7 @@ export function onAcceptInvite(ctx: BlockSqlContext, t: InviteTable): string {
         select 1 from jsonb_object_keys(on_accept) k where k not in (${keys.map(sqlString).join(", ")})
       ) then
         ${raise("INVITATION_ON_ACCEPT_INVALID", `on_accept takes ${keys.join(" and ")}`)}
-      end if;${roles}${teams}
+      end if;${only("roles", roles)}${only("teams", teams)}
     end;
   end if;`;
 }

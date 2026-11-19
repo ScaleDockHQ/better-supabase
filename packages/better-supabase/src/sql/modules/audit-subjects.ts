@@ -9,6 +9,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 
 const HEADER = /^[a-z0-9-]+$/;
 const COLUMN = /^[a-z_][a-z0-9_]*$/;
+const TABLE = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/;
 const CLAIM = /^[a-z_][a-z0-9_]*(\.[a-z_][a-z0-9_]*)*$/i;
 
 const UUID =
@@ -112,7 +113,11 @@ function staffTest(ctx: BlockSqlContext): string | undefined {
 function subjectColumns(
   ctx: BlockSqlContext,
   taken: readonly string[],
-): readonly (readonly [string, Required<AuditSubjectColumn>])[] {
+): readonly (readonly [
+  string,
+  Required<Omit<AuditSubjectColumn, "tables">> &
+    Pick<AuditSubjectColumn, "tables">,
+])[] {
   const raw = ctx.option("subjectColumns");
   const where = "blocks.audit.options.subjectColumns";
 
@@ -149,8 +154,33 @@ function subjectColumns(
       throw new TypeError(`${where}.${name}.from must be a non-empty key`);
     }
 
-    // SAFETY: the check above found `type` in SUBJECT_TYPES.
-    return [name, { type: type as SubjectType, from }] as const;
+    const tables = isRecord(entry) ? entry["tables"] : undefined;
+
+    if (
+      tables !== undefined &&
+      (!isRecord(tables) ||
+        Object.entries(tables).some(
+          ([table, key]) =>
+            !TABLE.test(table) || typeof key !== "string" || key === "",
+        ))
+    ) {
+      throw new TypeError(
+        `${where}.${name}.tables must map "schema.table" to a non-empty key`,
+      );
+    }
+
+    return [
+      name,
+      {
+        // SAFETY: the check above found `type` in SUBJECT_TYPES.
+        type: type as SubjectType,
+        from,
+        // SAFETY: the check above found every value a non-empty string.
+        ...(tables === undefined
+          ? {}
+          : { tables: tables as Record<string, string> }),
+      },
+    ] as const;
   });
 }
 
@@ -185,6 +215,7 @@ export function subjectColumnsSql(
   log: string,
   sources: readonly string[],
   taken: readonly string[],
+  table?: string,
 ): string {
   const columns = subjectColumns(ctx, taken);
 
@@ -199,9 +230,23 @@ export function subjectColumnsSql(
   }
 
   return columns
-    .map(([name, { type, from }]) => {
-      const key = sqlString(from);
-      const value = `coalesce(${sources.map((source) => `${source} ->> ${key}`).join(", ")})`;
+    .map(([name, { type, from, tables }]) => {
+      const read = (key: string): string =>
+        `coalesce(${sources.map((source) => `${source} ->> ${sqlString(key)}`).join(", ")})`;
+
+      const perTable = Object.entries(tables ?? {});
+
+      if (perTable.length > 0 && table === undefined) {
+        throw new TypeError(
+          `blocks.audit.options.subjectColumns.${name}.tables needs the table_name column`,
+        );
+      }
+
+      const value =
+        perTable.length === 0
+          ? read(from)
+          : `coalesce(case ${table ?? ""} ${perTable.map(([source, key]) => `when ${sqlString(source)} then ${read(key)}`).join(" ")} end, ${read(from)})`;
+
       const column = sqlIdent(name);
 
       return `alter table ${log} add column if not exists ${column} ${type} generated always as (${guardedCast(value, type)}) stored;

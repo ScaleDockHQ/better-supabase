@@ -3,6 +3,7 @@ export {
   evaluateVersion,
   validateRuleVersion,
   type Deadline,
+  type DeadlineComputeOutcome,
   type DeadlineListOptions,
   type Deadlines,
   type DeadlinesOptions,

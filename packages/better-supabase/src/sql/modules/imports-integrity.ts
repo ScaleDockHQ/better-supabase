@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, serviceGrant, userGrant } from "../shared.ts";
+import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENT_MODES: ReadonlySet<string> = new Set(["skip", "tag", "emit"]);
@@ -100,7 +100,7 @@ declare
   v_count integer;
   v_ids jsonb;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("import_integrity.tenant", ctx.permission("manage", OPERATIONS["imports.manage"]))}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("import_integrity.tenant", ctx.permission("manage", OPERATIONS["imports.manage"]))}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to check this import", "42501")}
   end if;
   for v_name, v_severity, v_count, v_ids in

@@ -2,7 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { roleJson } from "./contacts-roles.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
@@ -79,7 +79,7 @@ export function identityFunctions(
 
   const guard = (
     tenant: string,
-  ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.write)}) then
+  ): string => `if not (${SERVICE_CALLER} or ${ctx.scope.can(tenant, names.write)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
   end if;`;
 

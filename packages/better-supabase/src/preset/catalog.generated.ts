@@ -26763,6 +26763,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "DeadlineCitation"
         },
         {
+          "name": "DeadlineComputeOutcome"
+        },
+        {
           "name": "DeadlineCount"
         },
         {

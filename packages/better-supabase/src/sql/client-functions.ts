@@ -160,7 +160,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   periods:
     "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   deadlines:
-    "approve_rule_version compute_deadlines get_deadline list_deadlines page_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
+    "approve_rule_version compute_deadlines compute_deadlines_many get_deadline list_deadlines page_deadlines prune_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
   "agent-checkout":
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:
@@ -178,7 +178,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inventory:
     "adjust_stock allocate_stock cancel_purchase_order cancel_purchase_order_quantity cancel_stock_count cancel_transfer commit_reservation count_stock create_transfer decide_purchase_requisition delete_location expire_lots expire_reservations expiring_lots fulfill_allocation get_inventory_level get_inventory_lot get_inventory_movement get_purchase_requisition inventory_levels inventory_overview list_allocations list_inventory_movements open_stock_count page_inventory_levels page_inventory_lots page_inventory_movements page_stock_bins page_stock_locations page_stock_variants pick_serials place_purchase_order post_stock_count purchase_order_from_requisitions purchase_order_tax_lines receive_purchase_order receive_transfer record_count_line release_allocation release_allocations release_reservation request_purchase reserve_stock restore_allocation save_bin save_location save_lot save_purchase_order set_location_active set_location_address set_reorder_point set_reorder_quantity set_stock_item ship_transfer stock_detail stock_valuation transfer_allocation",
   invitations:
-    "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
+    "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation resend_invitations revoke_invitation update_invitation",
   invoices:
     "add_invoice_charge allocate_existing allocate_payment apply_party_credit approve_purchase_invoice archive_invoice create_invoice credit_invoice delete_invoice e_invoice_endpoints find_e_endpoint_party get_invoice hand_over_to_collection invoice_aging issue_invoice list_e_invoice_deliveries list_invoice_allocations list_invoice_approval_levels list_invoice_dunning_history list_invoice_dunning_levels list_invoice_dunning_run_items list_invoice_dunning_runs list_invoice_payments list_invoices_for_subject list_party_credits open_item_ageing open_items_for_party page_invoices pause_invoice_dunning purchase_bill_match purchase_invoice_approval_status purchase_invoice_approval_statuses recompute_invoice_status recompute_invoice_totals record_e_invoice_delivery record_invoice_payment record_party_payment remove_invoice_charge restore_invoice reverse_invoice_payment run_invoice_dunning set_e_invoice_delivery_state set_invoice_approval_levels set_invoice_dunning_levels set_invoice_e_endpoint set_invoice_lines unallocate_payment update_invoice void_invoice write_off_invoice",
   knowledge:
@@ -292,7 +292,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   tasks:
     "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_project get_task list_task_checklist list_tasks page_projects page_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
   teams:
-    "add_team_member archive_team create_team get_team list_teams purge_team remove_team_member update_team",
+    "add_team_member archive_team create_team get_team list_teams purge_team purge_teams remove_team_member update_team",
   templates:
     "fork_template page_templates publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":

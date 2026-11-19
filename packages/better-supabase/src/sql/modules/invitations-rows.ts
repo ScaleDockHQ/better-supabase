@@ -1,12 +1,14 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { InviteTable } from "./invitations-tables.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   extraFieldsJson,
   organizationMissing,
   SERVICE_CALLER,
 } from "../shared.ts";
+import { onAcceptInvite, onAcceptParam } from "./invitations-on-accept.ts";
 import {
   invitePlatform,
   platformAssignment,
@@ -207,9 +209,9 @@ $$;
 }
 
 /**
- * `update_invitation`: a new email, role or prefill for an open invitation that
- * has not expired, with the checks `invite_member` makes. The token and expiry
- * stay.
+ * `update_invitation`: a new email, role, prefill or `on_accept` roles and
+ * teams for an open invitation that has not expired, with the checks
+ * `invite_member` makes. The token and expiry stay.
  */
 export function updateInvitation(ctx: BlockSqlContext): string {
   const t = tenantTable(ctx);
@@ -278,7 +280,14 @@ export function updateInvitation(ctx: BlockSqlContext): string {
     select * into platform_current from ${p.table} i
     where i.${pc("id")} = invitation_id${pOpen ? ` and ${pOpen}` : ""}${p.only("i")}
     for update;
-    if platform_current.${pc("id")} is not null then
+    if platform_current.${pc("id")} is not null then${
+      onAcceptParam(ctx).param === ""
+        ? ""
+        : `
+      if on_accept is not null then
+        ${fail("INVITATION_ON_ACCEPT_INVALID", "A platform invitation grants no roles or teams on accept")}
+      end if;`
+    }
       if platform_current.${pc("expiresAt")} < now() then
         ${fail("INVITATION_EXPIRED", "The invitation has expired; resend it to renew it")}
       end if;
@@ -310,13 +319,15 @@ export function updateInvitation(ctx: BlockSqlContext): string {
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+drop function if exists ${ctx.fn("update_invitation")}(uuid, text, text, jsonb${onAcceptParam(ctx).type === "" ? ", jsonb" : ""});
 create or replace function ${ctx.fn("update_invitation")}(
   invitation_id uuid,
   invitee_email text default null,
   invitee_role text default null,
-  prefill jsonb default null
+  prefill jsonb default null${onAcceptParam(ctx).param}
 )
 returns jsonb
 language plpgsql
@@ -370,9 +381,44 @@ begin
       and lower(i.${c("email")}) = lower(btrim(invitee_email))
       and i.${c("id")} <> invitation_id${open ? `\n      and ${open}` : ""};
   end if;
+${onAcceptInvite(ctx, t, "current_invite", true)}
   ${write(t, "current_invite", "updated", stored)}
   ${ctx.record({ type: "invitation.updated", payload: `jsonb_build_object('invitationId', updated.${c("id")}, 'organizationId', tenant::text, 'email', updated.${c("email")}, 'role', updated.${c("role")})`, subject: `'invitations/' || updated.${c("id")}::text`, tenant: "tenant", audit: { category: "membership", targetType: "invitation", recordId: `updated.${c("id")}::text` } })}
   return ${inviteJson(ctx, t, "updated", "null", `updated.${c("tenant")}`)} - 'token';
+end;
+$$;
+`;
+}
+
+/**
+ * `resend_invitations`: `resend_invitation` for each of `invitation_ids` in one
+ * call, all or nothing, in the order given.
+ */
+export function resendInvitations(
+  ctx: BlockSqlContext,
+  validFor: string,
+): string {
+  return `
+-- resend_invitation for up to ${String(MAX_BATCH)} invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function ${ctx.fn("resend_invitations")}(invitation_ids uuid[], valid_for interval default ${validFor})
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > ${String(MAX_BATCH)} then
+    ${raise("INVITATION_INVALID", `Resend at most ${String(MAX_BATCH)} invitations in one call`)}
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array(${ctx.fn("resend_invitation")}(v_id, valid_for));
+  end loop;
+  return v_sent;
 end;
 $$;
 `;

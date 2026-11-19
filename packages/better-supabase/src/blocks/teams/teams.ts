@@ -124,6 +124,11 @@ export interface Teams<F extends object = Record<never, never>> {
    * row; `permissions.purge` gates this, falling back to `manage`.
    */
   purge(id: string): AsyncResult<boolean>;
+  /**
+   * `purge` for up to 1000 teams in one request, all or nothing; the number of
+   * teams it purged.
+   */
+  purgeMany(ids: readonly string[]): AsyncResult<number>;
   /** Adds a user, or with the employees block an employee, to a team. */
   addMember(input: TeamMemberInput): AsyncResult<boolean>;
   /** Removes a user or an employee; a row with both goes as a whole. */
@@ -287,6 +292,7 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
     restore: (id) =>
       call("restore_team", { team: id }, (value) => value === true),
     purge: (id) => call("purge_team", { team: id }, (value) => value === true),
+    purgeMany: (ids) => call("purge_teams", { team_ids: ids }, Number),
     addMember: (input) =>
       call("add_team_member", memberArgs(input), (value) => value === true),
     removeMember: (input) =>

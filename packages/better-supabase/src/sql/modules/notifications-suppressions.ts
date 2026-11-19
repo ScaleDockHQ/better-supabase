@@ -3,7 +3,13 @@ import type { NotifyNames } from "./notifications-sql.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
+import {
+  fail,
+  pageSize,
+  revokeTable,
+  SERVICE_CALLER,
+  serviceGrant,
+} from "../shared.ts";
 import { addressSql } from "./notifications-address.ts";
 
 /**
@@ -158,7 +164,7 @@ as $$
   ) order by s.${c("createdAt")} desc), '[]')
   from (
     select * from ${t} s
-    where s.${c("user")} = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s.${c("user")} = (select auth.uid()) or ${SERVICE_CALLER}
     order by s.${c("createdAt")} desc
     limit ${pageSize("max_items", 50, 200)}
   ) s

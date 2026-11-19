@@ -26,6 +26,36 @@ const AUTH_ROLE = /\bauth"?\s*\.\s*"?role"?\s*\(\s*\)/i;
 const CALLER_CHECK =
   /\bauth"?\s*\.\s*"?(?:uid|jwt)"?\s*\(|request\.jwt|\b(?:current_user|session_user|current_role)\b|has_organization_role|member_organization_ids|\bis_service_role"?\s*\(/i;
 
+const ACCESS_CONTRACT_CHECK =
+  /\bbetter_supabase"?\s*\.\s*"?(?:can|can_user|is_platform|tenant_ids_with)"?\s*\(/i;
+
+const QUALIFIED_CALL = /"?(\w+)"?\s*\.\s*"?\w+"?\s*\(/g;
+
+/**
+ * Whether `body` calls a function in a schema of the authorization provider's
+ * functions (`authorization.requires`), which decide for the caller, or the
+ * access contract's `can`, `is_platform` or `tenant_ids_with`.
+ */
+function callsAccessCheck(
+  body: string,
+  requires: readonly { readonly function: string }[],
+): boolean {
+  const schemas = new Set(
+    requires.flatMap((entry) =>
+      entry.function.includes(".")
+        ? [entry.function.split(".")[0]!.replaceAll('"', "").toLowerCase()]
+        : [],
+    ),
+  );
+
+  return (
+    ACCESS_CONTRACT_CHECK.test(body) ||
+    [...body.matchAll(QUALIFIED_CALL)].some((match) =>
+      schemas.has((match[1] ?? "").toLowerCase()),
+    )
+  );
+}
+
 /** Whether anon or public holds any privilege on the table or a column. */
 const anonHolds = (table: {
   readonly grants: readonly { readonly role: string }[];
@@ -266,7 +296,11 @@ export const POLICY_RULES: readonly Rule[] = [
 
           const body = functionBody(context, fn.schema, fn.name);
 
-          if (body === undefined || CALLER_CHECK.test(body)) {
+          if (
+            body === undefined ||
+            CALLER_CHECK.test(body) ||
+            callsAccessCheck(body, context.config.authorization?.requires ?? [])
+          ) {
             return [];
           }
 

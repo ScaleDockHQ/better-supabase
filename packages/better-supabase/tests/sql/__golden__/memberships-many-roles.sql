@@ -2333,7 +2333,7 @@ on conflict (name) do update
 -- ==== invitations
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:5222241440b27249077dd0eab0eafd48a8147c0e9f3ceff3e53f2af58e1d62a9
+-- @bsb-hash sha256:44a0531c2801f477824ceaa1da53a8bf2f423dfca4678b354c5e7de5c01ea9ed
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2587,16 +2587,41 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
   invitee_role text default null,
-  prefill jsonb default null
+  prefill jsonb default null, on_accept jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -2653,6 +2678,39 @@ begin
       and lower(i."email") = lower(btrim(invitee_email))
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
+  end if;
+
+  if on_accept is not null then
+    declare
+      accept_roles text[];
+      accept_teams uuid[];
+    begin
+      if jsonb_typeof(on_accept) <> 'object' or exists (
+        select 1 from jsonb_object_keys(on_accept) k where k not in ('roles', 'teams')
+      ) then
+        raise exception 'on_accept takes roles and teams' using errcode = '22023', hint = 'INVITATION_ON_ACCEPT_INVALID';
+      end if;
+      if on_accept ? 'roles' then
+        accept_roles := array(select jsonb_array_elements_text(coalesce(on_accept -> 'roles', '[]')));
+        if exists (select 1 from unnest(accept_roles) r(role) where not (r.role = any (array['owner', 'admin', 'member', 'viewer']::text[]))) then
+          raise exception 'Unknown role in on_accept.roles' using errcode = '23514', hint = 'INVITATION_ROLE_UNKNOWN';
+        end if;
+        if not service and exists (select 1 from unnest(accept_roles) r(role) where not better_supabase.can_assign(tenant, r.role)) then
+          raise exception 'A role in on_accept.roles is above your own' using errcode = '42501', hint = 'INVITATION_ROLE_FORBIDDEN';
+        end if;
+        update "better_supabase"."invitations" set "extra_roles" = accept_roles where "id" = current_invite."id";
+      end if;
+      if on_accept ? 'teams' then
+        accept_teams := array(select (jsonb_array_elements_text(coalesce(on_accept -> 'teams', '[]')))::uuid);
+        if exists (
+          select 1 from unnest(accept_teams) x(id)
+          where not exists (select 1 from "better_supabase"."teams" tm where tm."id" = x.id and tm."tenant_id" = tenant)
+        ) then
+          raise exception 'A team in on_accept.teams is not in this organization' using errcode = '23514', hint = 'INVITATION_TEAM_UNKNOWN';
+        end if;
+        update "better_supabase"."invitations" set "team_ids" = accept_teams where "id" = current_invite."id";
+      end if;
+    end;
   end if;
   updated := current_invite;
     if invitee_email is not null then
@@ -3042,8 +3100,10 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
-revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
 grant execute on function "better_supabase"."revoke_invitation"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."decline_invitation"(text) from public;

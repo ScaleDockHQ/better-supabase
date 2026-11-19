@@ -452,6 +452,17 @@ ${createTrigger({
 }
 
 /**
+ * A unique `(tenant, id)` index on a table the block creates, so an app table
+ * can reference it with a composite foreign key that keeps both rows in one
+ * tenant (doctor BS217). Nothing over an app's own table.
+ */
+export function tenantIdKey(ctx: BlockSqlContext, logical: string): string {
+  return ctx.owns(logical)
+    ? `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName(logical).name}_tenant_id_key`)} on ${ctx.table(logical)} (${ctx.col(logical, "tenant")}, ${ctx.col(logical, "id")});`
+    : "";
+}
+
+/**
  * Upgrade-step renames for a module table in `schema`. Each runs only while the
  * old name exists and the new one doesn't, so a step can run again.
  */

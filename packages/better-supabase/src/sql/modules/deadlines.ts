@@ -24,10 +24,11 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
-import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { subjectReadable, subjectsOption, tableCascades } from "../subjects.ts";
 import { inlineSubjectReadable } from "./attachments-app.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
 import { deadlinePageSql } from "./deadlines-page.ts";
+import { deadlinePruneSql } from "./deadlines-prune.ts";
 import { validatorSql } from "./deadlines-validator.ts";
 import {
   DEADLINE_RESULTS,
@@ -329,6 +330,27 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const subjects = subjectsOption(ctx);
 
+  // Subject types whose registered read grants per row with the module's own
+  // read key: their row check (subjectReadable) decides, so an own or team
+  // grant reads the deadlines of the subjects it reaches.
+  const rowRead = subjects
+    .filter(
+      ([, subject]) =>
+        subject.read?.entry.key !== undefined &&
+        sqlString(subject.read.entry.key) === read,
+    )
+    .map(([type]) => sqlString(type));
+
+  const readGate = (check: string, type: string, tenant: string): string =>
+    rowRead.length === 0
+      ? check
+      : `(${check} or (${type} in (${rowRead.join(", ")}) and ${tenant} in (select ${ctx.scope.members()})))`;
+
+  const mayRead = (tenant: string): string =>
+    rowRead.length === 0
+      ? allowed(tenant, read)
+      : `(${allowed(tenant, read)} or ${tenant} in (select ${ctx.scope.members()}))`;
+
   const visible = (type: string, id: string, tenant: string): string =>
     `(${SERVICE_CALLER} or ${fn("deadline_subject_readable")}(${type}, ${id}, ${tenant}))`;
 
@@ -419,7 +441,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
-      using: `${ctx.scope.check(d("tenant"), read)} and ${subjectPolicy}`,
+      using: `${readGate(ctx.scope.check(d("tenant"), read), own("subjectType"), own("tenant"))} and ${subjectPolicy}`,
     }),
     { target: deadlines },
   );
@@ -903,7 +925,7 @@ declare
   v_row ${deadlines};
 begin
   select * into v_row from ${deadlines} x where x.${d("id")} = satisfy_deadline.deadline_id for update;
-  if not found or not ${allowed(`v_row.${d("tenant")}`, read)}
+  if not found or not ${readGate(allowed(`v_row.${d("tenant")}`, read), `v_row.${d("subjectType")}`, `v_row.${d("tenant")}`)}
     or not ${visible(`v_row.${d("subjectType")}`, `v_row.${d("subjectId")}`, `v_row.${d("tenant")}`)} then
     ${missing}
   end if;
@@ -937,7 +959,7 @@ as $$
 declare
   v_filters jsonb := coalesce(list_deadlines.filters, '{}'::jsonb);
 begin
-  if not ${allowed("list_deadlines.tenant", read)} then
+  if not ${mayRead("list_deadlines.tenant")} then
     ${fail("DEADLINE_FORBIDDEN", "not allowed to read deadlines")}
   end if;
   return coalesce((
@@ -961,7 +983,8 @@ end;
 $$;
 ${userGrant(`${fn("list_deadlines")}(${idType}, jsonb)`)}
 
-${deadlinePageSql({ allowed: (tenantExpr) => allowed(tenantExpr, read), d, deadlines, fn, idType, json, missing })}`;
+${deadlinePageSql({ allowed: mayRead, d, deadlines, fn, idType, json, missing })}
+${deadlinePruneSql({ allowed: (tenant) => allowed(tenant, write), visible, d, deadlines, fn, idType })}${tableCascades(ctx, subjects, "deadlines")}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -1001,6 +1024,16 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "list_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "page_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_deadline", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "prune_deadlines",
+      args: ["{id}", "text", "text", "text", "boolean"],
+      returns: "integer",
+    },
+    {
+      name: "compute_deadlines_many",
+      args: ["{id}", "jsonb", "boolean"],
+      returns: "jsonb",
+    },
   ];
 }
 

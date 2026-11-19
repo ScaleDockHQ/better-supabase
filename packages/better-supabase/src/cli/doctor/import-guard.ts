@@ -23,6 +23,25 @@ const FUNCTION = new RegExp(
 const bare = (name: string): string =>
   (name.split(".").pop() ?? name).replaceAll('"', "").toLowerCase();
 
+const schemaOf = (name: string): string | undefined =>
+  name.includes(".")
+    ? name.split(".")[0]!.replaceAll('"', "").toLowerCase()
+    : undefined;
+
+/**
+ * The schemas the authorization provider's functions live in
+ * (`authorization.requires`): its triggers guard its own integrity, so an
+ * import must run them.
+ */
+const providerSchemas = (context: DoctorContext): ReadonlySet<string> =>
+  new Set(
+    (context.config.authorization?.requires ?? []).flatMap((entry) => {
+      const schema = schemaOf(entry.function);
+
+      return schema === undefined ? [] : [schema];
+    }),
+  );
+
 const sources = (
   context: DoctorContext,
 ): readonly { readonly path: string; readonly text: string }[] =>
@@ -33,18 +52,22 @@ const sources = (
   );
 
 /**
- * The row triggers the app declares (not `bsb_*`), with the function each one
- * runs, from the schema files.
+ * The row triggers the app declares (not `bsb_*`, and not running a function in
+ * one of `skipSchemas`), with the function each one runs, from the schema
+ * files.
  */
 export function appRowTriggers(
   files: readonly { readonly path: string; readonly text: string }[],
+  skipSchemas: ReadonlySet<string> = new Set(),
 ): RowTrigger[] {
   return files.flatMap((file) =>
     [...file.text.matchAll(TRIGGER)].flatMap((match): RowTrigger[] => {
       const [, name = "", table = "", , fn = ""] = match;
+      const schema = schemaOf(fn);
 
       if (
         name.replaceAll('"', "").toLowerCase().startsWith("bsb_") ||
+        (schema !== undefined && skipSchemas.has(schema)) ||
         !/for\s+each\s+row/i.test(match[0])
       ) {
         return [];
@@ -83,10 +106,11 @@ function functionBodies(
  */
 export function unguardedRowTriggers(
   files: readonly { readonly path: string; readonly text: string }[],
+  skipSchemas: ReadonlySet<string> = new Set(),
 ): RowTrigger[] {
   const bodies = functionBodies(files);
 
-  return appRowTriggers(files).filter((trigger) => {
+  return appRowTriggers(files, skipSchemas).filter((trigger) => {
     const body = bodies.get(trigger.fn);
 
     // A function outside the schema files can't be read, so it isn't judged.
@@ -100,15 +124,16 @@ export const IMPORT_GUARD_RULES: readonly Rule[] = [
     severity: "info",
     title: "An app row trigger has no importing() guard",
     description:
-      "An import writes thousands of rows in one transaction, and an app row trigger runs for each of them. A trigger that sends, enqueues or recomputes something per row usually wants to skip an import and do that work once at the end. Wrap the body in `if not better_supabase.importing() then ... end if`, or return early when it is true. Doctor reads the trigger functions in the schema files and skips triggers named `bsb_*`.",
+      "An import writes thousands of rows in one transaction, and an app row trigger runs for each of them. A trigger that sends, enqueues or recomputes something per row usually wants to skip an import and do that work once at the end. Wrap the body in `if not better_supabase.importing() then ... end if`, or return early when it is true. Doctor reads the trigger functions in the schema files and skips triggers named `bsb_*` and triggers whose function lives in a schema of the authorization provider's functions (`authorization.requires`), which guard the provider's own rows.",
     check(context) {
-      return unguardedRowTriggers(sources(context)).map(
-        (trigger): FindingInput => ({
-          message: `Trigger ${trigger.name} on ${trigger.table} runs ${trigger.fn}() for each row, and ${trigger.fn} never calls better_supabase.importing(), so an import runs it once per imported row.`,
-          target: `${trigger.table}.${trigger.name}`,
-          help: "Return early from the function when better_supabase.importing() is true, then do the work once after the import.",
-        }),
-      );
+      return unguardedRowTriggers(
+        sources(context),
+        providerSchemas(context),
+      ).map((trigger): FindingInput => ({
+        message: `Trigger ${trigger.name} on ${trigger.table} runs ${trigger.fn}() for each row, and ${trigger.fn} never calls better_supabase.importing(), so an import runs it once per imported row.`,
+        target: `${trigger.table}.${trigger.name}`,
+        help: "Return early from the function when better_supabase.importing() is true, then do the work once after the import.",
+      }));
     },
   },
 ];

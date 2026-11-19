@@ -352,6 +352,19 @@ describe("organizations module", () => {
     expect(body({})).not.toContain("platform.organization");
   });
 
+  it("lets platform staff read every organization with readPlatform", () => {
+    const sql = body({
+      organizations: {
+        permissions: { readPlatform: "platform.organization.read" },
+      },
+    });
+
+    expect(sql).toMatch(
+      /better_supabase\.member_organization_ids\(\)\) or \(select coalesce\(better_supabase\.is_platform\('platform\.organization\.read'\), false\)\)/,
+    );
+    expect(body({})).not.toContain("platform.organization.read");
+  });
+
   it("checks a create permission when one is configured", () => {
     expect(
       body({

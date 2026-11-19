@@ -20,6 +20,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { InvitationError } from "../../sql/modules/invitations-tables.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { OrganizationsEvents } from "./events.ts";
+import type { InvitationChanges } from "./invitation-list.ts";
 import type { OrganizationOverview } from "./overview.ts";
 
 import { blockEmitter } from "../../core/block-events.ts";
@@ -127,15 +128,6 @@ export interface Invitation<I extends object = Record<never, never>> {
   readonly extra: Readonly<Record<string, unknown>>;
   /** The extra columns of an organization invitation, by column name. */
   readonly fields: RowFields<I>;
-}
-
-/** What `updateInvitation` changes; a missing key keeps the current value. */
-export interface InvitationChanges {
-  readonly email?: string;
-  /** A role name, or a role id or key under the catalog model. */
-  readonly role?: string;
-  /** Replaces the profile fields to fill in on sign-up. */
-  readonly prefill?: Readonly<Record<string, unknown>>;
 }
 
 /** What `onInvite` receives: the place to send the email. */
@@ -418,11 +410,17 @@ export interface Organizations<
     invitationId: string;
     validFor?: string | undefined;
   }): AsyncResult<InvitationSent<I>>;
+  /** `resendInvitation` for up to 1000 invitations, all or nothing. */
+  resendInvitations(input: {
+    invitationIds: readonly string[];
+    validFor?: string | undefined;
+  }): AsyncResult<readonly InvitationSent<I>[]>;
   /**
-   * A new email, role or prefill for an open invitation, with the checks
-   * `invite` makes. The token and expiry stay, so the link already sent keeps
-   * working; call `resendInvitation` to mail the new address. An expired
-   * invitation fails with `INVITATION_EXPIRED`; resend it first.
+   * A new email, role, prefill or roles and teams granted on accept for an open
+   * invitation, with the checks `invite` makes. The token and expiry stay, so
+   * the link already sent keeps working; call `resendInvitation` to mail the
+   * new address. An expired invitation fails with `INVITATION_EXPIRED`; resend
+   * it first.
    */
   updateInvitation(input: {
     invitationId: string;
@@ -1154,6 +1152,19 @@ function organizationsClient<
         (value) => sent(value, "resend_invitation", true),
       );
     },
+    resendInvitations({ invitationIds, validFor }) {
+      return run(
+        "invitations",
+        "resend_invitations",
+        { invitation_ids: invitationIds, valid_for: validFor },
+        (value) =>
+          Promise.all(
+            recordsOf(value, "resend_invitations").map((row) =>
+              sent(row, "resend_invitations", true),
+            ),
+          ),
+      );
+    },
     updateInvitation({ invitationId, changes }) {
       return run(
         "invitations",
@@ -1163,6 +1174,9 @@ function organizationsClient<
           invitee_email: changes.email,
           invitee_role: changes.role,
           prefill: changes.prefill,
+          ...(changes.onAccept === undefined
+            ? {}
+            : { on_accept: changes.onAccept }),
         },
         (value) => {
           const invitation = invitationFrom(
