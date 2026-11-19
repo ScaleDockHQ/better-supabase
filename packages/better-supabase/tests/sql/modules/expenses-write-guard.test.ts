@@ -369,7 +369,7 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
-  it("stamps the creator, keeps it from clients and fails closed without one", async () => {
+  it("stamps the creator, keeps it from clients and keeps nobody out without one", async () => {
     await expect(
       run(`do $$
 declare
@@ -405,19 +405,51 @@ begin
   ${SERVICE}
   update better_supabase.expenses set created_by = null where id = v_id;
   ${as(CAROL)}
-  ${refused("perform better_supabase.decide_expense(v_id, true)", "42501", "owner or creator decides only when nobody else can")}
-  ${SERVICE}
-  update better_supabase.expenses set created_by = '${ALICE}' where id = v_id;
-  ${as(CAROL)}
-  if better_supabase.decide_expense(v_id, true) ->> 'status' <> 'approved' then
-    raise exception 'Carol could not decide once the creator is known';
+  if better_supabase.expense_self_decides(v_id) then
+    raise exception 'an expense without a creator makes Carol its creator';
   end if;
-  ${SERVICE}
-  update better_supabase.expenses set created_by = null where id = v_id;
-  ${as(CAROL)}
-  ${refused("perform better_supabase.reopen_expense(v_id, 'typo')", "42501", "not allowed to reopen")}
+  if better_supabase.decide_expense(v_id, true) ->> 'status' <> 'approved' then
+    raise exception 'Carol could not decide an expense without a creator';
+  end if;
+  if better_supabase.reopen_expense(v_id, 'typo') ->> 'status' <> 'submitted' then
+    raise exception 'Carol could not reopen an expense without a creator';
+  end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("lets any approver decide an owner-less company expense without a creator", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+begin
+  insert into public.approvers values ('${BOB}');
+  ${SERVICE}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 9900, 'EUR', null, 'Office rent', company => true) ->> 'id')::uuid;
+  if (select created_by from better_supabase.expenses where id = v_id) is not null then
+    raise exception 'the service role stamped a creator';
+  end if;
+  perform better_supabase.submit_expense(v_id);
+  ${as(CAROL)}
+  if better_supabase.expense_self_decides(v_id) then
+    raise exception 'Carol self-decides a company expense';
+  end if;
+  if better_supabase.decide_expense(v_id, true) ->> 'status' <> 'approved' then
+    raise exception 'Carol could not decide a company expense next to Bob';
+  end if;
+end;
+$$;`,
+        ["employees", "expenses"],
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: { owner: "employee", companyExpenses: true },
+          },
+        },
+      ),
     ).resolves.toBeUndefined();
   });
 

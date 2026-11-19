@@ -586,6 +586,7 @@ describe("invoice call arguments", () => {
         discount_amount: "50",
       }),
       reverse_invoice_payment: () => ROW,
+      recompute_invoice_status: () => ROW,
       invoice_from_quote: () => ROW,
     });
 
@@ -601,6 +602,12 @@ describe("invoice call arguments", () => {
 
     await invoices.reversePayment({ paymentId: "p1" }).orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ reason: null });
+
+    await invoices.recomputeStatus("i1").orThrow();
+    expect(t.calls.at(-1)).toEqual([
+      "recompute_invoice_status",
+      { invoice: "i1" },
+    ]);
 
     await invoices.fromQuote({ quoteId: "q1" }).orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ deposit_bps: null });

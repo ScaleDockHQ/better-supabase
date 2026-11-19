@@ -767,6 +767,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "jsonb"],
       returns: "jsonb",
     },
+    { name: "recompute_invoice_status", args: ["uuid"], returns: "jsonb" },
     ...(ctx.hasTable("charges")
       ? [
           {

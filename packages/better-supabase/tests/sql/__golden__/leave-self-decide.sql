@@ -21,27 +21,7 @@ begin
       limit 1) = auth.uid(), false) and exists (
       select 1 from "better_supabase"."memberships" mm
       where mm."organization_id" = v_row."tenant_id" and mm."user_id" = auth.uid() and mm."disabled_at" is null
-    )) or coalesce("public"."chain_decides"(decide_leave_request.request_id), false)) and (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") is distinct from auth.uid()) or (coalesce((select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.approve'), false) and not exists (
-      select 1 from "better_supabase"."memberships" om
-      where om."organization_id" = v_row."tenant_id" and om."user_id" is distinct from (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") and om."disabled_at" is null
-        and ((coalesce((select mgr."user_id" from "better_supabase"."employees" me
-      join "better_supabase"."employees" mgr on mgr."id" = me."manager_id"
-      where me."tenant_id" = v_row."tenant_id" and (case when v_row."employee_id"::text is not null then me."id"::text = v_row."employee_id"::text else me."user_id" = (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") end)
-        and mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
-      limit 1) = om."user_id", false) and exists (
-      select 1 from "better_supabase"."memberships" mm
-      where mm."organization_id" = v_row."tenant_id" and mm."user_id" = om."user_id" and mm."disabled_at" is null
-    )) or om."user_id" in (
-          with recursive up(id) as (
-            select me."manager_id" from "better_supabase"."employees" me
-            where me."tenant_id" = v_row."tenant_id" and (case when v_row."employee_id"::text is not null then me."id"::text = v_row."employee_id"::text else me."user_id" = (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") end)
-            union
-            select boss."manager_id" from up join "better_supabase"."employees" boss on boss."id" = up.id
-          )
-          select mgr."user_id" from up join "better_supabase"."employees" mgr on mgr."id" = up.id
-          where mgr."user_id" is not null and mgr."status" <> 'offboarded' and (mgr."end_date" is null or mgr."end_date" >= current_date)
-        ) or coalesce(better_supabase.can_user(om."user_id", 'tenant', v_row."tenant_id", 'leave.approve'), false))
-    ))) or (decide_leave_request.decided_by is not null and (not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id"))) then
+    )) or coalesce("public"."chain_decides"(decide_leave_request.request_id), false)) and (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id") is distinct from auth.uid()) or "better_supabase"."leave_request_self_decides"(v_row."id")) or (decide_leave_request.decided_by is not null and (not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = (select lo."user_id" from "better_supabase"."employees" lo where lo."id" = v_row."employee_id"))) then
     raise exception 'not allowed to decide this leave request; only the service role decides for another user, never for the requester' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
   end if;
   if not (v_row."cancelled_at" is null and v_row."approved_at" is null and v_row."rejected_at" is null) then

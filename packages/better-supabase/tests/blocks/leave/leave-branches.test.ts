@@ -75,6 +75,17 @@ describe("leave branches", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("asks whether the caller decides a request as its requester", async () => {
+    const fake = transport({ leave_request_self_decides: () => true });
+
+    const leave = createLeave({ transport: fake });
+
+    expect(await leave.requestSelfDecides("q1").orThrow()).toBe(true);
+    expect(fake.calls).toEqual([
+      ["leave_request_self_decides", { request_id: "q1" }],
+    ]);
+  });
+
   it("approves, rejects and lists pending requests through decide and list", async () => {
     const fake = transport({
       decide_leave_request: () => REQUEST,

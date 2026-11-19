@@ -154,6 +154,79 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("recomputes the status, paid and credited totals from payments and credit notes", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_credited uuid;
+  v_paid uuid;
+  v_voided uuid;
+  v_note uuid;
+  v_draft uuid;
+  v_void uuid;
+  v_uncollectible uuid;
+  v_status text;
+begin
+  ${SERVICE}
+  v_credited := ${issued("Credited")};
+  perform ${credit("v_credited", 10_000)};
+  update better_supabase.invoices set status = 'issued', credited_total = 0 where id = v_credited;
+  v_status := better_supabase.recompute_invoice_status(v_credited) ->> 'status';
+  if v_status <> 'credited'
+    or (select credited_total from better_supabase.invoices where id = v_credited) <> 10000 then
+    raise exception 'credited: %', ${status("v_credited")};
+  end if;
+
+  v_paid := ${issued("Paid")};
+  perform better_supabase.record_invoice_payment(v_paid, 10000, 'EUR', now(), 'bank', 'tx-recompute');
+  update better_supabase.invoices set status = 'issued', paid_total = 0 where id = v_paid;
+  v_status := better_supabase.recompute_invoice_status(v_paid) ->> 'status';
+  if v_status <> 'paid'
+    or (select paid_total from better_supabase.invoices where id = v_paid) <> 10000 then
+    raise exception 'paid: %', ${status("v_paid")};
+  end if;
+  if ${events("invoice.paid", "v_paid")} <> 1 then
+    raise exception 'repairing an invoice that was paid before recorded invoice.paid again';
+  end if;
+  perform better_supabase.recompute_invoice_status(v_paid);
+  if ${events("invoice.paid", "v_paid")} <> 1 then
+    raise exception 'a recompute of a paid invoice recorded invoice.paid again';
+  end if;
+
+  v_voided := ${issued("Voided")};
+  v_note := ${credit("v_voided", 10_000)};
+  update better_supabase.invoices set status = 'void', voided_at = now() where id = v_note;
+  v_status := better_supabase.recompute_invoice_status(v_voided) ->> 'status';
+  if v_status <> 'issued'
+    or (select credited_total from better_supabase.invoices where id = v_voided) <> 0 then
+    raise exception 'voided credit note: %', ${status("v_voided")};
+  end if;
+
+  v_void := ${issued("Void")};
+  perform better_supabase.void_invoice(v_void, 'wrong customer');
+  v_status := better_supabase.recompute_invoice_status(v_void) ->> 'status';
+  if v_status <> 'void' then
+    raise exception 'void: %', v_status;
+  end if;
+
+  v_uncollectible := ${issued("Uncollectible")};
+  perform better_supabase.write_off_invoice(v_uncollectible, 'bankrupt');
+  v_status := better_supabase.recompute_invoice_status(v_uncollectible) ->> 'status';
+  if v_status <> 'uncollectible' then
+    raise exception 'uncollectible: %', v_status;
+  end if;
+
+  v_draft := (better_supabase.create_invoice('${TENANT}', '{"title": "Draft", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "10000"}]'::jsonb) ->> 'id')::uuid;
+  v_status := better_supabase.recompute_invoice_status(v_draft) ->> 'status';
+  if v_status <> 'draft' then
+    raise exception 'draft: %', ${status("v_draft")};
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("restores a fully credited invoice from paid to issued when the credit note is voided, with the option off", async () => {
     await expect(
       run(

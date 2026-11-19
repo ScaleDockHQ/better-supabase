@@ -325,6 +325,9 @@ const decidesOwn = (who: string, dates: string, expected: string): string => `
   if not better_supabase.leave_self_decides('${TENANT}') then
     raise exception 'leave_self_decides: ${expected}';
   end if;
+  if not better_supabase.leave_request_self_decides(v_leave) then
+    raise exception 'leave_request_self_decides: ${expected}';
+  end if;
   perform better_supabase.decide_leave_request(v_leave, true);
   if (select approved_at is null or decided_by is distinct from '${who}'::uuid from better_supabase.leave_requests where id = v_leave) then
     raise exception '${expected}';
@@ -335,6 +338,9 @@ const refusedOwn = (who: string, dates: string, expected: string): string => `
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, ${dates}) ->> 'id')::uuid;
   if better_supabase.leave_self_decides('${TENANT}') then
     raise exception 'leave_self_decides: ${expected}';
+  end if;
+  if better_supabase.leave_request_self_decides(v_leave) then
+    raise exception 'leave_request_self_decides: ${expected}';
   end if;
   ${decideOwn(who, "v_leave", expected)}`;
 
@@ -409,6 +415,9 @@ begin
   ${as(CAROL)}
   v_leave := (better_supabase.request_leave('${TENANT}', v_type, '2099-07-06', '2099-07-07') ->> 'id')::uuid;
   ${as(BOB)}
+  if better_supabase.leave_request_self_decides(v_leave) then
+    raise exception 'Bob self-decides Carol''s leave';
+  end if;
   begin
     perform better_supabase.decide_leave_request(v_leave, true);
     raise exception 'Bob decided Carol''s leave after his employment ended';
