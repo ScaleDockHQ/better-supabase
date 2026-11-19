@@ -132,7 +132,7 @@ export type { Aal, AmrEntry } from "../auth/mfa.ts";
 
 export type { Impersonator } from "../auth/impersonation.ts";
 
-export { supportOf } from "../auth/support-view.ts";
+export { SUPPORT_UNAVAILABLE_DIGEST, supportOf } from "../auth/support-view.ts";
 
 export { permissionsOf, tenantOf, toSession } from "../auth/view.ts";
 

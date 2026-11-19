@@ -26,6 +26,7 @@ import {
   supportCookie,
   supportCookieValue,
 } from "../auth/support-cookie.ts";
+import { SUPPORT_UNAVAILABLE_DIGEST } from "../auth/support-view.ts";
 import { supportClaims } from "../auth/support.ts";
 import { emitBlockEvent } from "../core/block-events.ts";
 import { cronRoute } from "../core/cron-route.ts";
@@ -37,6 +38,8 @@ import { boundedTtlCache } from "../core/ttl-cache.ts";
 import { fromPgError } from "../postgres/pg-error.ts";
 
 type UserAuth = Extract<AuthState, { kind: "user" }>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Who calls a support method: the `AuthState` of the request, or the verified
@@ -152,6 +155,8 @@ export interface SupportOptions {
 /** A support session could not be loaded; see `SupportOptions.unavailable`. */
 export class SupportUnavailableError extends Error {
   override readonly name = "SupportUnavailableError";
+  readonly digest: typeof SUPPORT_UNAVAILABLE_DIGEST =
+    SUPPORT_UNAVAILABLE_DIGEST;
   readonly sessionId: string;
 
   constructor(sessionId: string, options?: { readonly cause?: unknown }) {
@@ -646,7 +651,8 @@ function createSupport(
       return;
     }
 
-    if (!id) {
+    // A malformed id (a junk cookie) names no session, so no store outage either.
+    if (!UUID.test(id)) {
       return;
     }
 
@@ -972,6 +978,10 @@ function createSupport(
           return err(
             dbError("unauthorized", "Sign in to stop a support session"),
           );
+        }
+
+        if (!UUID.test(sessionId)) {
+          return ok({ ended: false, cookie });
         }
 
         try {

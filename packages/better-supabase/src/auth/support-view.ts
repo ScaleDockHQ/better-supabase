@@ -1,5 +1,11 @@
 import type { AuthSession } from "./view.ts";
 
+/**
+ * The `digest` of every `SupportUnavailableError`. Next.js keeps an error's own
+ * digest, so an `error.tsx` boundary can match it.
+ */
+export const SUPPORT_UNAVAILABLE_DIGEST = "SUPPORT_SESSION_UNAVAILABLE";
+
 /** A running support session as the target's view shows it, for a banner. */
 export interface SupportView {
   readonly sessionId: string;

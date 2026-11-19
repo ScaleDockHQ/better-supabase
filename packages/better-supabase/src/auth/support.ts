@@ -8,6 +8,7 @@ export type SupportEndedBy = "admin" | "expired" | "revoked";
 
 /** A support session: a platform admin viewing the app as `targetUserId`. */
 export interface SupportSession {
+  /** A UUID; the support cookie names no session with any other value. */
   readonly id: string;
   readonly adminId: string;
   readonly targetUserId: string;

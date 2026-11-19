@@ -20,6 +20,8 @@ export type {
   SuspendAccountResult,
 } from "../suspend-account.ts";
 
+export { SUPPORT_UNAVAILABLE_DIGEST } from "../../auth/support-view.ts";
+
 export { supportSessions, SupportUnavailableError } from "../support.ts";
 
 export { supportStorage } from "../support-storage.ts";

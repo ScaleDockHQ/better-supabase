@@ -11,6 +11,7 @@ import type {
 } from "../../src/postgres/pool.ts";
 import type { SupportOptions } from "../../src/server/support.ts";
 
+import { SUPPORT_UNAVAILABLE_DIGEST } from "../../src/auth/support-view.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { dbTransport } from "../../src/core/block-transport.ts";
 import { createSupabase } from "../../src/core/define.ts";
@@ -47,6 +48,7 @@ const supportSessions = (options: SupportOptions) =>
 
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SESSION = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 function fakePostgres(rules: Parameters<typeof fakeSql>[0] = []) {
   const fake = fakeSql(rules);
@@ -739,14 +741,44 @@ describe("support sessions on the server", () => {
       }),
     });
 
-    await expect(
-      server.support.current(
-        new Request("https://a.test/", {
-          headers: { cookie: "bsb-support=x" },
-        }),
-        admin(),
-      ),
-    ).rejects.toBeInstanceOf(SupportUnavailableError);
+    const failed = server.support.current(
+      new Request("https://a.test/", {
+        headers: { cookie: `bsb-support=${SESSION}` },
+      }),
+      admin(),
+    );
+
+    await expect(failed).rejects.toBeInstanceOf(SupportUnavailableError);
+    await expect(failed).rejects.toMatchObject({
+      digest: SUPPORT_UNAVAILABLE_DIGEST,
+      sessionId: SESSION,
+    });
+  });
+
+  it("treats a malformed session id as no session, without a lookup", async () => {
+    const store = memorySupportStore();
+    const get = vi.fn(() => Promise.reject(new Error("invalid uuid")));
+    const end = vi.fn(() => Promise.resolve(false));
+
+    const { server } = setup({
+      support: supportSessions({
+        store: { ...store, get, end },
+        unavailable: "throw",
+      }),
+    });
+
+    const junk = new Request("https://a.test/", {
+      headers: { cookie: "bsb-support=not-a-uuid" },
+    });
+
+    expect(await server.support.current(junk, admin())).toBeUndefined();
+    expect(await server.support.resolve("x", admin())).toBeUndefined();
+
+    const stopped = await server.support.stop(admin(), "not-a-uuid").orThrow();
+    expect(stopped.ended).toBe(false);
+    expect(stopped.cookie).toContain("Max-Age=0");
+    expect(get).not.toHaveBeenCalled();
+    expect(end).not.toHaveBeenCalled();
   });
 
   it("ends the stats call when the store throws synchronously", async () => {
@@ -764,7 +796,7 @@ describe("support sessions on the server", () => {
     });
 
     const cookie = new Request("https://a.test/", {
-      headers: { cookie: "bsb-support=x" },
+      headers: { cookie: `bsb-support=${SESSION}` },
     });
 
     const stats = new StatsRecorder();
@@ -938,7 +970,7 @@ describe("support sessions on the server", () => {
       }),
     });
 
-    const ctx = await server.context(await request("bsb-support=x"));
+    const ctx = await server.context(await request(`bsb-support=${SESSION}`));
     expect(ctx.support).toBeUndefined();
     expect(ctx.auth).toMatchObject({ user: { id: ADMIN } });
   });

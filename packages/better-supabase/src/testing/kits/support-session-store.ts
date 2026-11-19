@@ -54,7 +54,12 @@ export function testSupportSessionStore(
         const session = await start(first);
 
         try {
-          expect(session.id.length > 0, "start must return an id");
+          expect(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              session.id,
+            ),
+            "start must return a UUID id",
+          );
           expect(session.adminId === admin.id, "adminId must round-trip");
           expect(
             session.targetUserId === first,
