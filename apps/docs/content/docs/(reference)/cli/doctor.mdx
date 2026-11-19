@@ -1575,8 +1575,10 @@ the caller can read the subject row. Doctor counts `current_tenant_id()`,
 `member_can` with the block's key as tenant membership, and a soft-delete
 `is null` as neutral. A policy with an `or` branch that needs only membership
 is wider, not stricter, and a table with no insert or update policy for
-clients isn't reported. Set `subjects.<type>.permissions.upload` in the
-registry to the key the table checks. See
+clients isn't reported, nor is a subject with `upload: "subject"`, whose
+uploads follow the table's own update policies. Set
+`subjects.<type>.permissions.upload` in the registry to the key the table
+checks, or `blocks.attachments.on.<type>.upload: "subject"`. See
 [permissions per subject](/docs/blocks/attachments#permissions-per-subject).
 
 ### BS346

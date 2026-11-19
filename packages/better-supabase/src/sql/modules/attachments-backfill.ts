@@ -16,7 +16,7 @@ export function attachmentBackfills(ctx: BlockSqlContext): string {
 
   const tenantless = subjectsOption(
     ctx,
-    ["bucket", "allowedMimeTypes", "permissions", "scope"],
+    ["bucket", "allowedMimeTypes", "permissions", "scope", "upload"],
     { tenantless: true },
   ).filter(([, subject]) => subject.tenant === false);
 

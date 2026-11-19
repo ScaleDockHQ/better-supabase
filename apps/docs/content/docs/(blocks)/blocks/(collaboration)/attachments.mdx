@@ -143,6 +143,24 @@ subject table lets only some members see the row. Doctor reports that case as
 [BS345](/docs/cli/doctor#bs345) when the table's policies check more than
 tenant membership.
 
+`upload: "subject"` on a subject in `blocks.attachments.on` makes the subject
+row's own policies decide who attaches files: next to `attachments.upload`,
+creating an attachment and deleting your own upload need the caller to be
+able to change the subject row. `attachment_subject_writable(subject_type,
+subject_id)` checks it as the caller with a `for key share` lock, which runs
+the table's update policies and needs its update grant, without writing the
+row. A member who reads an expense but can't change it then can't attach a
+receipt to it. Claiming a pending imported file of such a type
+(`claim_attachment_upload`) takes `attachments.manage`, because that function
+can't run the subject table's policies as the caller. The default,
+`"permission"`, checks the keys alone.
+
+```ts
+blocks: {
+  attachments: { on: { expense: { table: "expenses", idType: "uuid", upload: "subject" } } },
+},
+```
+
 A subject without a tenant, such as a user's own notes, takes `tenant: false`:
 its files have no `organization_id`, their path starts with `-`, and the
 subject table's own policies alone decide who reads and uploads them, without

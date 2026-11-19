@@ -1,6 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
-import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -65,6 +64,7 @@ import {
 import { attachmentPageSql } from "./attachments-page.ts";
 import { pathExpression, pathTemplate } from "./attachments-path.ts";
 import { attachmentsSeeds } from "./attachments-seeds.ts";
+import { subjectBuckets, subjectUpload } from "./attachments-subjects.ts";
 import {
   attachmentsTopicOf,
   attachmentsTopicSql,
@@ -72,43 +72,6 @@ import {
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 import { moduleOperations } from "./permissions-model.ts";
-
-const isText = (value: unknown): value is string => typeof value === "string";
-
-interface SubjectBucket {
-  readonly type: string;
-  readonly bucket: string;
-  readonly mimeTypes: readonly string[];
-}
-
-/**
- * The subjects with their own bucket or MIME types (`on.<type>.bucket`,
- * `.allowedMimeTypes`).
- */
-function subjectBuckets(
-  subjects: readonly (readonly [string, Subject])[],
-  fallback: string,
-): readonly SubjectBucket[] {
-  return subjects.map(([type, subject]) => {
-    const bucket = subject.extra["bucket"] ?? fallback;
-
-    if (!isText(bucket) || !BUCKET.test(bucket)) {
-      throw new TypeError(
-        `blocks.attachments.on.${type}.bucket must be 1 to 100 lowercase letters, digits, dots, dashes or underscores`,
-      );
-    }
-
-    const mimeTypes = subject.extra["allowedMimeTypes"] ?? [];
-
-    if (!Array.isArray(mimeTypes) || !mimeTypes.every(isText)) {
-      throw new TypeError(
-        `blocks.attachments.on.${type}.allowedMimeTypes must be a list of MIME types`,
-      );
-    }
-
-    return { type, bucket, mimeTypes };
-  });
-}
 
 const mimeMatch = (column: string, types: readonly string[]): string =>
   types
@@ -184,7 +147,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const subjects = subjectsOption(
     ctx,
-    ["bucket", "allowedMimeTypes", "permissions", "scope"],
+    ["bucket", "allowedMimeTypes", "permissions", "scope", "upload"],
     { tenantless: true },
   );
 
@@ -237,6 +200,14 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       c("tenant"),
       access.memberOn(q("tenant"), q("subjectType"), q("subjectId"), action),
     );
+
+  // on.<type>.upload "subject" also asks the subject table's own policies.
+  const upload = subjectUpload(
+    fn("attachment_subject_writable"),
+    subjects,
+    c,
+    (row) => inTenant(row, "upload"),
+  );
 
   const canManage = (row: string): string =>
     access.canOn(
@@ -605,7 +576,7 @@ end;
 $$;
 revoke execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) from public, anon;
 grant execute on function ${fn("attachment_subject_readable")}(text, text, ${id}) to authenticated, service_role;
-
+${upload.sql}
 ${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_read`), command: "select", roles: ["authenticated"], using: `${memberIn("read")} and ${readablePolicySql}` }), { target: t })}
 ${renderPolicy(
   makePolicy({
@@ -615,11 +586,11 @@ ${renderPolicy(
     roles: ["authenticated"],
     check: `${c("uploadedBy")} = (select auth.uid())
     and ${memberIn("upload")}
-    and ${readablePolicySql}`,
+    and ${readablePolicySql}${upload.writable}`,
   }),
   { target: t },
 )}
-${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: upload.writable === "" ? `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` : `(${c("uploadedBy")} = (select auth.uid())${upload.writable}) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { target: t })}
 ${attachmentsTopicSql(ctx, { t, c, read: ctx.permission("read", permissions.read) })}
 ${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the
@@ -777,7 +748,7 @@ $$;
 ${
   documents
     ? metadataFirstSql(ctx, t, c, {
-        mayUpload: inTenant("v_row", "upload"),
+        mayUpload: upload.claimable("v_row"),
         mayManage: canManage("v_row"),
         json,
       })
@@ -1007,7 +978,7 @@ function data(ctx: BlockSqlContext): string {
   const subjects = subjectBuckets(
     subjectsOption(
       ctx,
-      ["bucket", "allowedMimeTypes", "permissions", "scope"],
+      ["bucket", "allowedMimeTypes", "permissions", "scope", "upload"],
       { tenantless: true },
     ),
     bucket,

@@ -57,12 +57,20 @@ function attachmentSubjects(
         ? ["read"]
         : [];
 
+    // `upload: "subject"` checks the subject row's own update policies.
+    const subjectUpload = entry["upload"] === "subject" ? ["upload"] : [];
+
     return [
       {
         type,
         table,
         tenant,
-        keys: new Set([...own, ...fromRegistry, ...subjectRead]),
+        keys: new Set([
+          ...own,
+          ...fromRegistry,
+          ...subjectRead,
+          ...subjectUpload,
+        ]),
       },
     ];
   });
@@ -247,7 +255,7 @@ export function attachmentSubjectsOnDefaults(
 
       return [
         {
-          message: `Attachments on ${type} use the block-wide ${names} key, but ${target} checks more than tenant membership for ${what}, so anyone who can read a ${type} can attach files to one they can't change. Set subjects.${type}.permissions.upload or blocks.attachments.on.${type}.permissions.upload to the key the table checks, or baseline the finding when readers may attach.`,
+          message: `Attachments on ${type} use the block-wide ${names} key, but ${target} checks more than tenant membership for ${what}, so anyone who can read a ${type} can attach files to one they can't change. Set subjects.${type}.permissions.upload or blocks.attachments.on.${type}.permissions.upload to the key the table checks, set blocks.attachments.on.${type}.upload to "subject" so uploads follow the table's own update policies, or baseline the finding when readers may attach.`,
           target,
           object: tableObject(table),
         },
