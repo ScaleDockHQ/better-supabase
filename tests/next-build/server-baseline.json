@@ -267,7 +267,7 @@
   "/[locale]/(app)/crm/commissions/page": {
     "raw": 3223527,
     "gzip": 980368,
-    "brotli": 813161
+    "brotli": 815231
   },
   "/[locale]/(app)/crm/commissions/statements/[id]/page": {
     "raw": 3239661,
@@ -282,7 +282,7 @@
   "/[locale]/(app)/crm/companies/page": {
     "raw": 3213537,
     "gzip": 976442,
-    "brotli": 809916
+    "brotli": 812011
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
     "raw": 3249566,
@@ -292,7 +292,7 @@
   "/[locale]/(app)/crm/contacts/page": {
     "raw": 3213532,
     "gzip": 976450,
-    "brotli": 809905
+    "brotli": 811992
   },
   "/[locale]/(app)/crm/contracts/[id]/page": {
     "raw": 3239558,
@@ -357,12 +357,12 @@
   "/[locale]/(app)/crm/quotes/page": {
     "raw": 3215756,
     "gzip": 977514,
-    "brotli": 810824
+    "brotli": 812922
   },
   "/[locale]/(app)/crm/referrals/page": {
     "raw": 3223421,
     "gzip": 980334,
-    "brotli": 813139
+    "brotli": 815198
   },
   "/[locale]/(app)/crm/scoring/[id]/page": {
     "raw": 3208937,
@@ -807,7 +807,7 @@
   "/[locale]/(app)/qualifications/[id]/page": {
     "raw": 3179336,
     "gzip": 964435,
-    "brotli": 799871
+    "brotli": 801952
   },
   "/[locale]/(app)/qualifications/page": {
     "raw": 3185962,
@@ -1107,7 +1107,7 @@
   "/[locale]/(app)/shop/inventory/[variantId]/page": {
     "raw": 3207791,
     "gzip": 972609,
-    "brotli": 806786
+    "brotli": 808865
   },
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 3178916,
@@ -1122,7 +1122,7 @@
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 3193306,
     "gzip": 968464,
-    "brotli": 803151
+    "brotli": 805226
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
     "raw": 3179485,
