@@ -361,7 +361,7 @@ function build(ctx: BlockSqlContext): string {
   const self =
     top === ""
       ? ""
-      : ` or (coalesce(${owner.requester("v_row")} = auth.uid(), false) and ${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and not ${top})`;
+      : ` or ${fn("leave_request_self_decides")}(v_row.${q("id")})`;
 
   const ownTop = otherDecider(ctx, {
     requester: "auth.uid()",
@@ -387,6 +387,23 @@ as $$
   select auth.uid() is not null and coalesce(${ctx.can("tenant", "leave_self_decides.tenant", approve)}, false) and not ${ownTop ?? "true"}
 $$;
 ${userGrant(`${fn("leave_self_decides")}(${ctx.idType})`)}
+
+-- Whether the caller decides this leave request as its requester: they hold the
+-- approve permission and nobody else can decide it. decide_leave_request uses
+-- it, and apps show the rule with it.
+create or replace function ${fn("leave_request_self_decides")}(request_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select coalesce(${owner.requester("v_row")} = auth.uid(), false) and coalesce(${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}, false) and not ${top}
+    from ${requests} v_row where v_row.${q("id")} = leave_request_self_decides.request_id
+  ), false)
+$$;
+${userGrant(`${fn("leave_request_self_decides")}(uuid)`)}
 `;
 
   const decide = `${selfDecides}

@@ -181,7 +181,14 @@ export function leaveContract(
         ]
       : []),
     ...(leaveStatusMode(ctx) && ctx.flag("selfDecideWhenTopOfChain", false)
-      ? [{ name: "leave_self_decides", args: ["{id}"], returns: "boolean" }]
+      ? [
+          { name: "leave_self_decides", args: ["{id}"], returns: "boolean" },
+          {
+            name: "leave_request_self_decides",
+            args: ["uuid"],
+            returns: "boolean",
+          },
+        ]
       : []),
     ...(ctx.installed("share-links")
       ? [{ name: "leave_feed", args: ["text"], returns: "jsonb" }]
