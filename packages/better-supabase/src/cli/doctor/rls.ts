@@ -683,6 +683,57 @@ function pinnedToTenant(
   );
 }
 
+/**
+ * Whether `column` is pinned to a parent row's tenant: a composite foreign key
+ * holds it with not-null columns, and every write policy checks one of those
+ * columns of the row, as `exists (select 1 from jobs j where j.id =
+ * job_parties.job_id and <access to j>)` does. The key keeps the column equal
+ * to the parent's, and the policy keeps the parent one the caller may write.
+ */
+function pinnedByParent(
+  table: CatalogTable,
+  column: string,
+  command: (typeof WRITES)[number],
+  role: string,
+): boolean {
+  if (!table.rls) {
+    return false;
+  }
+
+  const notNull = (name: string): boolean =>
+    table.columns.some(
+      (candidate) => candidate.name === name && !candidate.nullable,
+    );
+
+  const parents = table.foreignKeys
+    .filter((key) => key.columns.length > 1 && key.columns.includes(column))
+    .map((key) => key.columns.filter((name) => name !== column))
+    .filter((others) => others.every(notNull));
+
+  const applying = table.policies.filter(
+    (policy) =>
+      policy.permissive &&
+      (policy.command === "all" || policy.command === command) &&
+      appliesTo(policy, role),
+  );
+
+  return parents.some((others) => {
+    const mention = new RegExp(
+      `(?<![\\w."])(?:"?${escape(table.name)}"?\\.)?"?(?:${others.map(escape).join("|")})"?(?![\\w"])`,
+      "i",
+    );
+
+    return (
+      applying.length > 0 &&
+      applying.every((policy) => {
+        const check = policy.check ?? policy.using;
+
+        return check !== null && mention.test(check);
+      })
+    );
+  });
+}
+
 function pinnedToCaller(
   table: CatalogTable,
   column: string,
@@ -745,6 +796,7 @@ function writableColumns(
       (deciding.has(column) ||
         (!(table.primaryKey.length === 1 && table.primaryKey[0] === column) &&
           !pinnedToTenant(table, column, command, role, pins) &&
+          !pinnedByParent(table, column, command, role) &&
           !pinnedToCaller(table, column, command, role))),
   );
 
@@ -995,7 +1047,7 @@ export const RLS_RULES: readonly Rule[] = [
     severity: "warning",
     title: "API roles can write the columns that grant access",
     description:
-      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)`, the membership helper `member_organization_ids()` or the provider's `idsWith` and `memberIds` helpers, alone, next to a guest's grant from `portal_subjects()`, or next to a branch that writes a null tenant under a platform check), a column every insert policy pins to the caller (`column = (select auth.uid())`, on insert only), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them. A column an enabled row-level `before` trigger for that command guards never counts (one with a `when` condition doesn't guard, and an `update of` trigger guards only the columns it lists), when the trigger's comment names it on a line of its own: `comment on trigger <name> on <table> is 'better-supabase:guards(role, user_id)'`. The doctor doesn't read the trigger body, so the trigger has to raise when the column changes.",
+      "RLS helpers decide access from columns such as `memberships.user_id`, `memberships.role` or `contacts.customer_id`, and an authorization provider lists them as `decidingColumns`. When `anon` or `authenticated` may insert or update one of them, and a policy lets them write the row, a user can grant themselves access. A table-level grant counts even after a column-level revoke. A single-column primary key, a tenant column every write policy pins to a tenant the caller acts in (`current_tenant_id()`, `can('tenant', column, ...)`, `tenant_ids_with(...)`, the membership helper `member_organization_ids()` or the provider's `idsWith` and `memberIds` helpers, alone, next to a guest's grant from `portal_subjects()`, or next to a branch that writes a null tenant under a platform check), a tenant column a composite foreign key with not-null columns ties to a parent row when every write policy checks one of the key's other columns, a column every insert policy pins to the caller (`column = (select auth.uid())`, on insert only), a subject's `deletedAt` column in `config.recordTypes` and a block's soft-delete column (they only hide rows) don't count unless the provider lists them. A column an enabled row-level `before` trigger for that command guards never counts (one with a `when` condition doesn't guard, and an `update of` trigger guards only the columns it lists), when the trigger's comment names it on a line of its own: `comment on trigger <name> on <table> is 'better-supabase:guards(role, user_id)'`. The doctor doesn't read the trigger body, so the trigger has to raise when the column changes.",
     check: (context) => {
       const tables = new Map(
         catalogOf(context).tables.map((table) => [qualified(table), table]),

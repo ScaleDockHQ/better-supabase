@@ -551,7 +551,7 @@ those columns and a policy lets them write the row: a member who can update
 their own `role`, or a portal contact who can change `customer_id`, grants
 themselves access.
 
-Five kinds of column don't count. A single-column primary key doesn't, because
+Six kinds of column don't count. A single-column primary key doesn't, because
 its uniqueness stops a write from taking over another row. A tenant column
 doesn't when every policy for the write pins it to
 `better_supabase.current_tenant_id()`, to `better_supabase.can('tenant', column, ...)`,
@@ -561,7 +561,14 @@ authorization provider's `idsWith` or `memberIds` helper, so a write can only
 name a tenant the caller is a member of or holds the permission in. An `or`
 counts only when each branch pins the column, or writes `column is null` next
 to a platform check (`better_supabase.is_platform(...)` or the provider's
-`isPlatform`), which only a platform role passes. A column every insert policy
+`isPlatform`), which only a platform role passes. A tenant column that a
+composite foreign key with not-null columns ties to a parent row, such as
+`foreign key (job_id, organization_id) references jobs (id, organization_id)`,
+doesn't count when every policy for the write checks one of the key's other
+columns (`exists (select 1 from jobs j where j.id = job_parties.job_id and
+
+<access to j>)`): the key keeps the column equal to the parent's, and the
+policy keeps the parent one the caller may write. A column every insert policy
 pins to the caller, `column = (select auth.uid())`, doesn't count on insert:
 the caller can only name themselves on a row they create. It still counts on
 update, where it would let them take another row over. A
