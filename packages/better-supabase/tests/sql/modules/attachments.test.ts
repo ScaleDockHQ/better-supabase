@@ -128,7 +128,7 @@ describe("attachments module", () => {
       `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = attachment_subject_readable.subject_id)`,
     );
     expect(sql).toContain(
-      `("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')))`,
+      `("tenant_id" is null or "better_supabase"."attachments"."tenant_id" in (select better_supabase.tenant_ids_with('attachments.upload')))`,
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
@@ -151,10 +151,10 @@ describe("attachments module", () => {
     });
 
     expect(sql).toContain(
-      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
+      `("better_supabase"."attachments"."subject_type" = 'contract' and ("better_supabase"."attachments"."tenant_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
     );
     expect(sql).toContain(
-      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
+      `("better_supabase"."attachments"."subject_type" = 'contract' and ("better_supabase"."attachments"."tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
     );
     expect(sql).toContain(
       `case a."subject_type" when 'contract' then 'contracts.read' else 'attachments.read' end`,
@@ -179,7 +179,7 @@ describe("attachments module", () => {
       .join("\n");
 
     expect(scoped).toContain(
-      `or "subject_id" in (select t.id::text from authz.ids_project('attachments.read') as t(id))`,
+      `or "better_supabase"."attachments"."subject_id" in (select t.id::text from authz.ids_project('attachments.read') as t(id))`,
     );
     expect(scoped).toContain(
       `or a."subject_id" in (select t.id::text from authz.ids_project('attachments.manage') as t(id))`,
@@ -226,7 +226,7 @@ describe("attachments module", () => {
     const sql = render();
 
     expect(sql).toContain(
-      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
+      `("better_supabase"."attachments"."subject_type" = 'contract' and ("better_supabase"."attachments"."tenant_id" in (select better_supabase.tenant_ids_with('contracts.edit'))))`,
     );
     expect(sql).toContain("'contracts.admin'");
     expect(sql).not.toContain(
@@ -243,7 +243,7 @@ describe("attachments module", () => {
     });
 
     expect(overridden).toContain(
-      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.upload'))))`,
+      `("better_supabase"."attachments"."subject_type" = 'contract' and ("better_supabase"."attachments"."tenant_id" in (select better_supabase.tenant_ids_with('contracts.upload'))))`,
     );
     expect(overridden).toContain("'contracts.admin'");
   });

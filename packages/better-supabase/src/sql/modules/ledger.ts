@@ -9,7 +9,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import {
+  fail,
+  schemaPreamble,
+  SERVICE_CALLER,
+  tenantIdKey,
+} from "../shared.ts";
 import { ledgerFunctions, ledgerTouch } from "./ledger-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -266,7 +271,7 @@ create table if not exists ${transactions} (
   ${t("effectiveAt")} timestamptz not null default now(),
   ${t("actor")} uuid,
   ${t("createdAt")} timestamptz not null default now()
-);${ctx.has("transactions", "memoKey") ? `\nalter table ${transactions} add column if not exists ${t("memoKey")} text;` : ""}${ctx.has("transactions", "memoParams") ? `\nalter table ${transactions} add column if not exists ${t("memoParams")} jsonb;` : ""}
+);${ctx.has("transactions", "memoKey") ? `\nalter table ${transactions} add column if not exists ${t("memoKey")} text;` : ""}${ctx.has("transactions", "memoParams") ? `\nalter table ${transactions} add column if not exists ${t("memoParams")} jsonb;` : ""}${tenantIdKey(ctx, "transactions")}
 create unique index if not exists ${name("transactions", "key_idx")} on ${transactions} (${t("tenant")}, ${t("key")}) where ${t("key")} is not null;
 create unique index if not exists ${name("transactions", "reverses_idx")} on ${transactions} (${t("reverses")}) where ${t("reverses")} is not null;
 create index if not exists ${name("transactions", "reference_idx")} on ${transactions} (${t("tenant")}, ${t("referenceType")}, ${t("referenceId")}) where ${t("referenceType")} is not null;

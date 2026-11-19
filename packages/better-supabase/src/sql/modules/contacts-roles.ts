@@ -6,7 +6,7 @@ import {
   SUPPLIER_STATUSES,
 } from "../../blocks/contacts/roles.ts";
 import { sqlString } from "../../core/template.ts";
-import { fail, userGrant } from "../shared.ts";
+import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { holderTypes } from "./qualifications-shared.ts";
 
 export { PARTY_ROLES } from "../../blocks/contacts/roles.ts";
@@ -308,7 +308,7 @@ ${lookup(names, party)}
   if v_kind is null then
     ${fail("PARTY_NOT_FOUND", "company or person not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.write)}) then
+  if not (${SERVICE_CALLER} or ${names.scope.can("v_tenant", names.write)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
   end if;
   if not (v_roles <@ ${names.roles}) then
@@ -386,7 +386,7 @@ ${lookup(names, party)}
   if v_kind is null then
     ${fail("PARTY_NOT_FOUND", "company or person not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.approveSupplier)}) then
+  if not (${SERVICE_CALLER} or ${names.scope.can("v_tenant", names.approveSupplier)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to approve suppliers")}
   end if;
   if v_status is not null and v_status not in (${statusList}) then
@@ -440,7 +440,7 @@ begin
   if v_tenant is null then
     ${fail("PARTY_NOT_FOUND", "company not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${names.scope.can("v_tenant", names.read)}) then
+  if not (${SERVICE_CALLER} or ${names.scope.can("v_tenant", names.read)}) then
     ${fail("PARTY_FORBIDDEN", "not allowed to read companies and people")}
   end if;
   v_gaps := ${gaps}(v_tenant, 'company', jsonb_build_object('holderId', ${name}.party::text));

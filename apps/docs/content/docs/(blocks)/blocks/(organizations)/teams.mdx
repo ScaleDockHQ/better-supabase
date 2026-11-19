@@ -18,6 +18,10 @@ import { createTeams } from "better-supabase/blocks/teams";
 | `teams`        | Name, slug, description and status                            |
 | `team_members` | A user on a team, with a foreign key to the tenant membership |
 
+`teams` has a unique `(tenant_id, id)` index, and `team_members` references it
+with `(tenant_id, team_id)`, so a member row can't point at another
+tenant's team. An app table can use the same composite foreign key.
+
 `options.teamIdType` is `uuid` (the default) or `bigint`. The inbox needs `uuid`.
 
 With `blocks.teams.options.patch: true`, `create(organizationId, name,

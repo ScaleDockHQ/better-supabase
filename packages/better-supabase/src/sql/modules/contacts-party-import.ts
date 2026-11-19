@@ -3,7 +3,7 @@ import type { ImportTargetContribution } from "../contributions.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, serviceGrant } from "../shared.ts";
+import { fail, serviceGrant, tenantIdKey } from "../shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 const BUSINESS =
@@ -63,7 +63,7 @@ create table if not exists ${t(key)} (
   ${body}
   ${c(key, "createdAt")} timestamptz not null default now(),
   ${c(key, "updatedAt")} timestamptz not null default now()
-);${appUniqueIndex(ctx, key, unique)}
+);${appUniqueIndex(ctx, key, unique)}${tenantIdKey(ctx, key)}
 ${lockModuleTable(ctx, key, { read: true })}
 ${renderPolicy(
   makePolicy({

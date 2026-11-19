@@ -4,6 +4,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
 > = {
   organizations: {
     create: "platform",
+    readPlatform: "platform",
     updatePlatform: "platform",
     deletePlatform: "platform",
     updateRolePlatform: "platform",

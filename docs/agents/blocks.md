@@ -341,9 +341,12 @@ blocks next to its own tables. Things it ran into:
   line in every role that should have it.
 - `teams` leaves `patch` and `restore` off. An app that edits a slug or
   restores an archived team sets `options: { patch: true, restore: true }`.
-- `teams` has no unique `(id, tenant_id)` key, so an app table can't use a
-  composite foreign key to keep its team in the same tenant. The example
-  checks it in a trigger (`customers_owner_team_check`).
+- `teams`, `contacts` (companies, people, locations, bank accounts,
+  channels), `attachments` and `ledger` transactions have a unique
+  `(tenant_id, id)` index (`tenantIdKey` in `src/sql/shared.ts`), so an app
+  table can use a composite foreign key to keep its row in the same tenant
+  (doctor BS217). The example still checks its team in a trigger
+  (`customers_owner_team_check`).
 - `db.permissions.roles()` returns permission keys as `string`, while
   `setOverride` takes the catalog's key union. Narrow the key at the edge
   (the MCP tool in the example casts it with a `SAFETY:` comment).

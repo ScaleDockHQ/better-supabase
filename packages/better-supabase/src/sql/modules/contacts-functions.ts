@@ -9,7 +9,13 @@ import {
   listDeclare,
   searchPattern,
 } from "../list-template.ts";
-import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
+import {
+  columnsObject,
+  fail,
+  pageSize,
+  SERVICE_CALLER,
+  userGrant,
+} from "../shared.ts";
 import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
 import { identityMergeMoves } from "./contacts-identities.ts";
@@ -185,7 +191,7 @@ const guard = (
   permission: string,
   code: string,
 ): string =>
-  `if not (auth.role() = 'service_role' or ${scope.can(tenant, permission)}) then
+  `if not (${SERVICE_CALLER} or ${scope.can(tenant, permission)}) then
     ${fail(code, "not allowed to change companies and people")}
   end if;`;
 

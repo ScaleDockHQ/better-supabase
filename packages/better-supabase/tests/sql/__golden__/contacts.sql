@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:66117330b7756cf54a44d2cca0500446b04c598128dfe7fd5a2269c6e9f29474
+-- @bsb-hash sha256:41d4fe39655971aac47dead55185cd7779bd927641ba758b13088a9746a5371e
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,6 +58,7 @@ create table "better_supabase"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_companies_tenant_id_key" on "better_supabase"."companies" ("tenant_id", "id");
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
@@ -106,6 +107,7 @@ create table "better_supabase"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_people_tenant_id_key" on "better_supabase"."people" ("tenant_id", "id");
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
@@ -159,6 +161,7 @@ create table "better_supabase"."party_locations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_locations_tenant_id_key" on "better_supabase"."party_locations" ("tenant_id", "id");
 alter table "better_supabase"."party_locations" enable row level security;
 revoke all on "better_supabase"."party_locations" from public, anon, authenticated;
 grant select on "better_supabase"."party_locations" to authenticated;
@@ -182,6 +185,7 @@ create table "better_supabase"."party_bank_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_bank_accounts_tenant_id_key" on "better_supabase"."party_bank_accounts" ("tenant_id", "id");
 alter table "better_supabase"."party_bank_accounts" enable row level security;
 revoke all on "better_supabase"."party_bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."party_bank_accounts" to authenticated;
@@ -206,6 +210,7 @@ create table "better_supabase"."party_channels" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_channels_tenant_id_key" on "better_supabase"."party_channels" ("tenant_id", "id");
 alter table "better_supabase"."party_channels" enable row level security;
 revoke all on "better_supabase"."party_channels" from public, anon, authenticated;
 grant select on "better_supabase"."party_channels" to authenticated;
@@ -273,7 +278,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -389,7 +394,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -511,7 +516,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -551,7 +556,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -592,7 +597,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -628,7 +633,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -663,7 +668,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -709,7 +714,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -1511,7 +1516,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -1552,7 +1557,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -1589,7 +1594,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -1778,7 +1783,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -1834,7 +1839,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -1983,7 +1988,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -2025,7 +2030,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
@@ -2526,7 +2531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:e44c8492c0350318695f058d717e05d72acf26615531d2d621655a5d72c2be31
+-- @bsb-hash sha256:03f5a2d196d5e33cf29a13ecdf4cd4b056fa2a806f09840d3f563fb4ab20cab0
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2583,6 +2588,7 @@ create table "better_supabase"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_companies_tenant_id_key" on "better_supabase"."companies" ("tenant_id", "id");
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
@@ -2631,6 +2637,7 @@ create table "better_supabase"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_people_tenant_id_key" on "better_supabase"."people" ("tenant_id", "id");
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
@@ -2684,6 +2691,7 @@ create table "better_supabase"."party_locations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_locations_tenant_id_key" on "better_supabase"."party_locations" ("tenant_id", "id");
 alter table "better_supabase"."party_locations" enable row level security;
 revoke all on "better_supabase"."party_locations" from public, anon, authenticated;
 grant select on "better_supabase"."party_locations" to authenticated;
@@ -2707,6 +2715,7 @@ create table "better_supabase"."party_bank_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_bank_accounts_tenant_id_key" on "better_supabase"."party_bank_accounts" ("tenant_id", "id");
 alter table "better_supabase"."party_bank_accounts" enable row level security;
 revoke all on "better_supabase"."party_bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."party_bank_accounts" to authenticated;
@@ -2731,6 +2740,7 @@ create table "better_supabase"."party_channels" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_channels_tenant_id_key" on "better_supabase"."party_channels" ("tenant_id", "id");
 alter table "better_supabase"."party_channels" enable row level security;
 revoke all on "better_supabase"."party_channels" from public, anon, authenticated;
 grant select on "better_supabase"."party_channels" to authenticated;
@@ -2798,7 +2808,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -2919,7 +2929,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -3046,7 +3056,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -3086,7 +3096,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -3127,7 +3137,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -3163,7 +3173,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -3198,7 +3208,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -3254,7 +3264,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -4068,7 +4078,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -4109,7 +4119,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -4146,7 +4156,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -4335,7 +4345,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -4391,7 +4401,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -4463,7 +4473,7 @@ begin
   if v_tenant is null then
     raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.read'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.read'), false)) then
     raise exception 'not allowed to read companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   v_gaps := "better_supabase"."qualification_gaps"(v_tenant, 'company', jsonb_build_object('holderId', supplier_status_from_qualifications.party::text));
@@ -4591,7 +4601,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -4633,7 +4643,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
@@ -5211,7 +5221,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:6e33f42559eb485bedbef173d5e23b8e1e27735917259425fd866da64067fa81
+-- @bsb-hash sha256:8aaf1494333111cee36aeb4f00b77dc34265b84ef431113a24cbf8d698a075c1
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5273,6 +5283,7 @@ create table "app_private"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_companies_tenant_id_key" on "app_private"."companies" ("tenant_id", "id");
 create index companies_tenant_name_idx on "app_private"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "app_private"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
@@ -5321,6 +5332,7 @@ create table "app_private"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_people_tenant_id_key" on "app_private"."people" ("tenant_id", "id");
 create index people_tenant_name_idx on "app_private"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "app_private"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
@@ -5374,6 +5386,7 @@ create table "app_private"."party_locations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_locations_tenant_id_key" on "app_private"."party_locations" ("tenant_id", "id");
 alter table "app_private"."party_locations" enable row level security;
 revoke all on "app_private"."party_locations" from public, anon, authenticated;
 grant select on "app_private"."party_locations" to authenticated;
@@ -5397,6 +5410,7 @@ create table "app_private"."party_bank_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_bank_accounts_tenant_id_key" on "app_private"."party_bank_accounts" ("tenant_id", "id");
 alter table "app_private"."party_bank_accounts" enable row level security;
 revoke all on "app_private"."party_bank_accounts" from public, anon, authenticated;
 grant select on "app_private"."party_bank_accounts" to authenticated;
@@ -5421,6 +5435,7 @@ create table "app_private"."party_channels" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_channels_tenant_id_key" on "app_private"."party_channels" ("tenant_id", "id");
 alter table "app_private"."party_channels" enable row level security;
 revoke all on "app_private"."party_channels" from public, anon, authenticated;
 grant select on "app_private"."party_channels" to authenticated;
@@ -5488,7 +5503,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -5604,7 +5619,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -5726,7 +5741,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -5766,7 +5781,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -5807,7 +5822,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -5843,7 +5858,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "app_private"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -5878,7 +5893,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "app_private"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -5924,7 +5939,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "app_private"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -6726,7 +6741,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "app_private"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -6767,7 +6782,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "app_private"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -6804,7 +6819,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -6993,7 +7008,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -7049,7 +7064,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -7198,7 +7213,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -7240,7 +7255,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "app_private"."person_identities" i where i."id" = remove_person_identity.identity;
@@ -7741,7 +7756,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:05bfff1642fd60d36d82930cdbc607754e2bd28519102f7cc5cedfbb5302262e
+-- @bsb-hash sha256:01700927649b264dd7f3bdc4b420e25cb269283fb0b287ff7c63ee5611a246cf
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7798,6 +7813,7 @@ create table "better_supabase"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_companies_tenant_id_key" on "better_supabase"."companies" ("tenant_id", "id");
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
@@ -7846,6 +7862,7 @@ create table "better_supabase"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_people_tenant_id_key" on "better_supabase"."people" ("tenant_id", "id");
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
@@ -7899,6 +7916,7 @@ create table "better_supabase"."party_locations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_locations_tenant_id_key" on "better_supabase"."party_locations" ("tenant_id", "id");
 alter table "better_supabase"."party_locations" enable row level security;
 revoke all on "better_supabase"."party_locations" from public, anon, authenticated;
 grant select on "better_supabase"."party_locations" to authenticated;
@@ -7922,6 +7940,7 @@ create table "better_supabase"."party_bank_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_bank_accounts_tenant_id_key" on "better_supabase"."party_bank_accounts" ("tenant_id", "id");
 alter table "better_supabase"."party_bank_accounts" enable row level security;
 revoke all on "better_supabase"."party_bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."party_bank_accounts" to authenticated;
@@ -7946,6 +7965,7 @@ create table "better_supabase"."party_channels" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_channels_tenant_id_key" on "better_supabase"."party_channels" ("tenant_id", "id");
 alter table "better_supabase"."party_channels" enable row level security;
 revoke all on "better_supabase"."party_channels" from public, anon, authenticated;
 grant select on "better_supabase"."party_channels" to authenticated;
@@ -8013,7 +8033,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -8129,7 +8149,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -8251,7 +8271,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -8291,7 +8311,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -8332,7 +8352,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -8368,7 +8388,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -8403,7 +8423,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -8449,7 +8469,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -9251,7 +9271,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -9292,7 +9312,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -9329,7 +9349,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -9518,7 +9538,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -9574,7 +9594,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -9723,7 +9743,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -9765,7 +9785,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
@@ -10661,7 +10681,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:7d9f90d19ff7d2da9bc6f030de5806ae3ab0bfc7463356dbb47c36bc916b8a89
+-- @bsb-hash sha256:01769317b79fbdd67273c1567929c096a3fa7d9423ffa16370a3a6638b65cf4f
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10916,7 +10936,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -11032,7 +11052,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -11154,7 +11174,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -11194,7 +11214,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -11235,7 +11255,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -11271,7 +11291,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -11306,7 +11326,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -11352,7 +11372,7 @@ begin
   if v_keep."tenant_id" <> v_drop."tenant_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."tenant_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -12154,7 +12174,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -12195,7 +12215,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -12232,7 +12252,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -12421,7 +12441,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -12477,7 +12497,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -12626,7 +12646,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -12668,7 +12688,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
@@ -13169,7 +13189,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:fb2e6939be2ff6910a0c43ef4bcd4cd8c9ff4026b867ed6dc7dd52a856ca3e5f
+-- @bsb-hash sha256:a7f223a69c19dab4bb79b1eeb05d7edc43b1fbc959f09a9aec52653aaa7e08a3
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13226,6 +13246,7 @@ create table "better_supabase"."companies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_companies_tenant_id_key" on "better_supabase"."companies" ("org_id", "id");
 create index companies_tenant_name_idx on "better_supabase"."companies" ("org_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("org_id", "domain")
   where "domain" is not null and "archived_at" is null;
@@ -13274,6 +13295,7 @@ create table "better_supabase"."people" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_people_tenant_id_key" on "better_supabase"."people" ("org_id", "id");
 create index people_tenant_name_idx on "better_supabase"."people" ("org_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("org_id", "email")
   where "email" is not null and "archived_at" is null;
@@ -13327,6 +13349,7 @@ create table "better_supabase"."party_locations" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_locations_tenant_id_key" on "better_supabase"."party_locations" ("org_id", "id");
 alter table "better_supabase"."party_locations" enable row level security;
 revoke all on "better_supabase"."party_locations" from public, anon, authenticated;
 grant select on "better_supabase"."party_locations" to authenticated;
@@ -13350,6 +13373,7 @@ create table "better_supabase"."party_bank_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_bank_accounts_tenant_id_key" on "better_supabase"."party_bank_accounts" ("org_id", "id");
 alter table "better_supabase"."party_bank_accounts" enable row level security;
 revoke all on "better_supabase"."party_bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."party_bank_accounts" to authenticated;
@@ -13374,6 +13398,7 @@ create table "better_supabase"."party_channels" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "bsb_party_channels_tenant_id_key" on "better_supabase"."party_channels" ("org_id", "id");
 alter table "better_supabase"."party_channels" enable row level security;
 revoke all on "better_supabase"."party_channels" from public, anon, authenticated;
 grant select on "better_supabase"."party_channels" to authenticated;
@@ -13441,7 +13466,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_company.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_company.attrs, '{}')) <> 'object' then
@@ -13557,7 +13582,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_person.tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(coalesce(save_person.attrs, '{}')) <> 'object' then
@@ -13679,7 +13704,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -13719,7 +13744,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   begin
@@ -13760,7 +13785,7 @@ begin
   if v_tenant is null then
     raise exception 'company or person not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if coalesce(set_company_person.is_primary, false) then
@@ -13796,7 +13821,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."company_people" l where l."company_id" = remove_company_person.company and l."person_id" = remove_company_person.person;
@@ -13831,7 +13856,7 @@ begin
   if v_keep."org_id" <> v_drop."org_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."org_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."org_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
@@ -13877,7 +13902,7 @@ begin
   if v_keep."org_id" <> v_drop."org_id" or v_keep."id" = v_drop."id" or v_drop."merged_into" is not null then
     raise exception 'merge two different, unmerged records of one organization' using errcode = '22023', hint = 'PARTY_MERGE_INVALID';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_keep."org_id", 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_keep."org_id", 'contacts.manage'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
@@ -14679,7 +14704,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_payment_term.tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   return "better_supabase"."payment_term_write"(save_payment_term.tenant, save_payment_term.attrs, null);
@@ -14720,7 +14745,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.manage'), false)) then
     raise exception 'not allowed to manage payment terms' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."payment_terms" x where x."id" = delete_payment_term.id;
@@ -14757,7 +14782,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if jsonb_typeof(set_document_delivery_preferences.prefs) is distinct from 'array'
@@ -14946,7 +14971,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if not (v_roles <@ '{customer,supplier,funder,partner}'::text[]) then
@@ -15002,7 +15027,7 @@ begin
   if v_kind is null then
     raise exception 'company or person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.approve_supplier'), false)) then
     raise exception 'not allowed to approve suppliers' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_status is not null and v_status not in ('approved', 'conditional', 'blocked') then
@@ -15151,7 +15176,7 @@ begin
   if v_tenant is null then
     raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   if v_channel is null or v_address is null then
@@ -15193,7 +15218,7 @@ begin
   if v_tenant is null then
     return false;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
     raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
   delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;

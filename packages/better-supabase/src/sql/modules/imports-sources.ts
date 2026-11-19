@@ -1,6 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  lockTable,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+} from "../shared.ts";
 
 /** The registry an integration catalog reads, and the runs any client started. */
 export function importSourcesSql(ctx: BlockSqlContext): string {
@@ -27,7 +33,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if auth.role() is distinct from 'service_role' then
+  if not (${SERVICE_CALLER}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to register an import source", "42501")}
   end if;
   insert into ${ctx.schema}.import_sources ("id", "label_key", "description_key", "file_types", "entities", "docs_link")

@@ -13,6 +13,7 @@ import {
   revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
+  tenantIdKey,
   withExtraFields,
 } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
@@ -225,12 +226,16 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       ),
     );
 
+  // Qualified with the table: inside a subject's `exists` subquery an unqualified
+  // `tenant_id` binds to the subject table's own column (`s.tenant_id = s.tenant_id`).
+  const q = (logical: string): string => `${t}.${c(logical)}`;
+
   // The policy form of inTenant: the tenant_ids_with set runs once per
   // statement instead of can() once per row.
   const memberIn = (action: keyof typeof permissions): string =>
     orTenantless(
       c("tenant"),
-      access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), action),
+      access.memberOn(q("tenant"), q("subjectType"), q("subjectId"), action),
     );
 
   const canManage = (row: string): string =>
@@ -389,10 +394,6 @@ end;`;
     { guest: true },
   );
 
-  // Qualified with the table: inside a subject's `exists` subquery an unqualified
-  // `tenant_id` binds to the subject table's own column (`s.tenant_id = s.tenant_id`).
-  const q = (logical: string): string => `${t}.${c(logical)}`;
-
   const readablePolicySql = inlineSubjectReadable(ctx, layout, subjects, {
     type: q("subjectType"),
     id: q("subjectId"),
@@ -517,7 +518,7 @@ alter table ${t} add column if not exists ${c("version")} integer not null defau
 -- App data about the file (a caption, the source, a page count), set on create.
 alter table ${t} add column if not exists ${c("metadata")} jsonb not null default '{}' check (jsonb_typeof(${c("metadata")}) = 'object');`
       : ""
-  }${documents ? `\n${documentColumnsSql(ctx, t, c)}` : ""}
+  }${documents ? `\n${documentColumnsSql(ctx, t, c)}` : ""}${tenantIdKey(ctx, "attachments")}
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.${
     ctx.owns("attachments")

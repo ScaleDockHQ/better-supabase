@@ -23,6 +23,8 @@ import {
   insertExtraColumns,
   lockTable,
   schemaPreamble,
+  SERVICE_CALLER,
+  tenantIdKey,
   triggerGrant,
   userGrant,
   writeExtraColumns,
@@ -277,7 +279,7 @@ ${getFunction({
   ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique (${tenant}, ${slug})
-);
+);${tenantIdKey(ctx, "teams")}
 ${lockTable(teams, { read: true })}
 ${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { target: teams })}
 
@@ -297,6 +299,12 @@ create index if not exists ${ctx.naming.rename("team_members_membership_idx")} o
 ${lockTable(members, { read: true })}
 ${renderPolicy(makePolicy({ table: members, name: ctx.naming.rename("team_members_read"), command: "select", roles: ["authenticated"], using: `${memberTenant} in (select ${ctx.scope.ids(read)})` }), { target: members })}
 ${membershipFk(ctx, members, memberTenant, memberUser)}
+alter table ${members} drop constraint if exists ${ctx.naming.rename("team_members_team_tenant_fkey")};
+alter table ${members}
+  add constraint ${ctx.naming.rename("team_members_team_tenant_fkey")}
+  foreign key (${memberTenant}, ${memberTeam})
+  references ${teams} (${tenant}, ${id})
+  on delete cascade;
 `
     : "";
 
@@ -798,9 +806,7 @@ where y.${m("employee")} is null and x.${e("tenant")} = y.${m("tenant")} and x.$
 }
 
 function service(ctx: BlockSqlContext): string {
-  return ctx.installed("permissions")
-    ? "auth.role() = 'service_role'"
-    : "false";
+  return ctx.installed("permissions") ? SERVICE_CALLER : "false";
 }
 
 function membershipFk(

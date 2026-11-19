@@ -12,7 +12,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
-import { schemaPreamble } from "../shared.ts";
+import { schemaPreamble, tenantIdKey } from "../shared.ts";
 import { partyFunctions, partyJson } from "./contacts-functions.ts";
 import {
   identitiesTable,
@@ -410,7 +410,7 @@ create table if not exists ${t("companies")} (
   ${co("archivedAt")} timestamptz,${column("companies", "createdBy", (name) => `${name} uuid`)}
   ${co("createdAt")} timestamptz not null default now(),
   ${co("updatedAt")} timestamptz not null default now()
-);
+);${tenantIdKey(ctx, "companies")}
 create index if not exists ${ctx.naming.rename("companies_tenant_name_idx")} on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
 create unique index if not exists ${ctx.naming.rename("companies_domain_idx")} on ${t("companies")} (${co("tenant")}, ${co("domain")})
   where ${co("domain")} is not null and ${co("archivedAt")} is null;${ctx.has("companies", "owner") ? `\ncreate index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});` : ""}
@@ -432,7 +432,7 @@ create table if not exists ${t("people")} (
   ${pe("archivedAt")} timestamptz,${column("people", "createdBy", (name) => `${name} uuid`)}
   ${pe("createdAt")} timestamptz not null default now(),
   ${pe("updatedAt")} timestamptz not null default now()
-);
+);${tenantIdKey(ctx, "people")}
 create index if not exists ${ctx.naming.rename("people_tenant_name_idx")} on ${t("people")} (${pe("tenant")}, lower(${pe("name")}), ${pe("id")});
 create unique index if not exists ${ctx.naming.rename("people_email_idx")} on ${t("people")} (${pe("tenant")}, ${pe("email")})
   where ${pe("email")} is not null and ${pe("archivedAt")} is null;

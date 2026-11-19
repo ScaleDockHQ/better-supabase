@@ -1,6 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { fail, lockTable, serviceGrant, userGrant } from "../shared.ts";
+import {
+  fail,
+  lockTable,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+} from "../shared.ts";
 
 const ISSUES = (ctx: BlockSqlContext): string =>
   `${ctx.schema}.${ctx.tableName("issues").name}`;
@@ -95,6 +101,8 @@ begin
   end loop;
 end;
 $$;
+revoke execute on function ${fn("import_note_issue")}(uuid, text, text, text, text, text) from public, anon, authenticated;
+revoke execute on function ${fn("import_note_warnings")}(uuid, text, jsonb) from public, anon, authenticated;
 
 create or replace function ${fn("import_clear_issues")}(run uuid, entity text, key text)
 returns void
@@ -117,6 +125,7 @@ begin
     and i."resolved_at" is null;
 end;
 $$;
+revoke execute on function ${fn("import_clear_issues")}(uuid, text, text) from public, anon, authenticated;
 
 -- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
 -- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
@@ -142,7 +151,7 @@ begin
   if v_tenant is null then
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("v_tenant", manage)}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to list import issues")}
   end if;
   if list_import_issues.after is not null then
@@ -249,7 +258,7 @@ as $$
 declare
   v_resolved integer;
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("resolve_import_conflict.tenant", manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("resolve_import_conflict.tenant", manage)}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to resolve an import conflict")}
   end if;
   if resolve_import_conflict.action = 'keep' then

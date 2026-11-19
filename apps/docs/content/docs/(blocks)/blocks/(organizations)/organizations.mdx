@@ -475,6 +475,9 @@ them in the Next.js and Expo examples.
 
 `permissions.create` makes creating an organization a platform permission,
 checked with `is_platform()`. Without it every signed-in user can create one.
+`permissions.readPlatform` names a platform key whose holders read every
+organization row through the table's read policy, next to the members who
+read their own; without it the policy lists member organizations only.
 `permissions.updatePlatform` and `permissions.deletePlatform` name platform
 keys that let platform staff update or delete any organization without the
 service role, next to the members who hold `update` or `delete` in it.

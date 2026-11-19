@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@3 managed
--- @bsb-hash sha256:bab2ae8f2a4b05902f61386fa26911f5d3be8b24d75f6a7949462e502ade4206
+-- @bsb-hash sha256:4ffdff5b1a8709c763a49c3a6b3507d3b9769c8767fa4db05700f85091dea298
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,6 +548,8 @@ begin
   end loop;
 end;
 $$;
+revoke execute on function "better_supabase"."import_note_issue"(uuid, text, text, text, text, text) from public, anon, authenticated;
+revoke execute on function "better_supabase"."import_note_warnings"(uuid, text, jsonb) from public, anon, authenticated;
 
 create or replace function "better_supabase"."import_clear_issues"(run uuid, entity text, key text)
 returns void
@@ -570,6 +572,7 @@ begin
     and i."resolved_at" is null;
 end;
 $$;
+revoke execute on function "better_supabase"."import_clear_issues"(uuid, text, text) from public, anon, authenticated;
 
 -- Pages the issues of one run by keyset on (created_at, id): pass the previous page's next_cursor as
 -- after. row_offset still works when after is null. The total counts at most 10,000 rows and is
@@ -595,7 +598,7 @@ begin
   if v_tenant is null then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to list import issues' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   if list_import_issues.after is not null then
@@ -707,7 +710,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', resolve_import_conflict.tenant, 'imports.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', resolve_import_conflict.tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to resolve an import conflict' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   if resolve_import_conflict.action = 'keep' then
@@ -755,7 +758,7 @@ declare
   v_count integer;
   v_ids jsonb;
 begin
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', import_integrity.tenant, 'imports.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', import_integrity.tenant, 'imports.manage'), false)) then
     raise exception 'not allowed to check this import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   for v_name, v_severity, v_count, v_ids in
@@ -798,7 +801,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  if auth.role() is distinct from 'service_role' then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'not allowed to register an import source' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   insert into "better_supabase".import_sources ("id", "label_key", "description_key", "file_types", "entities", "docs_link")
@@ -1340,7 +1343,7 @@ as $$
 declare
   v_until timestamptz;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role can heartbeat an import' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   update "better_supabase"."import_runs" r set "heartbeat_at" = now(), "lease_expires_at" = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
@@ -1366,7 +1369,7 @@ declare
   v_id uuid;
   v_created boolean := false;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role can ensure an import ref' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   if import_ensure_ref.kind is null or import_ensure_ref.key is null or import_ensure_ref.key = '' then
@@ -1415,7 +1418,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role can rebase import records' using errcode = '42501', hint = 'IMPORT_FORBIDDEN';
   end if;
   update "better_supabase"."import_records" x

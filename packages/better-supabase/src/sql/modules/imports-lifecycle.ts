@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, serviceGrant, conflict } from "../shared.ts";
+import { conflict, fail, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
 /** Lease heartbeats, reference rows and the entity list an override can call. */
 export function importLifecycleSql(
@@ -25,7 +25,7 @@ as $$
 declare
   v_until timestamptz;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (${SERVICE_CALLER}) then
     ${fail("IMPORT_FORBIDDEN", "only the service role can heartbeat an import")}
   end if;
   update ${runs} r set ${r("heartbeatAt")} = now(), ${r("leaseUntil")} = now() + make_interval(secs => greatest(heartbeat_import_run.seconds, 1))
@@ -50,7 +50,7 @@ declare
   v_id uuid;
   v_created boolean := false;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (${SERVICE_CALLER}) then
     ${fail("IMPORT_FORBIDDEN", "only the service role can ensure an import ref")}
   end if;
   if import_ensure_ref.kind is null or import_ensure_ref.key is null or import_ensure_ref.key = '' then
@@ -109,7 +109,7 @@ as $$
 declare
   v_count integer;
 begin
-  if not (auth.role() = 'service_role') then
+  if not (${SERVICE_CALLER}) then
     ${fail("IMPORT_FORBIDDEN", "only the service role can rebase import records")}
   end if;
   update ${records} x

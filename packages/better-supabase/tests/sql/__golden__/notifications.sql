@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:fab45e2c5b166039cac538e7f0a13278d0b83a53a469bfcac2734a608630af37
+-- @bsb-hash sha256:ac33b65b3f2f157c5013508a1635ba4d9e35e26d57ad030427c482f0346a0e0f
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1387,7 +1387,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "better_supabase"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
@@ -1731,7 +1731,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:47be1af1f7836d501fdd69244f943a0b425ee5410af9d5531409ce00053db65c
+-- @bsb-hash sha256:79c471bcdf3b1788112b4ab2b1ab3e9b0e152671a0daf118966095322c1cb8ec
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3180,7 +3180,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "better_supabase"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
@@ -3539,7 +3539,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:cc145e746432d296238cdf28decb6e01bde2279aa314ff3780744c1c9cd43d96
+-- @bsb-hash sha256:ef9be99692559fe32779ad5845a1bf4e4d3dd08c0ef26fce248203d50ec3ea56
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4930,7 +4930,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "app_private"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
@@ -5274,7 +5274,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:8885f01e392b03a6767a89116693876875baefeef3e9f36df5f05a7085280592
+-- @bsb-hash sha256:b408d038d2a7944dfb5c6bc5c914a8070cf57b8fb3e4a74ba5f1147c3281cdd5
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6660,7 +6660,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "better_supabase"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
@@ -7292,7 +7292,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:7daa4bf47eee8b68cb210a5113a9f423d857adffb8aa1fb50e1bccb3c9405c4c
+-- @bsb-hash sha256:1b93a4094583fe7d1d5f08ecac2b9835be9b8bcda94e0005827038bd7c11d446
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8664,7 +8664,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "better_supabase"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
@@ -9008,7 +9008,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@11 managed
--- @bsb-hash sha256:635d6e8460077ca6220e0a2cd910329fa2df84c074e2cbf8e689b7f1ab8a0b64
+-- @bsb-hash sha256:10b40dff2f89c475d5e0758557a0848f33559b359111e1a3883731380cf56636
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10394,7 +10394,7 @@ as $$
   ) order by s."created_at" desc), '[]')
   from (
     select * from "better_supabase"."notification_suppressions" s
-    where s."user_id" = (select auth.uid()) or (select auth.role()) = 'service_role'
+    where s."user_id" = (select auth.uid()) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     order by s."created_at" desc
     limit least(greatest(coalesce(max_items, 50), 1), 200)
   ) s
