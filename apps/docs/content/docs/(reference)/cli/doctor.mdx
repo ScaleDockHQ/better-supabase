@@ -565,9 +565,8 @@ to a platform check (`better_supabase.is_platform(...)` or the provider's
 composite foreign key with not-null columns ties to a parent row, such as
 `foreign key (job_id, organization_id) references jobs (id, organization_id)`,
 doesn't count when every policy for the write checks one of the key's other
-columns (`exists (select 1 from jobs j where j.id = job_parties.job_id and
-
-<access to j>)`): the key keeps the column equal to the parent's, and the
+columns, such as `j.id = job_parties.job_id` inside an `exists` that checks
+access to the job `j`: the key keeps the column equal to the parent's, and the
 policy keeps the parent one the caller may write. A column every insert policy
 pins to the caller, `column = (select auth.uid())`, doesn't count on insert:
 the caller can only name themselves on a row they create. It still counts on
