@@ -65,6 +65,8 @@ create table if not exists ${q.accounts} (
   ${a("holder")} text check (${a("holder")} is null or length(${a("holder")}) between 1 and 200),
   -- The account an organization pays from and reconciles first, once per currency.
   ${a("isPrimary")} boolean not null default false,
+  -- Where the account sits in the organization's own order, lowest first.
+  ${a("position")} integer not null default 0 check (${a("position")} >= 0),
   -- The accounting journal the account's money moves through.
   ${a("journal")} uuid${ref(accounting, "journals", "set null")},
   ${a("archivedAt")} timestamptz,

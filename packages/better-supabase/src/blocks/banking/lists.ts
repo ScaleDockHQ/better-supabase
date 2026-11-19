@@ -7,7 +7,7 @@ import type { EntityListSurface } from "../../core/entity-list.ts";
  * `page_bank_accounts`.
  */
 export const bankAccountListSurface: EntityListSurface = {
-  sorts: ["name", "createdAt"],
+  sorts: ["name", "createdAt", "position"],
   facets: ["currency"],
   filters: ["currency", "archived"],
   search: ["name", "iban", "holder"],

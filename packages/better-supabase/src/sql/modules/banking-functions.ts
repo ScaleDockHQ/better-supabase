@@ -130,6 +130,11 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
         { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
         accountIdKey,
       ],
+      position: [
+        { expr: `x.${a("position")}`, dir: "asc", type: "integer" },
+        { expr: `lower(x.${a("name")})`, dir: "asc", type: "text" },
+        accountIdKey,
+      ],
     },
     facets: { currency: `x.${a("currency")}` },
     rowJson: q.accountJson("x"),
@@ -180,7 +185,7 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
 
   return `${referenceFunctions(ctx)}
 -- Creates or updates a bank account: name, holder, iban, bic, currency, the
--- primary flag and the accounting journal its money moves through. Making an
+-- primary flag, the position in the organization's order and the accounting journal its money moves through. Making an
 -- account primary clears the flag on the organization's other accounts in
 -- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
@@ -200,6 +205,7 @@ declare
   v_holder text;
   v_primary boolean;
   v_archived boolean;
+  v_position integer;
 begin
   if not ${q.allowed("save_bank_account.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage bank accounts")}
@@ -251,18 +257,22 @@ begin
     where x.${a("tenant")} = save_bank_account.tenant and x.${a("currency")} = v_currency
       and x.${a("isPrimary")} and x.${a("id")} is distinct from v_account.${a("id")};
   end if;
+  v_position := case when save_bank_account.input ? 'position'
+    then coalesce((save_bank_account.input ->> 'position')::integer, 0)
+    else coalesce(v_account.${a("position")}, 0) end;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account.${a("journal")} end;${journalCheck}
   if v_account.${a("id")} is null then
-    insert into ${q.accounts} (${a("tenant")}, ${a("name")}, ${a("holder")}, ${a("isPrimary")}, ${a("iban")}, ${a("bic")}, ${a("currency")}, ${a("journal")})
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
+    insert into ${q.accounts} (${a("tenant")}, ${a("name")}, ${a("holder")}, ${a("isPrimary")}, ${a("position")}, ${a("iban")}, ${a("bic")}, ${a("currency")}, ${a("journal")})
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update ${q.accounts} x set
       ${a("name")} = coalesce(trim(save_bank_account.input ->> 'name'), x.${a("name")}),
       ${a("holder")} = v_holder,
       ${a("isPrimary")} = v_primary,
+      ${a("position")} = v_position,
       ${a("iban")} = v_iban,
       ${a("bic")} = v_bic,
       ${a("currency")} = v_currency,
@@ -277,11 +287,11 @@ begin
   return ${q.accountJson("v_account")};
 exception
   when check_violation or not_null_violation then
-    ${q.accountInvalid("a bank account has a name of 1 to 200 characters")}
+    ${q.accountInvalid("a bank account has a name of 1 to 200 characters and a position of 0 or more")}
   when unique_violation then
     ${q.accountInvalid("the organization already has a bank account with this IBAN")}
   when invalid_text_representation then
-    ${q.accountInvalid("journalId must be a uuid")}
+    ${q.accountInvalid("journalId must be a uuid and position an integer")}
 end;
 $$;
 ${userGrant(`${fn("save_bank_account")}(${idType}, jsonb, uuid)`)}
@@ -298,7 +308,7 @@ begin
     ${q.forbidden("not allowed to read bank accounts")}
   end if;
   return coalesce((
-    select jsonb_agg(${q.accountJson("x")} order by x.${a("name")}, x.${a("id")})
+    select jsonb_agg(${q.accountJson("x")} order by x.${a("position")}, x.${a("name")}, x.${a("id")})
     from ${q.accounts} x
     where x.${a("tenant")} = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x.${a("archivedAt")} is null)
