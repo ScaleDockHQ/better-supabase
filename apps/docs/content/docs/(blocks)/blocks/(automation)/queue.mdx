@@ -468,6 +468,12 @@ named `block:<block>.<name>` on the `block_ticks` queue, and
 tick without a handler, or a handler that returns a failed `Result`, throws,
 so the queue retries it and the dead letter shows it.
 
+A timer your app doesn't need goes off with `blocks.<name>.schedules`, such as
+`consents: { schedules: { expire: false } }` when grants never expire. Doctor
+(BS508) and the wiring checklist then leave it out; pass the same map as the
+second argument, `blockSchedules(blocks, { consents: { expire: false } })`, so
+the scheduler leaves it out too.
+
 | Timer                | Cron               | Handler                                                             |
 | -------------------- | ------------------ | ------------------------------------------------------------------- |
 | `sla.check`          | every minute       | `sla.check()`: warnings and breaches of running clocks              |

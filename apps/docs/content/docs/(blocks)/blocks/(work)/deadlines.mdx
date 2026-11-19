@@ -34,6 +34,10 @@ is approved through an approval request.
 | `deadlines.write`  | computing and satisfying          | owner, admin  |
 | `deadlines.manage` | recomputing a subject's deadlines | owner, admin  |
 
+`forget` deletes satisfied history, so it checks the `prune` action, which
+falls back to the key `manage` maps to. Set `blocks.deadlines.permissions.prune`
+to a key fewer roles hold to keep it narrower than `manage`.
+
 Members read the approved versions of every rule set. Saving and approving a
 version needs the service role.
 
@@ -303,7 +307,10 @@ deletes a subject's pending deadlines of every jurisdiction but
 `keepJurisdiction`, or all pending ones without it, and returns how many it
 deleted. `forget` deletes every deadline of a subject, satisfied ones included.
 A record type with `cascade: true` does that when its row is deleted. Both need
-`deadlines.write` and read access to the subject.
+`deadlines.write` and read access to the subject, and `forget` also needs the
+`prune` key (`deadlines.manage` unless `permissions.prune` names another); a
+caller without it gets `DEADLINE_FORBIDDEN`. `computeMany` with `prune` only
+deletes pending deadlines, so `deadlines.write` is enough.
 
 ## Reading deadlines
 

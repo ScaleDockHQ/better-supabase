@@ -850,23 +850,23 @@ function lines(text: string): (index: number) => number {
  */
 /**
  * The relationships with no view on either side. A view's relationships carry
- * none of gen's `relations`, so an include on it would not compile.
+ * none of gen's `relations`, so an include on it would not compile. Views match
+ * by name, since a repository names no schema: `db.memberships` over a
+ * `public.memberships` view of `better_supabase.memberships` reads the view.
  */
 function tableRelationships(
   snapshot: Snapshot,
 ): Snapshot["generator"]["relationships"] {
   const views = new Set(
     [...snapshot.generator.views, ...snapshot.generator.materializedViews].map(
-      (view) => `${view.schema}.${view.name}`,
+      (view) => tableKey(view.name),
     ),
   );
 
   return snapshot.generator.relationships.filter(
     (relation) =>
-      !views.has(`${relation.schema}.${relation.relation}`) &&
-      !views.has(
-        `${relation.referenced_schema}.${relation.referenced_relation}`,
-      ),
+      !views.has(tableKey(relation.relation)) &&
+      !views.has(tableKey(relation.referenced_relation)),
   );
 }
 

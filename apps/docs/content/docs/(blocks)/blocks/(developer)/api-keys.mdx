@@ -241,9 +241,10 @@ The `apiKey` caller carries `createdAt` (a `Temporal.Instant`) and
 an authorization check can tell who issued the key. `toSession` returns
 `createdAt` in epoch seconds, like the session's other times.
 
-There is no JWT for an API key, so PostgREST can't run its queries. `ctx.db`
-and `ctx.sql` run over direct Postgres instead (pass `postgres` to the
-server), with these claims and the key's tenant as `better_supabase.tenant`:
+There is no JWT for an API key, so PostgREST can't run its queries on its
+own. `ctx.db` and `ctx.sql` run over direct Postgres instead (pass `postgres`
+to the server, or see [Without direct Postgres](#without-direct-postgres)),
+with these claims and the key's tenant as `better_supabase.tenant`:
 
 ```json
 {
@@ -261,6 +262,39 @@ server), with these claims and the key's tenant as `better_supabase.tenant`:
 `ctx.supabase` and `ctx.db.$client` throw for an API key caller.
 `authMode` (for `withSupabase` entries) is `user` for a personal key and
 `secret` for a tenant key.
+
+### Without direct Postgres
+
+A serverless API that reaches the database only through PostgREST passes
+`apiKeyToken` instead of `postgres`. `apiKeyTokenSigner` signs the same claims
+as a short-lived ES256 JWT (60 seconds by default), once per request, and
+`ctx.db` and `ctx.supabase` send it as the Bearer token, so RLS and the scope
+ceiling apply as they do over Postgres. The key's tenant goes in the
+`x-bsb-tenant` header, and `ctx.sql` is `undefined`.
+
+```ts title="src/server.ts"
+import {
+  apiKeyResolver,
+  createApiKeys,
+  rpcTransport,
+} from "better-supabase/blocks/api-keys";
+import { apiKeyTokenSigner } from "better-supabase/server";
+
+const keys = createApiKeys({ transport: rpcTransport(adminClient) });
+
+export const bsb = createHono(betterSupabase, {
+  apiKeyToken: apiKeyTokenSigner({ key: JSON.parse(env.API_KEY_SIGNING_JWK) }),
+  auth: { resolvers: [apiKeyResolver({ keys })] },
+});
+```
+
+PostgREST accepts the token only when the project trusts its key. Import the
+private P-256 key as a standby key under JWT signing keys and leave it there:
+the project publishes it in its JWK Set without signing sessions with it.
+Locally, add it to the file `signing_keys_path` names. Keep the private key
+in a server-only secret. With `postgres` set, queries keep running over
+Postgres and `apiKeyToken` is not called. The `createOrpc` and `createMcp`
+adapters read the same context, so they serve API keys this way too.
 
 When your own code routes a Bearer token to either API key or JWT
 verification, ask `keys.isApiKey(token)` instead of matching the prefix by

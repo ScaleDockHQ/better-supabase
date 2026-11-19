@@ -5,6 +5,11 @@ import { fail, userGrant } from "../shared.ts";
 export interface DeadlinePruneKit {
   /** The caller's write check on a tenant expression. */
   readonly allowed: (tenant: string) => string;
+  /**
+   * The caller's prune check, which deleting history (`pending_only` false)
+   * needs.
+   */
+  readonly prunes: (tenant: string) => string;
   /** Whether the caller may read subject `type`/`id` in `tenant`. */
   readonly visible: (type: string, id: string, tenant: string) => string;
   readonly d: (column: string) => string;
@@ -15,13 +20,15 @@ export interface DeadlinePruneKit {
 
 /** `prune_deadlines` and `compute_deadlines_many`. */
 export function deadlinePruneSql(kit: DeadlinePruneKit): string {
-  const { allowed, visible, d, deadlines, fn, idType } = kit;
+  const { allowed, prunes, visible, d, deadlines, fn, idType } = kit;
 
   return `
 -- Deletes a subject's deadlines and returns how many: the pending ones of every
 -- jurisdiction but keep_jurisdiction (all pending ones without it), or with
 -- pending_only false every deadline, satisfied history included, as when the
--- subject goes. Needs deadlines.write and read access to the subject.
+-- subject goes. Needs deadlines.write and read access to the subject, and
+-- the prune key (deadlines.manage unless permissions.prune names another) to
+-- delete more than the pending ones.
 create or replace function ${fn("prune_deadlines")}(tenant ${idType}, subject_type text, subject_id text, keep_jurisdiction text default null, pending_only boolean default true)
 returns integer
 language plpgsql
@@ -34,6 +41,9 @@ declare
 begin
   if not ${allowed("prune_deadlines.tenant")} then
     ${fail("DEADLINE_FORBIDDEN", "not allowed to prune deadlines")}
+  end if;
+  if not coalesce(prune_deadlines.pending_only, true) and not ${prunes("prune_deadlines.tenant")} then
+    ${fail("DEADLINE_FORBIDDEN", "not allowed to delete settled deadlines")}
   end if;
   if not ${visible("prune_deadlines.subject_type", "prune_deadlines.subject_id", "prune_deadlines.tenant")} then
     ${fail("DEADLINE_FORBIDDEN", "not allowed to prune deadlines for this subject")}

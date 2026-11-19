@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
+import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 
 const MANY: AnyBlocksConfig = {
   memberships: { options: { roles: { many: true } } },
@@ -246,5 +247,43 @@ describe("memberships roles option errors", () => {
         modules: { invitations: { options: { onAccept: { teams: true } } } },
       }),
     ).toThrow("install the teams block");
+  });
+});
+
+describe("membership_roles under a provider's roleIn", () => {
+  const sqlWith = (roleIn?: string): string =>
+    renderBlocks(["memberships", "permissions"], {
+      modules: {
+        memberships: { options: { roles: { many: true } } },
+        permissions: { model: "provider" },
+      },
+      accessProvider: {
+        ...moduleProvider,
+        functions: {
+          ...moduleProvider.functions,
+          ...(roleIn === undefined ? {} : { roleIn }),
+        },
+      },
+    })
+      .filter((file) => file.module === "memberships")
+      .map((file) => file.contents)
+      .join("\n");
+
+  it("refuses a role the provider doesn't know in the row's tenant", () => {
+    const sql = sqlWith("authz.role_in({role}, {tenant})");
+
+    expect(sql).toContain(
+      `if not coalesce(authz.role_in(new."role", new."organization_id"), false) then`,
+    );
+    expect(sql).toContain(
+      "using errcode = '23514', hint = 'MEMBERSHIP_ROLE_SCOPE'",
+    );
+    expect(sql).toMatch(
+      /create trigger "bsb_membership_role_in_tenant" before insert or update on "better_supabase"\."membership_roles"/,
+    );
+  });
+
+  it("leaves the check out without the template", () => {
+    expect(sqlWith()).not.toContain("membership_role_in_tenant");
   });
 });

@@ -135,6 +135,7 @@ export function createServer<
     serviceClient,
     readUrl,
     apiKeyClient,
+    bearerClients,
     contextClient,
     restAt,
   } = createClients({
@@ -196,7 +197,7 @@ export function createServer<
   ): Db<M, F, E, undefined, B> => {
     if (!options.postgres) {
       throw new TypeError(
-        "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() })",
+        "Direct Postgres access needs createServer(betterSupabase, { postgres: createPostgres() }); an API key can run over PostgREST with ServerOptions.apiKeyToken instead",
       );
     }
 
@@ -445,11 +446,14 @@ export function createServer<
   /**
    * An API key's context. There is no JWT for PostgREST, so `ctx.db` and
    * `ctx.sql` run over direct Postgres with the key's synthesized claims,
-   * scoped to its organization unless the tenant option names another.
+   * scoped to its organization unless the tenant option names another. Without
+   * `postgres`, `ServerOptions.apiKeyToken` mints a token for the same claims
+   * and `ctx.db` and `ctx.supabase` run over PostgREST with it.
    */
   const apiKeyContextFor = (
     resolution: AuthResolution<C, P>,
     auth: Extract<AuthState, { kind: "apiKey" }>,
+    requestHeaders: Readonly<Record<string, string>>,
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
     ids: ScopeIds,
@@ -468,6 +472,19 @@ export function createServer<
     const recorder = new StatsRecorder(parent);
     let db: Db<M, F, E, SupabaseClient, B> | undefined;
     let sql: Db<M, F, E, undefined, B> | undefined;
+    const mint = options.postgres ? undefined : options.apiKeyToken;
+    let token: Promise<string> | undefined;
+
+    // shortcut: one token per context, so a context must not outlive the
+    // signer's lifetime; mint per request when that changes.
+    const minted =
+      mint === undefined
+        ? undefined
+        : bearerClients(() => (token ??= Promise.resolve(mint(auth))), {
+            ...idPolicy.headers(ids),
+            ...requestHeaders,
+            ...(scope === undefined ? {} : { [TENANT_HEADER]: scope }),
+          });
 
     return {
       ...credentials,
@@ -476,9 +493,25 @@ export function createServer<
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
-        return apiKeyClient();
+        return minted ? minted.client() : apiKeyClient();
       },
       get db() {
+        if (minted) {
+          // SAFETY: `$client` is redefined to return the SupabaseClient.
+          db ??= withLazyClient(
+            betterSupabase.connect(minted.rest, context, {
+              stats: recorder,
+              storage: {
+                from: (bucket) => minted.client().storage.from(bucket),
+              },
+              ...tuned(minted.rest),
+            }) as Db<M, F, E, SupabaseClient, B>,
+            minted.client,
+          );
+
+          return db;
+        }
+
         // SAFETY: `$client` is redefined to throw, so no caller gets a client.
         // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the repositories are the same; only `$client`'s type differs, and it throws.
         db ??= Object.defineProperty(
@@ -490,6 +523,10 @@ export function createServer<
         return db;
       },
       get sql() {
+        if (!options.postgres) {
+          return;
+        }
+
         sql ??= sqlFor(auth.claims, context, recorder, session);
 
         return sql;
@@ -521,7 +558,14 @@ export function createServer<
     const { auth } = resolution;
 
     if (auth.kind === "apiKey") {
-      return apiKeyContextFor(resolution, auth, parent, tenant, ids);
+      return apiKeyContextFor(
+        resolution,
+        auth,
+        requestHeaders,
+        parent,
+        tenant,
+        ids,
+      );
     }
 
     const authz = authzScope(ids);

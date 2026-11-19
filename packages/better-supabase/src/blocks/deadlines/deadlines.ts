@@ -212,8 +212,9 @@ export interface Deadlines {
     input: DeadlineSubject & { readonly keepJurisdiction?: string },
   ): AsyncResultType<number>;
   /**
-   * Deletes every deadline of a subject, satisfied history included. A record
-   * type with `cascade: true` does this when its row is deleted.
+   * Deletes every deadline of a subject, satisfied history included. Needs the
+   * `prune` key (`deadlines.manage` unless `permissions.prune` names another).
+   * A record type with `cascade: true` does this when its row is deleted.
    */
   forget(input: DeadlineSubject): AsyncResultType<number>;
   /** Re-evaluates a subject's pending deadlines with extra facts. */

@@ -336,7 +336,7 @@ export const WIRING_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Block timers have no handler",
     description:
-      "An installed block declares timers (a schedule that runs `check()` or a sweep), but no app source calls `blockTickHandler(...)` or `blockSchedules(...)`. The timers never fire, so SLA checks and sweeps stay idle. Call `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })` once and drain the `block_ticks` queue with `blockTickHandler`.",
+      "An installed block declares timers (a schedule that runs `check()` or a sweep), but no app source calls `blockTickHandler(...)` or `blockSchedules(...)`. The timers never fire, so SLA checks and sweeps stay idle. Call `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })` once and drain the `block_ticks` queue with `blockTickHandler`. A timer switched off with `blocks.<name>.schedules` is left out.",
     check: (context) => {
       const plan = wiringFor(configInstances(context.config));
 

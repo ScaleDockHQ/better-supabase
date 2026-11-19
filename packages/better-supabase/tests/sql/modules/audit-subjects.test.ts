@@ -80,7 +80,16 @@ describe("audit subjectColumns", () => {
     });
 
     expect(sql).toContain(
-      `case when coalesce(case "table_name" when 'public.jobs' then coalesce("new_record" ->> 'id', "old_record" ->> 'id', "metadata" ->> 'id') end, coalesce("new_record" ->> 'job_id', "old_record" ->> 'job_id', "metadata" ->> 'job_id')) ~ '^[0-9a-fA-F]{8}-`,
+      `case when coalesce(case "table_name" when 'public.jobs' then coalesce(coalesce("new_record" ->> 'id', "old_record" ->> 'id', "metadata" ->> 'id'), "record_id") end, coalesce("new_record" ->> 'job_id', "old_record" ->> 'job_id', "metadata" ->> 'job_id')) ~ '^[0-9a-fA-F]{8}-`,
+    );
+    expect(
+      audit({
+        subjectColumns: {
+          job_id: { type: "uuid", tables: { "public.notes": "parent_id" } },
+        },
+      }),
+    ).toContain(
+      `when 'public.notes' then coalesce("new_record" ->> 'parent_id', "old_record" ->> 'parent_id', "metadata" ->> 'parent_id') end`,
     );
     expect(() =>
       audit({

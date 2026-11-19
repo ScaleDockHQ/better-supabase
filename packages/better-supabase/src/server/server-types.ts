@@ -84,6 +84,16 @@ export interface ServerOptions<
   readonly env?: BetterSupabaseEnv | EnvSource;
   /** Enables `ctx.sql` and `actingAs()`. */
   readonly postgres?: BetterPostgres;
+  /**
+   * Mints a short-lived JWT for an API key's claims, such as
+   * `apiKeyTokenSigner(...)`, so an API key's `ctx.db` and `ctx.supabase` run
+   * over PostgREST under RLS when the server has no `postgres`. PostgREST
+   * accepts the token only when the project trusts its signing key. With
+   * `postgres`, queries keep running there and this is not called.
+   */
+  readonly apiKeyToken?: (
+    auth: Extract<AuthState, { readonly kind: "apiKey" }>,
+  ) => string | PromiseLike<string>;
   readonly auth?: Omit<ResolveAuthOptions, "env">;
   /**
    * `"lite"` for Supabase Lite: tokens verify with `SUPABASE_JWT_SECRET`, no

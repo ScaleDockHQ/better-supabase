@@ -275,3 +275,77 @@ $$;`,
     );
   });
 });
+
+describe("membership_roles under a provider's roleIn", BOOT, () => {
+  const OTHER = "55555555-5555-4555-8555-555555555555";
+
+  const AUTHZ = `
+create schema if not exists authz;
+create function authz.ids_with(permission text) returns setof uuid
+  language sql stable as $$ select null::uuid where false $$;
+create function authz.is_platform(permission text) returns boolean
+  language sql stable as $$ select false $$;
+create table authz.custom_roles (key text primary key, tenant uuid not null);
+create function authz.role_in(role text, tenant uuid) returns boolean
+  language sql stable as $$
+    select role in ('owner', 'admin', 'member')
+      or exists (select 1 from authz.custom_roles c where c.key = role and c.tenant = role_in.tenant)
+  $$;
+`;
+
+  it("refuses a custom role of another tenant on a direct write", async () => {
+    const files = renderBlocks(
+      ["memberships", "permissions", "organizations"],
+      {
+        modules: { ...BLOCKS, permissions: { model: "provider" } },
+        accessProvider: {
+          name: "test",
+          scope: "organization",
+          idType: "uuid",
+          functions: {
+            idsWith: "authz.ids_with({permission})",
+            isPlatform: "authz.is_platform({permission})",
+            roleIn: "authz.role_in({role}, {tenant})",
+          },
+        },
+      },
+    );
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        AUTHZ,
+        ...files
+          .filter((file) => file.kind === "schema")
+          .map((file) => file.contents),
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        SEED,
+        `insert into authz.custom_roles values ('custom_mine', '${TENANT}'), ('custom_theirs', '${OTHER}');
+do $$
+declare
+  v_state text;
+  v_hint text;
+begin
+  insert into better_supabase.membership_roles (organization_id, user_id, "role") values ('${TENANT}', '${BOB}', 'custom_mine');
+  begin
+    insert into better_supabase.membership_roles (organization_id, user_id, "role") values ('${TENANT}', '${BOB}', 'custom_theirs');
+    raise exception 'a custom role of another tenant was stored';
+  exception when check_violation then
+    get stacked diagnostics v_state = returned_sqlstate, v_hint = pg_exception_hint;
+  end;
+  if v_hint is distinct from 'MEMBERSHIP_ROLE_SCOPE' then
+    raise exception 'unexpected refusal %/%', v_state, v_hint;
+  end if;
+end;
+$$;`,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
+  });
+});

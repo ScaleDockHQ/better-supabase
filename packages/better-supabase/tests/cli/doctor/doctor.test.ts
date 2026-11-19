@@ -553,6 +553,71 @@ describe("doctor rules", () => {
       },
     );
 
+    it("leaves out a tenant column a composite key pins to a parent the policy checks", async () => {
+      const parent =
+        "(EXISTS ( SELECT 1 FROM better_supabase.organizations o WHERE ((o.id = memberships.user_id) AND better_supabase.can('tenant'::text, o.id, 'members.manage'::text))))";
+
+      const pinned = (nullable: boolean, check = parent) => {
+        const snap = withTable("memberships", (memberships) => {
+          memberships.primaryKey = ["id"];
+          memberships.foreignKeys = [
+            ...memberships.foreignKeys,
+            {
+              name: "memberships_parent_fkey",
+              onDelete: "cascade",
+              onUpdate: "no action",
+            },
+          ];
+          memberships.policies = [
+            ...memberships.policies,
+            { ...updatePolicy, using: check, check },
+          ];
+          memberships.grants = [
+            { role: "authenticated", privileges: ["SELECT", "UPDATE"] },
+          ];
+        });
+
+        const generator = snap.generator as {
+          relationships: (typeof snap.generator.relationships)[number][];
+          columns: { table_id: number; name: string; is_nullable: boolean }[];
+        };
+
+        const id = snap.extras.tables.find((t) => t.name === "memberships")!.id;
+
+        generator.relationships.push({
+          foreign_key_name: "memberships_parent_fkey",
+          schema: "better_supabase",
+          relation: "memberships",
+          columns: ["user_id", "org_id"],
+          is_one_to_one: false,
+          referenced_schema: "better_supabase",
+          referenced_relation: "organizations",
+          referenced_columns: ["id", "org_id"],
+        });
+
+        for (const column of generator.columns) {
+          if (column.table_id === id && column.name === "user_id") {
+            column.is_nullable = nullable;
+          }
+        }
+
+        return snap;
+      };
+
+      const message = async (snap: Snapshot) =>
+        (await runRules(context(snap), only))[0]?.message;
+
+      expect(await message(pinned(false))).toContain(
+        "authenticated may update role, user_id.",
+      );
+      expect(await message(pinned(true))).toContain(
+        "authenticated may update org_id, role, user_id.",
+      );
+      expect(
+        await message(pinned(false, "(o.user_id = auth.uid())")),
+      ).toContain("authenticated may update org_id, role, user_id.");
+    });
+
     it("keeps a tenant column that an or lets the caller write elsewhere", async () => {
       const loose =
         "org_id = ( SELECT better_supabase.current_tenant_id() AS current_tenant_id) or true";

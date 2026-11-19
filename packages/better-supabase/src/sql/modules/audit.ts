@@ -294,6 +294,7 @@ function subjects(ctx: BlockSqlContext, log: string): string {
     sources,
     taken,
     ctx.has("log", "table") ? ctx.col("log", "table") : undefined,
+    ctx.has("log", "record") ? ctx.col("log", "record") : undefined,
   );
 }
 
