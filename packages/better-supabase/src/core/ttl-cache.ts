@@ -7,6 +7,7 @@ export interface BoundedTtlCache<K, V> {
    */
   set(key: K, value: V, expiresAt: number): void;
   delete(key: K): void;
+  clear(): void;
   readonly size: number;
 }
 
@@ -48,6 +49,9 @@ export function boundedTtlCache<K, V>(options: {
     },
     delete(key) {
       entries.delete(key);
+    },
+    clear() {
+      entries.clear();
     },
     get size() {
       return entries.size;

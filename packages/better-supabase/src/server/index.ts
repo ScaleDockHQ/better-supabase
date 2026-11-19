@@ -40,6 +40,8 @@ export type {
   SupportStartRequest,
 } from "./support.ts";
 
+export { SupportUnavailableError } from "./support.ts";
+
 export { impersonationEvents } from "../blocks/impersonation/events.ts";
 
 export type { ImpersonationEvents } from "../blocks/impersonation/events.ts";

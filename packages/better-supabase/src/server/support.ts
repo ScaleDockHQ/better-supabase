@@ -139,6 +139,25 @@ export interface SupportOptions {
    * Defaults to reading the cookie.
    */
   readonly sessionId?: (request: Request) => string | undefined;
+  /**
+   * What `resolve` and `current` do when the session or the target's claims
+   * can't be loaded (a store outage). `'admin'`, the default, answers
+   * `undefined`, so the request runs as the admin. `'throw'` throws
+   * `SupportUnavailableError`, so an app can fail closed instead of showing the
+   * admin's own view while the cookie still names a session.
+   */
+  readonly unavailable?: "admin" | "throw";
+}
+
+/** A support session could not be loaded; see `SupportOptions.unavailable`. */
+export class SupportUnavailableError extends Error {
+  override readonly name = "SupportUnavailableError";
+  readonly sessionId: string;
+
+  constructor(sessionId: string, options?: { readonly cause?: unknown }) {
+    super("The support session could not be loaded", options);
+    this.sessionId = sessionId;
+  }
 }
 
 export interface SupportStartRequest {
@@ -399,6 +418,7 @@ function createSupport(
     string,
     {
       readonly adminId: string;
+      readonly token: string;
       readonly session: Promise<SupportSession | undefined>;
     }
   >({ max: CLAIMS_CACHE_SIZE });
@@ -410,13 +430,21 @@ function createSupport(
   ): Promise<SupportSession | undefined> => {
     const reused = sessionLookups.get(id);
 
-    if (reused?.adminId === auth.user.id) {
+    if (reused?.adminId === auth.user.id && reused.token === auth.token) {
       return reused.session;
     }
 
     const end = stats?.begin("support_sessions");
-    const session = store.get(id, auth.user.id, auth.claims).finally(end);
-    const entry = { adminId: auth.user.id, session };
+
+    const session = (async () => {
+      try {
+        return await store.get(id, auth.user.id, auth.claims);
+      } finally {
+        end?.();
+      }
+    })();
+
+    const entry = { adminId: auth.user.id, token: auth.token, session };
 
     sessionLookups.set(id, entry, Date.now() + SESSION_REUSE_MS);
     session.catch(() => {
@@ -637,9 +665,13 @@ function createSupport(
 
       claims = supportClaims(session, await cachedTargetClaims(session));
     } catch (cause) {
-      // The admin keeps their own view; a store outage never widens access.
       events.logger.warn("Could not load the support session", { cause });
 
+      if (options.unavailable === "throw") {
+        throw new SupportUnavailableError(id, { cause });
+      }
+
+      // The admin keeps their own view; a store outage never widens access.
       return;
     }
 
@@ -786,6 +818,7 @@ function createSupport(
         let session: SupportSession;
 
         try {
+          sessionLookups.clear();
           session = await store.start({
             adminId: admin.user.id,
             adminClaims: admin.claims,
@@ -952,7 +985,12 @@ function createSupport(
           }
 
           sessionLookups.delete(sessionId);
-          const ended = await store.end(sessionId, "admin", admin.claims);
+
+          const ended = await store
+            .end(sessionId, "admin", admin.claims)
+            .finally(() => {
+              sessionLookups.delete(sessionId);
+            });
 
           if (ended) {
             emit("support_session.ended", {
@@ -983,7 +1021,11 @@ function createSupport(
         try {
           sessionLookups.delete(sessionId);
 
-          return ok(await store.end(sessionId, "revoked", caller.claims));
+          return ok(
+            await store.end(sessionId, "revoked", caller.claims).finally(() => {
+              sessionLookups.delete(sessionId);
+            }),
+          );
         } catch (cause) {
           return err(storeError(cause));
         }

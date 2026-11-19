@@ -63,7 +63,7 @@ const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const signer = await createTestSigner();
 const token = await signer.sign({ sub: ADMIN, role: "authenticated" });
 
-function setup() {
+function setup(extra: { readonly debug?: { readonly enabled: boolean } } = {}) {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
 
@@ -89,6 +89,7 @@ function setup() {
       authorize: () => true,
       policy: { approval: "none" },
     }),
+    ...extra,
   });
 
   return { bsb, store, claims };
@@ -100,6 +101,28 @@ beforeEach(() => {
 });
 
 describe("support sessions in Next.js", () => {
+  it("counts the support session lookup in the request's stats", async () => {
+    const { bsb } = setup({ debug: { enabled: true } });
+
+    const started = await bsb.startSupport({
+      targetUserId: TARGET,
+      reason: "ticket 5",
+    });
+
+    const id = started.data!.sessionId;
+    mocks.headers.set("cookie", `bsb-support=${id}`);
+    mocks.headers.set("x-bsb-request-id", "render-1");
+    await bsb.context();
+
+    const stats = await bsb.debugRoute()(
+      new Request("https://app.test/api/bsb-stats?id=render-1"),
+    );
+
+    expect(await stats.json()).toMatchObject({
+      tables: expect.arrayContaining(["support_sessions"]) as string[],
+    });
+  });
+
   it("starts, renders as the target and stops", async () => {
     const { bsb, claims } = setup();
 

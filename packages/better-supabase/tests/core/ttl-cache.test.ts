@@ -13,6 +13,17 @@ describe("boundedTtlCache", () => {
     expect(cache.size).toBe(0);
   });
 
+  it("deletes one entry or clears them all", () => {
+    const cache = boundedTtlCache<string, number>({ max: 4, now: () => 0 });
+    cache.set("a", 1, 10);
+    cache.set("b", 2, 10);
+    cache.delete("a");
+    expect(cache.get("a")).toBeUndefined();
+    expect(cache.get("b")).toBe(2);
+    cache.clear();
+    expect(cache.size).toBe(0);
+  });
+
   it("evicts the oldest entry when full and refreshes a rewritten key", () => {
     const cache = boundedTtlCache<string, number>({ max: 2, now: () => 0 });
     cache.set("a", 1, 10);

@@ -105,6 +105,13 @@ otherwise, so the admin keeps their own view. `dbFor(auth, context, { support })
 returns the same repositories as `contextFor(auth, { support }).db`, running
 as the target over Postgres.
 
+One lookup of a session serves the lookups that follow it for one second, for
+the same admin and token, so a render that builds many contexts loads the
+session once. When the session or the target's claims can't be loaded, `resolve`
+and `current` return `undefined` and the request runs as the admin. Set
+`supportSessions({ unavailable: 'throw' })` to get a `SupportUnavailableError`
+instead and fail closed.
+
 ### What the admin can do
 
 | Policy option   | Default      | Effect                                                                                     |
@@ -420,6 +427,9 @@ another staff member revokes keeps the session id in the entry's metadata.
 admin page, and `bsb.support.revoke(auth, id)` ends a session. Both run as the
 caller: the SQL store lists sessions for staff with `impersonation.read`, and ends
 the caller's own session or, with `impersonation.revoke`, anyone's.
+A stop or revoke applies at once on the server instance that ran it and within
+one second on every other instance, as does the removal of the admin's
+permission to start sessions.
 
 ### Ending expired sessions
 

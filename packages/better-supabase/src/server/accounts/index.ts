@@ -20,7 +20,7 @@ export type {
   SuspendAccountResult,
 } from "../suspend-account.ts";
 
-export { supportSessions } from "../support.ts";
+export { supportSessions, SupportUnavailableError } from "../support.ts";
 
 export { supportStorage } from "../support-storage.ts";
 

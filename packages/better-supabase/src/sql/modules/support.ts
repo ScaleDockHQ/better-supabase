@@ -939,9 +939,10 @@ function reads(ctx: BlockSqlContext): string {
 
   return `-- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function ${ctx.fn("active_support_session")}(
   session_id uuid,
   admin_id uuid default null

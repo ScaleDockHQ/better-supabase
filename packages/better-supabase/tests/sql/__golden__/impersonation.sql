@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:c26cbe89b6d399b4e5fc93df74f5c899ad8602355c09bab108c5c9504f33ebe1
+-- @bsb-hash sha256:91b0016dd289c5e79b7156410d65bc589eb2ccb8f15fe38a01b810b5bf370697
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -575,9 +575,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "better_supabase"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
@@ -1089,7 +1090,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:da6855ed8c3984086b86008569ca3c2caffaef361972711bffa55c3fa49a90d7
+-- @bsb-hash sha256:74b0b4cef3f550ba7f93ff02b911fd9004858f287f87a2e44543999af84b2ab3
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1704,9 +1705,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "better_supabase"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
@@ -2218,7 +2220,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:47f71c7517b5015d7a1716d02737f3b3d8d9c4064df3864f222c8601f5cf1080
+-- @bsb-hash sha256:fce61253c63a9d3f43c06eca0e0794b9c9ff31d8657eeed09c73ca5d752bcf4a
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2792,9 +2794,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "app_private"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
@@ -3306,7 +3309,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:6f3aad41a188fa24356ac41d3b0841f37883074ee3886d3e16605a3f0fdd701f
+-- @bsb-hash sha256:63dc70eaee778e870abfbfd4fb2fc9ac55552e1430854f2dc1e112150f6ce310
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3880,9 +3883,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "better_supabase"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
@@ -4512,7 +4516,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:c058fd472aeb6a4227dc623872ecefbcf48e8b54c0c88670284dde29f5067473
+-- @bsb-hash sha256:dbe9a3cdf226628eabec30ccc6718c535f63347717ffa1490780336e741e4d2e
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5074,9 +5078,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "better_supabase"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
@@ -5588,7 +5593,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:a3e61abcf8ac420715f84b64b72cba993a1d78d0085a044ef6ad8bd14602d193
+-- @bsb-hash sha256:a17a0fe5ca4476824f50b70d1e7c5301911d931e17fc9f42c2faa89489eefbc6
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6162,9 +6167,10 @@ $$;
 
 -- Parameters are positional below: in SQL functions a column name wins over a
 -- parameter of the same name.
--- The admin's session while it is active, or null. Read on every request
--- that carries the support cookie. Called as the admin, it also checks that
--- the admin may still start sessions.
+-- The admin's session while it is active, or null. Read for requests that
+-- carry the support cookie; one read serves one admin token for a second.
+-- Called as the admin, it also checks that the admin may still start sessions,
+-- so a revoke or a removed permission applies within that second.
 create or replace function "better_supabase"."active_support_session"(
   session_id uuid,
   admin_id uuid default null
