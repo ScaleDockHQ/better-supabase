@@ -1,6 +1,6 @@
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:0840a438456ba540e6acf2c5f027bd0135fdf9ad0ba770fbb0b62422f6d357b7
+-- @bsb-hash sha256:b3675ae32b30e337b574ff406372549f4c3551418eabe40585cc838c68fcc7ff
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,14 @@ set search_path = ''
 as $$
 begin
   if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
-    perform pgmq.create(queue);
+    -- Two first enqueues can both see no queue; the slower create then fails.
+    begin
+      perform pgmq.create(queue);
+    exception when unique_violation or duplicate_table or duplicate_object then
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
+    end;
     perform better_supabase.index_job_queue(queue);
   end if;
 end;

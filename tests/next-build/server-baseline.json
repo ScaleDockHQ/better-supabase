@@ -1172,7 +1172,7 @@
   "/[locale]/(app)/shop/warranty/[id]/page": {
     "raw": 3169876,
     "gzip": 961141,
-    "brotli": 796743
+    "brotli": 798739
   },
   "/[locale]/(app)/shop/warranty/page": {
     "raw": 3164726,
@@ -1237,17 +1237,17 @@
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 5204780,
     "gzip": 1572499,
-    "brotli": 1300951
+    "brotli": 1304236
   },
   "/[locale]/(app)/workflows/page": {
     "raw": 5208772,
     "gzip": 1574095,
-    "brotli": 1302399
+    "brotli": 1305656
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
     "raw": 5209823,
     "gzip": 1574614,
-    "brotli": 1302794
+    "brotli": 1306089
   },
   "/[locale]/(app)/workflows/runs/page": {
     "raw": 5207470,
@@ -1257,7 +1257,7 @@
   "/[locale]/(app)/workflows/templates/page": {
     "raw": 5202660,
     "gzip": 1571512,
-    "brotli": 1300073
+    "brotli": 1303366
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 2998709,
@@ -1317,7 +1317,7 @@
   "/[locale]/(auth)/waitlist/page": {
     "raw": 2916957,
     "gzip": 881169,
-    "brotli": 727100
+    "brotli": 728941
   },
   "/[locale]/(public)/portal/page": {
     "raw": 2993509,
@@ -1332,17 +1332,17 @@
   "/[locale]/(public)/store/[org]/[product]/page": {
     "raw": 3001214,
     "gzip": 907228,
-    "brotli": 750008
+    "brotli": 751917
   },
   "/[locale]/(public)/store/[org]/cart/page": {
     "raw": 3002199,
     "gzip": 907723,
-    "brotli": 750194
+    "brotli": 752089
   },
   "/[locale]/(public)/store/[org]/page": {
     "raw": 3002486,
     "gzip": 908042,
-    "brotli": 750477
+    "brotli": 752396
   },
   "/[locale]/[...rest]/page": {
     "raw": 429461,
