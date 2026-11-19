@@ -3,7 +3,6 @@ import type {
   AggregateResult,
   CountOptions,
   GetOptions,
-  KnownIncludes,
   ListParams,
   Payload,
   ReadOptions,
@@ -300,7 +299,7 @@ export interface Repository<
 
   /** The rows matching `where`, ordered by `orderBy` or the primary key. */
   list<const A extends ListParams<M, T> & FindExt<E, M, T>>(
-    args?: A & KnownIncludes<M, T, A>,
+    args?: A,
   ): AsyncResult<Payload<M, T, A>[]>;
   /**
    * One page of rows: by page number (`page`, `size`), by offset (`offset`,
@@ -314,7 +313,7 @@ export interface Repository<
     ) &
       FindExt<E, M, T>,
   >(
-    args: A & KnownIncludes<M, T, A>,
+    args: A,
   ): AsyncResult<PageOf<M, T, A>>;
   /**
    * The row with this primary key, these values for one unique key (`{ email
@@ -324,7 +323,7 @@ export interface Repository<
    */
   get<const A extends GetOptions<M, T> & FindExt<E, M, T>>(
     key: GetKey<M, T>,
-    args?: A & KnownIncludes<M, T, A>,
+    args?: A,
   ): AsyncResult<
     A extends { readonly optional: true }
       ? Payload<M, T, A> | null

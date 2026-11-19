@@ -251,32 +251,6 @@ export type IncludeArg<M extends AnyModels, T extends keyof M> = {
   readonly [K in MeasureKey]?: RelationMeasureArg<M, T>;
 };
 
-/**
- * `never` for each key of `A`'s `include` that names no relation, `_count` or
- * aggregate, so a misspelled relation next to a real one fails to compile; a
- * generic `const A` skips the excess property check.
- */
-export type KnownIncludes<
-  M extends AnyModels,
-  T extends keyof M,
-  A,
-> = A extends { readonly include?: infer I }
-  ? [I] extends [never]
-    ? unknown
-    : I extends object
-      ? {
-          readonly include?: {
-            readonly [K in keyof I]: K extends
-              | keyof Relations<M, T>
-              | "_count"
-              | MeasureKey
-              ? I[K]
-              : never;
-          };
-        }
-      : unknown
-  : unknown;
-
 type NumericKey<M extends AnyModels, T extends keyof M> = {
   [K in keyof Row<M, T>]: [NonNullable<Row<M, T>[K]>] extends [
     number | bigint | string,
