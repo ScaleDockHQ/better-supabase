@@ -1,16 +1,16 @@
 {
   "(proxy)": {
-    "raw": 1223927,
+    "raw": 1224664,
     "gzip": 364831,
     "brotli": 294605
   },
   "/.well-known/oauth-protected-resource/[...path]/route": {
-    "raw": 814207,
+    "raw": 814989,
     "gzip": 261439,
     "brotli": 227616
   },
   "/.well-known/vercel/flags/route": {
-    "raw": 1241699,
+    "raw": 1242428,
     "gzip": 396390,
     "brotli": 346360
   },
@@ -25,622 +25,622 @@
     "brotli": 419469
   },
   "/[locale]/(app)/advisories/page": {
-    "raw": 3182204,
+    "raw": 3182239,
     "gzip": 963319,
     "brotli": 800988
   },
   "/[locale]/(app)/announcements/[id]/page": {
-    "raw": 3170597,
+    "raw": 3170632,
     "gzip": 960910,
     "brotli": 798580
   },
   "/[locale]/(app)/announcements/page": {
-    "raw": 3172243,
+    "raw": 3172278,
     "gzip": 960551,
     "brotli": 798364
   },
   "/[locale]/(app)/appraisals/[id]/page": {
-    "raw": 3176578,
+    "raw": 3176613,
     "gzip": 962915,
     "brotli": 800438
   },
   "/[locale]/(app)/appraisals/page": {
-    "raw": 3166208,
+    "raw": 3166243,
     "gzip": 958286,
     "brotli": 796310
   },
   "/[locale]/(app)/approvals/page": {
-    "raw": 3178920,
+    "raw": 3178955,
     "gzip": 962736,
     "brotli": 800181
   },
   "/[locale]/(app)/assets/[id]/page": {
-    "raw": 3172333,
+    "raw": 3172368,
     "gzip": 961383,
-    "brotli": 798998
+    "brotli": 799027
   },
   "/[locale]/(app)/assets/page": {
-    "raw": 3165714,
+    "raw": 3165749,
     "gzip": 959316,
-    "brotli": 797136
+    "brotli": 797193
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3723367,
+    "raw": 3723402,
     "gzip": 1111722,
     "brotli": 924943
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5347901,
-    "gzip": 1609171,
+    "raw": 5347936,
+    "gzip": 1609277,
     "brotli": 1334845
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5358127,
+    "raw": 5358162,
     "gzip": 1608442,
     "brotli": 1337555
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5350909,
+    "raw": 5350944,
     "gzip": 1606052,
     "brotli": 1335341
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5346205,
+    "raw": 5346240,
     "gzip": 1606238,
     "brotli": 1333549
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5352118,
+    "raw": 5352153,
     "gzip": 1606468,
     "brotli": 1335703
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5358200,
+    "raw": 5358235,
     "gzip": 1607540,
     "brotli": 1336850
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3733149,
+    "raw": 3733184,
     "gzip": 1115252,
     "brotli": 927973
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5348224,
+    "raw": 5348259,
     "gzip": 1606936,
     "brotli": 1334180
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
-    "raw": 3673992,
+    "raw": 3674027,
     "gzip": 1092692,
     "brotli": 906610
   },
   "/[locale]/(app)/assistant/evals/page": {
-    "raw": 3168189,
+    "raw": 3168224,
     "gzip": 959840,
     "brotli": 797319
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 3169287,
+    "raw": 3169322,
     "gzip": 959968,
     "brotli": 798107
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3725905,
+    "raw": 3725940,
     "gzip": 1112747,
     "brotli": 925792
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
-    "raw": 3163461,
+    "raw": 3163496,
     "gzip": 957792,
     "brotli": 795870
   },
   "/[locale]/(app)/assistant/prompts/page": {
-    "raw": 3165759,
+    "raw": 3165794,
     "gzip": 958636,
     "brotli": 796937
   },
   "/[locale]/(app)/assistant/tasks/page": {
-    "raw": 3161404,
+    "raw": 3161439,
     "gzip": 956840,
     "brotli": 795007
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3714857,
+    "raw": 3714892,
     "gzip": 1107390,
     "brotli": 921480
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3726121,
+    "raw": 3726156,
     "gzip": 1112111,
     "brotli": 925190
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
-    "raw": 3219004,
+    "raw": 3219039,
     "gzip": 975443,
     "brotli": 811479
   },
   "/[locale]/(app)/banking/accounts/page": {
-    "raw": 3218935,
+    "raw": 3218970,
     "gzip": 975421,
     "brotli": 811465
   },
   "/[locale]/(app)/banking/page": {
-    "raw": 3180777,
+    "raw": 3180812,
     "gzip": 963351,
     "brotli": 801114
   },
   "/[locale]/(app)/banking/transactions/[id]/page": {
-    "raw": 3219026,
+    "raw": 3219061,
     "gzip": 975441,
     "brotli": 811481
   },
   "/[locale]/(app)/banking/transactions/page": {
-    "raw": 3218959,
+    "raw": 3218994,
     "gzip": 975423,
     "brotli": 811463
   },
   "/[locale]/(app)/beta/page": {
-    "raw": 3157628,
+    "raw": 3157663,
     "gzip": 954764,
     "brotli": 792919
   },
   "/[locale]/(app)/calendar/availability/page": {
-    "raw": 3178515,
+    "raw": 3178550,
     "gzip": 963848,
     "brotli": 801472
   },
   "/[locale]/(app)/calendar/front-desk/page": {
-    "raw": 3173839,
+    "raw": 3173874,
     "gzip": 961878,
     "brotli": 799861
   },
   "/[locale]/(app)/calendar/page": {
-    "raw": 3183222,
+    "raw": 3183257,
     "gzip": 965259,
     "brotli": 802776
   },
   "/[locale]/(app)/care-alerts/page": {
-    "raw": 3164445,
+    "raw": 3164480,
     "gzip": 957531,
     "brotli": 795630
   },
   "/[locale]/(app)/care-plans/page": {
-    "raw": 3166588,
+    "raw": 3166623,
     "gzip": 958091,
     "brotli": 796202
   },
   "/[locale]/(app)/care/[clientId]/page": {
-    "raw": 3225236,
+    "raw": 3225271,
     "gzip": 979681,
     "brotli": 815119
   },
   "/[locale]/(app)/care/page": {
-    "raw": 3173155,
+    "raw": 3173190,
     "gzip": 960328,
     "brotli": 798448
   },
   "/[locale]/(app)/cases/page": {
-    "raw": 3180026,
+    "raw": 3180061,
     "gzip": 964327,
     "brotli": 799733
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 3690027,
+    "raw": 3690062,
     "gzip": 1097129,
     "brotli": 912417
   },
   "/[locale]/(app)/community/page": {
-    "raw": 3176702,
+    "raw": 3176737,
     "gzip": 962555,
     "brotli": 800297
   },
   "/[locale]/(app)/compliance/[framework]/page": {
-    "raw": 3177561,
+    "raw": 3177596,
     "gzip": 962612,
     "brotli": 800134
   },
   "/[locale]/(app)/compliance/page": {
-    "raw": 3193996,
+    "raw": 3194031,
     "gzip": 967058,
     "brotli": 803841
   },
   "/[locale]/(app)/content/page": {
-    "raw": 3175870,
+    "raw": 3175905,
     "gzip": 961868,
     "brotli": 799364
   },
   "/[locale]/(app)/courses/[courseId]/lessons/[lessonId]/page": {
-    "raw": 3178193,
+    "raw": 3178228,
     "gzip": 963335,
     "brotli": 801017
   },
   "/[locale]/(app)/courses/[courseId]/page": {
-    "raw": 3182966,
+    "raw": 3183001,
     "gzip": 964695,
     "brotli": 801989
   },
   "/[locale]/(app)/courses/page": {
-    "raw": 3177422,
+    "raw": 3177457,
     "gzip": 963186,
     "brotli": 800572
   },
   "/[locale]/(app)/crm/commissions/page": {
-    "raw": 3222795,
-    "gzip": 980270,
+    "raw": 3222830,
+    "gzip": 980368,
     "brotli": 813161
   },
   "/[locale]/(app)/crm/commissions/statements/[id]/page": {
-    "raw": 3238929,
+    "raw": 3238964,
     "gzip": 985711,
     "brotli": 819882
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 3248856,
+    "raw": 3248891,
     "gzip": 989030,
     "brotli": 822578
   },
   "/[locale]/(app)/crm/companies/page": {
-    "raw": 3212805,
+    "raw": 3212840,
     "gzip": 976442,
     "brotli": 809916
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 3248834,
+    "raw": 3248869,
     "gzip": 989024,
     "brotli": 822564
   },
   "/[locale]/(app)/crm/contacts/page": {
-    "raw": 3212800,
+    "raw": 3212835,
     "gzip": 976450,
     "brotli": 809905
   },
   "/[locale]/(app)/crm/contracts/[id]/page": {
-    "raw": 3238826,
+    "raw": 3238861,
     "gzip": 985691,
     "brotli": 819865
   },
   "/[locale]/(app)/crm/contracts/page": {
-    "raw": 3212548,
+    "raw": 3212583,
     "gzip": 976331,
     "brotli": 809702
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 3250213,
+    "raw": 3250248,
     "gzip": 990399,
     "brotli": 823385
   },
   "/[locale]/(app)/crm/deals/page": {
-    "raw": 3235853,
+    "raw": 3235888,
     "gzip": 983682,
     "brotli": 818641
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
-    "raw": 3219094,
+    "raw": 3219129,
     "gzip": 978032,
     "brotli": 813043
   },
   "/[locale]/(app)/crm/forecasts/page": {
-    "raw": 3207158,
+    "raw": 3207193,
     "gzip": 973181,
     "brotli": 809048
   },
   "/[locale]/(app)/crm/page": {
-    "raw": 3191415,
+    "raw": 3191450,
     "gzip": 967607,
     "brotli": 804347
   },
   "/[locale]/(app)/crm/pipelines/[id]/page": {
-    "raw": 3219094,
+    "raw": 3219129,
     "gzip": 978032,
     "brotli": 813046
   },
   "/[locale]/(app)/crm/pipelines/page": {
-    "raw": 3206442,
+    "raw": 3206477,
     "gzip": 972803,
     "brotli": 808808
   },
   "/[locale]/(app)/crm/queues/[id]/page": {
-    "raw": 3208199,
+    "raw": 3208234,
     "gzip": 973262,
     "brotli": 809380
   },
   "/[locale]/(app)/crm/queues/page": {
-    "raw": 3212548,
+    "raw": 3212583,
     "gzip": 976345,
     "brotli": 809709
   },
   "/[locale]/(app)/crm/quotes/[id]/page": {
-    "raw": 3191743,
+    "raw": 3191778,
     "gzip": 967397,
     "brotli": 804492
   },
   "/[locale]/(app)/crm/quotes/page": {
-    "raw": 3215024,
+    "raw": 3215059,
     "gzip": 977514,
     "brotli": 810824
   },
   "/[locale]/(app)/crm/referrals/page": {
-    "raw": 3222689,
-    "gzip": 980241,
+    "raw": 3222724,
+    "gzip": 980334,
     "brotli": 813139
   },
   "/[locale]/(app)/crm/scoring/[id]/page": {
-    "raw": 3208205,
+    "raw": 3208240,
     "gzip": 973264,
     "brotli": 809380
   },
   "/[locale]/(app)/crm/scoring/page": {
-    "raw": 3212549,
+    "raw": 3212584,
     "gzip": 976343,
     "brotli": 809702
   },
   "/[locale]/(app)/crm/segments/[id]/page": {
-    "raw": 3208211,
+    "raw": 3208246,
     "gzip": 973267,
     "brotli": 809386
   },
   "/[locale]/(app)/crm/segments/page": {
-    "raw": 3212556,
+    "raw": 3212591,
     "gzip": 976341,
     "brotli": 809712
   },
   "/[locale]/(app)/crm/sequences/[id]/page": {
-    "raw": 3177356,
+    "raw": 3177391,
     "gzip": 963173,
     "brotli": 800939
   },
   "/[locale]/(app)/crm/sequences/page": {
-    "raw": 3217470,
+    "raw": 3217505,
     "gzip": 976280,
     "brotli": 811924
   },
   "/[locale]/(app)/crm/success/page": {
-    "raw": 3211923,
+    "raw": 3211958,
     "gzip": 976122,
     "brotli": 809504
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 3218682,
+    "raw": 3218717,
     "gzip": 976819,
     "brotli": 812953
   },
   "/[locale]/(app)/customers/page": {
-    "raw": 3175683,
+    "raw": 3175718,
     "gzip": 962192,
     "brotli": 800161
   },
   "/[locale]/(app)/dam/page": {
-    "raw": 3164216,
+    "raw": 3164251,
     "gzip": 957435,
     "brotli": 795594
   },
   "/[locale]/(app)/deadlines/page": {
-    "raw": 3170186,
+    "raw": 3170221,
     "gzip": 961418,
     "brotli": 797275
   },
   "/[locale]/(app)/documents/[id]/page": {
-    "raw": 3162480,
+    "raw": 3162515,
     "gzip": 956942,
     "brotli": 795276
   },
   "/[locale]/(app)/documents/page": {
-    "raw": 3168650,
+    "raw": 3168685,
     "gzip": 958899,
     "brotli": 796878
   },
   "/[locale]/(app)/documents/register/[id]/page": {
-    "raw": 3687548,
+    "raw": 3687583,
     "gzip": 1099093,
     "brotli": 913868
   },
   "/[locale]/(app)/documents/register/page": {
-    "raw": 3675101,
+    "raw": 3675136,
     "gzip": 1094236,
     "brotli": 909580
   },
   "/[locale]/(app)/documents/templates/[id]/page": {
-    "raw": 3175475,
+    "raw": 3175510,
     "gzip": 963212,
     "brotli": 798854
   },
   "/[locale]/(app)/documents/templates/page": {
-    "raw": 3172273,
+    "raw": 3172308,
     "gzip": 962179,
     "brotli": 797948
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3694865,
+    "raw": 3694900,
     "gzip": 1099215,
     "brotli": 914168
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3700990,
+    "raw": 3701025,
     "gzip": 1100946,
     "brotli": 915666
   },
   "/[locale]/(app)/field/day/page": {
-    "raw": 3186198,
+    "raw": 3186233,
     "gzip": 968164,
     "brotli": 803024
   },
   "/[locale]/(app)/field/dispatch/page": {
-    "raw": 3190801,
+    "raw": 3190836,
     "gzip": 968779,
     "brotli": 803514
   },
   "/[locale]/(app)/field/shipments/page": {
-    "raw": 3189922,
+    "raw": 3189957,
     "gzip": 968514,
     "brotli": 803276
   },
   "/[locale]/(app)/finance/accounting/[id]/page": {
-    "raw": 3218998,
+    "raw": 3219033,
     "gzip": 975432,
     "brotli": 811495
   },
   "/[locale]/(app)/finance/accounting/page": {
-    "raw": 3218931,
+    "raw": 3218966,
     "gzip": 975413,
     "brotli": 811482
   },
   "/[locale]/(app)/finance/billable-time/[id]/page": {
-    "raw": 3219019,
+    "raw": 3219054,
     "gzip": 975442,
     "brotli": 811534
   },
   "/[locale]/(app)/finance/billable-time/page": {
-    "raw": 3218952,
+    "raw": 3218987,
     "gzip": 975423,
     "brotli": 811502
   },
   "/[locale]/(app)/finance/expenses/[id]/page": {
-    "raw": 3218989,
+    "raw": 3219024,
     "gzip": 975428,
     "brotli": 811511
   },
   "/[locale]/(app)/finance/expenses/page": {
-    "raw": 3218920,
+    "raw": 3218955,
     "gzip": 975411,
     "brotli": 811485
   },
   "/[locale]/(app)/finance/invoices/[id]/page": {
-    "raw": 3218989,
+    "raw": 3219024,
     "gzip": 975429,
     "brotli": 811512
   },
   "/[locale]/(app)/finance/invoices/page": {
-    "raw": 3218922,
+    "raw": 3218957,
     "gzip": 975410,
     "brotli": 811500
   },
   "/[locale]/(app)/finance/ledger/[id]/page": {
-    "raw": 3218977,
+    "raw": 3219012,
     "gzip": 975424,
     "brotli": 811515
   },
   "/[locale]/(app)/finance/ledger/page": {
-    "raw": 3218908,
+    "raw": 3218943,
     "gzip": 975406,
     "brotli": 811502
   },
   "/[locale]/(app)/finance/page": {
-    "raw": 3178112,
+    "raw": 3178147,
     "gzip": 962088,
     "brotli": 799740
   },
   "/[locale]/(app)/finance/payables/[id]/page": {
-    "raw": 3218989,
+    "raw": 3219024,
     "gzip": 975431,
     "brotli": 811528
   },
   "/[locale]/(app)/finance/payables/page": {
-    "raw": 3231056,
+    "raw": 3231091,
     "gzip": 980045,
     "brotli": 814759
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
-    "raw": 3218983,
+    "raw": 3219018,
     "gzip": 975424,
     "brotli": 811508
   },
   "/[locale]/(app)/finance/periods/page": {
-    "raw": 3218915,
+    "raw": 3218950,
     "gzip": 975410,
     "brotli": 811477
   },
   "/[locale]/(app)/finance/recurring/[id]/page": {
-    "raw": 3218995,
+    "raw": 3219030,
     "gzip": 975433,
     "brotli": 811536
   },
   "/[locale]/(app)/finance/recurring/page": {
-    "raw": 3218928,
+    "raw": 3218963,
     "gzip": 975413,
     "brotli": 811495
   },
   "/[locale]/(app)/finance/tax/[id]/page": {
-    "raw": 3218955,
+    "raw": 3218990,
     "gzip": 975416,
     "brotli": 811504
   },
   "/[locale]/(app)/finance/tax/page": {
-    "raw": 3218907,
+    "raw": 3218942,
     "gzip": 975412,
     "brotli": 811499
   },
   "/[locale]/(app)/forbidden/page": {
-    "raw": 3154491,
+    "raw": 3154526,
     "gzip": 953625,
     "brotli": 792306
   },
   "/[locale]/(app)/forms/[id]/page": {
-    "raw": 3181092,
+    "raw": 3181127,
     "gzip": 964437,
     "brotli": 801674
   },
   "/[locale]/(app)/forms/page": {
-    "raw": 3180320,
+    "raw": 3180355,
     "gzip": 964102,
     "brotli": 801348
   },
   "/[locale]/(app)/funding/[id]/page": {
-    "raw": 3218921,
+    "raw": 3218956,
     "gzip": 975422,
     "brotli": 811472
   },
   "/[locale]/(app)/funding/page": {
-    "raw": 3222687,
+    "raw": 3222722,
     "gzip": 977200,
     "brotli": 813024
   },
   "/[locale]/(app)/imports/page": {
-    "raw": 3160122,
+    "raw": 3160157,
     "gzip": 956516,
     "brotli": 794709
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 3176136,
+    "raw": 3176171,
     "gzip": 962446,
     "brotli": 799931
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 3161714,
+    "raw": 3161749,
     "gzip": 956558,
     "brotli": 794824
   },
   "/[locale]/(app)/incidents/[id]/page": {
-    "raw": 3174599,
+    "raw": 3174634,
     "gzip": 962207,
     "brotli": 800020
   },
   "/[locale]/(app)/incidents/page": {
-    "raw": 3176712,
+    "raw": 3176747,
     "gzip": 962490,
     "brotli": 799978
   },
   "/[locale]/(app)/inspections/page": {
-    "raw": 3168418,
+    "raw": 3168453,
     "gzip": 958821,
     "brotli": 796777
   },
   "/[locale]/(app)/knowledge/page": {
-    "raw": 3664139,
+    "raw": 3664174,
     "gzip": 1088122,
     "brotli": 904441
   },
   "/[locale]/(app)/legal-entities/[id]/page": {
-    "raw": 3218963,
+    "raw": 3218998,
     "gzip": 975427,
     "brotli": 811485
   },
   "/[locale]/(app)/legal-entities/page": {
-    "raw": 3234802,
+    "raw": 3234837,
     "gzip": 980810,
     "brotli": 816168
   },
   "/[locale]/(app)/lims/[id]/page": {
-    "raw": 3199972,
+    "raw": 3200007,
     "gzip": 972410,
     "brotli": 808691
   },
@@ -650,617 +650,617 @@
     "brotli": 801028
   },
   "/[locale]/(app)/maintenance/[id]/page": {
-    "raw": 3204160,
+    "raw": 3204195,
     "gzip": 973840,
-    "brotli": 807778
+    "brotli": 809862
   },
   "/[locale]/(app)/maintenance/meters/[id]/page": {
-    "raw": 3204135,
+    "raw": 3204170,
     "gzip": 973428,
-    "brotli": 809767
+    "brotli": 809828
   },
   "/[locale]/(app)/maintenance/page": {
-    "raw": 3187443,
+    "raw": 3187478,
     "gzip": 967256,
     "brotli": 804428
   },
   "/[locale]/(app)/manufacturing/page": {
-    "raw": 3177768,
+    "raw": 3177803,
     "gzip": 962825,
     "brotli": 800238
   },
   "/[locale]/(app)/medications/page": {
-    "raw": 3171802,
+    "raw": 3171837,
     "gzip": 960734,
     "brotli": 798536
   },
   "/[locale]/(app)/meetings/page": {
-    "raw": 3167853,
+    "raw": 3167888,
     "gzip": 958358,
     "brotli": 796373
   },
   "/[locale]/(app)/members/invitations/page": {
-    "raw": 3157327,
+    "raw": 3157362,
     "gzip": 955129,
     "brotli": 793528
   },
   "/[locale]/(app)/metrics/[key]/page": {
-    "raw": 3174680,
+    "raw": 3174715,
     "gzip": 961256,
     "brotli": 798971
   },
   "/[locale]/(app)/metrics/page": {
-    "raw": 3170819,
+    "raw": 3170854,
     "gzip": 960454,
     "brotli": 798563
   },
   "/[locale]/(app)/moderation/[type]/[id]/page": {
-    "raw": 3173949,
+    "raw": 3173984,
     "gzip": 961968,
     "brotli": 799853
   },
   "/[locale]/(app)/moderation/page": {
-    "raw": 3180178,
+    "raw": 3180213,
     "gzip": 963553,
     "brotli": 801177
   },
   "/[locale]/(app)/my-work/page": {
-    "raw": 3179709,
+    "raw": 3179744,
     "gzip": 963901,
     "brotli": 801232
   },
   "/[locale]/(app)/notifications/page": {
-    "raw": 3165428,
+    "raw": 3165463,
     "gzip": 958097,
     "brotli": 795792
   },
   "/[locale]/(app)/observations/page": {
-    "raw": 3179743,
+    "raw": 3179778,
     "gzip": 962648,
     "brotli": 800207
   },
   "/[locale]/(app)/page": {
-    "raw": 3165776,
+    "raw": 3165811,
     "gzip": 957911,
     "brotli": 795985
   },
   "/[locale]/(app)/payroll/[id]/page": {
-    "raw": 3218925,
+    "raw": 3218960,
     "gzip": 975420,
     "brotli": 811490
   },
   "/[locale]/(app)/payroll/page": {
-    "raw": 3228043,
+    "raw": 3228078,
     "gzip": 978371,
     "brotli": 814077
   },
   "/[locale]/(app)/people/[id]/page": {
-    "raw": 3179197,
+    "raw": 3179232,
     "gzip": 964179,
     "brotli": 799544
   },
   "/[locale]/(app)/people/encryption/page": {
-    "raw": 3178777,
+    "raw": 3178812,
     "gzip": 962728,
     "brotli": 800207
   },
   "/[locale]/(app)/people/hiring/page": {
-    "raw": 3185380,
+    "raw": 3185415,
     "gzip": 967037,
     "brotli": 802009
   },
   "/[locale]/(app)/people/leave/[id]/page": {
-    "raw": 3179984,
+    "raw": 3180019,
     "gzip": 965214,
     "brotli": 800493
   },
   "/[locale]/(app)/people/leave/page": {
-    "raw": 3178353,
+    "raw": 3178388,
     "gzip": 964455,
     "brotli": 799772
   },
   "/[locale]/(app)/people/onboarding/page": {
-    "raw": 3173055,
+    "raw": 3173090,
     "gzip": 962260,
     "brotli": 797973
   },
   "/[locale]/(app)/people/page": {
-    "raw": 3174134,
+    "raw": 3174169,
     "gzip": 962704,
     "brotli": 798214
   },
   "/[locale]/(app)/people/time/page": {
-    "raw": 3191110,
+    "raw": 3191145,
     "gzip": 968408,
     "brotli": 803189
   },
   "/[locale]/(app)/prescriptions/page": {
-    "raw": 3164819,
+    "raw": 3164854,
     "gzip": 957556,
     "brotli": 795704
   },
   "/[locale]/(app)/production/page": {
-    "raw": 3178704,
+    "raw": 3178739,
     "gzip": 963061,
     "brotli": 800478
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 3190038,
+    "raw": 3190073,
     "gzip": 967692,
     "brotli": 804403
   },
   "/[locale]/(app)/projects/page": {
-    "raw": 3198402,
+    "raw": 3198437,
     "gzip": 969843,
     "brotli": 806357
   },
   "/[locale]/(app)/property/leases/[id]/page": {
-    "raw": 3173083,
+    "raw": 3173118,
     "gzip": 961485,
-    "brotli": 799072
+    "brotli": 799096
   },
   "/[locale]/(app)/property/leases/page": {
-    "raw": 3165846,
+    "raw": 3165881,
     "gzip": 959405,
-    "brotli": 797207
+    "brotli": 797251
   },
   "/[locale]/(app)/qualifications/[id]/page": {
-    "raw": 3178604,
+    "raw": 3178639,
     "gzip": 964435,
     "brotli": 799871
   },
   "/[locale]/(app)/qualifications/page": {
-    "raw": 3185230,
+    "raw": 3185265,
     "gzip": 965689,
     "brotli": 800850
   },
   "/[locale]/(app)/rfqs/[id]/page": {
-    "raw": 3212625,
+    "raw": 3212660,
     "gzip": 976598,
     "brotli": 812296
   },
   "/[locale]/(app)/rfqs/page": {
-    "raw": 3188852,
+    "raw": 3188887,
     "gzip": 968575,
     "brotli": 803356
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3184691,
+    "raw": 3184726,
     "gzip": 965598,
     "brotli": 803089
   },
   "/[locale]/(app)/risks/page": {
-    "raw": 3189885,
+    "raw": 3189920,
     "gzip": 966738,
     "brotli": 804103
   },
   "/[locale]/(app)/rules/[rule]/page": {
-    "raw": 3159789,
+    "raw": 3159824,
     "gzip": 956172,
     "brotli": 794394
   },
   "/[locale]/(app)/rules/page": {
-    "raw": 3172689,
+    "raw": 3172724,
     "gzip": 961466,
     "brotli": 799041
   },
   "/[locale]/(app)/search/page": {
-    "raw": 3173896,
+    "raw": 3173931,
     "gzip": 961242,
     "brotli": 798946
   },
   "/[locale]/(app)/settings/access-requests/page": {
-    "raw": 3180027,
+    "raw": 3180062,
     "gzip": 963235,
     "brotli": 800607
   },
   "/[locale]/(app)/settings/ai-providers/page": {
-    "raw": 3166696,
+    "raw": 3166731,
     "gzip": 959096,
     "brotli": 796964
   },
   "/[locale]/(app)/settings/api-keys/page": {
-    "raw": 3179536,
+    "raw": 3179571,
     "gzip": 963237,
     "brotli": 800494
   },
   "/[locale]/(app)/settings/audit/page": {
-    "raw": 3175453,
+    "raw": 3175488,
     "gzip": 960731,
     "brotli": 798104
   },
   "/[locale]/(app)/settings/billing/account/page": {
-    "raw": 3177513,
+    "raw": 3177548,
     "gzip": 962222,
     "brotli": 799719
   },
   "/[locale]/(app)/settings/billing/credits/[id]/page": {
-    "raw": 3177831,
+    "raw": 3177866,
     "gzip": 962675,
     "brotli": 800518
   },
   "/[locale]/(app)/settings/billing/credits/page": {
-    "raw": 3168951,
+    "raw": 3168986,
     "gzip": 959621,
     "brotli": 797868
   },
   "/[locale]/(app)/settings/billing/page": {
-    "raw": 3190642,
+    "raw": 3190677,
     "gzip": 967841,
     "brotli": 804540
   },
   "/[locale]/(app)/settings/custom-fields/page": {
-    "raw": 3179812,
+    "raw": 3179847,
     "gzip": 963065,
     "brotli": 800481
   },
   "/[locale]/(app)/settings/domains/page": {
-    "raw": 3164073,
+    "raw": 3164108,
     "gzip": 958662,
     "brotli": 796935
   },
   "/[locale]/(app)/settings/flags/page": {
-    "raw": 3162288,
+    "raw": 3162323,
     "gzip": 957050,
     "brotli": 795575
   },
   "/[locale]/(app)/settings/integrations/[id]/page": {
-    "raw": 3171346,
+    "raw": 3171381,
     "gzip": 960874,
     "brotli": 798557
   },
   "/[locale]/(app)/settings/integrations/page": {
-    "raw": 3180183,
+    "raw": 3180218,
     "gzip": 964405,
     "brotli": 801628
   },
   "/[locale]/(app)/settings/jobs/page": {
-    "raw": 3255677,
+    "raw": 3255712,
     "gzip": 988659,
     "brotli": 823008
   },
   "/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page": {
-    "raw": 3252602,
+    "raw": 3252637,
     "gzip": 988453,
     "brotli": 822792
   },
   "/[locale]/(app)/settings/jobs/runs/page": {
-    "raw": 3242112,
+    "raw": 3242147,
     "gzip": 984144,
     "brotli": 819023
   },
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
-    "raw": 3179399,
+    "raw": 3179434,
     "gzip": 963489,
     "brotli": 800827
   },
   "/[locale]/(app)/settings/marketplace/page": {
-    "raw": 3177155,
+    "raw": 3177190,
     "gzip": 962546,
     "brotli": 799975
   },
   "/[locale]/(app)/settings/members/[userId]/page": {
-    "raw": 3177223,
+    "raw": 3177258,
     "gzip": 962303,
     "brotli": 800137
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 3167417,
+    "raw": 3167452,
     "gzip": 958338,
     "brotli": 796630
   },
   "/[locale]/(app)/settings/numbering/page": {
-    "raw": 3162028,
+    "raw": 3162063,
     "gzip": 957007,
     "brotli": 795569
   },
   "/[locale]/(app)/settings/oauth-apps/[id]/page": {
-    "raw": 3170941,
+    "raw": 3170976,
     "gzip": 960723,
     "brotli": 798423
   },
   "/[locale]/(app)/settings/oauth-apps/page": {
-    "raw": 3162113,
+    "raw": 3162148,
     "gzip": 957061,
     "brotli": 795603
   },
   "/[locale]/(app)/settings/option-sets/[id]/page": {
-    "raw": 3176928,
+    "raw": 3176963,
     "gzip": 963324,
     "brotli": 801018
   },
   "/[locale]/(app)/settings/option-sets/page": {
-    "raw": 3163394,
+    "raw": 3163429,
     "gzip": 958987,
     "brotli": 797242
   },
   "/[locale]/(app)/settings/organization/page": {
-    "raw": 3172319,
+    "raw": 3172354,
     "gzip": 961117,
     "brotli": 798759
   },
   "/[locale]/(app)/settings/page": {
-    "raw": 3155584,
+    "raw": 3155619,
     "gzip": 954269,
     "brotli": 792452
   },
   "/[locale]/(app)/settings/preferences/page": {
-    "raw": 3157123,
+    "raw": 3157158,
     "gzip": 954796,
     "brotli": 793267
   },
   "/[locale]/(app)/settings/privacy/page": {
-    "raw": 3179744,
+    "raw": 3179779,
     "gzip": 963759,
     "brotli": 801084
   },
   "/[locale]/(app)/settings/profile/page": {
-    "raw": 3167580,
+    "raw": 3167615,
     "gzip": 959311,
     "brotli": 797216
   },
   "/[locale]/(app)/settings/roles/[roleId]/page": {
-    "raw": 3167562,
+    "raw": 3167597,
     "gzip": 958850,
     "brotli": 796821
   },
   "/[locale]/(app)/settings/roles/page": {
-    "raw": 3163749,
+    "raw": 3163784,
     "gzip": 957176,
     "brotli": 795346
   },
   "/[locale]/(app)/settings/search/page": {
-    "raw": 3161955,
+    "raw": 3161990,
     "gzip": 956968,
     "brotli": 795522
   },
   "/[locale]/(app)/settings/security/events/[id]/page": {
-    "raw": 3171308,
+    "raw": 3171343,
     "gzip": 960886,
     "brotli": 798546
   },
   "/[locale]/(app)/settings/security/events/page": {
-    "raw": 3162472,
+    "raw": 3162507,
     "gzip": 957147,
     "brotli": 795667
   },
   "/[locale]/(app)/settings/security/page": {
-    "raw": 3178100,
+    "raw": 3178135,
     "gzip": 962708,
     "brotli": 800008
   },
   "/[locale]/(app)/settings/signing-keys/page": {
-    "raw": 3175223,
+    "raw": 3175258,
     "gzip": 961536,
     "brotli": 798720
   },
   "/[locale]/(app)/settings/sso/page": {
-    "raw": 3179177,
+    "raw": 3179212,
     "gzip": 963140,
     "brotli": 800552
   },
   "/[locale]/(app)/settings/support/page": {
-    "raw": 3174752,
+    "raw": 3174787,
     "gzip": 961588,
     "brotli": 799128
   },
   "/[locale]/(app)/settings/teams/[teamId]/page": {
-    "raw": 3178680,
+    "raw": 3178715,
     "gzip": 962948,
     "brotli": 800349
   },
   "/[locale]/(app)/settings/teams/page": {
-    "raw": 3168413,
+    "raw": 3168448,
     "gzip": 959092,
     "brotli": 797005
   },
   "/[locale]/(app)/settings/webhooks/incoming/page": {
-    "raw": 3165869,
+    "raw": 3165904,
     "gzip": 958380,
     "brotli": 796670
   },
   "/[locale]/(app)/settings/webhooks/page": {
-    "raw": 3184796,
+    "raw": 3184831,
     "gzip": 964179,
     "brotli": 801385
   },
   "/[locale]/(app)/shifts/[id]/page": {
-    "raw": 3174575,
+    "raw": 3174610,
     "gzip": 962072,
     "brotli": 799687
   },
   "/[locale]/(app)/shifts/page": {
-    "raw": 3172820,
+    "raw": 3172855,
     "gzip": 961349,
     "brotli": 799343
   },
   "/[locale]/(app)/shop/checkout-sessions/[id]/page": {
-    "raw": 3169730,
+    "raw": 3169765,
     "gzip": 960029,
     "brotli": 798154
   },
   "/[locale]/(app)/shop/checkout-sessions/page": {
-    "raw": 3162976,
+    "raw": 3163011,
     "gzip": 957827,
     "brotli": 796222
   },
   "/[locale]/(app)/shop/collections/[id]/page": {
-    "raw": 3169934,
+    "raw": 3169969,
     "gzip": 960603,
-    "brotli": 796338
+    "brotli": 798348
   },
   "/[locale]/(app)/shop/collections/page": {
-    "raw": 3164992,
+    "raw": 3165027,
     "gzip": 959273,
-    "brotli": 795117
+    "brotli": 797138
   },
   "/[locale]/(app)/shop/donations/[id]/page": {
-    "raw": 3170490,
+    "raw": 3170525,
     "gzip": 960502,
     "brotli": 798592
   },
   "/[locale]/(app)/shop/donations/page": {
-    "raw": 3165197,
+    "raw": 3165232,
     "gzip": 958891,
     "brotli": 797141
   },
   "/[locale]/(app)/shop/inventory/[variantId]/page": {
-    "raw": 3207059,
+    "raw": 3207094,
     "gzip": 972609,
     "brotli": 806786
   },
   "/[locale]/(app)/shop/inventory/lots/page": {
-    "raw": 3178184,
+    "raw": 3178219,
     "gzip": 964001,
     "brotli": 799319
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
-    "raw": 3178241,
+    "raw": 3178276,
     "gzip": 964010,
     "brotli": 799321
   },
   "/[locale]/(app)/shop/inventory/page": {
-    "raw": 3192574,
+    "raw": 3192609,
     "gzip": 968464,
     "brotli": 803151
   },
   "/[locale]/(app)/shop/kitchen/board/page": {
-    "raw": 3178753,
+    "raw": 3178788,
     "gzip": 962884,
     "brotli": 800148
   },
   "/[locale]/(app)/shop/kitchen/page": {
-    "raw": 3181316,
+    "raw": 3181351,
     "gzip": 963561,
     "brotli": 801050
   },
   "/[locale]/(app)/shop/orders/[id]/page": {
-    "raw": 3198177,
+    "raw": 3198212,
     "gzip": 968746,
     "brotli": 805282
   },
   "/[locale]/(app)/shop/orders/page": {
-    "raw": 3192587,
+    "raw": 3192622,
     "gzip": 966997,
     "brotli": 804042
   },
   "/[locale]/(app)/shop/page": {
-    "raw": 3189557,
+    "raw": 3189592,
     "gzip": 966692,
     "brotli": 803492
   },
   "/[locale]/(app)/shop/passes/[id]/page": {
-    "raw": 3178236,
+    "raw": 3178271,
     "gzip": 964181,
-    "brotli": 799448
+    "brotli": 801462
   },
   "/[locale]/(app)/shop/passes/page": {
-    "raw": 3164812,
+    "raw": 3164847,
     "gzip": 959183,
-    "brotli": 795040
+    "brotli": 797068
   },
   "/[locale]/(app)/shop/reviews/[id]/page": {
-    "raw": 3169942,
+    "raw": 3169977,
     "gzip": 960664,
-    "brotli": 798288
+    "brotli": 798335
   },
   "/[locale]/(app)/shop/reviews/page": {
-    "raw": 3162969,
+    "raw": 3163004,
     "gzip": 958370,
-    "brotli": 796305
+    "brotli": 796355
   },
   "/[locale]/(app)/shop/warranty/[id]/page": {
-    "raw": 3170573,
+    "raw": 3170608,
     "gzip": 961141,
     "brotli": 798739
   },
   "/[locale]/(app)/shop/warranty/page": {
-    "raw": 3165423,
+    "raw": 3165458,
     "gzip": 959547,
-    "brotli": 797311
+    "brotli": 797363
   },
   "/[locale]/(app)/templates/page": {
-    "raw": 3175643,
+    "raw": 3175678,
     "gzip": 962297,
     "brotli": 800050
   },
   "/[locale]/(app)/tills/[id]/page": {
-    "raw": 3200464,
+    "raw": 3200499,
     "gzip": 971789,
     "brotli": 808190
   },
   "/[locale]/(app)/tills/page": {
-    "raw": 3189547,
+    "raw": 3189582,
     "gzip": 968576,
     "brotli": 805203
   },
   "/[locale]/(app)/trash/page": {
-    "raw": 3178601,
+    "raw": 3178636,
     "gzip": 962925,
     "brotli": 800339
   },
   "/[locale]/(app)/warehouse/[id]/page": {
-    "raw": 3221888,
+    "raw": 3221923,
     "gzip": 978236,
     "brotli": 814012
   },
   "/[locale]/(app)/warehouse/counts/[id]/page": {
-    "raw": 3221859,
+    "raw": 3221894,
     "gzip": 978210,
     "brotli": 813979
   },
   "/[locale]/(app)/warehouse/page": {
-    "raw": 3208625,
+    "raw": 3208660,
     "gzip": 972620,
     "brotli": 809001
   },
   "/[locale]/(app)/warehouse/rules/[id]/page": {
-    "raw": 3221855,
+    "raw": 3221890,
     "gzip": 978207,
     "brotli": 813958
   },
   "/[locale]/(app)/warehouse/waves/[id]/page": {
-    "raw": 3221853,
+    "raw": 3221888,
     "gzip": 978203,
     "brotli": 813968
   },
   "/[locale]/(app)/work/grid/page": {
-    "raw": 3174321,
+    "raw": 3174356,
     "gzip": 961559,
     "brotli": 799152
   },
   "/[locale]/(app)/work/page": {
-    "raw": 3176882,
+    "raw": 3176917,
     "gzip": 962582,
     "brotli": 800041
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5205477,
+    "raw": 5205512,
     "gzip": 1572499,
     "brotli": 1304236
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5209469,
+    "raw": 5209504,
     "gzip": 1574095,
     "brotli": 1305656
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5210520,
+    "raw": 5210555,
     "gzip": 1574614,
     "brotli": 1306089
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5208167,
+    "raw": 5208202,
     "gzip": 1574240,
-    "brotli": 1305847
+    "brotli": 1305894
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5203357,
+    "raw": 5203392,
     "gzip": 1571512,
     "brotli": 1303366
   },
   "/[locale]/(auth)/book/[token]/page": {
-    "raw": 2999406,
+    "raw": 2999441,
     "gzip": 906837,
     "brotli": 749759
   },
@@ -1270,17 +1270,17 @@
     "brotli": 123076
   },
   "/[locale]/(auth)/invite/[token]/page": {
-    "raw": 1535221,
-    "gzip": 486562,
+    "raw": 1535256,
+    "gzip": 486567,
     "brotli": 411019
   },
   "/[locale]/(auth)/login/page": {
-    "raw": 1347322,
+    "raw": 1347357,
     "gzip": 424218,
     "brotli": 356614
   },
   "/[locale]/(auth)/mfa/page": {
-    "raw": 1453032,
+    "raw": 1453067,
     "gzip": 460899,
     "brotli": 388945
   },
@@ -1290,57 +1290,57 @@
     "brotli": 123137
   },
   "/[locale]/(auth)/pricing/[code]/page": {
-    "raw": 1515332,
-    "gzip": 480131,
+    "raw": 1515367,
+    "gzip": 480136,
     "brotli": 405766
   },
   "/[locale]/(auth)/reset-password/page": {
-    "raw": 1453100,
-    "gzip": 461065,
+    "raw": 1453135,
+    "gzip": 461168,
     "brotli": 388949
   },
   "/[locale]/(auth)/send/[token]/page": {
-    "raw": 3496344,
-    "gzip": 1036148,
+    "raw": 3496379,
+    "gzip": 1036239,
     "brotli": 856901
   },
   "/[locale]/(auth)/share/[token]/page": {
-    "raw": 3009586,
+    "raw": 3009621,
     "gzip": 910162,
     "brotli": 754300
   },
   "/[locale]/(auth)/signup/page": {
-    "raw": 1459049,
-    "gzip": 463961,
+    "raw": 1459084,
+    "gzip": 464067,
     "brotli": 391296
   },
   "/[locale]/(auth)/waitlist/page": {
-    "raw": 2917654,
+    "raw": 2917689,
     "gzip": 881169,
     "brotli": 728941
   },
   "/[locale]/(public)/portal/page": {
-    "raw": 2994206,
+    "raw": 2994241,
     "gzip": 903942,
     "brotli": 748533
   },
   "/[locale]/(public)/status/[slug]/page": {
-    "raw": 2998678,
+    "raw": 2998713,
     "gzip": 905422,
     "brotli": 748768
   },
   "/[locale]/(public)/store/[org]/[product]/page": {
-    "raw": 3001911,
+    "raw": 3001946,
     "gzip": 907228,
     "brotli": 751917
   },
   "/[locale]/(public)/store/[org]/cart/page": {
-    "raw": 3002896,
+    "raw": 3002931,
     "gzip": 907723,
     "brotli": 752089
   },
   "/[locale]/(public)/store/[org]/page": {
-    "raw": 3003183,
+    "raw": 3003218,
     "gzip": 908042,
     "brotli": 752396
   },
@@ -1350,12 +1350,12 @@
     "brotli": 122025
   },
   "/[locale]/bench/scopes/page": {
-    "raw": 1404212,
+    "raw": 1404247,
     "gzip": 438515,
     "brotli": 369469
   },
   "/[locale]/islands/page": {
-    "raw": 1424410,
+    "raw": 1424445,
     "gzip": 445970,
     "brotli": 375720
   },
@@ -1375,137 +1375,137 @@
     "brotli": 35151
   },
   "/api/assets/list/route": {
-    "raw": 2767219,
+    "raw": 2767942,
     "gzip": 832457,
     "brotli": 706656
   },
   "/api/assignment-queues/list/route": {
-    "raw": 2657990,
+    "raw": 2658713,
     "gzip": 801038,
     "brotli": 679311
   },
   "/api/audit-files/[year]/route": {
-    "raw": 2669395,
+    "raw": 2670118,
     "gzip": 805233,
     "brotli": 682763
   },
   "/api/audit/export-jobs/route": {
-    "raw": 1194637,
+    "raw": 1195366,
     "gzip": 381683,
     "brotli": 333803
   },
   "/api/audit/export/[job]/route": {
-    "raw": 1070750,
+    "raw": 1071479,
     "gzip": 338166,
-    "brotli": 294558
+    "brotli": 295317
   },
   "/api/audit/export/route": {
-    "raw": 1177666,
+    "raw": 1178395,
     "gzip": 376719,
     "brotli": 328819
   },
   "/api/auth/callback/route": {
-    "raw": 1069556,
+    "raw": 1070285,
     "gzip": 337499,
-    "brotli": 294720
+    "brotli": 294734
   },
   "/api/banking/[id]/overview/route": {
-    "raw": 1072263,
-    "gzip": 338463,
-    "brotli": 295524
+    "raw": 1072992,
+    "gzip": 339313,
+    "brotli": 295509
   },
   "/api/bridge/customers/route": {
-    "raw": 921268,
-    "gzip": 291181,
-    "brotli": 253095
+    "raw": 921997,
+    "gzip": 291322,
+    "brotli": 253184
   },
   "/api/bs-sessions/route": {
-    "raw": 2648696,
+    "raw": 2649419,
     "gzip": 797960,
     "brotli": 676195
   },
   "/api/bs-stats/route": {
-    "raw": 1069319,
+    "raw": 1070048,
     "gzip": 337398,
-    "brotli": 294637
+    "brotli": 294650
   },
   "/api/chat/[id]/participants/route": {
-    "raw": 1923474,
+    "raw": 1924203,
     "gzip": 585310,
     "brotli": 506848
   },
   "/api/chat/[id]/stop/route": {
-    "raw": 1922954,
+    "raw": 1923683,
     "gzip": 585164,
     "brotli": 506702
   },
   "/api/chat/[id]/stream/route": {
-    "raw": 1922981,
+    "raw": 1923710,
     "gzip": 585175,
     "brotli": 506710
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 3574062,
+    "raw": 3574791,
     "gzip": 1088249,
     "brotli": 923274
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 3574210,
+    "raw": 3574939,
     "gzip": 1088321,
     "brotli": 923336
   },
   "/api/chat/durable/route": {
-    "raw": 3574165,
+    "raw": 3574894,
     "gzip": 1088318,
     "brotli": 923296
   },
   "/api/chat/route": {
-    "raw": 1922905,
+    "raw": 1923634,
     "gzip": 585155,
     "brotli": 506690
   },
   "/api/checkout-sessions/list/route": {
-    "raw": 2766024,
+    "raw": 2766747,
     "gzip": 832035,
     "brotli": 706272
   },
   "/api/collections/list/route": {
-    "raw": 2766417,
+    "raw": 2767140,
     "gzip": 832265,
     "brotli": 706524
   },
   "/api/commission-plans/list/route": {
-    "raw": 2653698,
+    "raw": 2654421,
     "gzip": 799275,
     "brotli": 677727
   },
   "/api/commission-statements/list/route": {
-    "raw": 2653750,
+    "raw": 2654473,
     "gzip": 799277,
     "brotli": 677723
   },
   "/api/commissions/list/route": {
-    "raw": 2653713,
+    "raw": 2654436,
     "gzip": 800104,
     "brotli": 678175
   },
   "/api/companies/list/route": {
-    "raw": 2653895,
+    "raw": 2654618,
     "gzip": 799351,
     "brotli": 677798
   },
   "/api/contacts/list/route": {
-    "raw": 2653888,
+    "raw": 2654611,
     "gzip": 799347,
     "brotli": 677797
   },
   "/api/contracts/list/route": {
-    "raw": 2656954,
+    "raw": 2657677,
     "gzip": 800958,
     "brotli": 679237
   },
   "/api/count-plans/list/route": {
-    "raw": 2653691,
+    "raw": 2654414,
     "gzip": 799278,
     "brotli": 677738
   },
@@ -1515,77 +1515,77 @@
     "brotli": 304375
   },
   "/api/customers/[id]/fhir/route": {
-    "raw": 2656316,
+    "raw": 2657035,
     "gzip": 800486,
     "brotli": 678498
   },
   "/api/customers/[id]/reads/route": {
-    "raw": 2648574,
+    "raw": 2649297,
     "gzip": 797905,
     "brotli": 676152
   },
   "/api/customers/[id]/route": {
-    "raw": 1069532,
+    "raw": 1070261,
     "gzip": 337496,
-    "brotli": 293980
+    "brotli": 294736
   },
   "/api/customers/list/route": {
-    "raw": 2659330,
+    "raw": 2660053,
     "gzip": 802136,
     "brotli": 679766
   },
   "/api/customers/overview/route": {
-    "raw": 1096792,
+    "raw": 1097521,
     "gzip": 348155,
     "brotli": 303626
   },
   "/api/customers/records/route": {
-    "raw": 1455386,
+    "raw": 1456115,
     "gzip": 448731,
     "brotli": 385173
   },
   "/api/customers/route": {
-    "raw": 1069507,
+    "raw": 1070236,
     "gzip": 337512,
-    "brotli": 293983
+    "brotli": 294736
   },
   "/api/deadlines/list/route": {
-    "raw": 2775278,
+    "raw": 2776001,
     "gzip": 835176,
     "brotli": 709116
   },
   "/api/deals/list/route": {
-    "raw": 2658047,
+    "raw": 2658770,
     "gzip": 801424,
     "brotli": 680443
   },
   "/api/document-templates/list/route": {
-    "raw": 2775892,
+    "raw": 2776615,
     "gzip": 835966,
     "brotli": 709538
   },
   "/api/documents/register/list/route": {
-    "raw": 3285518,
+    "raw": 3286241,
     "gzip": 970850,
-    "brotli": 823406
+    "brotli": 823350
   },
   "/api/domains/list/route": {
-    "raw": 2768427,
+    "raw": 2769150,
     "gzip": 834069,
     "brotli": 708022
   },
   "/api/donations/list/route": {
-    "raw": 2767289,
+    "raw": 2768012,
     "gzip": 832554,
     "brotli": 706388
   },
   "/api/employees/list/route": {
-    "raw": 2773676,
+    "raw": 2774399,
     "gzip": 834858,
     "brotli": 708570
   },
   "/api/finance/[entity]/list/route": {
-    "raw": 1189738,
+    "raw": 1190467,
     "gzip": 372348,
     "brotli": 324549
   },
@@ -1595,7 +1595,7 @@
     "brotli": 304368
   },
   "/api/forecasts/list/route": {
-    "raw": 2653843,
+    "raw": 2654566,
     "gzip": 799345,
     "brotli": 677796
   },
@@ -1605,22 +1605,22 @@
     "brotli": 80013
   },
   "/api/inbox/contact-deals/route": {
-    "raw": 2650395,
+    "raw": 2651118,
     "gzip": 798774,
     "brotli": 676950
   },
   "/api/inbox/list/route": {
-    "raw": 2657519,
+    "raw": 2658242,
     "gzip": 801179,
     "brotli": 679441
   },
   "/api/inbox/tick/route": {
-    "raw": 1432683,
+    "raw": 1433412,
     "gzip": 456621,
     "brotli": 398444
   },
   "/api/incidents/list/route": {
-    "raw": 2653814,
+    "raw": 2654537,
     "gzip": 800149,
     "brotli": 678219
   },
@@ -1630,42 +1630,42 @@
     "brotli": 304391
   },
   "/api/integrations/callback/route": {
-    "raw": 1077636,
+    "raw": 1078365,
     "gzip": 340658,
-    "brotli": 297540
+    "brotli": 297563
   },
   "/api/inventory/levels/list/route": {
-    "raw": 2782785,
+    "raw": 2783508,
     "gzip": 836929,
     "brotli": 711337
   },
   "/api/inventory/lots/list/route": {
-    "raw": 2782786,
+    "raw": 2783509,
     "gzip": 836938,
     "brotli": 710641
   },
   "/api/inventory/movements/list/route": {
-    "raw": 2782804,
+    "raw": 2783527,
     "gzip": 836937,
     "brotli": 710642
   },
   "/api/invitations/list/route": {
-    "raw": 2653708,
+    "raw": 2654431,
     "gzip": 800103,
     "brotli": 678177
   },
   "/api/invoices/[id]/send/route": {
-    "raw": 2656686,
+    "raw": 2657409,
     "gzip": 801216,
     "brotli": 679219
   },
   "/api/invoices/[id]/ubl/route": {
-    "raw": 2656713,
+    "raw": 2657436,
     "gzip": 801253,
     "brotli": 679224
   },
   "/api/jobs/drain/route": {
-    "raw": 4793174,
+    "raw": 4793897,
     "gzip": 1440789,
     "brotli": 1211906
   },
@@ -1675,52 +1675,52 @@
     "brotli": 343524
   },
   "/api/leases/list/route": {
-    "raw": 2767548,
+    "raw": 2768271,
     "gzip": 832545,
     "brotli": 706743
   },
   "/api/leave/list/route": {
-    "raw": 2777190,
+    "raw": 2777913,
     "gzip": 836494,
     "brotli": 709989
   },
   "/api/lims-methods/list/route": {
-    "raw": 2653689,
+    "raw": 2654412,
     "gzip": 799280,
     "brotli": 677747
   },
   "/api/lims-samples/list/route": {
-    "raw": 2653696,
+    "raw": 2654419,
     "gzip": 799270,
     "brotli": 677746
   },
   "/api/mail/sync/route": {
-    "raw": 1105425,
-    "gzip": 352133,
+    "raw": 1106154,
+    "gzip": 352172,
     "brotli": 306368
   },
   "/api/mail/t/[...hit]/route": {
-    "raw": 1105339,
-    "gzip": 352079,
+    "raw": 1106068,
+    "gzip": 352116,
     "brotli": 306334
   },
   "/api/maintenance-calibrations/list/route": {
-    "raw": 2653781,
+    "raw": 2654504,
     "gzip": 799294,
     "brotli": 677747
   },
   "/api/maintenance-meters/list/route": {
-    "raw": 2653716,
+    "raw": 2654439,
     "gzip": 799268,
     "brotli": 677727
   },
   "/api/maintenance-plans/list/route": {
-    "raw": 2653751,
+    "raw": 2654474,
     "gzip": 799291,
     "brotli": 677743
   },
   "/api/mcp/route": {
-    "raw": 2389410,
+    "raw": 2390192,
     "gzip": 720578,
     "brotli": 608827
   },
@@ -1735,67 +1735,67 @@
     "brotli": 304327
   },
   "/api/onboarding/list/route": {
-    "raw": 2775765,
+    "raw": 2776488,
     "gzip": 835405,
     "brotli": 709268
   },
   "/api/option-sets/list/route": {
-    "raw": 2769108,
+    "raw": 2769831,
     "gzip": 834352,
     "brotli": 708187
   },
   "/api/outbox/route": {
-    "raw": 4729117,
+    "raw": 4729840,
     "gzip": 1421356,
     "brotli": 1194542
   },
   "/api/passes/list/route": {
-    "raw": 2766617,
+    "raw": 2767340,
     "gzip": 832212,
     "brotli": 706457
   },
   "/api/periods/export/route": {
-    "raw": 2653764,
+    "raw": 2654487,
     "gzip": 800178,
     "brotli": 678252
   },
   "/api/periods/list/route": {
-    "raw": 2653658,
+    "raw": 2654381,
     "gzip": 800124,
     "brotli": 678214
   },
   "/api/pick-lists/list/route": {
-    "raw": 2653754,
+    "raw": 2654477,
     "gzip": 799289,
     "brotli": 677760
   },
   "/api/pick-waves/list/route": {
-    "raw": 2653696,
+    "raw": 2654419,
     "gzip": 799277,
     "brotli": 677723
   },
   "/api/pipelines/[id]/overview/route": {
-    "raw": 1072214,
-    "gzip": 338429,
-    "brotli": 295510
+    "raw": 1072943,
+    "gzip": 339281,
+    "brotli": 294771
   },
   "/api/pipelines/list/route": {
-    "raw": 2656641,
+    "raw": 2657364,
     "gzip": 800824,
     "brotli": 679114
   },
   "/api/projects/route": {
-    "raw": 1069470,
+    "raw": 1070199,
     "gzip": 337495,
-    "brotli": 294719
+    "brotli": 294732
   },
   "/api/putaway-rules/list/route": {
-    "raw": 2653717,
+    "raw": 2654440,
     "gzip": 799285,
     "brotli": 677744
   },
   "/api/qualifications/list/route": {
-    "raw": 2775741,
+    "raw": 2776464,
     "gzip": 835020,
     "brotli": 708809
   },
@@ -1805,7 +1805,7 @@
     "brotli": 180719
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4792355,
+    "raw": 4793078,
     "gzip": 1440299,
     "brotli": 1211455
   },
@@ -1820,47 +1820,47 @@
     "brotli": 91450
   },
   "/api/quotes/list/route": {
-    "raw": 2653866,
+    "raw": 2654589,
     "gzip": 799355,
     "brotli": 677794
   },
   "/api/realtime/route": {
-    "raw": 1101771,
-    "gzip": 350350,
+    "raw": 1102499,
+    "gzip": 351234,
     "brotli": 305518
   },
   "/api/referral-codes/list/route": {
-    "raw": 2653675,
+    "raw": 2654398,
     "gzip": 799260,
     "brotli": 677727
   },
   "/api/referrals/list/route": {
-    "raw": 2653680,
+    "raw": 2654403,
     "gzip": 800090,
     "brotli": 678167
   },
   "/api/reviews/list/route": {
-    "raw": 2766104,
+    "raw": 2766827,
     "gzip": 832488,
     "brotli": 706630
   },
   "/api/rfqs/list/route": {
-    "raw": 2653623,
+    "raw": 2654346,
     "gzip": 799254,
     "brotli": 677729
   },
   "/api/risks/list/route": {
-    "raw": 2653692,
+    "raw": 2654415,
     "gzip": 800169,
     "brotli": 678234
   },
   "/api/risks/register/route": {
-    "raw": 2775873,
+    "raw": 2776596,
     "gzip": 835861,
     "brotli": 709685
   },
   "/api/scores/list/route": {
-    "raw": 2656698,
+    "raw": 2657421,
     "gzip": 800864,
     "brotli": 679147
   },
@@ -1875,19 +1875,19 @@
     "brotli": 304373
   },
   "/api/segments/list/route": {
-    "raw": 2656724,
+    "raw": 2657447,
     "gzip": 800866,
     "brotli": 679145
   },
   "/api/sequences/list/route": {
-    "raw": 2653665,
+    "raw": 2654388,
     "gzip": 799257,
     "brotli": 677723
   },
   "/api/session-status/route": {
-    "raw": 1072288,
+    "raw": 1073017,
     "gzip": 338725,
-    "brotli": 294995
+    "brotli": 295920
   },
   "/api/store/cart/route": {
     "raw": 208712,
@@ -1905,62 +1905,62 @@
     "brotli": 74290
   },
   "/api/till-sessions/list/route": {
-    "raw": 2653696,
+    "raw": 2654419,
     "gzip": 799281,
     "brotli": 677739
   },
   "/api/tills/list/route": {
-    "raw": 2653647,
+    "raw": 2654370,
     "gzip": 799268,
     "brotli": 677724
   },
   "/api/v1/[...path]/route": {
-    "raw": 1089649,
-    "gzip": 344499,
-    "brotli": 299478
+    "raw": 1090378,
+    "gzip": 344536,
+    "brotli": 300263
   },
   "/api/v1/openapi.json/route": {
-    "raw": 1176066,
-    "gzip": 374037,
-    "brotli": 326449
+    "raw": 1176795,
+    "gzip": 374076,
+    "brotli": 326446
   },
   "/api/warranty/list/route": {
-    "raw": 2766786,
+    "raw": 2767509,
     "gzip": 832360,
     "brotli": 706583
   },
   "/api/webhooks/channels/[adapter]/route": {
-    "raw": 1412919,
+    "raw": 1413648,
     "gzip": 449400,
     "brotli": 391592
   },
   "/api/webhooks/inbox/route": {
-    "raw": 2988359,
+    "raw": 2989082,
     "gzip": 898547,
     "brotli": 764343
   },
   "/api/work-orders/list/route": {
-    "raw": 2653751,
+    "raw": 2654474,
     "gzip": 800140,
     "brotli": 678223
   },
   "/api/workflows/definitions/list/route": {
-    "raw": 4864773,
+    "raw": 4865496,
     "gzip": 1460383,
     "brotli": 1230739
   },
   "/api/workflows/hooks/[token]/route": {
-    "raw": 3249065,
+    "raw": 3249794,
     "gzip": 995200,
     "brotli": 842716
   },
   "/api/workflows/runs/list/route": {
-    "raw": 4864761,
+    "raw": 4865484,
     "gzip": 1460383,
     "brotli": 1230750
   },
   "/api/workflows/tick/route": {
-    "raw": 4746138,
+    "raw": 4746861,
     "gzip": 1425448,
     "brotli": 1198184
   },

@@ -47,6 +47,13 @@ export interface AuthorizationFunctions {
    */
   readonly canAssignFor?: string;
   /**
+   * Whether `{role}` is a role of `{tenant}`: a declared role, or a custom role
+   * the tenant owns or shares. With `blocks.memberships.options.roles.many`, a
+   * trigger on `membership_roles` refuses every other role on every write, so a
+   * custom role of another tenant can't be stored. Runs as `postgres`.
+   */
+  readonly roleIn?: string;
+  /**
    * The permission keys `{user}` holds in `{tenant}`, as a `text[]`. It fills
    * `member_permissions` and the `permissions` claim; without it both are
    * empty.

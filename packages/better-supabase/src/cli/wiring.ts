@@ -17,6 +17,8 @@ import { importFrom } from "./templates.ts";
 export interface WiringInstance {
   readonly name: string;
   readonly block: string;
+  /** Timers `blocks.<name>.schedules` switches off. */
+  readonly off?: readonly string[];
 }
 
 export interface WiringEnv extends BlockEnvKey {
@@ -64,6 +66,7 @@ export function configInstances(
   return Object.entries(config.instances).map(([name, instance]) => ({
     name,
     block: instance.block,
+    off: Object.keys(instance.config.schedules ?? {}),
   }));
 }
 
@@ -133,6 +136,10 @@ export function wiringFor(
     }
 
     for (const schedule of manifest.schedules ?? []) {
+      if (instance.off?.includes(schedule.name) === true) {
+        continue;
+      }
+
       schedules.set(`${manifest.name}.${schedule.name}`, {
         ...schedule,
         block: manifest.name,

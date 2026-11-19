@@ -10,12 +10,16 @@ const rule = (code: string) =>
 const context = (
   instances: Record<string, string>,
   parts: Partial<DoctorContext> = {},
+  configs: Record<string, object> = {},
 ): DoctorContext =>
   // SAFETY: BS504 and BS505 read only config.instances, envFiles, sources and shellEnv.
   ({
     config: {
       instances: Object.fromEntries(
-        Object.entries(instances).map(([name, block]) => [name, { block }]),
+        Object.entries(instances).map(([name, block]) => [
+          name,
+          { block, config: configs[name] ?? {} },
+        ]),
       ),
       blocks: {},
     },
@@ -172,6 +176,23 @@ describe("BS508", () => {
     );
 
     expect(handled).toEqual([]);
+  });
+
+  it("leaves out the timers blocks.<name>.schedules switches off", async () => {
+    expect(
+      await rule("BS508").check(
+        context({ consents: "consents" }, { sources: [] }),
+      ),
+    ).toHaveLength(1);
+    expect(
+      await rule("BS508").check(
+        context(
+          { consents: "consents" },
+          { sources: [] },
+          { consents: { schedules: { expire: false } } },
+        ),
+      ),
+    ).toEqual([]);
   });
 });
 

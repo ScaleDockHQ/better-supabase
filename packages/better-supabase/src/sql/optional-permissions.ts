@@ -11,6 +11,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     removeMemberPlatform: "platform",
   },
   audit: { reveal: "tenant" },
+  deadlines: { prune: "tenant" },
   activities: { purge: "tenant" },
   agents: { purge: "tenant" },
   announcements: { purge: "tenant" },

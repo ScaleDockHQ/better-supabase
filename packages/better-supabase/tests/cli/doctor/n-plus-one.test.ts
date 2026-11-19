@@ -296,6 +296,25 @@ describe("BS635", () => {
     expect(findings).toEqual([]);
   });
 
+  it("suggests no include on a view over a table of another schema", () => {
+    const findings = check(
+      "BS635",
+      lines(
+        "export async function load(db: Db, userId: string) {",
+        "  const orders = await db.orders",
+        "    .list({ where: { user_id: userId } })",
+        "    .orThrow();",
+        "  const rows = await db.customers",
+        "    .list({ where: { id: { in: orders.map((row) => row.customer_id) } } })",
+        "    .orThrow();",
+        "}",
+      ),
+      [{ schema: "api", name: "orders" }],
+    );
+
+    expect(findings).toEqual([]);
+  });
+
   it("follows Promise.all destructuring and composite foreign keys", () => {
     const findings = check(
       "BS635",

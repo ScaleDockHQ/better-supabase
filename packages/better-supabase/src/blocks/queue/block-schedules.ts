@@ -55,18 +55,23 @@ export type BlockScheduleDefinition = ScheduleDefinition<
  * `block:<block>.<name>`: pass them to
  * `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX
  * })` on deploy, so SLA deadlines, sequence waits, AI schedules and workflow
- * schedules all run from the one scheduler.
+ * schedules all run from the one scheduler. `off` leaves out the timers
+ * `blocks.<name>.schedules` switches off, such as `{ consents: { expire: false
+ * } }`.
  */
 export function blockSchedules(
   blocks: readonly ScheduledBlock[],
+  off: Readonly<Record<string, Readonly<Record<string, false>>>> = {},
 ): readonly BlockScheduleDefinition[] {
   return blocks.flatMap((block) =>
-    (block.schedules ?? []).map((schedule) => ({
-      name: `${BLOCK_SCHEDULE_PREFIX}${block.name}.${schedule.name}`,
-      cron: schedule.cron,
-      queue: BLOCK_TICKS_QUEUE,
-      payload: { block: block.name, name: schedule.name },
-    })),
+    (block.schedules ?? [])
+      .filter((schedule) => off[block.name]?.[schedule.name] !== false)
+      .map((schedule) => ({
+        name: `${BLOCK_SCHEDULE_PREFIX}${block.name}.${schedule.name}`,
+        cron: schedule.cron,
+        queue: BLOCK_TICKS_QUEUE,
+        payload: { block: block.name, name: schedule.name },
+      })),
   );
 }
 

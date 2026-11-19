@@ -23,6 +23,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   teamIdsOf: ["user"],
   canAssign: ["role", "roles", "tenant", "scope"],
   canAssignFor: ["user", "role", "roles", "tenant", "scope"],
+  roleIn: ["role", "tenant", "scope"],
   permissionsFor: ["user", "tenant", "scope"],
   isApprover: ["kind", "subject", "tenant", "requester", "approvers", "scope"],
   holdersOf: ["permission", "tenant", "scope"],

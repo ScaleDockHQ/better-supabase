@@ -248,6 +248,12 @@ export interface BlockConfig<
    */
   readonly audit?: boolean;
   /**
+   * Timers of the block to switch off, by name, such as `{ expire: false }` on
+   * `consents`. Doctor (BS508) and the wiring checklist leave them out; pass
+   * the same map to `blockSchedules(blocks, { consents: { expire: false } })`.
+   */
+  readonly schedules?: { readonly [name: string]: false };
+  /**
    * A schema for the Data API, such as `api`: the module writes a `security
    * invoker` wrapper there for each of its functions that `anon` or
    * `authenticated` may execute (or only those in `functions`, plus the ones

@@ -1,5 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockSqlLayout } from "../module-types.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -96,7 +98,10 @@ const rankArray = (tenant: BlockSqlContext): string =>
  * `memberships.role` in step, or the statements that remove the triggers when
  * `many` is off. The table and its rows stay when `many` is turned off.
  */
-export function membershipRolesSql(tenant: BlockSqlContext): string {
+export function membershipRolesSql(
+  tenant: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const m = tenant.table("memberships");
   const mr = membershipRolesTable(tenant);
   const t = tenant.col("memberships", "tenant");
@@ -200,6 +205,60 @@ revoke execute on function ${toRole}() from public, anon, authenticated;
 drop trigger if exists ${tenant.trigger("membership_role_primary")} on ${mr};
 create trigger ${tenant.trigger("membership_role_primary")} after insert or delete on ${mr}
   for each row execute function ${toRole}();
+${providerRoleCheck(tenant, layout)}`;
+}
+
+/**
+ * Under an authorization provider with `functions.roleIn`, a trigger that
+ * refuses a role the provider doesn't know in the row's tenant, such as a
+ * custom role of another tenant, on every write (the service role's too).
+ * Without the template the function and its trigger are dropped.
+ */
+function providerRoleCheck(
+  tenant: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
+  const mr = membershipRolesTable(tenant);
+  const t = tenant.col("memberships", "tenant");
+  const fn = tenant.fn("membership_role_in_tenant");
+
+  const provider =
+    accessModel(tenant) === "provider" ? layout.accessProvider : undefined;
+
+  const roleIn = provider?.functions.roleIn;
+
+  if (provider === undefined || roleIn === undefined) {
+    return `drop function if exists ${fn}() cascade;
+`;
+  }
+
+  const known = fillTemplate("authorization.functions.roleIn", roleIn, {
+    role: 'new."role"',
+    tenant: `new.${t}`,
+    scope: provider.scope,
+  });
+
+  return `
+-- authorization.functions.roleIn: a role of the row's tenant, so a custom
+-- role of another tenant is refused on every write.
+create or replace function ${fn}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not coalesce(${known}, false) then
+    raise exception 'Role % is not a role of this tenant', new."role"
+      using errcode = '23514', hint = 'MEMBERSHIP_ROLE_SCOPE';
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function ${fn}() from public, anon, authenticated;
+drop trigger if exists ${tenant.trigger("membership_role_in_tenant")} on ${mr};
+create trigger ${tenant.trigger("membership_role_in_tenant")} before insert or update on ${mr}
+  for each row execute function ${fn}();
 `;
 }
 
