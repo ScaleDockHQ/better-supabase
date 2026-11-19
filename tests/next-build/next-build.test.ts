@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
@@ -187,9 +187,9 @@ const PROXY = "(proxy)";
  * `page.js` lists them as `R.c("server/chunks/...")` before it evaluates the
  * route's module, so a route pays for what it imports (ADR 0450).
  */
-async function serverRoutes(): Promise<Baseline> {
+async function serverRoutes(): Promise<ServerBaseline> {
   const root = join(NEXT, "server/app");
-  const result: Baseline = {};
+  const result: ServerBaseline = {};
 
   const entries = (await files(root))
     .filter((file) => SERVER_ENTRY.test(file))
@@ -208,7 +208,7 @@ async function serverRoutes(): Promise<Baseline> {
     const route = relative(root, entry).replace(/\.js$/, "");
 
     // A chunk is read relative to `.next`, like the client's.
-    result[`/${route}`] = await measure(chunks);
+    result[`/${route}`] = await serverSize(chunks);
   }
 
   // The proxy is its own entry (`server/middleware.js`); it must stay on the
@@ -218,7 +218,7 @@ async function serverRoutes(): Promise<Baseline> {
   if (existsSync(proxy)) {
     const source = await readFile(proxy, "utf-8");
 
-    result[PROXY] = await measure(
+    result[PROXY] = await serverSize(
       new Set(
         [...source.matchAll(SERVER_CHUNK)].flatMap((match) =>
           match[1] === undefined ? [] : [match[1]],
@@ -260,22 +260,31 @@ const SERVER_RAW_SLACK = 512;
 /**
  * A server chunk is read from disk, never sent compressed, so only its raw
  * bytes are held. Its compressed sizes moved by up to 0.25 percent between CI
- * runs with identical raw bytes (eight routes failed the 0.78.0 release), while
+ * runs with identical raw sizes (eight routes failed the 0.78.0 release), while
  * any module that lands in a route adds raw bytes far past the slack.
  */
-const SERVER_SIZES = ["raw"] as const;
+type ServerBaseline = Record<string, { readonly raw: number }>;
+
+async function serverSize(
+  chunks: ReadonlySet<string>,
+): Promise<{ raw: number }> {
+  const sizes = await Promise.all(
+    [...chunks].map(async (chunk) => (await stat(join(NEXT, chunk))).size),
+  );
+
+  return { raw: sizes.reduce((total, size) => total + size, 0) };
+}
 
 /** The routes whose raw server bytes grew past the slack. */
-function serverGrowth(current: Baseline, baseline: Baseline): string[] {
-  return Object.entries(current).flatMap(([route, size]) =>
-    SERVER_SIZES.flatMap((key) => {
-      const allowed = sizeOf(baseline, route)[key] + SERVER_RAW_SLACK;
+function serverGrowth(
+  current: ServerBaseline,
+  baseline: ServerBaseline,
+): string[] {
+  return Object.entries(current).flatMap(([route, { raw }]) => {
+    const allowed = (baseline[route]?.raw ?? 0) + SERVER_RAW_SLACK;
 
-      return size[key] > allowed
-        ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
-        : [];
-    }),
-  );
+    return raw > allowed ? [`${route} raw: ${allowed} -> ${raw}`] : [];
+  });
 }
 
 function slack(key: keyof Size, allowed: number): number {
@@ -593,7 +602,11 @@ describe("the Next.js example's first-load JavaScript", () => {
     "never grows past the server baseline of any route",
     async () => {
       const current = await serverRoutes();
-      const baseline = await readBaseline(SERVER_BASELINE);
+
+      // SAFETY: the file is written by the update below.
+      const baseline = JSON.parse(
+        await readFile(SERVER_BASELINE, "utf-8"),
+      ) as ServerBaseline;
 
       expect(
         Object.keys(current).filter((route) => !(route in baseline)),
@@ -615,35 +628,28 @@ describe("the Next.js example's first-load JavaScript", () => {
     async () => {
       const current = await serverRoutes();
 
-      const previous = existsSync(SERVER_BASELINE)
-        ? await readBaseline(SERVER_BASELINE)
+      // SAFETY: the file is written by this update.
+      const previous: ServerBaseline = existsSync(SERVER_BASELINE)
+        ? (JSON.parse(
+            await readFile(SERVER_BASELINE, "utf-8"),
+          ) as ServerBaseline)
         : {};
 
-      const next: Baseline = {};
+      const next: Record<string, { raw: number }> = {};
       const grown: string[] = [];
 
       for (const route of Object.keys(current).toSorted()) {
-        const now = sizeOf(current, route);
-        const before = previous[route];
+        const now = current[route]?.raw ?? 0;
+        const before = previous[route]?.raw;
 
         if (before === undefined) {
-          next[route] = now;
-          continue;
+          next[route] = { raw: now };
+        } else if (now > before + SERVER_RAW_SLACK) {
+          grown.push(`${route} raw: ${before} -> ${now}`);
+          next[route] = { raw: before };
+        } else {
+          next[route] = { raw: keptCeiling(before, now, SERVER_RAW_SLACK) };
         }
-
-        const kept = { ...before };
-
-        for (const size of SERVER_SIZES) {
-          const room = SERVER_RAW_SLACK;
-
-          if (now[size] > before[size] + room) {
-            grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
-          } else {
-            kept[size] = keptCeiling(before[size], now[size], room);
-          }
-        }
-
-        next[route] = kept;
       }
 
       await writeFile(SERVER_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
@@ -743,35 +749,16 @@ describe("the Next.js example's HTML and RSC payload", () => {
 });
 
 describe("serverGrowth", () => {
-  const baseline = {
-    "/page": { raw: 3_000_000, gzip: 900_000, brotli: 800_000 },
-  };
-
-  it("ignores compressed sizes that move with identical raw bytes", () => {
-    expect(
-      serverGrowth(
-        { "/page": { raw: 3_000_000, gzip: 910_000, brotli: 810_000 } },
-        baseline,
-      ),
-    ).toEqual([]);
-  });
+  const baseline = { "/page": { raw: 3_000_000 } };
 
   it("allows raw bytes inside the slack", () => {
-    expect(
-      serverGrowth(
-        { "/page": { raw: 3_000_512, gzip: 900_000, brotli: 800_000 } },
-        baseline,
-      ),
-    ).toEqual([]);
+    expect(serverGrowth({ "/page": { raw: 3_000_512 } }, baseline)).toEqual([]);
   });
 
   it("fails raw bytes past the slack", () => {
-    expect(
-      serverGrowth(
-        { "/page": { raw: 3_000_513, gzip: 900_000, brotli: 800_000 } },
-        baseline,
-      ),
-    ).toEqual(["/page raw: 3000512 -> 3000513"]);
+    expect(serverGrowth({ "/page": { raw: 3_000_513 } }, baseline)).toEqual([
+      "/page raw: 3000512 -> 3000513",
+    ]);
   });
 });
 
