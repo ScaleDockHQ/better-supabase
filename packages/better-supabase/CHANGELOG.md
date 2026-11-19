@@ -1,5 +1,27 @@
 # better-supabase
 
+## 0.77.0
+
+### Minor Changes
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`e0d8b3b`](https://github.com/ScaleDockHQ/better-supabase/commit/e0d8b3b870b4ca259ba458ff3c60e0c864212b72) Thanks [@mick340](https://github.com/mick340)! - API keys work without direct Postgres. `ServerOptions.apiKeyToken` mints a token for an API key's claims, and `apiKeyTokenSigner({ key })` from `better-supabase/server` signs them as a short-lived ES256 JWT with a P-256 key the project trusts (imported as a standby signing key). Without `postgres`, an API key's `ctx.db` and `ctx.supabase` then run over PostgREST with that token, under RLS and the key's scopes, with the tenant in `x-bsb-tenant`. `ctx.sql` is `undefined` for an API key without `postgres` instead of throwing, so the oRPC, Hono and MCP middleware no longer fail on it; reading `ctx.db` still throws without either option, and the error names both.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`e834f31`](https://github.com/ScaleDockHQ/better-supabase/commit/e834f314a79ae9e872370d4bfa81a5c87e1f04cb) Thanks [@mick340](https://github.com/mick340)! - `prune_deadlines` with `pending_only => false` (`deadlines.forget`) deletes satisfied history, so it now also checks the new `prune` action of `blocks.deadlines.permissions`. It defaults to the key `manage` maps to (`deadlines.manage`); set `permissions.prune` to a key fewer roles hold to keep it narrower. Pruning pending deadlines, alone or with `computeMany({ prune: true })`, still needs only `deadlines.write`. A caller without the key gets `DEADLINE_FORBIDDEN`.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`d9e8c9d`](https://github.com/ScaleDockHQ/better-supabase/commit/d9e8c9d0f5e654e5dd61e093b6ceb235e271291f) Thanks [@mick340](https://github.com/mick340)! - Authorization providers can set `functions.roleIn` (`{role}`, `{tenant}`): whether a role belongs to a tenant, declared or a custom role the tenant owns. With `blocks.memberships.options.roles.many` under the provider model, a trigger on `membership_roles` then refuses any other role on every write, the service role's included, with SQLSTATE 23514 and `MEMBERSHIP_ROLE_SCOPE`, so a custom role of another organization can't be stored. Providers without the template keep today's behaviour.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`3674564`](https://github.com/ScaleDockHQ/better-supabase/commit/36745643b1fee1c854aca0cad2d74db7ec98916b) Thanks [@mick340](https://github.com/mick340)! - `blocks.<name>.schedules` switches a block timer off, such as `consents: { schedules: { expire: false } }`. Doctor BS508 and the wiring checklist leave it out, and `blockSchedules(blocks, { consents: { expire: false } })` takes the same map so the scheduler leaves it out too.
+
+### Patch Changes
+
+- [#1077](https://github.com/ScaleDockHQ/better-supabase/pull/1077) [`409ec1d`](https://github.com/ScaleDockHQ/better-supabase/commit/409ec1dd26c790377628114add3ccbd19a6c794f) Thanks [@mick340](https://github.com/mick340)! - The first jobs sent to a new queue at the same time no longer fail while two of them create the queue.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`4e10f27`](https://github.com/ScaleDockHQ/better-supabase/commit/4e10f27a3eb8eaa3d2f1fa92c1e98bcbcf700f8f) Thanks [@mick340](https://github.com/mick340)! - `blocks.audit.options.subjectColumns.<column>.tables` with an `id` key, such as `{ "public.jobs": "id" }`, falls back to the entry's `record_id`. With `restricted: true` the log keeps no row data, so `job_id` stayed null on the jobs table's own entries. Run `better-supabase upgrade` and generate a migration to rewrite the generated column.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`830614d`](https://github.com/ScaleDockHQ/better-supabase/commit/830614dade65125b3b39887bae8ac6de0f582915) Thanks [@mick340](https://github.com/mick340)! - Doctor BS213 no longer flags a tenant column that a composite foreign key with not-null columns ties to a parent row, such as `foreign key (job_id, organization_id) references jobs (id, organization_id)`, when every write policy checks one of the key's other columns, such as `j.id = job_parties.job_id` inside an `exists` that checks access to the job.
+
+- [#1080](https://github.com/ScaleDockHQ/better-supabase/pull/1080) [`8c2d798`](https://github.com/ScaleDockHQ/better-supabase/commit/8c2d7980197906177787e75bd42883daf61b4de9) Thanks [@mick340](https://github.com/mick340)! - Doctor BS635 no longer suggests an `include` on a view that has the name of a table in another schema, such as a `public.memberships` view over `better_supabase.memberships`. A repository reads the view, which has no relations.
+
 ## 0.76.0
 
 ### Minor Changes
