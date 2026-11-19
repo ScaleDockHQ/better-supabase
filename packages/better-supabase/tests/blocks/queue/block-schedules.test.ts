@@ -45,6 +45,14 @@ describe("blockSchedules", () => {
     ]);
   });
 
+  it("leaves out the timers off switches off", () => {
+    expect(
+      blockSchedules([slaBlock, contentBlock], { sla: { check: false } }).map(
+        (schedule) => schedule.name,
+      ),
+    ).toEqual(blockSchedules([contentBlock]).map((schedule) => schedule.name));
+  });
+
   it("publishes the due content entries every five minutes", () => {
     expect(blockSchedules([contentBlock])).toEqual([
       {

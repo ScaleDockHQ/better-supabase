@@ -191,6 +191,7 @@ const blockEntries = {
     ]),
   ),
   audit: v.optional(v.boolean()),
+  schedules: v.optional(v.record(v.string(), v.literal(false))),
   api: v.optional(
     v.union([
       v.string(),

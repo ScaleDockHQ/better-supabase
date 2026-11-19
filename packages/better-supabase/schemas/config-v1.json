@@ -4112,6 +4112,12 @@
         "audit": {
           "type": "boolean"
         },
+        "schedules": {
+          "type": "object",
+          "additionalProperties": {
+            "const": false
+          }
+        },
         "api": {
           "anyOf": [
             {
@@ -4445,6 +4451,12 @@
         },
         "audit": {
           "type": "boolean"
+        },
+        "schedules": {
+          "type": "object",
+          "additionalProperties": {
+            "const": false
+          }
         },
         "api": {
           "anyOf": [

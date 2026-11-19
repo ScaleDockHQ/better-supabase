@@ -2543,7 +2543,8 @@ action the rules consumer can't run. Build the registry with
 such as an SLA check, but no app source calls `blockTickHandler(...)`, so the
 timers never fire. Call
 `jobs.ensureSchedules(blockSchedules(blocks), { prefix: BLOCK_SCHEDULE_PREFIX })`
-once and drain the `block_ticks` queue with `blockTickHandler`.
+once and drain the `block_ticks` queue with `blockTickHandler`. A timer
+switched off with `blocks.<name>.schedules` (`{ expire: false }`) is left out.
 
 ### BS509
 
