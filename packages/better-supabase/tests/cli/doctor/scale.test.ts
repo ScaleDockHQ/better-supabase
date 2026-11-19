@@ -125,6 +125,9 @@ describe("BS386 per-row policy functions", () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.code).toBe("BS386");
     expect(findings[0]?.target).toBe("public.notes:read");
+    expect(findings[0]?.message).toContain(
+      "keep the row call as the `or` fallback",
+    );
   });
 
   it("accepts a call inside an InitPlan, even when it is volatile", async () => {

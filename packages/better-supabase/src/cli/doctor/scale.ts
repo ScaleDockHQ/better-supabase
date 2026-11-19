@@ -345,7 +345,7 @@ const SCALE_CHECKS: readonly Rule[] = [
 
             return [
               {
-                message: `${qualified(table)}: the policy ${policy.name} calls ${called}() once per row. Write (select ${called}(...)) so it runs once per statement, or use a set helper.`,
+                message: `${qualified(table)}: the policy ${policy.name} calls ${called}() once per row. Write (select ${called}(...)) so it runs once per statement, or use a set helper.${policy.command === "select" || policy.command === "all" ? ` A set over the table's own ids misses a row the statement itself inserts, since the set function reads the statement's snapshot, so \`insert ... returning\` fails: keep the row call as the \`or\` fallback (\`id in (select ...) or ${called}(...)\`). A set over a parent table's ids (\`parent_id in (select ...)\`) needs none.` : ""}`,
                 target: `${qualified(table)}:${policy.name}`,
                 object: policyObject(table, policy),
               },

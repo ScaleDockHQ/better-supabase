@@ -934,7 +934,7 @@ export const RLS_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${name} is a security definer ${fn.language} function used in ${policies.length} policies (${shown}${more}; the limit is ${limit}). Postgres can't inline it, so call it as \`(select ${name}(...))\` when its arguments don't come from the row, or return the allowed ids as a set and compare with \`column in (select ${name}())\`, so it runs once per statement. A helper that is still slow can compute its answer once per transaction with better_supabase.memo_get and memo_set.`,
+            message: `${name} is a security definer ${fn.language} function used in ${policies.length} policies (${shown}${more}; the limit is ${limit}). Postgres can't inline it, so call it as \`(select ${name}(...))\` when its arguments don't come from the row, or return the allowed ids as a set and compare with \`column in (select ${name}())\`, so it runs once per statement. On a select policy of the table's own rows, keep the row call as the \`or\` fallback after the set (\`id in (select ...) or ${name}(...)\`): the set reads the statement's snapshot and misses a row the statement inserts, so \`insert ... returning\` fails. A helper that is still slow can compute its answer once per transaction with better_supabase.memo_get and memo_set.`,
             target: name,
             object: functionObject(fn),
           },
