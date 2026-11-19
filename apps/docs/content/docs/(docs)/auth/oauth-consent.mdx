@@ -145,6 +145,11 @@ const { error } = await supabase.auth.oauth.revokeGrant({
 });
 ```
 
+On the server, `ctx.supabase` from `bsb.context()` holds the caller's access
+token but no Auth session, so its `auth.oauth.listGrants` and `revokeGrant`
+send that token to Supabase Auth themselves instead of answering
+`AuthSessionMissingError`.
+
 Revoking ends the client's sessions and invalidates its refresh tokens. An
 access token it already holds is verified locally and stays valid until it
 expires, one hour by default, so say that in the UI. If that window matters,

@@ -62,6 +62,42 @@ describe("createClients", () => {
     expect(await first.realtime.accessToken?.()).toBe("a");
   });
 
+  it("lists and revokes the caller's OAuth grants with their token", async () => {
+    const { clients, fetch, sent } = build();
+    const client = clients.contextClient(user("a"));
+
+    const listed = await client.auth.oauth.listGrants();
+    expect(listed.error).toBeNull();
+    expect(listed.data).toEqual([]);
+    expect(sent(0).method).toBe("GET");
+    expect(sent(0).url).toBe(`${URL_PRIMARY}/auth/v1/user/oauth/grants`);
+    expect(sent(0).headers.get("authorization")).toBe("Bearer a");
+    expect(sent(0).headers.get("apikey")).toBe("pk");
+
+    fetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const revoked = await client.auth.oauth.revokeGrant({ clientId: "c 1" });
+    expect(revoked).toEqual({ data: {}, error: null });
+    expect(sent(1).method).toBe("DELETE");
+    expect(sent(1).url).toBe(
+      `${URL_PRIMARY}/auth/v1/user/oauth/grants?client_id=c+1`,
+    );
+
+    fetch.mockResolvedValueOnce(
+      Response.json(
+        { code: 401, error_code: "bad_jwt", msg: "invalid JWT" },
+        { status: 401 },
+      ),
+    );
+    const refused = await client.auth.oauth.listGrants();
+    expect(refused.data).toBeNull();
+    expect(refused.error).toMatchObject({
+      name: "AuthApiError",
+      status: 401,
+      code: "bad_jwt",
+      message: "invalid JWT",
+    });
+  });
+
   it("shares the anon client for the primary only", async () => {
     const { clients, sent } = build();
     const anon: AuthState = { kind: "none", reason: "none" };

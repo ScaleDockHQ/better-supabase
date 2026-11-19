@@ -15,6 +15,8 @@ import type { BetterSupabaseEnv } from "../env/index.ts";
 import type { LiteBackend } from "./lite.ts";
 import type { ServerOptions } from "./server-types.ts";
 
+import { withBearerGrants } from "./oauth-grants.ts";
+
 /**
  * Clients never verify a token; a key set here keeps `@supabase/server` from
  * reading the JWKS variables on every client it builds.
@@ -146,8 +148,8 @@ export function createClients(input: ClientsInput): Clients {
     headers: Readonly<Record<string, string>>,
     token?: string,
     fetch?: typeof globalThis.fetch,
-  ): SupabaseClient =>
-    createContextClient({
+  ): SupabaseClient => {
+    const client = createContextClient({
       ...(token === undefined ? {} : { auth: { token } }),
       env: {
         url,
@@ -156,6 +158,16 @@ export function createClients(input: ClientsInput): Clients {
       },
       supabaseOptions: supabaseOptions(headers, token, fetch),
     });
+
+    return token === undefined
+      ? client
+      : withBearerGrants(client, {
+          url,
+          apiKey: env().publishableKey,
+          token,
+          fetch: fetch ?? options.fetch,
+        });
+  };
 
   const adminClientAt = (
     url: string,
