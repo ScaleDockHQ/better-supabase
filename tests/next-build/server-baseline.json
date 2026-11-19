@@ -257,7 +257,7 @@
   "/[locale]/(app)/courses/[courseId]/page": {
     "raw": 3181581,
     "gzip": 964695,
-    "brotli": 799981
+    "brotli": 801989
   },
   "/[locale]/(app)/courses/page": {
     "raw": 3176037,
@@ -937,7 +937,7 @@
   "/[locale]/(app)/settings/marketplace/page": {
     "raw": 3175770,
     "gzip": 962546,
-    "brotli": 797975
+    "brotli": 799975
   },
   "/[locale]/(app)/settings/members/[userId]/page": {
     "raw": 3175838,
@@ -1312,7 +1312,7 @@
   "/[locale]/(auth)/signup/page": {
     "raw": 1457665,
     "gzip": 462766,
-    "brotli": 390312
+    "brotli": 391296
   },
   "/[locale]/(auth)/waitlist/page": {
     "raw": 2916269,
@@ -1331,7 +1331,7 @@
   },
   "/[locale]/(public)/store/[org]/[product]/page": {
     "raw": 3000526,
-    "gzip": 904962,
+    "gzip": 907228,
     "brotli": 750008
   },
   "/[locale]/(public)/store/[org]/cart/page": {
@@ -1446,17 +1446,17 @@
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3573142,
-    "gzip": 1085507,
+    "gzip": 1088249,
     "brotli": 923274
   },
   "/api/chat/durable/[id]/stream/route": {
     "raw": 3573290,
-    "gzip": 1085584,
+    "gzip": 1088321,
     "brotli": 923336
   },
   "/api/chat/durable/route": {
     "raw": 3573245,
-    "gzip": 1085575,
+    "gzip": 1088318,
     "brotli": 923296
   },
   "/api/chat/route": {
