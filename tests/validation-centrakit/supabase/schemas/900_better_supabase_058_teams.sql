@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:a29629b366d20121747f16fe65f066e74021e60de2063ddd5508d953dd8bd2b1
+-- @bsb-hash sha256:25f042b8feefb5d8d0f337913ead6b7eb70b3dfd7bffff3d4327393c8c9a88e7
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,6 +23,7 @@ grant all on "centrakit"."team_members" to service_role;
 create policy bsb_team_members_select on "centrakit"."team_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
+create index if not exists team_members_tenant_team_idx on "centrakit"."team_members" ("tenant_id", "team_id");
 
 
 -- A signed-in caller may only read their own teams; the service role and

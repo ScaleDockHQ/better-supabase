@@ -406621,6 +406621,18 @@
             "predicate": null
           },
           {
+            "name": "team_members_tenant_team_idx",
+            "columns": [
+              "tenant_id",
+              "team_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "team_members_user_idx",
             "columns": [
               "user_id"
