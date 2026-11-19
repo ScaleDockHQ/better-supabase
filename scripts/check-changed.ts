@@ -35,6 +35,15 @@ const repoRoot = (() => {
 const lines = (command: string, args: string[]): string[] => {
   const result = spawnSync(command, args, { cwd: repoRoot, encoding: "utf-8" });
 
+  if (result.error !== undefined) {
+    console.error(
+      command === "rg"
+        ? "ripgrep (rg) is required: brew install ripgrep"
+        : `${command} could not run: ${String(result.error)}`,
+    );
+    exit(1);
+  }
+
   return result.stdout.split("\n").filter((line) => line.length > 0);
 };
 
