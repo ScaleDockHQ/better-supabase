@@ -45,7 +45,10 @@ import { subjectInTenant } from "../subject-check-sql.ts";
 import { linked } from "./banking-sql.ts";
 import { invoiceFromQuote } from "./invoices-from-quote.ts";
 import { invoiceLedger, paymentKey } from "./invoices-ledger.ts";
-import { invoiceCollectionsAndOpenItems } from "./invoices-open-items.ts";
+import {
+  invoiceCollectionsAndOpenItems,
+  openItemsEnabled,
+} from "./invoices-open-items.ts";
 import { invoicePurchase, PURCHASE_VALUES } from "./invoices-purchase.ts";
 import { cloneInvoice, invoiceTemplatesOn } from "./invoices-templates.ts";
 import { createTerms, discountIssue, lineMatrix } from "./invoices-terms.ts";
@@ -449,9 +452,13 @@ export function invoiceFunctions(
 
   // The status update runs only for a settling status, so the alias keeps the
   // row (an update that matches nothing would clear it).
-  const settle = (alias: string, writtenOff = false): string => `
+  const settle = (
+    alias: string,
+    writtenOff = false,
+    paid = ledger.paidTotal("x"),
+  ): string => `
   update ${t("invoices")} x set
-    ${i("paidTotal")} = ${ledger.paidTotal("x")},
+    ${i("paidTotal")} = ${paid},
     ${i("updatedAt")} = now()
   where x.${i("id")} = ${alias}.${i("id")}
   returning * into ${alias};
@@ -469,6 +476,15 @@ export function invoiceFunctions(
     where x.${i("id")} = ${alias}.${i("id")}
     returning * into ${alias};
   end if;`;
+
+  // The paid total a recompute derives: the ledger payments plus the active
+  // imported allocations, which post nothing. It never drops below the stored
+  // total, which an import's row settlement writes without a posting.
+  const recomputedPaid = `greatest(x.${i("paidTotal")}, ${ledger.paidTotal("x")}${
+    openItemsEnabled(ctx)
+      ? ` + coalesce((select sum(b.${ctx.col("allocations", "amount")}) from ${ctx.table("allocations")} b where b.${ctx.col("allocations", "invoice")} = x.${i("id")} and b.${ctx.col("allocations", "source")} = 'import' and b.${ctx.col("allocations", "unallocatedAt")} is null), 0)`
+      : ""
+  })`;
 
   const keep = (logical: string, value: string, key: string): string =>
     has(logical)
@@ -1355,11 +1371,15 @@ end;
 $$;
 ${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
 
--- Derives an issued invoice's status from its ledger payments and its issued
--- credit notes${creditedOn ? " (credited when they cover it)" : ""}, the way the payment and credit
--- functions do, and returns the invoice. Apps call it after changing payments
--- or credit notes outside those functions, instead of writing the status.
--- A draft, void${afterWriteOff ? "" : " or uncollectible"} invoice keeps its status. Needs invoices.manage.
+-- Derives an issued invoice's status from its ledger payments, imported
+-- allocations and issued credit notes${creditedOn ? " (credited when they cover it)" : ""}, the way the payment
+-- and credit functions do, and returns the invoice. Apps call it after changing
+-- payments or credit notes outside those functions, instead of writing the
+-- status. The paid total never drops below the stored one, which an import's
+-- row settlement writes without a posting. A draft, void${afterWriteOff ? "" : " or uncollectible"} invoice keeps
+-- its status but gets the totals. invoice.paid is recorded only for an invoice
+-- that was never paid before. Needs invoices.manage (invoices.purchase for a
+-- purchase invoice).
 create or replace function ${fn("recompute_invoice_status")}(invoice uuid)
 returns jsonb
 language plpgsql
@@ -1369,16 +1389,18 @@ as $$
 declare
   v_row ${t("invoices")};
   v_was text;
+  v_paid_at timestamptz;
 begin
   ${load("v_row", "recompute_invoice_status.invoice", n.manage, "recompute")}
   v_was := v_row.${i("status")}::text;
+  v_paid_at := v_row.${i("paidAt")};
   update ${t("invoices")} x set ${i("creditedTotal")} = coalesce((
       select sum(y.${i("total")}) from ${t("invoices")} y
       where y.${i("original")} = x.${i("id")} and ${kd(`y.${i("kind")}`, ["credit_note"])} and ${st(`y.${i("status")}`, ["draft", "void"], true)}
     ), 0)
   where x.${i("id")} = v_row.${i("id")}
-  returning * into v_row;${settle("v_row", afterWriteOff)}
-  if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
+  returning * into v_row;${settle("v_row", afterWriteOff, recomputedPaid)}
+  if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} and v_paid_at is null then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
   end if;
   return ${row("v_row")};

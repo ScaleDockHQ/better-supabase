@@ -443,8 +443,10 @@ export interface Invoices<F extends object = Record<never, never>>
   ): AsyncResult<Invoice<F>>;
   /**
    * Derives an issued invoice's status, paid total and credited total from its
-   * payments and issued credit notes, for an app that changed them outside this
-   * client. Needs `invoices.manage`.
+   * payments, imported allocations and issued credit notes, for an app that
+   * changed them outside this client. The paid total never drops below the
+   * stored one. Needs `invoices.manage`, or `invoices.purchase` for a purchase
+   * invoice.
    */
   recomputeStatus(invoiceId: string): AsyncResult<Invoice<F>>;
   removeCharge(

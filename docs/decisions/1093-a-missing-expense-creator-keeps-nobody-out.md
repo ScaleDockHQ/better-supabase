@@ -33,3 +33,14 @@ else who could decide, so nobody could decide it.
 An approver may decide an owner-less expense nobody created as a user, like
 any other expense. Rows from before the creator stamp that have an owner
 still get the owner's user as creator through the version 2 upgrade.
+
+Two cases are left with a null creator, and in both the creator rule no longer
+applies:
+
+- The service role calls `create_expense` on behalf of a user without
+  `created_by`. The block can't tell who acted, so that user may decide the
+  expense unless they are its owner. A service caller acting for a
+  user must pass `created_by` (`createExpense({ createdBy })`).
+- Owner-less company expenses from before the creator stamp. The version 2
+  upgrade has no owner to copy, so they keep a null creator and any approver
+  may decide them.

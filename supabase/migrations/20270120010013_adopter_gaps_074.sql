@@ -19,6 +19,7 @@ CREATE OR REPLACE FUNCTION better_supabase.recompute_invoice_status (
 declare
   v_row "better_supabase"."invoices";
   v_was text;
+  v_paid_at timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -35,6 +36,7 @@ begin
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   v_was := v_row."status"::text;
+  v_paid_at := v_row."paid_at";
   update "better_supabase"."invoices" x set "credited_total" = coalesce((
       select sum(y."total") from "better_supabase"."invoices" y
       where y."original_id" = x."id" and y."kind" = 'credit_note' and y."status" not in ('draft', 'void')
@@ -42,7 +44,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   update "better_supabase"."invoices" x set
-    "paid_total" = coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0),
+    "paid_total" = greatest(x."paid_total", coalesce(-(select sum(e."amount") from "better_supabase"."ledger_entries" e where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = x."tenant_id" and a."code" = 'invoice:' || x."id"::text)), 0) + coalesce((select sum(b."amount") from "better_supabase"."invoice_allocations" b where b."invoice_id" = x."id" and b."source" = 'import' and b."unallocated_at" is null), 0)),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
@@ -56,7 +58,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  if v_row."status" = 'paid' and v_was <> 'paid' then
+  if v_row."status" = 'paid' and v_was <> 'paid' and v_paid_at is null then
     perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   end if;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'deposit_amount', v_row."deposit_amount"::text, 'discount_amount', v_row."discount_amount"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
