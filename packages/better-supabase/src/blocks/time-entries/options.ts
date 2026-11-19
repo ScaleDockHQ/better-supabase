@@ -43,6 +43,13 @@ export type TimeEntriesSqlOptions = {
    * the caller can read.
    */
   readonly on?: readonly string[];
+  /**
+   * An app function `schema.function(id uuid) returns boolean` that answers
+   * whether the caller decides the timesheet `id`, such as a manager up the
+   * owner's reporting chain. It decides policy steps whose approvers set
+   * `decider: true`, which the default policy does when this is set.
+   */
+  readonly decider?: string;
 };
 
 export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
@@ -58,5 +65,6 @@ export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
     overlap: option.string<"refuse" | "allow">({ default: "refuse" }),
     timers: option.string<"one" | "many">({ default: "one" }),
     lockedColumns: option.strings(),
+    decider: option.string(),
     on: option.strings(),
   });

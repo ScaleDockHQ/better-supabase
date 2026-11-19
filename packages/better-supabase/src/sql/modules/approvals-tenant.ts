@@ -458,8 +458,9 @@ const stepsCheck = (
     end if;
     for v_who in select a.w from (values (v_step -> 'approvers', true), (v_step -> 'escalateTo', v_step ? 'escalateTo')) a(w, checked) where a.checked loop
       if jsonb_typeof(v_who) is distinct from 'object'
-        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager'])
+        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager', 'decider'])
         or (v_who ? 'manager' and ${manager ? "v_who -> 'manager' <> 'true'::jsonb" : "true"})
+        or (v_who ? 'decider' and v_who -> 'decider' <> 'true'::jsonb)
         or (v_who ? 'users' and (jsonb_typeof(v_who -> 'users') <> 'array'
           or exists (select 1 from jsonb_array_elements(v_who -> 'users') u
             where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))) then
@@ -602,7 +603,7 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
 
   const stepsInvalid = fail(
     "APPROVAL_POLICY_INVALID",
-    `steps must be a list of { approvers: { permission, role, team, users${manager ? ", manager" : ""} }, required, escalateAfter, escalateTo } objects`,
+    `steps must be a list of { approvers: { permission, role, team, users${manager ? ", manager" : ""}, decider }, required, escalateAfter, escalateTo } objects`,
     "22023",
   );
 
@@ -793,7 +794,7 @@ function requestSql(
 
   const ownInvalid = fail(
     "APPROVAL_POLICY_INVALID",
-    `policy must be { steps: [{ approvers: { permission, role, team, users${manager ? ", manager" : ""} }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn${manager ? ", managerOf" : ""} }`,
+    `policy must be { steps: [{ approvers: { permission, role, team, users${manager ? ", manager" : ""}, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn${manager ? ", managerOf" : ""} }`,
     "22023",
   );
 

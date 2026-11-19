@@ -1,8 +1,14 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
+import type {
+  ApprovalContribution,
+  ApprovalRequestSql,
+  BlockContributes,
+} from "../contributions.ts";
+import type { ApprovalPolicy } from "./approvals-policies.ts";
 
 import { extraFieldsArg } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { deciderCall } from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
 import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -46,13 +52,19 @@ export function workingDaysOf(ctx: BlockSqlContext): readonly number[] {
   ].toSorted((a, b) => a - b);
 }
 
-/** `options.policy` as an approvals policy; defaults to one approver step. */
-export function leavePolicy(ctx: BlockSqlContext): string {
+/**
+ * `options.policy` as an approvals policy; defaults to one approver step, which
+ * `options.decider` joins in approvals mode.
+ */
+export function leavePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
+  const decider = !leaveStatusMode(ctx) && ctx.text("decider", "") !== "";
+
   const raw = ctx.option("policy") ?? {
     steps: [
       {
         approvers: {
           permission: ctx.permissionKey("approve", OPERATIONS["leave.approve"]),
+          ...(decider ? { decider: true } : {}),
         },
       },
     ],
@@ -71,7 +83,12 @@ export function leavePolicy(ctx: BlockSqlContext): string {
     );
   }
 
-  return policySnapshot(policy);
+  return policy;
+}
+
+/** `leavePolicyOf` as the snapshot `open_approval` takes. */
+export function leavePolicy(ctx: BlockSqlContext): string {
+  return policySnapshot(leavePolicyOf(ctx));
 }
 
 /**
@@ -180,7 +197,7 @@ export function leaveContract(
           },
         ]
       : []),
-    ...(leaveStatusMode(ctx) && ctx.flag("selfDecideWhenTopOfChain", false)
+    ...(ctx.flag("selfDecideWhenTopOfChain", false)
       ? [
           { name: "leave_self_decides", args: ["{id}"], returns: "boolean" },
           {
@@ -216,6 +233,33 @@ export const LEAVE_CONTRIBUTES: BlockContributes = {
             access: "declared",
             approve: ({ subjectId }) =>
               `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
+            ...leaveDeciders(own),
           },
         ],
 };
+
+/**
+ * `options.decider` and `options.selfDecideWhenTopOfChain` in approvals mode:
+ * the app function decides steps with `decider: true`, and a requester nobody
+ * else can decide for approves their own request.
+ */
+function leaveDeciders(
+  own: BlockSqlContext,
+): Pick<ApprovalContribution, "decides" | "selfDecides"> {
+  const decider = deciderCall(own, WHERE, "null");
+
+  return {
+    ...(decider === ""
+      ? {}
+      : {
+          decides: ({ subjectId }: ApprovalRequestSql) =>
+            deciderCall(own, WHERE, `${subjectId}::uuid`).replace(/^ or /u, ""),
+        }),
+    ...(own.flag("selfDecideWhenTopOfChain", false)
+      ? {
+          selfDecides: ({ subjectId }: ApprovalRequestSql) =>
+            `${own.fn("leave_request_self_decides")}(${subjectId}::uuid)`,
+        }
+      : {}),
+  };
+}

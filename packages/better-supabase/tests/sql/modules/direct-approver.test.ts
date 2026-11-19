@@ -268,12 +268,15 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
-  it("needs approvals: false and a schema-qualified name", () => {
-    expect(() =>
-      renderBlocks(["employees", "approvals", "leave"], {
-        modules: { leave: { options: { decider: "public.chain_decides" } } },
-      }),
-    ).toThrow(/needs approvals: false/);
+  it("joins the approvals policy and needs a schema-qualified name", () => {
+    const sql = renderBlocks(["employees", "approvals", "leave"], {
+      modules: { leave: { options: { decider: "public.chain_decides" } } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain('"decider":true');
+    expect(sql).toContain('"public"."chain_decides"');
     expect(() =>
       renderBlocks(["employees", "leave"], {
         modules: {
@@ -465,12 +468,14 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
-  it("needs approvals: false and the employees block", () => {
-    expect(() =>
+  it("works with the approvals block and needs the employees block", () => {
+    expect(
       renderBlocks(["employees", "approvals", "leave"], {
         modules: { leave: { options: { selfDecideWhenTopOfChain: true } } },
-      }),
-    ).toThrow(/needs approvals: false/);
+      })
+        .map((file) => file.contents)
+        .join("\n"),
+    ).toContain("leave_request_self_decides");
     expect(() =>
       renderBlocks(["leave"], {
         modules: {

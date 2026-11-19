@@ -289,7 +289,7 @@ as $$
 $$;
 ```
 
-`options.decider` (`"schema.function"`, `(id uuid) returns boolean`) lets more callers decide an expense through `decideExpense`, such as the managers up the owner's reporting chain, as in the [leave block](/docs/blocks/leave). A null answer denies. It needs `standaloneApprovals` off.
+`options.decider` (`"schema.function"`, `(id uuid) returns boolean`) lets more callers decide an expense through `decideExpense`, such as the managers up the owner's reporting chain, as in the [leave block](/docs/blocks/leave). A null answer denies. With `standaloneApprovals`, the function decides the policy steps whose approvers set `decider: true` instead; the default policy sets it next to `expenses.approve`.
 
 A state conflict, such as deciding an expense that is already decided, fails with SQLSTATE `PT409`: PostgREST answers HTTP 409, and the typed client returns a `conflict` error with the hint (see [Errors](#errors)).
 

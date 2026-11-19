@@ -23,7 +23,10 @@ export function weekTimeZone(ctx: BlockSqlContext): string {
   return raw;
 }
 
-/** `options.policy` as an approvals policy; defaults to one approver step. */
+/**
+ * `options.policy` as an approvals policy; defaults to one approver step, which
+ * `options.decider` joins.
+ */
 export function timesheetPolicy(ctx: BlockSqlContext): string {
   const raw = ctx.option("policy") ?? {
     steps: [
@@ -33,6 +36,7 @@ export function timesheetPolicy(ctx: BlockSqlContext): string {
             "approve",
             OPERATIONS["time-entries.approve"],
           ),
+          ...(ctx.text("decider", "") === "" ? {} : { decider: true }),
         },
       },
     ],

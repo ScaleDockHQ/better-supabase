@@ -206,6 +206,18 @@ export interface ApprovalContribution {
   readonly reject?: (request: ApprovalRequestSql) => string;
   /** A boolean expression: whether the request can still be decided. */
   readonly approvable?: (request: ApprovalRequestSql) => string;
+  /**
+   * A boolean expression: whether `approver` (the caller) decides the request
+   * for a step whose approvers set `decider: true`, such as an app function the
+   * block's options name.
+   */
+  readonly decides?: (request: ApprovalRequestSql) => string;
+  /**
+   * A boolean expression: whether the requester (the caller) may decide their
+   * own request although the policy has no `selfApproval`, such as when nobody
+   * else can. The step's approvers must still match them.
+   */
+  readonly selfDecides?: (request: ApprovalRequestSql) => string;
 }
 
 /**

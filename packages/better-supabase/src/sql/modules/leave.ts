@@ -33,6 +33,7 @@ import {
   RESERVED,
   leaveContract,
   leavePolicy,
+  leavePolicyOf,
   leaveApprovalOwner,
   leaveStatusMode,
   workingDaysOf,
@@ -312,18 +313,21 @@ function build(ctx: BlockSqlContext): string {
     "decide_leave_request.request_id",
   );
 
-  if (decider !== "" && !statusMode) {
-    throw new TypeError(
-      "blocks.leave.options.decider needs approvals: false; with the approvals block its policy picks the approvers",
-    );
-  }
+  // In approvals mode a manager step of the policy decides as well.
+  const managerDecidesToo =
+    manager !== "" ||
+    (!statusMode &&
+      leavePolicyOf(ctx).steps.some(
+        (step) =>
+          step.approvers.manager === true || step.escalateTo?.manager === true,
+      ));
 
   const top = ctx.flag("selfDecideWhenTopOfChain", false)
     ? otherDecider(ctx, {
         requester: owner.requester("v_row"),
         tenant: `v_row.${q("tenant")}`,
         permission: approve,
-        manager: manager !== "",
+        manager: managerDecidesToo,
         chain: decider !== "",
         ...(ctx.has("requests", "employee")
           ? { employee: `v_row.${q("employee")}::text` }
@@ -338,12 +342,6 @@ function build(ctx: BlockSqlContext): string {
   ) {
     throw new TypeError(
       "blocks.leave.options.selfDecideWhenTopOfChain needs the employees block's tables",
-    );
-  }
-
-  if (top !== "" && !statusMode) {
-    throw new TypeError(
-      "blocks.leave.options.selfDecideWhenTopOfChain needs approvals: false; with the approvals block its policy picks the approvers",
     );
   }
 
@@ -367,7 +365,7 @@ function build(ctx: BlockSqlContext): string {
     requester: "auth.uid()",
     tenant: "leave_self_decides.tenant",
     permission: approve,
-    manager: manager !== "",
+    manager: managerDecidesToo,
     chain: decider !== "",
   });
 
@@ -1222,7 +1220,7 @@ ${
 end;
 $$;
 ${userGrant(`${fn("cancel_leave_request")}(uuid)`)}
-${statusMode ? decide : ""}${editFunctions}${leaveFeed(ctx)}
+${statusMode ? decide : selfDecides}${editFunctions}${leaveFeed(ctx)}
 -- Requests that overlap a date range, earliest first: the caller's, or
 -- everyone's with the read permission.
 ${owner.employee ? `drop function if exists ${fn("list_leave_requests")}(${listBase});\n` : ""}create or replace function ${fn("list_leave_requests")}(tenant ${idType}, user_id uuid default null, status text default null, starts date default null, ends date default null, everyone boolean default false, page_size integer default 100${owner.employee ? ", employee_id uuid default null" : ""})

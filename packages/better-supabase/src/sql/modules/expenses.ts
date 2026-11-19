@@ -16,6 +16,7 @@ import {
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { deciderCall } from "./direct-approver.ts";
 import { expenseAccountingSources } from "./expenses-accounting.ts";
 import {
   EXPENSE_REPORT_RESERVED,
@@ -452,6 +453,16 @@ const CONTRIBUTES: BlockContributes = {
               `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
             reject: ({ subjectId, comment, approver }) =>
               `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+            ...(deciderCall(own, "blocks.expenses.options", "null") === ""
+              ? {}
+              : {
+                  decides: ({ subjectId }) =>
+                    deciderCall(
+                      own,
+                      "blocks.expenses.options",
+                      `${subjectId}::uuid`,
+                    ).replace(/^ or /u, ""),
+                }),
           },
         ]
       : expenseApprovals(own)

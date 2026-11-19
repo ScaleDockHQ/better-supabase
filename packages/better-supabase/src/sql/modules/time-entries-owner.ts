@@ -168,6 +168,12 @@ export function timeOwner(
     );
   }
 
+  if (!ctx.flag("approvals", true) && ctx.text("decider", "") !== "") {
+    throw new TypeError(
+      `${WHERE}.decider decides approvals policy steps, so it needs approvals on`,
+    );
+  }
+
   if (employeeMode && !ctx.installed("employees")) {
     throw new TypeError(`${WHERE}.owner "employee" needs the employees block`);
   }
