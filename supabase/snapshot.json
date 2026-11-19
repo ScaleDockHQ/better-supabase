@@ -209403,8 +209403,8 @@
         "schema": "better_supabase",
         "name": "ensure_job_queue",
         "language": "plpgsql",
-        "definition": "\nbegin\n  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n    perform pgmq.create(queue);\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.ensure_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n    perform pgmq.create(queue);\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n$function$\n",
+        "definition": "\nbegin\n  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n    -- Two first enqueues can both see no queue; the slower create then fails.\n    begin\n      perform pgmq.create(queue);\n    exception when unique_violation or duplicate_table or duplicate_object then\n      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n        raise;\n      end if;\n    end;\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.ensure_job_queue(queue text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n    -- Two first enqueues can both see no queue; the slower create then fails.\n    begin\n      perform pgmq.create(queue);\n    exception when unique_violation or duplicate_table or duplicate_object then\n      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then\n        raise;\n      end if;\n    end;\n    perform better_supabase.index_job_queue(queue);\n  end if;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
