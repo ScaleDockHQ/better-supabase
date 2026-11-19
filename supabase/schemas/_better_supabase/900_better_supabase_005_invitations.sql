@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:deaac66a2aac5c82306f2e95e92bd9c4298b57e5177454b6ca78853344ac8785
+-- @bsb-hash sha256:1b55ee259dad833ddb35396b80d5a5aa80c38008d6875f648949231d2cf68f4b
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -361,11 +361,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -486,6 +511,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -1118,6 +1144,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
@@ -1190,6 +1218,15 @@ set search_path = ''
 as $$ select "better_supabase"."resend_invitation"($1, $2) $$;
 revoke execute on function "api"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "api"."resend_invitation"(uuid, interval) to authenticated, service_role;
+
+create or replace function "api"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resend_invitations"($1, $2) $$;
+revoke execute on function "api"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "api"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 
 create or replace function "api"."update_invitation"(invitation_id uuid, invitee_email text default null, invitee_role text default null, prefill jsonb default null)
 returns jsonb
