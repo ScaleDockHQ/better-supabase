@@ -224,6 +224,75 @@ describe("createDeadlines", () => {
     ]);
   });
 
+  it("computes many subjects in one call and prunes and forgets a subject's deadlines", async () => {
+    const t = fieldsTransport({
+      compute_deadlines_many: () => [
+        {
+          subjectType: "case",
+          subjectId: "c1",
+          ok: true,
+          deadlines: [DEADLINE],
+        },
+        {
+          subjectType: "case",
+          subjectId: "c2",
+          ok: false,
+          hint: "DEADLINE_RULES_NOT_FOUND",
+          message: "no approved rules",
+        },
+      ],
+      prune_deadlines: () => 3,
+    });
+
+    const deadlines = createDeadlines({ transport: t, tenant: "org-1" });
+
+    const outcomes = await deadlines
+      .computeMany({
+        items: [
+          {
+            subjectType: "case",
+            subjectId: "c1",
+            jurisdiction: "ca",
+            kind: "notice",
+            facts: {},
+          },
+          {
+            subjectType: "case",
+            subjectId: "c2",
+            jurisdiction: "zz",
+            kind: "notice",
+            facts: {},
+          },
+        ],
+        prune: true,
+      })
+      .orThrow();
+
+    expect(outcomes.map((outcome) => [outcome.subjectId, outcome.ok])).toEqual([
+      ["c1", true],
+      ["c2", false],
+    ]);
+    expect(outcomes[1]).toMatchObject({ hint: "DEADLINE_RULES_NOT_FOUND" });
+    expect(t.calls[0]?.[1]).toMatchObject({ tenant: "org-1", prune: true });
+    expect(
+      await deadlines
+        .prune({ subjectType: "case", subjectId: "c1", keepJurisdiction: "ca" })
+        .orThrow(),
+    ).toBe(3);
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "org-1",
+      subject_type: "case",
+      subject_id: "c1",
+      keep_jurisdiction: "ca",
+      pending_only: true,
+    });
+    await deadlines.forget({ subjectType: "case", subjectId: "c1" }).orThrow();
+    expect(t.calls[2]?.[1]).toMatchObject({
+      keep_jurisdiction: null,
+      pending_only: false,
+    });
+  });
+
   it("saves, approves and finds versions, and lists and satisfies deadlines", async () => {
     const version = {
       id: "v1",

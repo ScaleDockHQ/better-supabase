@@ -288,7 +288,13 @@ function subjects(ctx: BlockSqlContext, log: string): string {
     ...metadataColumns(ctx).map(([column]) => column),
   ];
 
-  return subjectColumnsSql(ctx, log, sources, taken);
+  return subjectColumnsSql(
+    ctx,
+    log,
+    sources,
+    taken,
+    ctx.has("log", "table") ? ctx.col("log", "table") : undefined,
+  );
 }
 
 function managedTables(ctx: BlockSqlContext, restricted: boolean): string {

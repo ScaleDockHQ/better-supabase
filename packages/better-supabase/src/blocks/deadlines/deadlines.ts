@@ -114,6 +114,17 @@ export interface DeadlineSubject {
   readonly subjectId: string;
 }
 
+/** One item of `computeMany`. */
+export type DeadlineComputeOutcome = DeadlineSubject &
+  (
+    | { readonly ok: true; readonly deadlines: readonly Deadline[] }
+    | {
+        readonly ok: false;
+        readonly hint: string | undefined;
+        readonly message: string;
+      }
+  );
+
 export interface DeadlineListOptions {
   readonly subjectType?: string;
   readonly subjectId?: string;
@@ -176,6 +187,35 @@ export interface Deadlines {
       readonly group?: string;
     },
   ): AsyncResultType<readonly Deadline[]>;
+  /**
+   * `compute` for up to 1000 subjects in one request. With `prune`, each
+   * subject's pending deadlines of other jurisdictions go first. A failed item
+   * doesn't undo the others: it answers `{ ok: false, hint, message }` (such as
+   * `DEADLINE_RULES_NOT_FOUND`), the rest `{ ok: true, deadlines }`, in order.
+   */
+  computeMany(input: {
+    readonly items: readonly (DeadlineSubject & {
+      readonly jurisdiction: string;
+      readonly kind: string;
+      readonly facts: DeadlineFacts;
+      readonly asOf?: Temporal.PlainDate;
+      readonly group?: string;
+    })[];
+    readonly prune?: boolean;
+  }): AsyncResultType<readonly DeadlineComputeOutcome[]>;
+  /**
+   * Deletes a subject's pending deadlines of every jurisdiction but
+   * `keepJurisdiction` (all pending ones without it), as when the subject moves
+   * or no rule applies any more. The number deleted.
+   */
+  prune(
+    input: DeadlineSubject & { readonly keepJurisdiction?: string },
+  ): AsyncResultType<number>;
+  /**
+   * Deletes every deadline of a subject, satisfied history included. A record
+   * type with `cascade: true` does this when its row is deleted.
+   */
+  forget(input: DeadlineSubject): AsyncResultType<number>;
   /** Re-evaluates a subject's pending deadlines with extra facts. */
   recompute(
     input: DeadlineSubject & {
@@ -427,6 +467,82 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
             recordsOf(value, "compute_deadlines").map((row) =>
               deadlineOf(row, "compute_deadlines"),
             ),
+        ),
+      ),
+    computeMany: ({ items, prune }) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "compute_deadlines_many",
+          {
+            tenant: organizationId,
+            items: items.map((item) => ({
+              subjectType: item.subjectType,
+              subjectId: item.subjectId,
+              jurisdiction: item.jurisdiction,
+              kind: item.kind,
+              facts: item.facts,
+              ...(item.asOf === undefined
+                ? {}
+                : { asOf: item.asOf.toString() }),
+              ...(item.group === undefined ? {} : { group: item.group }),
+            })),
+            prune: prune ?? false,
+          },
+          (value) =>
+            recordsOf(value, "compute_deadlines_many").map(
+              (row): DeadlineComputeOutcome => {
+                const subject = {
+                  subjectType: textOf(row["subjectType"]),
+                  subjectId: textOf(row["subjectId"]),
+                };
+
+                return row["ok"] === true
+                  ? {
+                      ...subject,
+                      ok: true,
+                      deadlines: recordsOf(
+                        row["deadlines"],
+                        "compute_deadlines_many",
+                      ).map((deadline) =>
+                        deadlineOf(deadline, "compute_deadlines_many"),
+                      ),
+                    }
+                  : {
+                      ...subject,
+                      ok: false,
+                      hint: optionalText(row["hint"]),
+                      message: textOf(row["message"]),
+                    };
+              },
+            ),
+        ),
+      ),
+    prune: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "prune_deadlines",
+          {
+            tenant: organizationId,
+            subject_type: input.subjectType,
+            subject_id: input.subjectId,
+            keep_jurisdiction: input.keepJurisdiction ?? null,
+            pending_only: true,
+          },
+          Number,
+        ),
+      ),
+    forget: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "prune_deadlines",
+          {
+            tenant: organizationId,
+            subject_type: input.subjectType,
+            subject_id: input.subjectId,
+            keep_jurisdiction: null,
+            pending_only: false,
+          },
+          Number,
         ),
       ),
     recompute: (input) =>

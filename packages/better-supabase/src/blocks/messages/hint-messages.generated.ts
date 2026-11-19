@@ -1643,7 +1643,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "TAX_RETURN_INVALID": "A return needs a period with a start on or before its end.",
   "TAX_RETURN_NOT_FOUND": "No such tax return.",
   "TEAM_FORBIDDEN": "Team_ids_of reads only the caller's teams.",
-  "TEAM_INVALID": "After and offset are two ways to page; pass one.",
+  "TEAM_INVALID": "Purge at most 1000 teams in one call.",
   "TEAM_MEMBER_INVALID": "User is not a member of the tenant.",
   "TEAM_NOT_FOUND": "Team not found.",
   "TEAM_SLUG_INVALID": "Team name needs a slug.",

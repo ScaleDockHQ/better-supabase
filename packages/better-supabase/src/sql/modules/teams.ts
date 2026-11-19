@@ -7,6 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
+import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { getFunction } from "../get-template.ts";
 import {
@@ -508,6 +509,30 @@ end;
 $$;
 ${userGrant(`${fn("purge_team")}(${idType})`)}
 
+-- purge_team for each of team_ids in one call, all or nothing; returns how many
+-- it purged.
+create or replace function ${fn("purge_teams")}(team_ids ${idType}[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_team ${idType};
+  v_count integer := 0;
+begin
+  if coalesce(cardinality(purge_teams.team_ids), 0) > ${String(MAX_BATCH)} then
+    ${fail("TEAM_INVALID", `purge at most ${String(MAX_BATCH)} teams in one call`, "22023")}
+  end if;
+  for v_team in select distinct x from unnest(purge_teams.team_ids) x where x is not null loop
+    perform ${fn("purge_team")}(v_team);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+${userGrant(`${fn("purge_teams")}(${idType}[])`)}
+
 ${
   employees
     ? employeeMemberFunctions(ctx, idType, membersKey)
@@ -985,6 +1010,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ? [{ name: "restore_team", args: [id], returns: "boolean" }]
       : []),
     { name: "purge_team", args: [id], returns: "boolean" },
+    { name: "purge_teams", args: [`${id}[]`], returns: "integer" },
     ...(["add_team_member", "remove_team_member"] as const).map((name) => ({
       name,
       args: employeeMembers(ctx) ? [id, "uuid", "uuid"] : [id, "uuid"],

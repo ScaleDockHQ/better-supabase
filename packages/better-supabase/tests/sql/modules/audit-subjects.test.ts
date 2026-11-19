@@ -72,6 +72,23 @@ describe("audit subjectColumns", () => {
     );
   });
 
+  it("reads another key on the tables tables names", () => {
+    const sql = audit({
+      subjectColumns: {
+        job_id: { type: "uuid", tables: { "public.jobs": "id" } },
+      },
+    });
+
+    expect(sql).toContain(
+      `case when coalesce(case "table_name" when 'public.jobs' then coalesce("new_record" ->> 'id', "old_record" ->> 'id', "metadata" ->> 'id') end, coalesce("new_record" ->> 'job_id', "old_record" ->> 'job_id', "metadata" ->> 'job_id')) ~ '^[0-9a-fA-F]{8}-`,
+    );
+    expect(() =>
+      audit({
+        subjectColumns: { job_id: { type: "uuid", tables: { jobs: "id" } } },
+      }),
+    ).toThrow(/tables must map "schema.table" to a non-empty key/);
+  });
+
   it("casts a text subject column without a guard", () => {
     const sql = audit({ subjectColumns: { label: { type: "text" } } });
 

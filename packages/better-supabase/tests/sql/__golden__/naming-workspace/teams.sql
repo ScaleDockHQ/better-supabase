@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:b89ca21e169b4264b77f97327aaf48d8a6bd312b5505085144d8e012712150e1
+-- @bsb-hash sha256:ca0a8d6d0a1dca1f9f6d26b1418e3f13c2bb2e30a3c4be08de546a9286bcb22a
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -205,6 +205,31 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
+
+-- purge_team for each of team_ids in one call, all or nothing; returns how many
+-- it purged.
+create or replace function "better_supabase"."purge_teams"(team_ids uuid[])
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_team uuid;
+  v_count integer := 0;
+begin
+  if coalesce(cardinality(purge_teams.team_ids), 0) > 1000 then
+    raise exception 'purge at most 1000 teams in one call' using errcode = '22023', hint = 'TEAM_INVALID';
+  end if;
+  for v_team in select distinct x from unnest(purge_teams.team_ids) x where x is not null loop
+    perform "better_supabase"."purge_team"(v_team);
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."purge_teams"(uuid[]) from public, anon;
+grant execute on function "better_supabase"."purge_teams"(uuid[]) to authenticated, service_role;
 
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean

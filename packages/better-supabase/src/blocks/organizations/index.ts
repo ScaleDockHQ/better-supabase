@@ -2,7 +2,6 @@ export {
   createOrganizations,
   type CreateOrganizationOptions,
   type Invitation,
-  type InvitationChanges,
   type InvitationErrorHint,
   type InvitationPreview,
   type InvitationSent,
@@ -17,6 +16,8 @@ export {
   type SlugProblem,
   type SwitchResult,
 } from "./organizations.ts";
+
+export type { InvitationChanges } from "./invitation-list.ts";
 
 export type { OrganizationOverview } from "./overview.ts";
 

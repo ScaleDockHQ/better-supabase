@@ -114,7 +114,9 @@ hop with `ipHeader`. With `staffClaim`, a caller whose token carries that
 claim is recorded with `actor_kind = 'staff'` instead of `user`.
 `subjectColumns` adds a typed, indexed column per key, generated from the new
 row, the old row or the metadata, so you can list every entry about one job
-without scanning `jsonb`:
+without scanning `jsonb`. `tables` reads another key for the rows of one
+table: the jobs table's own rows have no `job_id`, so `{ "public.jobs": "id" }`
+fills the column with the job's id there:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -123,7 +125,7 @@ blocks: {
       ipHeader: { name: "cf-connecting-ip" },
       staffClaim: "app_metadata.platform_role",
       subjectColumns: {
-        job_id: { type: "uuid" },
+        job_id: { type: "uuid", tables: { "public.jobs": "id" } },
         ticket_no: { type: "bigint", from: "ticket" },
       },
     },
@@ -131,11 +133,11 @@ blocks: {
 },
 ```
 
-| Option           | Default                | What it does                                                                                                      |
-| ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `ipHeader`       | last `x-forwarded-for` | a header name, or `{ name, hop: "first" \| "last" }` for a comma-separated list                                   |
-| `staffClaim`     | none                   | a dotted claim path; a caller carrying it is recorded as `staff`                                                  |
-| `subjectColumns` | `{}`                   | `{ <column>: { type: "text" \| "uuid" \| "bigint", from? } }`; `from` is the key to read and defaults to the name |
+| Option           | Default                | What it does                                                                                                               |
+| ---------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `ipHeader`       | last `x-forwarded-for` | a header name, or `{ name, hop: "first" \| "last" }` for a comma-separated list                                            |
+| `staffClaim`     | none                   | a dotted claim path; a caller carrying it is recorded as `staff`                                                           |
+| `subjectColumns` | `{}`                   | `{ <column>: { type: "text" \| "uuid" \| "bigint", from?, tables? } }`; `from` is the key to read and defaults to the name |
 
 A value that doesn't parse as the column's type stores `null` instead of
 failing the audited write.

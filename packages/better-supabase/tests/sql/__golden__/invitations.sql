@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:15f348937a9bc43a916b45b7a7b5f70d702898826626941a255a99d4077ac6e8
+-- @bsb-hash sha256:f97d50ff2573bf10869b1b57ae47a73735b08d2caf433fb0298a0ab6d98c723d
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -223,11 +223,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -290,6 +315,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -655,6 +681,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
@@ -711,7 +739,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:b037ffb3fe25bc59b7dfd8cfb37e575be4549234aa3261a0ec84cb932a3a0165
+-- @bsb-hash sha256:226bb976a382451a51aa9db098c87070bbb7782e103f271bad29b6842c3a635f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -955,11 +983,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -1022,6 +1075,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -1458,6 +1512,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
@@ -1514,7 +1570,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:3900f966fbfd863c6aaadb5404ac326d1ed985ecca6a4d82e67c624bd2cfd03e
+-- @bsb-hash sha256:79bddfdb7596397bc427a5aa7479a923c7021d3f52d0027ff1ca0d27b4e5ff76
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1742,11 +1798,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "app_private"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("app_private"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "app_private"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -1809,6 +1890,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -2174,6 +2256,8 @@ revoke execute on function "app_private"."create_invitation"(uuid, text, text, i
 grant execute on function "app_private"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "app_private"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "app_private"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "app_private"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "app_private"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "app_private"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "app_private"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "app_private"."revoke_invitation"(uuid) from public, anon;
@@ -2230,7 +2314,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:0683ba67560f23b9bd491aa4c841995fcca8657117a9429b85f3635d80be52c4
+-- @bsb-hash sha256:baafa054411c2359690d5ba7c00260643d51e68eba0e1b67e2b2e9bf78ef1027
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2452,11 +2536,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -2519,6 +2628,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -2884,6 +2994,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
@@ -2956,6 +3068,15 @@ set search_path = ''
 as $$ select "better_supabase"."resend_invitation"($1, $2) $$;
 revoke execute on function "api"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "api"."resend_invitation"(uuid, interval) to authenticated, service_role;
+
+create or replace function "api"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."resend_invitations"($1, $2) $$;
+revoke execute on function "api"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "api"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 
 create or replace function "api"."update_invitation"(invitation_id uuid, invitee_email text default null, invitee_role text default null, prefill jsonb default null)
 returns jsonb
@@ -3058,7 +3179,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:c2af68d2f47161eff9faea00ff47847bece1f37d93db11ffc40fb0183f93bfe5
+-- @bsb-hash sha256:2c6895f6c417a4d94d4b1e3646d477a060686706a833f1df9e4899d1125a30b8
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3276,11 +3397,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -3343,6 +3489,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -3712,6 +3859,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;
@@ -3768,7 +3917,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:6ed098f53f7cd32d26b18ea553098112ee79d359bff17969dc7e9033da79cb73
+-- @bsb-hash sha256:26880203ce6bbca1f3c14f802081362ea70539b52b000564d42263cdcff02b5f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3990,11 +4139,36 @@ begin
 end;
 $$;
 
+-- resend_invitation for up to 1000 invitations in one call, all or nothing;
+-- returns each invitation with its new token, in the order given.
+create or replace function "better_supabase"."resend_invitations"(invitation_ids uuid[], valid_for interval default '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_id uuid;
+  v_sent jsonb := '[]'::jsonb;
+begin
+  if coalesce(cardinality(invitation_ids), 0) > 1000 then
+    raise exception 'Resend at most 1000 invitations in one call' using errcode = 'P0002', hint = 'INVITATION_INVALID';
+  end if;
+  for v_id in select x from unnest(invitation_ids) with ordinality u(x, n) where x is not null group by x order by min(n) loop
+    v_sent := v_sent || jsonb_build_array("better_supabase"."resend_invitation"(v_id, valid_for));
+  end loop;
+  return v_sent;
+end;
+$$;
+
 -- A new email, role or prefill for an open invitation that has not expired;
 -- null keeps the current value. The caller needs what invite_member needs, and may assign
 -- both the current and the new role. The token and expiry stay, and another
--- open invitation for the new email is replaced. Returns the invitation
--- without its token.
+-- open invitation for the new email is replaced. on_accept replaces the roles
+-- or teams it names, with the checks invite_member makes. Returns the
+-- invitation without its token.
+
 create or replace function "better_supabase"."update_invitation"(
   invitation_id uuid,
   invitee_email text default null,
@@ -4057,6 +4231,7 @@ begin
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
   end if;
+
   updated := current_invite;
     if invitee_email is not null then
       updated."email" := lower(btrim(invitee_email));
@@ -4422,6 +4597,8 @@ revoke execute on function "better_supabase"."create_invitation"(uuid, text, tex
 grant execute on function "better_supabase"."create_invitation"(uuid, text, text, interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."resend_invitation"(uuid, interval) from public, anon;
 grant execute on function "better_supabase"."resend_invitation"(uuid, interval) to authenticated, service_role;
+revoke execute on function "better_supabase"."resend_invitations"(uuid[], interval) from public, anon;
+grant execute on function "better_supabase"."resend_invitations"(uuid[], interval) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_invitation"(uuid, text, text, jsonb) to authenticated, service_role;
 revoke execute on function "better_supabase"."revoke_invitation"(uuid) from public, anon;

@@ -3041,6 +3041,10 @@
     "message": "The person who invited you can no longer assign that role"
   },
   {
+    "code": "INVITATION_ON_ACCEPT_INVALID",
+    "message": "A platform invitation grants no roles or teams on accept"
+  },
+  {
     "code": "INVITATION_ROLE_FORBIDDEN",
     "message": "That role is above your own"
   },

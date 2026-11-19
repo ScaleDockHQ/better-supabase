@@ -24,10 +24,11 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
-import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { subjectReadable, subjectsOption, tableCascades } from "../subjects.ts";
 import { inlineSubjectReadable } from "./attachments-app.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
 import { deadlinePageSql } from "./deadlines-page.ts";
+import { deadlinePruneSql } from "./deadlines-prune.ts";
 import { validatorSql } from "./deadlines-validator.ts";
 import {
   DEADLINE_RESULTS,
@@ -982,7 +983,8 @@ end;
 $$;
 ${userGrant(`${fn("list_deadlines")}(${idType}, jsonb)`)}
 
-${deadlinePageSql({ allowed: mayRead, d, deadlines, fn, idType, json, missing })}`;
+${deadlinePageSql({ allowed: mayRead, d, deadlines, fn, idType, json, missing })}
+${deadlinePruneSql({ allowed: (tenant) => allowed(tenant, write), visible, d, deadlines, fn, idType })}${tableCascades(ctx, subjects, "deadlines")}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -1022,6 +1024,16 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "list_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "page_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_deadline", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "prune_deadlines",
+      args: ["{id}", "text", "text", "text", "boolean"],
+      returns: "integer",
+    },
+    {
+      name: "compute_deadlines_many",
+      args: ["{id}", "jsonb", "boolean"],
+      returns: "jsonb",
+    },
   ];
 }
 

@@ -291,6 +291,20 @@ create trigger filing_facts_deadlines
   );
 ```
 
+`computeMany({ items, prune })` (`compute_deadlines_many`) computes up to 1000
+subjects in one call. With `prune`, each subject's pending deadlines of other
+jurisdictions go first, as when the subject moved. A failed item doesn't undo
+the others: it answers `{ ok: false, hint, message }`, such as no approved
+rules for its jurisdiction, and the rest answer `{ ok: true, deadlines }`, in
+the order given.
+
+`prune({ subjectType, subjectId, keepJurisdiction })` (`prune_deadlines`)
+deletes a subject's pending deadlines of every jurisdiction but
+`keepJurisdiction`, or all pending ones without it, and returns how many it
+deleted. `forget` deletes every deadline of a subject, satisfied ones included.
+A record type with `cascade: true` does that when its row is deleted. Both need
+`deadlines.write` and read access to the subject.
+
 ## Reading deadlines
 
 `get(deadlineId)` returns one deadline, `list` is the capped convenience list,

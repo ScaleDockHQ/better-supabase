@@ -305,6 +305,54 @@ describe("createOrganizations", () => {
     ]);
   });
 
+  it("resends several invitations in one call and runs onInvite for each", async () => {
+    const { transport, calls } = fake({
+      resend_invitations: [
+        { ...invitationRow, token: "one" },
+        { ...invitationRow, id: "inv-2", token: "two" },
+      ],
+    });
+
+    const onInvite = vi.fn();
+
+    const sent = await createOrganizations({ transport, onInvite })
+      .resendInvitations({ invitationIds: ["inv-1", "inv-2"] })
+      .orThrow();
+
+    expect(
+      sent.map((item) => [item.invitation.id, item.token, item.resent]),
+    ).toEqual([
+      ["inv-1", "one", true],
+      ["inv-2", "two", true],
+    ]);
+    expect(onInvite).toHaveBeenCalledTimes(2);
+    expect(calls[0]).toMatchObject({
+      fn: "resend_invitations",
+      args: { invitation_ids: ["inv-1", "inv-2"] },
+    });
+  });
+
+  it("passes the roles and teams granted on accept to update_invitation", async () => {
+    const { transport, calls } = fake({
+      update_invitation: { ...invitationRow, token: undefined },
+    });
+
+    await createOrganizations({ transport })
+      .updateInvitation({
+        invitationId: "inv-1",
+        changes: { onAccept: { roles: ["custom_reviewer"] } },
+      })
+      .orThrow();
+
+    expect(calls[0]?.args).toEqual({
+      invitation_id: "inv-1",
+      invitee_email: undefined,
+      invitee_role: undefined,
+      prefill: undefined,
+      on_accept: { roles: ["custom_reviewer"] },
+    });
+  });
+
   it("emits invitation.accepted and invitation.declined for the by-id calls", async () => {
     const { transport } = fake({
       accept_invitation_by_id: "org-1",

@@ -159,7 +159,7 @@
     "security-definer-functions": 132
   },
   "deadlines": {
-    "security-definer-functions": 78,
+    "security-definer-functions": 90,
     "row-triggers": 6
   },
   "deals": {
@@ -269,7 +269,7 @@
     "security-definer-functions": 343
   },
   "invitations": {
-    "security-definer-functions": 72,
+    "security-definer-functions": 78,
     "row-triggers": 6
   },
   "invoices": {
@@ -321,7 +321,7 @@
     "row-triggers": 1
   },
   "memberships-many-roles": {
-    "security-definer-functions": 59,
+    "security-definer-functions": 60,
     "row-triggers": 6
   },
   "memberships-summary-many": {
@@ -546,7 +546,7 @@
     "security-definer-functions": 67
   },
   "teams": {
-    "security-definer-functions": 55,
+    "security-definer-functions": 61,
     "row-triggers": 1
   },
   "templates": {

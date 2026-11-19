@@ -42,6 +42,7 @@ provider or your own functions.
 | `mark_used(organization)`                                                        | sets `last_used_at` on the caller's membership                                                                                                                          |
 | `invite_member(tenant, invitee_email, invitee_role)`                             | creates an invitation and returns it with its token (`invite`)                                                                                                          |
 | `resend_invitation(invitation_id)`                                               | issues a new token and expiry; the old token stops working                                                                                                              |
+| `resend_invitations(invitation_ids)`                                             | `resend_invitation` for up to 1000 invitations in one call, all or nothing (`resendInvitations`)                                                                        |
 | `update_invitation(invitation_id, invitee_email, invitee_role, prefill)`         | changes an open, unexpired invitation's email, role or prefill (null keeps the value) with the `invite` checks; the token and expiry stay                               |
 | `revoke_invitation(invitation_id)`                                               | revokes an open invitation (`revoke`)                                                                                                                                   |
 | `invitation_preview(token)`                                                      | status, email, role and organization for the accept page; callable without a session                                                                                    |
@@ -658,6 +659,12 @@ await organizations.updateInvitation({
   changes: { role: "admin", prefill: { name: "Ada Lovelace" } },
 });
 ```
+
+With `blocks.invitations.options.onAccept`, `changes.onAccept` replaces the
+roles or teams the invitation grants on accept (`on_accept` on
+`update_invitation`), with the checks `invite` makes; a key it leaves out
+keeps the stored list. A platform invitation refuses it with
+`INVITATION_ON_ACCEPT_INVALID`.
 
 ## Existing tables
 

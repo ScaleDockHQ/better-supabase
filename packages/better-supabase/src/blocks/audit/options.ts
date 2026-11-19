@@ -31,6 +31,12 @@ export interface AuditSubjectColumn {
    * name.
    */
   readonly from?: string;
+  /**
+   * The key to read for rows of one table, by `schema.table`, over `from`: `{
+   * "public.jobs": "id" }` fills `job_id` with the job's own id on the jobs
+   * table, whose rows have no `job_id`.
+   */
+  readonly tables?: Readonly<Record<string, string>>;
 }
 
 /** `blocks.audit.options`. */
