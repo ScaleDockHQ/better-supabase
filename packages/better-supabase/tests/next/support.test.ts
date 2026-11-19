@@ -7,6 +7,7 @@ import { createSupabase } from "../../src/core/define.ts";
 import {
   createNext,
   sessionTag,
+  SUPPORT_UNAVAILABLE_DIGEST,
   supportSessions,
   supportTag,
 } from "../../src/next/index.ts";
@@ -60,10 +61,17 @@ const env = {
 
 const ADMIN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const TARGET = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const SESSION = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const signer = await createTestSigner();
 const token = await signer.sign({ sub: ADMIN, role: "authenticated" });
 
-function setup(extra: { readonly debug?: { readonly enabled: boolean } } = {}) {
+function setup({
+  unavailable,
+  ...extra
+}: {
+  readonly debug?: { readonly enabled: boolean };
+  readonly unavailable?: "admin" | "throw";
+} = {}) {
   const fake = fakeSql();
   const claims: SqlClaims[] = [];
 
@@ -88,6 +96,7 @@ function setup(extra: { readonly debug?: { readonly enabled: boolean } } = {}) {
       cookie: { secure: false },
       authorize: () => true,
       policy: { approval: "none" },
+      ...(unavailable ? { unavailable } : {}),
     }),
     ...extra,
   });
@@ -190,8 +199,51 @@ describe("support sessions in Next.js", () => {
       error: null,
     });
     store.get = () => Promise.reject(new Error("down"));
-    mocks.headers.set("cookie", "bsb-support=x");
+    mocks.headers.set("cookie", `bsb-support=${SESSION}`);
     const failed = await bsb.stopSupport();
     expect(failed.ok).toBe(false);
+  });
+
+  it("stops a malformed cookie without a lookup and deletes it", async () => {
+    const { bsb, store } = setup();
+    const get = vi.spyOn(store, "get");
+    mocks.headers.set("cookie", "bsb-support=not-a-uuid");
+    expect(await bsb.stopSupport()).toEqual({
+      ok: true,
+      data: { ended: false },
+      error: null,
+    });
+    expect(mocks.deleteCookie).toHaveBeenCalledWith({
+      name: "bsb-support",
+      path: "/",
+    });
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it("throws SupportUnavailableError with its digest from every scope", async () => {
+    const { bsb, store } = setup({ unavailable: "throw" });
+    store.get = () => Promise.reject(new Error("down"));
+    mocks.headers.set("cookie", `bsb-support=${SESSION}`);
+
+    const expected = {
+      name: "SupportUnavailableError",
+      digest: SUPPORT_UNAVAILABLE_DIGEST,
+    };
+
+    await expect(bsb.context()).rejects.toMatchObject(expected);
+    await expect(bsb.claims()).rejects.toMatchObject(expected);
+    await expect(bsb.cached()).rejects.toMatchObject(expected);
+    await expect(bsb.bootstrap({ rpc: "home" })).rejects.toMatchObject(
+      expected,
+    );
+  });
+
+  it("runs as the admin when the cookie is malformed, even with unavailable: throw", async () => {
+    const { bsb, store } = setup({ unavailable: "throw" });
+    const get = vi.spyOn(store, "get");
+    mocks.headers.set("cookie", "bsb-support=not-a-uuid");
+    const ctx = await bsb.context();
+    expect(ctx.support).toBeUndefined();
+    expect(get).not.toHaveBeenCalled();
   });
 });

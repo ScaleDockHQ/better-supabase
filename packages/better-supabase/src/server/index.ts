@@ -136,7 +136,7 @@ export type {
   SupportStartInput,
 } from "../auth/support.ts";
 
-export { supportOf } from "../auth/support-view.ts";
+export { SUPPORT_UNAVAILABLE_DIGEST, supportOf } from "../auth/support-view.ts";
 
 export type { SupportView } from "../auth/support-view.ts";
 

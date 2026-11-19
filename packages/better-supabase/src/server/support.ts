@@ -26,6 +26,10 @@ import {
   supportCookie,
   supportCookieValue,
 } from "../auth/support-cookie.ts";
+import {
+  SUPPORT_SESSION_ID,
+  SUPPORT_UNAVAILABLE_DIGEST,
+} from "../auth/support-view.ts";
 import { supportClaims } from "../auth/support.ts";
 import { emitBlockEvent } from "../core/block-events.ts";
 import { cronRoute } from "../core/cron-route.ts";
@@ -152,6 +156,8 @@ export interface SupportOptions {
 /** A support session could not be loaded; see `SupportOptions.unavailable`. */
 export class SupportUnavailableError extends Error {
   override readonly name = "SupportUnavailableError";
+  readonly digest: typeof SUPPORT_UNAVAILABLE_DIGEST =
+    SUPPORT_UNAVAILABLE_DIGEST;
   readonly sessionId: string;
 
   constructor(sessionId: string, options?: { readonly cause?: unknown }) {
@@ -633,7 +639,7 @@ function createSupport(
   };
 
   const resolve = async (
-    id: string,
+    raw: string,
     auth: AuthState,
     stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined> => {
@@ -646,9 +652,12 @@ function createSupport(
       return;
     }
 
-    if (!id) {
+    // A malformed id (a junk cookie) names no session, so no store outage either.
+    if (!SUPPORT_SESSION_ID.test(raw)) {
       return;
     }
+
+    const id = raw.toLowerCase();
 
     let session: SupportSession | undefined;
     let claims: Readonly<Record<string, unknown>>;
@@ -837,6 +846,18 @@ function createSupport(
           return deny(error, error.code === "42501" ? "permission" : "store");
         }
 
+        // The cookie and every lookup take a UUID; another id would never resolve.
+        if (!SUPPORT_SESSION_ID.test(session.id)) {
+          return deny(
+            dbError(
+              "unexpected",
+              `The support store "${store.name}" returned a session id that is not a UUID`,
+              { code: "SUPPORT_SESSION_ID" },
+            ),
+            "store",
+          );
+        }
+
         emit("support_session.started", {
           sessionId: session.id,
           adminId: session.adminId,
@@ -974,28 +995,30 @@ function createSupport(
           );
         }
 
+        if (!SUPPORT_SESSION_ID.test(sessionId)) {
+          return ok({ ended: false, cookie });
+        }
+
+        const id = sessionId.toLowerCase();
+
         try {
-          const session = await store.get(
-            sessionId,
-            admin.user.id,
-            admin.claims,
-          );
+          const session = await store.get(id, admin.user.id, admin.claims);
 
           if (!session) {
             return ok({ ended: false, cookie });
           }
 
-          sessionLookups.delete(sessionId);
+          sessionLookups.delete(id);
 
           const ended = await store
-            .end(sessionId, "admin", admin.claims)
+            .end(id, "admin", admin.claims)
             .finally(() => {
-              sessionLookups.delete(sessionId);
+              sessionLookups.delete(id);
             });
 
           if (ended) {
             emit("support_session.ended", {
-              sessionId,
+              sessionId: id,
               adminId: session.adminId,
               targetUserId: session.targetUserId,
               endedBy: "admin",
@@ -1019,12 +1042,18 @@ function createSupport(
           );
         }
 
+        if (!SUPPORT_SESSION_ID.test(sessionId)) {
+          return ok(false);
+        }
+
+        const id = sessionId.toLowerCase();
+
         try {
-          sessionLookups.delete(sessionId);
+          sessionLookups.delete(id);
 
           return ok(
-            await store.end(sessionId, "revoked", caller.claims).finally(() => {
-              sessionLookups.delete(sessionId);
+            await store.end(id, "revoked", caller.claims).finally(() => {
+              sessionLookups.delete(id);
             }),
           );
         } catch (cause) {

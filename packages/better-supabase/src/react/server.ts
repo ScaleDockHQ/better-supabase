@@ -162,7 +162,7 @@ export type { AuthSession } from "../auth/view.ts";
 
 export type { SupportView } from "../auth/support-view.ts";
 
-export { supportOf } from "../auth/support-view.ts";
+export { SUPPORT_UNAVAILABLE_DIGEST, supportOf } from "../auth/support-view.ts";
 
 export type { Impersonator } from "../auth/impersonation.ts";
 
