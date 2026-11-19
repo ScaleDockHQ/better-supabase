@@ -506,7 +506,7 @@ Notes for the next maintainer:
 
 - Playwright does not run in CI. A contrast regression reached main unseen (PR #1029), so run the specs of a changed page by hand.
 - A fresh worktree needs the local signing keys and a build of the library (`pnpm --filter better-supabase build`) before the Playwright specs start.
-- `tests/next-build/server-baseline.json` and the size baselines change only from CI's measured numbers. When the Size or Next build job reports a diff, copy its numbers into the baseline in a follow-up commit.
+- `tests/next-build/server-baseline.json` and the size baselines change only from CI's measured numbers. When the Size or Next build job reports a diff, copy its numbers into the baseline in a follow-up commit. The server check holds only `raw` bytes: server gzip and brotli sizes moved between CI runs with identical raw bytes and failed the 0.78.0 release.
 
 EX-607, EX-1265 and EX-1267 (scale files and page coverage for the hand-written overview pages) are fixed (ADR 1086).
 
