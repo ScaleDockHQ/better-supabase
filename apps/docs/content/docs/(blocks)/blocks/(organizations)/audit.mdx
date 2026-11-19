@@ -116,7 +116,9 @@ claim is recorded with `actor_kind = 'staff'` instead of `user`.
 row, the old row or the metadata, so you can list every entry about one job
 without scanning `jsonb`. `tables` reads another key for the rows of one
 table: the jobs table's own rows have no `job_id`, so `{ "public.jobs": "id" }`
-fills the column with the job's id there:
+fills the column with the job's id there. An `id` key falls back to the
+entry's `record_id`, so the column is filled on a `restricted` log too, whose
+entries keep no row data:
 
 ```ts title="better-supabase.config.ts"
 blocks: {

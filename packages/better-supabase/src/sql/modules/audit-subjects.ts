@@ -208,7 +208,9 @@ function guardedCast(value: string, type: SubjectType): string {
 /**
  * The generated subject columns and their indexes: each reads its key from the
  * new row, the old row, then the event metadata, so a row change and an
- * `audit_event` about the same record share one indexed column.
+ * `audit_event` about the same record share one indexed column. A per-table
+ * `id` key falls back to the entry's record id, which a restricted table's
+ * entries keep while their row data moves to the restricted log.
  */
 export function subjectColumnsSql(
   ctx: BlockSqlContext,
@@ -216,6 +218,7 @@ export function subjectColumnsSql(
   sources: readonly string[],
   taken: readonly string[],
   table?: string,
+  record?: string,
 ): string {
   const columns = subjectColumns(ctx, taken);
 
@@ -245,7 +248,7 @@ export function subjectColumnsSql(
       const value =
         perTable.length === 0
           ? read(from)
-          : `coalesce(case ${table ?? ""} ${perTable.map(([source, key]) => `when ${sqlString(source)} then ${read(key)}`).join(" ")} end, ${read(from)})`;
+          : `coalesce(case ${table ?? ""} ${perTable.map(([source, key]) => `when ${sqlString(source)} then ${key === "id" && record !== undefined ? `coalesce(${read(key)}, ${record})` : read(key)}`).join(" ")} end, ${read(from)})`;
 
       const column = sqlIdent(name);
 
