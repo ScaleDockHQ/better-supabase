@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:4311ea5c0e1c371a3d47f352fe5f3890a90163eb56b2e7133e02c9d007806082
+-- @bsb-hash sha256:09fd204590d6005ad88719c665a60d8e047de04ed65e23d6c04b2ddad30b55c0
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,7 +80,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;
@@ -855,7 +857,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:5f8d059f9a350bf486d041f5fd13a2de5d6668528b2cc6e41fdaf95186e5da0b
+-- @bsb-hash sha256:b3675ae32b30e337b574ff406372549f4c3551418eabe40585cc838c68fcc7ff
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -934,7 +936,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;
@@ -1716,7 +1720,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:7e27319b54b4571e1ad93196db3fed489b18336344f9329199fa68478c0cc602
+-- @bsb-hash sha256:6efc1edfd7434fa09465e9da08d14d873a44223baf976d0fd3a2eded7d72e25b
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1795,7 +1799,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;
@@ -2822,7 +2828,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:b5ddc04e372fce2bf7df44516cfac26ad6149abc5713a050b89772694b8652df
+-- @bsb-hash sha256:f30289ac448283c5ad97027930f9c13d28dee5da124746da98cbd0384b8d0649
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2901,7 +2907,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;
@@ -3674,7 +3682,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@16 managed
--- @bsb-hash sha256:4311ea5c0e1c371a3d47f352fe5f3890a90163eb56b2e7133e02c9d007806082
+-- @bsb-hash sha256:09fd204590d6005ad88719c665a60d8e047de04ed65e23d6c04b2ddad30b55c0
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3753,7 +3761,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;

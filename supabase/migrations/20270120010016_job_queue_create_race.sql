@@ -14,7 +14,9 @@ begin
     begin
       perform pgmq.create(queue);
     exception when unique_violation or duplicate_table or duplicate_object then
-      null;
+      if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is null then
+        raise;
+      end if;
     end;
     perform better_supabase.index_job_queue(queue);
   end if;
