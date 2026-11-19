@@ -1,5 +1,11 @@
 # better-supabase
 
+## 0.78.0
+
+### Minor Changes
+
+- [#1079](https://github.com/ScaleDockHQ/better-supabase/pull/1079) [`9f99fd9`](https://github.com/ScaleDockHQ/better-supabase/commit/9f99fd98675a46bfcd111994632f6e6edad72f0b) Thanks [@mick340](https://github.com/mick340)! - `SupportUnavailableError` now carries the digest `SUPPORT_UNAVAILABLE_DIGEST`, so a Next.js `error.tsx` can recognise it. A support cookie that is not a UUID now counts as no session instead of a store outage. Support session ids must be UUIDs: `support.start` refuses a store that returns another id, and `testSupportSessionStore` checks it.
+
 ## 0.77.0
 
 ### Minor Changes
