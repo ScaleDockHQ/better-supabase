@@ -848,6 +848,28 @@ function lines(text: string): (index: number) => number {
  * filters on the column it references, `notes` when `inner` holds the key and
  * `args` filters on it.
  */
+/**
+ * The relationships with no view on either side. A view's relationships carry
+ * none of gen's `relations`, so an include on it would not compile.
+ */
+function tableRelationships(
+  snapshot: Snapshot,
+): Snapshot["generator"]["relationships"] {
+  const views = new Set(
+    [...snapshot.generator.views, ...snapshot.generator.materializedViews].map(
+      (view) => `${view.schema}.${view.name}`,
+    ),
+  );
+
+  return snapshot.generator.relationships.filter(
+    (relation) =>
+      !views.has(`${relation.schema}.${relation.relation}`) &&
+      !views.has(
+        `${relation.referenced_schema}.${relation.referenced_relation}`,
+      ),
+  );
+}
+
 function relationTo(
   snapshot: Snapshot,
   outer: string,
@@ -877,7 +899,7 @@ function relationTo(
       String.raw`(?<![\w$])(?:${column}|${camel(column)})(?![\w$])`,
     ).test(args);
 
-  for (const relation of snapshot.generator.relationships) {
+  for (const relation of tableRelationships(snapshot)) {
     const from = tableKey(relation.relation);
     const to = tableKey(relation.referenced_relation);
     const [column] = relation.columns;
@@ -926,7 +948,7 @@ function throughRelation(
   via: string,
   name: (raw: string) => string,
 ): Relation | undefined {
-  const relationships = snapshot.generator.relationships;
+  const relationships = tableRelationships(snapshot);
 
   // Columns that ride along in composite foreign keys, such as a tenant column:
   // every row of a tenant shares them, so they link no particular rows.

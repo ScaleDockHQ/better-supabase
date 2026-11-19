@@ -299,8 +299,11 @@ anyone with the publishable key can read.
 caller.** A `security definer` function runs as its owner, past RLS. In an
 exposed schema the Data API serves it at `/rpc/<name>`, so when `anon` or
 `authenticated` may execute it and its body never reads `auth.uid()`,
-`auth.jwt()`, the request claims or `better_supabase.is_service_role()`, any
-caller gets the owner's access. Check
+`auth.jwt()`, the request claims or `better_supabase.is_service_role()`, and
+never calls the access contract (`better_supabase.can`, `can_user`,
+`is_platform`, `tenant_ids_with`) or a function in a schema of the
+authorization provider's functions (`authorization.requires`), any caller gets
+the owner's access. Check
 the caller in the body, revoke `execute` from the API roles, or move the
 function to a schema the API doesn't expose. Trigger functions are skipped;
 `/rpc` can't call them. Needs a snapshot taken with this version, which
@@ -2748,7 +2751,8 @@ Two tables that both reference a third in the same schema, such as
 (`include: { task: { include: { invoiceTasks: true } } }`) when the second read
 filters its key column by the first read's rows. Columns that only ride along
 in composite foreign keys, such as a tenant column, and tables in other schemas,
-such as `auth.users`, don't link two reads. Other reads whose tables have no
+such as `auth.users`, don't link two reads, and neither does a view, whose
+generated table has no `relations` to include. Other reads whose tables have no
 foreign key between them are left alone, because an include can't replace
 them; [BS609](#bs609) covers independent reads.
 
@@ -2915,7 +2919,9 @@ rows in one transaction, and a row trigger of yours runs for each of them. If
 the function sends, enqueues or recomputes something per row, return early
 when `better_supabase.importing()` is true and do the work once after the
 import. Doctor reads the trigger functions in `supabase/schemas` and skips
-triggers named `bsb_*`.
+triggers named `bsb_*` and triggers whose function lives in a schema of the
+authorization provider's functions (`authorization.requires`): those guard the
+provider's own rows, so an import has to run them.
 
 ### BS612
 

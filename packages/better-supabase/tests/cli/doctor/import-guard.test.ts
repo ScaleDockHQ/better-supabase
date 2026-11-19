@@ -78,16 +78,54 @@ describe("BS633", () => {
     const rule = IMPORT_GUARD_RULES[0];
 
     const context = {
+      config: {},
       sqlFiles: [
         UNGUARDED,
         file(UNGUARDED.text, "supabase/migrations/1_orders.sql"),
       ],
-      // SAFETY: the rule reads only sqlFiles.
+      // SAFETY: the rule reads only config and sqlFiles.
     } as unknown as DoctorContext;
 
     const findings = await rule?.check(context);
 
     expect(findings).toHaveLength(1);
     expect(findings?.[0]?.target).toBe("public.orders.notify_order");
+  });
+});
+
+describe("BS633 with an authorization provider", () => {
+  it("skips triggers whose function lives in the provider's schema", async () => {
+    const rule = IMPORT_GUARD_RULES[0];
+
+    const provider = file(`
+create function authz.role_name_guard() returns trigger language plpgsql as $$
+begin
+  return new;
+end;
+$$;
+create trigger authz_role_name_guard before insert on public.roles
+  for each row execute function "authz".role_name_guard();
+`);
+
+    const context = {
+      config: {
+        authorization: {
+          requires: [
+            { function: "authz.ids_organization", role: "authenticated" },
+          ],
+        },
+      },
+      sqlFiles: [UNGUARDED, provider],
+      // SAFETY: the rule reads only config and sqlFiles.
+    } as unknown as DoctorContext;
+
+    const findings = await rule?.check(context);
+
+    expect(findings?.map((finding) => finding.target)).toEqual([
+      "public.orders.notify_order",
+    ]);
+    expect(unguardedRowTriggers([provider]).map((t) => t.name)).toEqual([
+      "authz_role_name_guard",
+    ]);
   });
 });

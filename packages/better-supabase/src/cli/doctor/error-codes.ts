@@ -4,18 +4,43 @@ import { writtenByBlocks } from "../sql-layout.ts";
 
 const RAISE = /raise\s+exception\b/iu;
 
+/**
+ * The raise statement from `start` to its closing `;`, skipping `;` inside a
+ * string, so a `using` list spread over many lines is read whole.
+ */
+function statementFrom(text: string, start: number): string {
+  let quoted = false;
+
+  for (let at = start; at < text.length; at += 1) {
+    if (text[at] === "'") {
+      quoted = !quoted;
+    } else if (text[at] === ";" && !quoted) {
+      return text.slice(start, at);
+    }
+  }
+
+  return text.slice(start);
+}
+
 /** A raise in schema SQL that does not name a stable hint code. */
 export function raisesWithoutCode(file: TextFile): readonly FindingInput[] {
   const lines = file.text.split("\n");
+  let offset = 0;
 
   return lines.flatMap((line, index): FindingInput[] => {
+    const start = offset;
+
+    offset += line.length + 1;
+
     const trimmed = line.trim();
-    // The hint often sits on the following `using` line.
-    const window = lines.slice(index, index + 3).join(" ");
+    const raise = RAISE.exec(line);
+
+    const window =
+      raise === null ? "" : statementFrom(file.text, start + raise.index);
 
     if (
       trimmed.startsWith("--") ||
-      !RAISE.test(line) ||
+      raise === null ||
       /hint\s*=/iu.test(window)
     ) {
       return [];
