@@ -110,7 +110,36 @@ the same admin and token, so a render that builds many contexts loads the
 session once. When the session or the target's claims can't be loaded, `resolve`
 and `current` return `undefined` and the request runs as the admin. Set
 `supportSessions({ unavailable: 'throw' })` to get a `SupportUnavailableError`
-instead and fail closed.
+instead and fail closed. With it, these throw while the request names a session
+that can't be loaded:
+
+- `support.resolve(sessionId, auth)` and `support.current(request, auth)`
+- the Next.js adapter's `context()`, `cached()` and `claims()`, which call
+  `support.current`
+- `sessionStatusRoute`, which passes the error on
+
+Map the error to a 503 where you resolve the session:
+
+```ts
+import { SupportUnavailableError } from "better-supabase/server";
+
+try {
+  const active = await server.support.resolve(sessionId, auth);
+  // ...
+} catch (error) {
+  if (error instanceof SupportUnavailableError) {
+    return new Response("Support session unavailable", {
+      status: 503,
+      headers: { "Retry-After": "5" },
+    });
+  }
+
+  throw error;
+}
+```
+
+In Next.js pages, catch it in the segment's `error.tsx` and show a page that
+asks the admin to retry or end the session.
 
 ### What the admin can do
 

@@ -778,6 +778,22 @@ describe("support sessions on the server", () => {
     expect(stats.snapshot()).toMatchObject({ calls: 2, waves: 2 });
   });
 
+  it("counts a lookup through resolve in the given stats", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const stats = new StatsRecorder();
+
+    await server.support.resolve(session.id, admin(), stats);
+    expect(stats.snapshot()).toMatchObject({
+      calls: 1,
+      tables: ["support_sessions"],
+    });
+  });
+
   it("drops the reused session when the admin stops it", async () => {
     const { server } = setup();
 

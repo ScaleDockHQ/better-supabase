@@ -244,6 +244,7 @@ export interface SupportApi {
   resolve(
     sessionId: string,
     auth: SupportCaller,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined>;
   /** The sessions `caller` may view (the SQL store checks the view permission). */
   list(
@@ -1038,7 +1039,7 @@ function createSupport(
       return id ? resolve(id, toAuthState(auth), stats) : undefined;
     },
 
-    resolve: (id, auth) => resolve(id, toAuthState(auth)),
+    resolve: (id, auth, stats) => resolve(id, toAuthState(auth), stats),
 
     list(callerCaller, filter) {
       return AsyncResult.from(async () => {

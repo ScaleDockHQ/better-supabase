@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:debf71ab46dae937c8d90fdd2e2b89ceb1e34e72fbcd5fda2e2487a731f6c72a
+-- @bsb-hash sha256:f56fe3ab27cbabce4ae01d4ece94b3705c2bf5877ea30c8d027c728ba5b5aded
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
