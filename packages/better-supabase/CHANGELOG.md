@@ -1,5 +1,37 @@
 # better-supabase
 
+## 0.75.0
+
+### Minor Changes
+
+- [#1073](https://github.com/ScaleDockHQ/better-supabase/pull/1073) [`903d886`](https://github.com/ScaleDockHQ/better-supabase/commit/903d886e5f54bad96644801c568f50a6d9575e6d) Thanks [@mick340](https://github.com/mick340)! - Calls an adopter looped or wrote by hand:
+  
+  - `deadlines.computeMany({ items, prune })` (`compute_deadlines_many`) computes up to 1000 subjects in one request and answers each item with its deadlines or its error; with `prune`, each subject's pending deadlines of other jurisdictions go first. `deadlines.prune({ subjectType, subjectId, keepJurisdiction })` and `deadlines.forget(subject)` (`prune_deadlines`) delete a subject's pending deadlines of other jurisdictions, or all of its deadlines. A record type with `cascade: true` now deletes its deadlines when its row is deleted.
+  - `organizations.updateInvitation` takes `changes.onAccept` (`on_accept` on `update_invitation`) to replace the roles or teams an invitation grants on accept, with the checks `invite` makes.
+  - `organizations.resendInvitations({ invitationIds })` (`resend_invitations`) and `teams.purgeMany(ids)` (`purge_teams`) act on up to 1000 records in one request, all or nothing.
+  - `blocks.audit.options.subjectColumns.<column>.tables` reads another key for one table's rows, so `{ job_id: { type: "uuid", tables: { "public.jobs": "id" } } }` fills `job_id` on the jobs table's own entries.
+
+- [#1073](https://github.com/ScaleDockHQ/better-supabase/pull/1073) [`6cdc628`](https://github.com/ScaleDockHQ/better-supabase/commit/6cdc628c69ddb89c5c5992ea196df19deea02759) Thanks [@mick340](https://github.com/mick340)! - Access fixes from an adopter running an authorization provider with own and team level grants:
+  
+  - A record type permission registered with `rows`, `owner` or `check` is now checked on the record's row by the `attachments` upload and manage checks, so a member whose key covers only their own or their team's records can attach files to those records (ADR 1094). The `deadlines` read checks let such a member read the deadlines of the records the grant reaches when `blocks.deadlines.permissions.read` is the record type's read key. Plain keys are checked in the tenant as before.
+  - `import_note_issue`, `import_note_warnings` and `import_clear_issues` are revoked from `public`, `anon` and `authenticated`; only the import functions call them.
+  - The `contacts`, `imports`, `teams` and `notifications` functions check the service role with the shared `SERVICE_CALLER` check instead of the deprecated `auth.role()`, so a direct admin connection passes as it does in the other blocks.
+  - `team_members` has a composite foreign key `(tenant_id, team_id)` to `teams`, so a member row can't point at another tenant's team. `teams`, `companies`, `people`, the contact `locations`, `bank_accounts` and `channels` tables, `attachments` and `ledger_transactions` get a unique `(tenant_id, id)` index, so app tables can reference them with a composite foreign key (doctor BS217). An upgrade fails on an existing `team_members` row whose team is in another tenant; move or delete it first.
+  - `blocks.organizations.permissions.readPlatform` names a platform key whose holders read every organization through the table's read policy.
+
+### Patch Changes
+
+- [#1073](https://github.com/ScaleDockHQ/better-supabase/pull/1073) [`fa0c0f8`](https://github.com/ScaleDockHQ/better-supabase/commit/fa0c0f8cabdc8e9d964e9bdd615dc8bf5c567d7a) Thanks [@mick340](https://github.com/mick340)! - BS386 and BS206 say that a select policy on a table's own rows keeps the per-row call as the `or` fallback after a set helper, since the set misses a row the statement inserts and `insert ... returning` fails.
+
+- [#1073](https://github.com/ScaleDockHQ/better-supabase/pull/1073) [`d322235`](https://github.com/ScaleDockHQ/better-supabase/commit/d322235295dddfefe9078ec4d0213de545560867) Thanks [@mick340](https://github.com/mick340)! - Doctor false positives from an adopter:
+  
+  - BS112 counts a call to the access contract (`better_supabase.can`, `can_user`, `is_platform`, `tenant_ids_with`) or to a function in a schema of the authorization provider's functions as a caller check.
+  - BS633 skips row triggers whose function lives in a schema of the authorization provider's functions; they guard the provider's own rows and must run during an import.
+  - BS634 and BS635 no longer suggest an `include` through a view, whose generated table has no `relations`.
+  - BS627 reads a raise's whole `using` list, so a hint on the fourth or later line counts.
+
+- [#1073](https://github.com/ScaleDockHQ/better-supabase/pull/1073) [`9723dfb`](https://github.com/ScaleDockHQ/better-supabase/commit/9723dfb711f3bf1da3fa0f5e9deb1ad795b5906c) Thanks [@mick340](https://github.com/mick340)! - `ctx.supabase.auth.oauth.listGrants()` and `revokeGrant({ clientId })` work on a request context (`bsb.context()` in Next.js, Hono and the other adapters). The context client holds the caller's access token but no Auth session, so supabase-js answered both with `AuthSessionMissingError`; they now send the token to Supabase Auth's `/user/oauth/grants` and return the same `{ data, error }` shape.
+
 ## 0.74.0
 
 ### Minor Changes
