@@ -257,12 +257,29 @@ const RAW_SLACK = 128;
  */
 const SERVER_RAW_SLACK = 512;
 
-function slack(
-  key: keyof Size,
-  allowed: number,
-  rawSlack: number = RAW_SLACK,
-): number {
-  return key === "raw" ? rawSlack : Math.ceil(allowed * COMPRESSION_SLACK);
+/**
+ * A server chunk is read from disk, never sent compressed, so only its raw
+ * bytes are held. Its compressed sizes moved by up to 0.25 percent between CI
+ * runs with identical raw bytes (eight routes failed the 0.78.0 release), while
+ * any module that lands in a route adds raw bytes far past the slack.
+ */
+const SERVER_SIZES = ["raw"] as const;
+
+/** The routes whose raw server bytes grew past the slack. */
+function serverGrowth(current: Baseline, baseline: Baseline): string[] {
+  return Object.entries(current).flatMap(([route, size]) =>
+    SERVER_SIZES.flatMap((key) => {
+      const allowed = sizeOf(baseline, route)[key] + SERVER_RAW_SLACK;
+
+      return size[key] > allowed
+        ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
+        : [];
+    }),
+  );
+}
+
+function slack(key: keyof Size, allowed: number): number {
+  return key === "raw" ? RAW_SLACK : Math.ceil(allowed * COMPRESSION_SLACK);
 }
 
 /**
@@ -588,18 +605,7 @@ describe("the Next.js example's first-load JavaScript", () => {
         "a removed route leaves the server baseline: run update",
       ).toEqual([]);
 
-      const grown = Object.entries(current).flatMap(([route, size]) =>
-        SIZES.flatMap((key) => {
-          const base = sizeOf(baseline, route)[key];
-          const allowed = base + slack(key, base, SERVER_RAW_SLACK);
-
-          return size[key] > allowed
-            ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
-            : [];
-        }),
-      );
-
-      expect(grown, "server chunks grew").toEqual([]);
+      expect(serverGrowth(current, baseline), "server chunks grew").toEqual([]);
     },
     120_000,
   );
@@ -627,8 +633,8 @@ describe("the Next.js example's first-load JavaScript", () => {
 
         const kept = { ...before };
 
-        for (const size of SIZES) {
-          const room = slack(size, before[size], SERVER_RAW_SLACK);
+        for (const size of SERVER_SIZES) {
+          const room = SERVER_RAW_SLACK;
 
           if (now[size] > before[size] + room) {
             grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
@@ -733,6 +739,39 @@ describe("the Next.js example's HTML and RSC payload", () => {
     }
 
     await writeFile(PAYLOAD_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+  });
+});
+
+describe("serverGrowth", () => {
+  const baseline = {
+    "/page": { raw: 3_000_000, gzip: 900_000, brotli: 800_000 },
+  };
+
+  it("ignores compressed sizes that move with identical raw bytes", () => {
+    expect(
+      serverGrowth(
+        { "/page": { raw: 3_000_000, gzip: 910_000, brotli: 810_000 } },
+        baseline,
+      ),
+    ).toEqual([]);
+  });
+
+  it("allows raw bytes inside the slack", () => {
+    expect(
+      serverGrowth(
+        { "/page": { raw: 3_000_512, gzip: 900_000, brotli: 800_000 } },
+        baseline,
+      ),
+    ).toEqual([]);
+  });
+
+  it("fails raw bytes past the slack", () => {
+    expect(
+      serverGrowth(
+        { "/page": { raw: 3_000_513, gzip: 900_000, brotli: 800_000 } },
+        baseline,
+      ),
+    ).toEqual(["/page raw: 3000512 -> 3000513"]);
   });
 });
 
