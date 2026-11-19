@@ -411,3 +411,8 @@ export type {
   BlockActionOptions,
   BlockRequireOptions,
 } from "./kit.ts";
+
+export {
+  apiKeyTokenSigner,
+  type ApiKeyTokenSignerOptions,
+} from "./api-key-token.ts";

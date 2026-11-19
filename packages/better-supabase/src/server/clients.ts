@@ -198,7 +198,7 @@ export function createClients(input: ClientsInput): Clients {
 
   const apiKeyClient = (): never => {
     throw new TypeError(
-      "ctx.supabase and ctx.db.$client are not available for an API key: ctx.db and ctx.sql run over direct Postgres with the key's claims",
+      "ctx.supabase and ctx.db.$client are not available for an API key without ServerOptions.apiKeyToken: ctx.db and ctx.sql run over direct Postgres with the key's claims",
     );
   };
 
@@ -318,15 +318,54 @@ export function createClients(input: ClientsInput): Clients {
     });
   };
 
+  /**
+   * PostgREST and supabase-js clients that send `token()` as the Bearer, for an
+   * API key whose token `ServerOptions.apiKeyToken` mints. The fetch sets the
+   * header last, so it replaces the publishable key supabase-js sends.
+   */
+  const bearerClients = (
+    token: () => PromiseLike<string>,
+    headers: Readonly<Record<string, string>>,
+  ): BearerClients => {
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const sent = new Headers(init?.headers);
+      sent.set("Authorization", `Bearer ${await token()}`);
+
+      return (options.fetch ?? globalThis.fetch)(input, {
+        ...init,
+        headers: sent,
+      });
+    };
+
+    let client: SupabaseClient | undefined;
+
+    return {
+      rest: new PostgrestClient(restUrl(env().url), {
+        headers: { ...headers, apikey: env().publishableKey },
+        fetch,
+        ...restOptions,
+      }),
+      client: () =>
+        (client ??= contextClientAt(env().url, headers, undefined, fetch)),
+    };
+  };
+
   return {
     executorOptions,
     tunedExecutor,
     serviceClient,
     readUrl,
     apiKeyClient,
+    bearerClients,
     contextClient,
     restAt,
   };
+}
+
+/** The clients of a caller whose Bearer token is minted per request. */
+export interface BearerClients {
+  readonly rest: PostgrestClientLike;
+  readonly client: () => SupabaseClient;
 }
 
 export interface Clients {
@@ -335,6 +374,10 @@ export interface Clients {
   readonly serviceClient: () => SupabaseClient;
   readonly readUrl: () => string | undefined;
   readonly apiKeyClient: () => never;
+  readonly bearerClients: (
+    token: () => PromiseLike<string>,
+    headers: Readonly<Record<string, string>>,
+  ) => BearerClients;
   readonly contextClient: (
     auth: AuthState,
     headers?: Readonly<Record<string, string>>,
