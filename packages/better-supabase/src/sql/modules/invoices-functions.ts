@@ -1354,5 +1354,36 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
+
+-- Derives an issued invoice's status from its ledger payments and its issued
+-- credit notes${creditedOn ? " (credited when they cover it)" : ""}, the way the payment and credit
+-- functions do, and returns the invoice. Apps call it after changing payments
+-- or credit notes outside those functions, instead of writing the status.
+-- A draft, void${afterWriteOff ? "" : " or uncollectible"} invoice keeps its status. Needs invoices.manage.
+create or replace function ${fn("recompute_invoice_status")}(invoice uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_was text;
+begin
+  ${load("v_row", "recompute_invoice_status.invoice", n.manage, "recompute")}
+  v_was := v_row.${i("status")}::text;
+  update ${t("invoices")} x set ${i("creditedTotal")} = coalesce((
+      select sum(y.${i("total")}) from ${t("invoices")} y
+      where y.${i("original")} = x.${i("id")} and ${kd(`y.${i("kind")}`, ["credit_note"])} and ${st(`y.${i("status")}`, ["draft", "void"], true)}
+    ), 0)
+  where x.${i("id")} = v_row.${i("id")}
+  returning * into v_row;${settle("v_row", afterWriteOff)}
+  if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
+    ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
+  end if;
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${fn("recompute_invoice_status")}(uuid)`)}
 ${addCharge}${p.aging}${fromQuote}${p.functions}${invoiceCollectionsAndOpenItems(ctx, n, { i, can, st, kd, balance, row, record, settle, ledger, charges })}${cloneInvoice(ctx, n, fn, t, i, row)}`;
 }

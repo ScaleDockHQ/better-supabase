@@ -441,6 +441,12 @@ export interface Invoices<F extends object = Record<never, never>>
       reason?: string | undefined;
     } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
+  /**
+   * Derives an issued invoice's status, paid total and credited total from its
+   * payments and issued credit notes, for an app that changed them outside this
+   * client. Needs `invoices.manage`.
+   */
+  recomputeStatus(invoiceId: string): AsyncResult<Invoice<F>>;
   removeCharge(
     input: { chargeId: string } & InvoiceActorOptions,
   ): AsyncResult<Invoice<F>>;
@@ -927,6 +933,8 @@ export function createInvoices<
         reason: reason ?? null,
         ...actorArg(actorOptions.actor),
       }),
+    recomputeStatus: (invoiceId) =>
+      invoice("recompute_invoice_status", { invoice: invoiceId }),
     removeCharge: ({ chargeId, ...actorOptions }) =>
       invoice("remove_invoice_charge", {
         charge: chargeId,
