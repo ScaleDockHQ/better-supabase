@@ -1446,6 +1446,7 @@
       "supportCookie",
       "supportCookieValue",
       "supportOf",
+      "SupportUnavailableError",
       "tableTags",
       "tagCache",
       "tagFor",
@@ -1651,6 +1652,7 @@
       "sessionStatusRoute",
       "supportSessions",
       "supportStorage",
+      "SupportUnavailableError",
       "suspendAccount"
     ],
     "types": [
@@ -1892,6 +1894,7 @@
       "supportOf",
       "supportSessions",
       "supportTag",
+      "SupportUnavailableError",
       "tagFor",
       "tenantOf",
       "toNextAction",

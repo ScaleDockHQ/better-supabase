@@ -19,6 +19,7 @@ import type {
 import type { DbError } from "../core/errors.ts";
 import type { EventHub } from "../core/events.ts";
 import type { ProblemFormat } from "../core/problem.ts";
+import type { StatsRecorder } from "../core/stats.ts";
 
 import {
   clearSupportCookie,
@@ -138,6 +139,25 @@ export interface SupportOptions {
    * Defaults to reading the cookie.
    */
   readonly sessionId?: (request: Request) => string | undefined;
+  /**
+   * What `resolve` and `current` do when the session or the target's claims
+   * can't be loaded (a store outage). `'admin'`, the default, answers
+   * `undefined`, so the request runs as the admin. `'throw'` throws
+   * `SupportUnavailableError`, so an app can fail closed instead of showing the
+   * admin's own view while the cookie still names a session.
+   */
+  readonly unavailable?: "admin" | "throw";
+}
+
+/** A support session could not be loaded; see `SupportOptions.unavailable`. */
+export class SupportUnavailableError extends Error {
+  override readonly name = "SupportUnavailableError";
+  readonly sessionId: string;
+
+  constructor(sessionId: string, options?: { readonly cause?: unknown }) {
+    super("The support session could not be loaded", options);
+    this.sessionId = sessionId;
+  }
 }
 
 export interface SupportStartRequest {
@@ -213,6 +233,7 @@ export interface SupportApi {
   current(
     request: Request,
     auth: SupportCaller,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined>;
   /**
    * The running session `sessionId` for the admin in `auth`, if any. Use it
@@ -223,6 +244,7 @@ export interface SupportApi {
   resolve(
     sessionId: string,
     auth: SupportCaller,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined>;
   /** The sessions `caller` may view (the SQL store checks the view permission). */
   list(
@@ -253,6 +275,14 @@ export interface SupportApi {
  * it.
  */
 const CLAIMS_TTL_MS = 60_000;
+
+/**
+ * How long one session lookup serves the lookups that follow it: a render that
+ * builds many contexts loads the session once, and a revoke on another instance
+ * applies within it.
+ */
+const SESSION_REUSE_MS = 1000;
+
 const CLAIMS_CACHE_SIZE = 1000;
 
 const denied = (message: string, code: string): DbError =>
@@ -352,12 +382,13 @@ function createSupport(
   };
 
   /**
-   * Target claims per support session; the session itself is loaded every time,
-   * so revoking stays immediate.
+   * Target claims per support session. The session itself is reused for at most
+   * `SESSION_REUSE_MS`, and a stop or revoke on this instance drops it at
+   * once.
    */
   const claimsCache = boundedTtlCache<
     string,
-    Readonly<Record<string, unknown>>
+    Promise<Readonly<Record<string, unknown>>>
   >({ max: CLAIMS_CACHE_SIZE });
 
   const cachedTargetClaims = async (
@@ -369,14 +400,61 @@ function createSupport(
       return cached;
     }
 
-    const claims = await targetClaims(store, session.targetUserId);
+    const claims = targetClaims(store, session.targetUserId);
     claimsCache.set(
       session.id,
       claims,
       Math.min(session.expiresAt.epochMilliseconds, Date.now() + CLAIMS_TTL_MS),
     );
+    claims.catch(() => {
+      if (claimsCache.get(session.id) === claims) {
+        claimsCache.delete(session.id);
+      }
+    });
 
     return claims;
+  };
+
+  const sessionLookups = boundedTtlCache<
+    string,
+    {
+      readonly adminId: string;
+      readonly token: string;
+      readonly session: Promise<SupportSession | undefined>;
+    }
+  >({ max: CLAIMS_CACHE_SIZE });
+
+  const loadSession = (
+    id: string,
+    auth: UserAuth,
+    stats?: StatsRecorder,
+  ): Promise<SupportSession | undefined> => {
+    const reused = sessionLookups.get(id);
+
+    if (reused?.adminId === auth.user.id && reused.token === auth.token) {
+      return reused.session;
+    }
+
+    const end = stats?.begin("support_sessions");
+
+    const session = (async () => {
+      try {
+        return await store.get(id, auth.user.id, auth.claims);
+      } finally {
+        end?.();
+      }
+    })();
+
+    const entry = { adminId: auth.user.id, token: auth.token, session };
+
+    sessionLookups.set(id, entry, Date.now() + SESSION_REUSE_MS);
+    session.catch(() => {
+      if (sessionLookups.get(id) === entry) {
+        sessionLookups.delete(id);
+      }
+    });
+
+    return session;
   };
 
   const checkPolicy = (
@@ -557,6 +635,7 @@ function createSupport(
   const resolve = async (
     id: string,
     auth: AuthState,
+    stats?: StatsRecorder,
   ): Promise<ActiveSupport | undefined> => {
     if (auth.kind !== "user") {
       return;
@@ -575,7 +654,7 @@ function createSupport(
     let claims: Readonly<Record<string, unknown>>;
 
     try {
-      session = await store.get(id, auth.user.id, auth.claims);
+      session = await loadSession(id, auth, stats);
 
       if (!session || session.expiresAt.epochMilliseconds <= Date.now()) {
         return;
@@ -587,9 +666,13 @@ function createSupport(
 
       claims = supportClaims(session, await cachedTargetClaims(session));
     } catch (cause) {
-      // The admin keeps their own view; a store outage never widens access.
       events.logger.warn("Could not load the support session", { cause });
 
+      if (options.unavailable === "throw") {
+        throw new SupportUnavailableError(id, { cause });
+      }
+
+      // The admin keeps their own view; a store outage never widens access.
       return;
     }
 
@@ -736,6 +819,7 @@ function createSupport(
         let session: SupportSession;
 
         try {
+          sessionLookups.clear();
           session = await store.start({
             adminId: admin.user.id,
             adminClaims: admin.claims,
@@ -901,7 +985,13 @@ function createSupport(
             return ok({ ended: false, cookie });
           }
 
-          const ended = await store.end(sessionId, "admin", admin.claims);
+          sessionLookups.delete(sessionId);
+
+          const ended = await store
+            .end(sessionId, "admin", admin.claims)
+            .finally(() => {
+              sessionLookups.delete(sessionId);
+            });
 
           if (ended) {
             emit("support_session.ended", {
@@ -930,20 +1020,26 @@ function createSupport(
         }
 
         try {
-          return ok(await store.end(sessionId, "revoked", caller.claims));
+          sessionLookups.delete(sessionId);
+
+          return ok(
+            await store.end(sessionId, "revoked", caller.claims).finally(() => {
+              sessionLookups.delete(sessionId);
+            }),
+          );
         } catch (cause) {
           return err(storeError(cause));
         }
       });
     },
 
-    async current(request, auth) {
+    async current(request, auth, stats) {
       const id = sessionIdOf(request);
 
-      return id ? resolve(id, toAuthState(auth)) : undefined;
+      return id ? resolve(id, toAuthState(auth), stats) : undefined;
     },
 
-    resolve: (id, auth) => resolve(id, toAuthState(auth)),
+    resolve: (id, auth, stats) => resolve(id, toAuthState(auth), stats),
 
     list(callerCaller, filter) {
       return AsyncResult.from(async () => {

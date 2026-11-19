@@ -6,6 +6,8 @@ export interface BoundedTtlCache<K, V> {
    * goes when the cache is full.
    */
   set(key: K, value: V, expiresAt: number): void;
+  delete(key: K): void;
+  clear(): void;
   readonly size: number;
 }
 
@@ -17,7 +19,7 @@ export function boundedTtlCache<K, V>(options: {
   readonly max: number;
   readonly now?: () => number;
 }): BoundedTtlCache<K, V> {
-  const now = options.now ?? Date.now;
+  const now = options.now ?? (() => Date.now());
   const entries = new Map<K, { readonly value: V; readonly until: number }>();
 
   return {
@@ -44,6 +46,12 @@ export function boundedTtlCache<K, V>(options: {
       }
 
       entries.set(key, { value, until: expiresAt });
+    },
+    delete(key) {
+      entries.delete(key);
+    },
+    clear() {
+      entries.clear();
     },
     get size() {
       return entries.size;

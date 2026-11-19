@@ -14,9 +14,13 @@ import type { SupportOptions } from "../../src/server/support.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { dbTransport } from "../../src/core/block-transport.ts";
 import { createSupabase } from "../../src/core/define.ts";
+import { StatsRecorder } from "../../src/core/stats.ts";
 import { postgresExecutor } from "../../src/postgres/executor.ts";
 import { createServer } from "../../src/server/server.ts";
-import { supportSessions as denyingSupportSessions } from "../../src/server/support.ts";
+import {
+  supportSessions as denyingSupportSessions,
+  SupportUnavailableError,
+} from "../../src/server/support.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { fakeSql, pgError } from "../fixtures/fake-sql.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -527,7 +531,7 @@ describe("support sessions on the server", () => {
     expect(ctx.support?.session.id).toBe(session.id);
   });
 
-  it("loads the session every time but reuses the target's claims", async () => {
+  it("loads the session once per short window and reuses the target's claims", async () => {
     const { server, store } = setup();
     const claims = vi.spyOn(store, "claims");
     const get = vi.spyOn(store, "get");
@@ -541,11 +545,268 @@ describe("support sessions on the server", () => {
     });
 
     claims.mockClear();
+    get.mockClear();
+    vi.useFakeTimers({ toFake: ["Date"] });
+
+    try {
+      await Promise.all([
+        server.support.current(cookie, admin()),
+        server.support.current(cookie, admin()),
+      ]);
+      await server.support.current(cookie, admin());
+      expect(get).toHaveBeenCalledOnce();
+
+      vi.advanceTimersByTime(1001);
+      await server.support.current(cookie, admin());
+      expect(get).toHaveBeenCalledTimes(2);
+      expect(claims).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await server.support.revoke(admin(), session.id).orThrow();
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+  });
+
+  it("never reuses a session lookup for another admin or after a failure", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const get = vi.spyOn(store, "get");
+    get.mockRejectedValueOnce(new Error("down"));
+
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+    expect((await server.support.current(cookie, admin()))?.session.id).toBe(
+      session.id,
+    );
+    expect(
+      await server.support.current(cookie, {
+        ...admin(),
+        user: { id: TARGET },
+      } as AuthState),
+    ).toBeUndefined();
+    expect(get).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts each session lookup in the request's database stats", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const stats = new StatsRecorder();
+
+    await server.support.current(cookie, admin(), stats);
+    await server.support.current(cookie, admin(), stats);
+    expect(stats.snapshot()).toMatchObject({
+      calls: 1,
+      tables: ["support_sessions"],
+    });
+  });
+
+  it("never reuses a lookup made with another token of the same admin", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const get = vi.spyOn(store, "get");
+
     await server.support.current(cookie, admin());
+    await server.support.current(cookie, { ...admin(), token: "other" });
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  it("ends a reused session that expires inside the reuse window", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    vi.useFakeTimers({ toFake: ["Date"] });
+
+    try {
+      vi.setSystemTime(session.expiresAt.epochMilliseconds - 500);
+      expect(await server.support.current(cookie, admin())).toBeDefined();
+      vi.setSystemTime(session.expiresAt.epochMilliseconds + 1);
+      expect(await server.support.current(cookie, admin())).toBeUndefined();
+      expect(store.sessions.get(session.id)).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a lookup that runs while a revoke ends the session", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    const end = store.end.bind(store);
+
+    let release: () => void = () => undefined;
+
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    vi.spyOn(store, "end").mockImplementation(async (...args) => {
+      await gate;
+
+      return end(...args);
+    });
+
+    const revoking = server.support.revoke(admin(), session.id).orThrow();
+    expect(await server.support.current(cookie, admin())).toBeDefined();
+    release();
+    await revoking;
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+  });
+
+  it("forgets reused lookups when an admin starts a session", async () => {
+    const { server, store } = setup();
+
+    const first = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${first.session.id}` },
+    });
+
+    const get = vi.spyOn(store, "get");
+    await server.support.current(cookie, admin());
+    await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "again" })
+      .orThrow();
     await server.support.current(cookie, admin());
     expect(get).toHaveBeenCalledTimes(2);
-    expect(claims).toHaveBeenCalledOnce();
-    await server.support.revoke(admin(), session.id).orThrow();
+  });
+
+  it("caches no failed claims load", async () => {
+    const { server, store } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    vi.spyOn(store, "claims").mockRejectedValueOnce(new Error("down"));
+
+    expect(await server.support.current(cookie, admin())).toBeUndefined();
+    expect((await server.support.current(cookie, admin()))?.session.id).toBe(
+      session.id,
+    );
+  });
+
+  it("throws SupportUnavailableError on a store outage when asked to", async () => {
+    const store = memorySupportStore();
+
+    const { server } = setup({
+      support: supportSessions({
+        store: { ...store, get: () => Promise.reject(new Error("down")) },
+        unavailable: "throw",
+      }),
+    });
+
+    await expect(
+      server.support.current(
+        new Request("https://a.test/", {
+          headers: { cookie: "bsb-support=x" },
+        }),
+        admin(),
+      ),
+    ).rejects.toBeInstanceOf(SupportUnavailableError);
+  });
+
+  it("ends the stats call when the store throws synchronously", async () => {
+    const store = memorySupportStore();
+
+    const { server } = setup({
+      support: supportSessions({
+        store: {
+          ...store,
+          get: () => {
+            throw new Error("down");
+          },
+        },
+      }),
+    });
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: "bsb-support=x" },
+    });
+
+    const stats = new StatsRecorder();
+
+    expect(
+      await server.support.current(cookie, admin(), stats),
+    ).toBeUndefined();
+    expect(
+      await server.support.current(cookie, admin(), stats),
+    ).toBeUndefined();
+    expect(stats.snapshot()).toMatchObject({ calls: 2, waves: 2 });
+  });
+
+  it("counts a lookup through resolve in the given stats", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const stats = new StatsRecorder();
+
+    await server.support.resolve(session.id, admin(), stats);
+    expect(stats.snapshot()).toMatchObject({
+      calls: 1,
+      tables: ["support_sessions"],
+    });
+  });
+
+  it("drops the reused session when the admin stops it", async () => {
+    const { server } = setup();
+
+    const { session } = await server.support
+      .start(admin(), { targetUserId: TARGET, reason: "r" })
+      .orThrow();
+
+    const cookie = new Request("https://a.test/", {
+      headers: { cookie: `bsb-support=${session.id}` },
+    });
+
+    expect(await server.support.current(cookie, admin())).toBeDefined();
+    await server.support.stop(admin(), session.id).orThrow();
     expect(await server.support.current(cookie, admin())).toBeUndefined();
   });
 

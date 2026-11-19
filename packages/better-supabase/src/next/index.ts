@@ -146,7 +146,7 @@ export type {
   SupportStartRequest,
 } from "../server/support.ts";
 
-export { supportSessions } from "../server/support.ts";
+export { supportSessions, SupportUnavailableError } from "../server/support.ts";
 
 export type { MembershipClaim } from "../auth/entitlements.ts";
 
