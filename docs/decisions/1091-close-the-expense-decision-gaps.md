@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-18
+- Amended by: [1093](1093-a-missing-expense-creator-keeps-nobody-out.md)
 
 ## Context
 

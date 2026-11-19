@@ -368,16 +368,14 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const managed = (row: string, key: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, key)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
 
-  // The creator to keep out of a decision. An expense without one on record
-  // fails closed: the decider counts as its creator (ADR 1090).
-  const creatorOr = (row: string, decider: string): string =>
-    has("createdBy")
-      ? `coalesce(${row}.${e("createdBy")}, ${decider})`
-      : "null";
+  // The creator to keep out of a decision. An expense without one, such as an
+  // owner-less company expense, has nobody to keep out (ADR 1093).
+  const creatorOf = (row: string): string =>
+    has("createdBy") ? `${row}.${e("createdBy")}` : "null";
 
   // Whether `decider` decides this expense as its owner or creator.
   const selfOf = (row: string, decider: string): string =>
-    `coalesce(${decider} = ${owner.requester(row)} or ${decider} = ${creatorOr(row, decider)}, false)`;
+    `coalesce(${decider} = ${owner.requester(row)} or ${decider} = ${creatorOf(row)}, false)`;
 
   const managerArgs = (row: string) =>
     ({
@@ -744,7 +742,7 @@ begin${load("decide_expense.expense_id")}
   end if;
   v_decider := coalesce(decide_expense.decided_by, auth.uid());
   v_self := ${selfOf("v_row", "v_decider")};
-  if v_self and not ${nobodyElse("v_row", creatorOr("v_row", "v_decider"))} then
+  if v_self and not ${nobodyElse("v_row", creatorOf("v_row"))} then
     ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
   end if;
   if ${status("v_row")} in ('approved', 'rejected', 'reimbursed') then
@@ -799,8 +797,8 @@ begin
   end if;
   -- Approvals keeps the owner, its requester, out; this keeps the creator out
   -- unless nobody else can decide (ADR 1090).
-  if expense_approval_decided.decided_by is not null and expense_approval_decided.decided_by = ${creatorOr("v_row", "expense_approval_decided.decided_by")}
-    and expense_approval_decided.decided_by is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", creatorOr("v_row", "expense_approval_decided.decided_by"))} then
+  if expense_approval_decided.decided_by is not null and expense_approval_decided.decided_by = ${creatorOf("v_row")}
+    and expense_approval_decided.decided_by is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", creatorOf("v_row"))} then
     ${forbidden("not allowed to decide this expense: its owner or creator decides only when nobody else can")}
   end if;
   if expense_approval_decided.approved then
@@ -859,7 +857,7 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("reopen_expense.expense_id")}
-  if not (${SERVICE_CALLER} or (${decides("v_row")} and (not ${selfOf("v_row", "auth.uid()")} or ${nobodyElse("v_row", creatorOr("v_row", "auth.uid()"))}))) then
+  if not (${SERVICE_CALLER} or (${decides("v_row")} and (not ${selfOf("v_row", "auth.uid()")} or ${nobodyElse("v_row", creatorOf("v_row"))}))) then
     ${forbidden("not allowed to reopen this expense")}
   end if;
   if nullif(trim(reopen_expense.reason), '') is null then
@@ -935,7 +933,7 @@ as $$
   from ${table} v_row
   where v_row.${e("id")} = any (expense_self_decides_many.expense_ids)
     and auth.uid() is not null
-    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row")} and ${nobodyElse("v_row", creatorOr("v_row", "auth.uid()"))}
+    and ${selfOf("v_row", "auth.uid()")} and ${decides("v_row")} and ${nobodyElse("v_row", creatorOf("v_row"))}
 $$;
 ${userGrant(`${fn("expense_self_decides_many")}(uuid[])`)}
 
