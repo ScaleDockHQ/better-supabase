@@ -1,0 +1,79 @@
+name: Baseline benchmark
+
+# Measures a default start against an empty start plus `baseline apply` on a 2 vCPU runner
+# (ADR 1096). Run it by hand; the numbers go in the pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per path
+        default: "3"
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+jobs:
+  benchmark:
+    name: Start time
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup
+
+      - name: Build the CLI and create the signing key
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm better-supabase dev keys --cwd .
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.supabase/cache/stack/slim-services
+          key: supabase-slim-services-${{ runner.os }}-${{ runner.arch }}-benchmark
+
+      - name: Download the service binaries
+        # The first start downloads them; neither measured path pays for that.
+        run: |
+          pnpm exec supabase start --runtime native --exclude studio,functions,analytics
+          pnpm exec supabase stack destroy --yes
+
+      - name: Build the baseline
+        run: pnpm better-supabase baseline build --with-seed --verify
+
+      - name: Measure both paths
+        env:
+          RUNS: ${{ inputs.runs }}
+        run: |
+          now() { date +%s.%N; }
+          exclude=studio,functions,analytics
+          : > full.txt
+          : > fast.txt
+
+          for _ in $(seq "$RUNS"); do
+            start=$(now)
+            pnpm exec supabase start --runtime native --exclude "$exclude" > /dev/null
+            echo "$(now) - $start" | bc >> full.txt
+            pnpm exec supabase stack destroy --yes > /dev/null
+
+            start=$(now)
+            SUPABASE_DB_MIGRATIONS_ENABLED=false SUPABASE_DB_SEED_ENABLED=false \
+              pnpm exec supabase start --runtime native --exclude "$exclude" > /dev/null
+            pnpm better-supabase baseline apply --with-seed > /dev/null
+            echo "$(now) - $start" | bc >> fast.txt
+            pnpm exec supabase stack destroy --yes > /dev/null
+          done
+
+          median() { sort -n "$1" | awk '{ v[NR] = $1 } END { print v[int((NR + 1) / 2)] }'; }
+
+          {
+            echo "| Path | Runs (s) | Median (s) |"
+            echo "| --- | --- | --- |"
+            echo "| Default start | $(paste -sd, full.txt) | $(median full.txt) |"
+            echo "| Empty start and baseline apply | $(paste -sd, fast.txt) | $(median fast.txt) |"
+          } >> "$GITHUB_STEP_SUMMARY"

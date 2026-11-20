@@ -695,6 +695,58 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "baseline",
+    description:
+      "Builds a snapshot of the migrated (and seeded) database and loads it into a fresh local stack instead of replaying the migrations",
+    group: "local",
+    docs: "/docs/cli/baseline",
+    effects: [{ kind: "stacks", access: "write" }],
+    subcommands: [
+      {
+        name: "build",
+        description:
+          "Replays every migration on a scratch stack and writes the schema plan, the rows the migrations insert and, with --with-seed, the seeded rows and storage objects",
+        docs: "/docs/cli/baseline#build",
+        examples: [
+          {
+            command: "better-supabase baseline build --with-seed --verify",
+            description:
+              "Builds the seeded snapshot and checks it against a full replay",
+          },
+        ],
+        effects: [
+          { kind: "stacks", access: "write" },
+          { kind: "database", access: "write" },
+          { kind: "files" },
+        ],
+      },
+      {
+        name: "apply",
+        description:
+          "Loads the newest baseline that fits into this checkout's empty local stack, then runs only the newer migrations; replays everything when none fits",
+        docs: "/docs/cli/baseline#apply",
+        examples: [
+          {
+            command: "better-supabase baseline apply --with-seed",
+            description:
+              "Restores schema, seeded rows and storage objects into the running stack",
+          },
+        ],
+        effects: [{ kind: "database", access: "write" }],
+      },
+      {
+        name: "verify",
+        description:
+          "Restores the baseline into a fresh stack and checks that the catalog, the policy and trigger digest and the row counts match a full replay",
+        docs: "/docs/cli/baseline#verify",
+        effects: [
+          { kind: "stacks", access: "write" },
+          { kind: "database", access: "write" },
+        ],
+      },
+    ],
+  },
+  {
     name: "doctor",
     description:
       "Checks RLS, indexes, drift, auth config and env files; exits 1 on errors, or on warnings with --fail-on warning",

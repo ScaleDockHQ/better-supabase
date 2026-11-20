@@ -1,0 +1,182 @@
+---
+title: baseline
+description: Start a fresh local or CI database from a snapshot of the migrated and seeded one, without changing your migration history.
+---
+
+```bash
+pnpm better-supabase baseline build --with-seed
+pnpm better-supabase baseline apply --with-seed
+```
+
+A fresh stack replays every migration and every seed file before it is
+usable. On a project with hundreds of migrations that is most of the start
+time. `baseline` replays them once, saves the result, and loads the saved
+result into later stacks. Your `supabase/migrations` folder and the hosted
+migration history stay as they are: the baseline is a local cache, never a
+migration.
+
+| Command             | What it does                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| [`build`](#build)   | Replays the migrations on a scratch stack and writes the artifact                     |
+| [`apply`](#apply)   | Loads the newest artifact that fits into your empty local stack, then runs newer ones |
+| [`verify`](#verify) | Restores the artifact into a fresh stack and compares it with a full replay           |
+
+## How it works
+
+The artifact is a folder named by a hash of every migration file plus the
+better-supabase, Supabase CLI and Postgres versions. It holds:
+
+- `schema.sql`, the pg-delta plan from an empty catalog to the migrated one.
+- `data.sql`, the rows the migrations insert, and the
+  `supabase_migrations.schema_migrations` rows, so `migration up` sees every
+  version as applied.
+- `catalog.snapshot` and `manifest.json`, which `verify` compares against.
+- With `--with-seed`, the same three files for the seeded state under `seed/`,
+  plus `seed/storage.tar.gz` with the bucket objects.
+
+`apply` reads the migrations on disk and picks the artifact that already holds
+the most of them. It requires that none of the held migrations was edited or
+removed, and that every other migration is dated after the last held one.
+Those newer migrations run through `supabase migration up`. When no artifact
+fits, `apply` says why and replays everything, so it never leaves you with a
+different database than a full start would.
+
+## build
+
+```bash
+pnpm better-supabase baseline build [--with-seed] [--out <dir>] [--force] [--verify]
+```
+
+`build` starts two scratch stacks with migrations and seeds skipped, one to
+read the empty catalog and one to replay the migrations, writes the artifact
+into `node_modules/.cache/better-supabase/baseline`, and destroys both stacks.
+Run it again for the same migrations and it reports the existing artifact.
+
+| Option        | Description                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `--with-seed` | Also run the seed files and `objects_path` buckets, and save the seeded rows and a storage tarball  |
+| `--out <dir>` | The folder that holds one folder per key; use it to place the artifact where a CI cache restores it |
+| `--force`     | Build again even when an artifact covers these migrations                                           |
+| `--verify`    | Restore the new artifact into a fresh stack and compare it with the build before it finishes        |
+
+Side effects: Stops or destroys local stacks, writes to the database, writes files.
+
+The build needs `pg_dump` and `psql`. It uses the copies the native runtime
+downloads, then the ones on your `PATH`; set `BETTER_SUPABASE_PG_BIN` to a
+folder to use another copy. The Postgres major version must match the stack.
+
+## apply
+
+```bash
+pnpm better-supabase baseline apply [--with-seed] [--from <dir>]
+```
+
+`apply` loads an artifact into this checkout's local stack. It refuses a
+database that is not local. A database that already has applied migrations is
+not empty, so `apply` skips the artifact, says so, and runs the migrations as
+usual. The load is one transaction, so a failed load leaves the database as it
+was and falls back to a full replay. With `--with-seed` it restores the seeded snapshot when the
+seed files and bucket objects are unchanged, uploads the storage objects with
+the Storage API, and otherwise runs the seed files as a normal start does.
+
+| Option         | Description                                                                   |
+| -------------- | ----------------------------------------------------------------------------- |
+| `--with-seed`  | Restore the seeded rows and storage objects                                   |
+| `--from <dir>` | The folder that holds the artifacts (default: the cache under `node_modules`) |
+
+Side effects: Writes to the database.
+
+### Start the stack without migrations or seeds
+
+The Supabase CLI has no flag for an empty start, but it reads every
+`config.toml` key from the environment. Start the stack empty, then apply:
+
+```bash
+SUPABASE_DB_MIGRATIONS_ENABLED=false SUPABASE_DB_SEED_ENABLED=false \
+  supabase start --runtime native --exclude studio,functions,analytics
+pnpm better-supabase baseline apply --with-seed
+```
+
+As a `package.json` script:
+
+```json
+{
+  "scripts": {
+    "supabase:start:fast": "SUPABASE_DB_MIGRATIONS_ENABLED=false SUPABASE_DB_SEED_ENABLED=false supabase start --runtime native --exclude studio,functions,analytics && better-supabase baseline apply --with-seed"
+  }
+}
+```
+
+If the CLI uploads the files of `[storage.buckets.*] objects_path` during an
+empty start, `apply` uploads them again with `x-upsert`, so the result is the
+same, only slower. ADR 1096 proposes a CLI change so that an empty start
+skips that upload.
+
+Run `baseline build` once per checkout (it reuses the cache), then use the
+fast start for every new worktree.
+
+## verify
+
+```bash
+pnpm better-supabase baseline verify [--with-seed] [--from <dir>]
+```
+
+`verify` starts a fresh stack, applies the artifact and fails with
+`check_failed` when any of these differs from the build:
+
+- the pg-delta plan from the restored database to the stored catalog is not
+  empty,
+- the digest of policies, triggers, grants, functions or extensions differs,
+- a table has another row count.
+
+Side effects: Stops or destroys local stacks, writes to the database.
+
+## In CI
+
+Build the artifact once when `develop` changes, and restore it in each test
+shard. The cache key hashes the same files as the artifact key, so a
+migration change builds a new artifact and an unchanged one restores the old
+one. The `restore-keys` prefix lets a shard start from the newest artifact
+and run only the migrations after it.
+
+```yaml
+# .github/workflows/baseline.yml
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm better-supabase baseline build --with-seed --verify
+      - uses: actions/cache/save@v4
+        with:
+          path: node_modules/.cache/better-supabase/baseline
+          key: baseline-${{ hashFiles('supabase/migrations/**', 'supabase/seeds/**', 'supabase/seed-buckets/**') }}
+```
+
+```yaml
+# in each test shard
+- uses: actions/cache/restore@v4
+  with:
+    path: node_modules/.cache/better-supabase/baseline
+    key: baseline-${{ hashFiles('supabase/migrations/**', 'supabase/seeds/**', 'supabase/seed-buckets/**') }}
+    restore-keys: baseline-
+- run: pnpm supabase:start:fast
+```
+
+A shard without a matching artifact still works: `apply` replays everything.
+Build the artifact on the same runner image as the shards, because the
+Postgres and CLI versions are part of the key.
+
+## Measured
+
+On a laptop, with a project of 648 migrations and 172 seed files, a default
+`supabase start --runtime native --exclude studio,functions,analytics` took
+28 seconds. The empty start plus `baseline apply --with-seed` took 14 to 17
+seconds (6 seconds for the start, 8 to 11 for the apply). The schema load is
+the largest part of the apply: Postgres runs about 27,000 DDL statements, so
+a project with fewer objects loads faster.

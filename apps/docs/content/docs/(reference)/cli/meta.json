@@ -14,6 +14,7 @@
     "migrate",
     "spec",
     "powersync",
+    "baseline",
     "doctor",
     "codes",
     "codemod",
