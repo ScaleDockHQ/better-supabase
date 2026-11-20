@@ -63,7 +63,7 @@ Leave types, requests that go through approvals, and a balance ledger per member
 - Entities: `leave_request`, `leave_type`
 - Tables: `leave_requests`, `leave_types`
 - Permission keys: `leave.request`, `leave.read`, `leave.approve`, `leave.manage`
-- Events (`LeaveEvents`): `leave_balance.adjusted`, `leave_request.approved`, `leave_request.cancelled`, `leave_request.requested`, `leave_request.split`, `leave_request.updated`, `leave_type.archived`, `leave_type.restored`
+- Events (`LeaveEvents`): `leave_balance.adjusted`, `leave_request.approved`, `leave_request.cancelled`, `leave_request.rejected`, `leave_request.requested`, `leave_request.split`, `leave_request.updated`, `leave_type.archived`, `leave_type.restored`
 
 ## enrollments
 

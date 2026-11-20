@@ -215,6 +215,7 @@ describe.skipIf(!live)("leave", () => {
         "leave_request.requested",
         "leave_request.requested",
         "leave_request.approved",
+        "leave_request.rejected",
         "leave_request.cancelled",
       ]);
     } finally {
