@@ -269,6 +269,8 @@ another `apiVersion`.
 | `primary`          | `"currency"` | `"organization"` keeps one primary account per organization instead of one per currency                                                       |
 | `optionalCurrency` | `false`      | Lets an account have no currency. Each transaction imported into it names its own, and a payment batch still needs an account with a currency |
 
+On an existing install, `better-supabase upgrade` and a schema diff carry the change: `primary: "organization"` drops the per-currency `bank_accounts_primary_key` index for `bank_accounts_primary_org_key`, and `optionalCurrency` drops the `not null` on `currency`. Two primary accounts of one organization in different currencies make the new index fail; clear the flag on all but one first.
+
 ## Options
 
 | Option | Default | Does |

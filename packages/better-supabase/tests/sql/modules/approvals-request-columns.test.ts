@@ -98,6 +98,58 @@ $$;`,
     expect(stack.url).not.toBe("");
   });
 
+  it("keeps the configured value over a caller's fields", async () => {
+    const files = renderBlocks(["employees", "leave"], {
+      ...LAYOUT,
+      modules: {
+        approvals: {
+          options: {
+            requestColumns: { contract: { source: "'legal'" } },
+            policies: {
+              contract: {
+                approve: {
+                  steps: [{ approvers: { permission: "x.approve" } }],
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        ...files
+          .filter((file) => file.kind === "schema")
+          .map((file) => file.contents),
+        ADDED,
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        ALLOW,
+        `do $$
+declare
+  v_id uuid;
+  v_request better_supabase.approval_requests%rowtype;
+begin
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  v_id := (better_supabase.request_approval('${TENANT}', 'contract', 'c-1', 'approve', fields => '{"source": "client", "employee_id": "${ALICE_EMPLOYEE}"}', requested_by => '${ALICE}') ->> 'id')::uuid;
+  select * into v_request from better_supabase.approval_requests a where a.id = v_id;
+  if v_request.source is distinct from 'legal' or v_request.employee_id is distinct from '${ALICE_EMPLOYEE}'::uuid then
+    raise exception 'the fields overwrote the configured column: %', to_jsonb(v_request);
+  end if;
+end;
+$$;`,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
+  });
+
   it("refuses a column the app doesn't add", () => {
     expect(() =>
       renderBlocks(["employees", "leave"], {

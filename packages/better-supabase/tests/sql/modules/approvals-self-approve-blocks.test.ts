@@ -266,6 +266,21 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("refuses self approval when a policy step doesn't name the approve key", () => {
+    expect(() =>
+      renderBlocks(["employees", "time-entries"], {
+        modules: {
+          "time-entries": {
+            options: {
+              selfApproveWhenTopOfChain: true,
+              policy: { steps: [{ approvers: { manager: true } }] },
+            },
+          },
+        },
+      }),
+    ).toThrow(/every policy step names/u);
+  });
+
   it("refuses the week options without approvals", () => {
     expect(() =>
       renderBlocks(["time-entries"], {

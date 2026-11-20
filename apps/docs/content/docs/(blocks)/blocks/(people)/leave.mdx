@@ -201,7 +201,7 @@ leave: {
 
 With the approvals block, the request's final decision is stamped on the request the same way `decide_leave_request` does without it. A final approval books the leave and sets `decided_by` to the last approver and `decision_note` to their comment. A rejection sets `rejected_at`, `decided_by` and `decision_note` and records `leave_request.rejected`. Cancelling the approval request (`cancel_approval`, by the requester or a manager) sets `cancelled_at` and `cancelled_by` and records `leave_request.cancelled`. Each column is left alone when you map it to `null`, and an expired request keeps its columns empty.
 
-`options.approvalSubject` names the subject type the approvals are filed under, `leave_request` by default. Set it to keep a name your app already uses, such as `time_off_request`; approval policies and `requestColumns` of the approvals block match it.
+`options.approvalSubject` names the subject type the approvals are filed under, `leave_request` by default. Set it to keep a name your app already uses, such as `time_off_request`. The block's own policy is still `options.policy`; tenant policies (`tenantPolicies`) and `requestColumns` of the approvals block match the new name. Changing it on an install with pending requests leaves those under the old name, where the block no longer acts on their decisions, so rename them in the same migration: `update better_supabase.approval_requests set subject_type = 'time_off_request' where subject_type = 'leave_request';`.
 
 ```ts title="better-supabase.config.ts"
 leave: {

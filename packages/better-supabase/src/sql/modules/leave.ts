@@ -562,7 +562,7 @@ ${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a(
   check (${q("endsOn")} >= ${q("startsOn")}),
   foreign key (${q("tenant")}, ${q("type")}) references ${types} (${ty("tenant")}, ${ty("id")}) on delete restrict
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${owner.column}, ${q("startsOn")} desc);
+${approvals !== undefined && ctx.owns("requests") ? decisionColumns.flatMap(([logical, definition]) => (ctx.has("requests", logical) ? [`alter table ${requests} add column if not exists ${definition(q(logical))};\n`] : [])).join("") : ""}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${owner.column}, ${q("startsOn")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 ${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});
 ${lockModuleTable(ctx, "requests", { read: true })}

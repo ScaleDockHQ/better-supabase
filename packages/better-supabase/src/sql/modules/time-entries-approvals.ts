@@ -5,6 +5,7 @@ import type {
 } from "../contributions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { subjectUuid } from "../contributions.ts";
 import {
   fail,
   pageSize,
@@ -312,10 +313,11 @@ export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
         {
           subject: TIMESHEET_SUBJECT,
           access: "declared",
+          filedBy: "block",
           approve: ({ subjectId, comment, approver }) =>
-            `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
+            `perform ${own.fn("timesheet_approval_decided")}(${subjectUuid(subjectId)}, true, ${comment}, ${approver});`,
           reject: ({ subjectId, comment, approver }) =>
-            `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+            `perform ${own.fn("timesheet_approval_decided")}(${subjectUuid(subjectId)}, false, ${comment}, ${approver});`,
           ...timesheetDecider(own),
         },
       ];
@@ -325,8 +327,10 @@ export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
       {
         subject: TIMESHEET_SUBJECT,
         access: "declared",
-        approve: ({ subjectId }) =>
-          `perform ${own.fn("approve_timesheet")}(${subjectId}::uuid);`,
+        filedBy: "block",
+        approve: ({ id, subjectId }) =>
+          `perform ${own.fn("approve_timesheet")}(${subjectUuid(subjectId)})
+    where exists (select 1 from ${own.table("timesheets")} s where s.${own.col("timesheets", "id")} = ${subjectUuid(subjectId)} and s.${own.col("timesheets", "approval")} = ${id});`,
         ...timesheetDecider(own),
       },
     ];

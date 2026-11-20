@@ -242,6 +242,65 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("leaves a request alone when another approval names it", async () => {
+    await expect(
+      run(
+        {
+          approvals: {
+            options: {
+              policies: {
+                leave_request: {
+                  other: {
+                    steps: [{ approvers: { permission: "leave.approve" } }],
+                  },
+                },
+              },
+            },
+          },
+        },
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_forged uuid;
+  v_hint text;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  ${as(BOB)}
+  begin
+    perform better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other');
+    raise exception 'a member filed an approval on someone else''s leave';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'APPROVAL_SUBJECT_BLOCK_FILED' then
+      raise exception 'hint %', v_hint;
+    end if;
+  end;
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  perform better_supabase.cancel_approval(v_forged);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_forged, 'rejected', 'forged');
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', 'not-a-uuid', 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_forged, 'approved');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.cancelled_at is not null or v_row.rejected_at is not null or v_row.approved_at is not null or v_row.decided_by is not null then
+    raise exception 'another approval changed the request: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses an approval subject type that isn't snake case", () => {
     expect(() =>
       renderBlocks(["employees", "leave"], {

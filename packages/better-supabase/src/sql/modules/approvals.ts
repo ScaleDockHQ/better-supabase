@@ -49,6 +49,7 @@ import {
   validateApprovers,
   validateRuns,
 } from "./approvals-policies.ts";
+import { requestColumnsSql } from "./approvals-request-columns.ts";
 import {
   allHoldersSql,
   decideSql,
@@ -85,87 +86,6 @@ import { myWorkTenant } from "./subjects.ts";
  */
 export function linkedPolicy(expiresIn = "null"): string {
   return `jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', ${expiresIn}, 'run', null)`;
-}
-
-const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/u;
-
-/**
- * `options.requestColumns`: per subject type, the statements in `open_approval`
- * that fill the app's own columns of the request it just inserted, `v_req`.
- */
-function requestColumnsSql(
-  ctx: BlockSqlContext,
-  extras: readonly { readonly name: string; readonly ident: string }[],
-): string {
-  const where = "blocks.approvals.options.requestColumns";
-  const raw: unknown = ctx.option("requestColumns");
-
-  if (raw === undefined) {
-    return "";
-  }
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new TypeError(
-      `${where} must map a subject type to { column: "SQL expression" }`,
-    );
-  }
-
-  const types: Readonly<Record<string, unknown>> = { ...raw };
-
-  const c = (column: string): string => ctx.col("requests", column);
-
-  return Object.entries(types)
-    .map(([type, columns]: [string, unknown]) => {
-      if (!SUBJECT_TYPE.test(type)) {
-        throw new TypeError(
-          `${where}: "${type}" is not a snake_case subject type`,
-        );
-      }
-
-      if (
-        typeof columns !== "object" ||
-        columns === null ||
-        Array.isArray(columns) ||
-        Object.keys(columns).length === 0
-      ) {
-        throw new TypeError(
-          `${where}.${type} must map at least one column to a SQL expression`,
-        );
-      }
-
-      const named: Readonly<Record<string, unknown>> = { ...columns };
-
-      const sets = Object.entries(named).map(([name, value]) => {
-        const extra = extras.find((each) => each.name === name);
-
-        if (extra === undefined) {
-          throw new TypeError(
-            `${where}.${type}.${name}: not a column the app adds to ${ctx.table("requests")}`,
-          );
-        }
-
-        if (
-          typeof value !== "string" ||
-          value.trim() === "" ||
-          value.includes(";")
-        ) {
-          throw new TypeError(
-            `${where}.${type}.${name} must be one SQL expression`,
-          );
-        }
-
-        return `${extra.ident} = (${value})`;
-      });
-
-      return `
-  if open_approval.subject_type = ${sqlString(type)} then
-    update ${ctx.table("requests")} x set ${sets.join(", ")}
-      from (select open_approval.tenant, open_approval.subject_id, open_approval.action, coalesce(open_approval.payload, '{}'::jsonb), v_requester) as subject (tenant, subject_id, action, payload, requested_by)
-      where x.${c("id")} = v_req.${c("id")}
-      returning x.* into v_req;
-  end if;`;
-    })
-    .join("");
 }
 
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
@@ -1243,6 +1163,9 @@ ${approvalsTenantSql(ctx, {
   ),
   permissions: { read, request, manage },
   extras,
+  blockFiled: contributed
+    .filter((each) => each.filedBy === "block")
+    .map((each) => each.subject),
 })}
 
 ${decideSql(ctx, kit)}

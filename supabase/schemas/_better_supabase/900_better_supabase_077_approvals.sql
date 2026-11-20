@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:e49e2d8a407734734cdce5b96cc086b9a1dcbb8d98862db4af869df0d98b05e1
+-- @bsb-hash sha256:9bf2cc2744d6fa9d0b990e292a83648cc1e75776070940f8d610124152a25cbc
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,10 +465,12 @@ begin
     perform "better_supabase"."drive_document_decided"(v_req."id", true);
   end if;
   if v_req."subject_type" = 'timesheet' then
-    perform "better_supabase"."approve_timesheet"(v_req."subject_id"::uuid);
+    perform "better_supabase"."approve_timesheet"((case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end))
+    where exists (select 1 from "better_supabase"."timesheets" s where s."id" = (case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end) and s."approval_id" = v_req."id");
   end if;
   if v_req."subject_type" = 'leave_request' then
-    perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'approved', (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1), (select x."approver" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" and x."decision" = 'approved' order by x."created_at" desc, x."id" desc limit 1));
+    perform "better_supabase"."leave_approval_decided"((case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end), 'approved', (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1), (select x."approver" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" and x."decision" = 'approved' order by x."created_at" desc, x."id" desc limit 1))
+    where exists (select 1 from "better_supabase"."leave_requests" x where x."id" = (case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end) and x."approval_id" = v_req."id");
   end if;
   if v_req."subject_type" = 'expense_report' then
     perform "better_supabase"."approve_expense_report"(v_req."subject_id"::uuid);
@@ -1089,6 +1091,9 @@ begin
   if request_approval.policy is not null and not v_service then
     raise exception 'only the service role files a request under its own policy' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
+  if not v_service and request_approval.subject_type in ('timesheet', 'leave_request') then
+    raise exception 'the block that owns this subject type files its approval requests' using errcode = '42501', hint = 'APPROVAL_SUBJECT_BLOCK_FILED';
+  end if;
   if request_approval.requested_by is not null and not v_service and request_approval.requested_by is distinct from auth.uid() then
     raise exception 'only the service role files a request for another user' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
@@ -1333,7 +1338,8 @@ begin
       perform "better_supabase"."drive_document_decided"(v_req."id", false);
     end if;
     if v_req."subject_type" = 'leave_request' then
-      perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'rejected', decide_approval.comment, v_actor);
+      perform "better_supabase"."leave_approval_decided"((case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end), 'rejected', decide_approval.comment, v_actor)
+    where exists (select 1 from "better_supabase"."leave_requests" x where x."id" = (case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end) and x."approval_id" = v_req."id");
     end if;
     if v_req."subject_type" = 'warranty_claim' then
       perform "better_supabase"."decide_warranty_claim"(v_req."subject_id"::uuid, 'denied', decide_approval.comment);
@@ -1818,7 +1824,8 @@ begin
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
   if v_req."subject_type" = 'leave_request' then
-    perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'cancelled', null, auth.uid());
+    perform "better_supabase"."leave_approval_decided"((case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end), 'cancelled', null, auth.uid())
+    where exists (select 1 from "better_supabase"."leave_requests" x where x."id" = (case when v_req."subject_id" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then v_req."subject_id"::uuid end) and x."approval_id" = v_req."id");
   end if;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;

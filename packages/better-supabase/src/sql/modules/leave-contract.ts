@@ -6,6 +6,7 @@ import type {
 } from "../contributions.ts";
 import type { ApprovalPolicy } from "./approvals-policies.ts";
 
+import { subjectUuid } from "../contributions.ts";
 import { extraFieldsArg } from "../shared.ts";
 import {
   assertCountedApprovers,
@@ -269,16 +270,30 @@ export const LEAVE_CONTRIBUTES: BlockContributes = {
           {
             subject: leaveApprovalSubject(own),
             access: "declared",
-            approve: ({ subjectId, comment, approver }) =>
-              `perform ${own.fn("leave_approval_decided")}(${subjectId}::uuid, 'approved', ${comment}, ${approver});`,
-            reject: ({ subjectId, comment, approver }) =>
-              `perform ${own.fn("leave_approval_decided")}(${subjectId}::uuid, 'rejected', ${comment}, ${approver});`,
-            cancel: ({ subjectId, approver }) =>
-              `perform ${own.fn("leave_approval_decided")}(${subjectId}::uuid, 'cancelled', null, ${approver});`,
+            filedBy: "block",
+            approve: (request) => leaveDecided(own, request, "'approved'"),
+            reject: (request) => leaveDecided(own, request, "'rejected'"),
+            cancel: (request) =>
+              leaveDecided(own, { ...request, comment: "null" }, "'cancelled'"),
             ...leaveDeciders(own),
           },
         ],
 };
+
+/**
+ * Applies a decision of the approval request `request` to its leave request,
+ * only while that leave request still points at this approval.
+ */
+function leaveDecided(
+  own: BlockSqlContext,
+  request: ApprovalRequestSql,
+  decision: string,
+): string {
+  const id = subjectUuid(request.subjectId);
+
+  return `perform ${own.fn("leave_approval_decided")}(${id}, ${decision}, ${request.comment}, ${request.approver})
+    where exists (select 1 from ${own.table("requests")} x where x.${own.col("requests", "id")} = ${id} and x.${own.col("requests", "approval")} = ${request.id});`;
+}
 
 /**
  * `options.decider` and `options.selfDecideWhenTopOfChain` in approvals mode:

@@ -120,6 +120,12 @@ export function timesheetAtOnce(
 
   assertCountedApprovers(policy, approve, `${WHERE}.selfApproveWhenTopOfChain`);
 
+  if (!policy.steps.every((step) => step.approvers.permission === approve)) {
+    throw new TypeError(
+      `${WHERE}.selfApproveWhenTopOfChain approves for the owner only when every policy step names ${approve}, which the owner holds`,
+    );
+  }
+
   if (
     (ctx.modules.permissions?.model === "custom" &&
       ctx.modules.permissions.functions?.canUser === undefined) ||

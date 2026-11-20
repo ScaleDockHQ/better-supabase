@@ -79,7 +79,12 @@ create table if not exists ${q.accounts} (
   unique (${a("tenant")}, ${a("id")})
 );${appKey("accounts", "tenant_id", `${a("tenant")}, ${a("id")}`)}
 create unique index if not exists ${name("accounts", "iban_key")} on ${q.accounts} (${a("tenant")}, ${a("iban")}) where ${a("iban")} is not null;
-create unique index if not exists ${name("accounts", "primary_key")} on ${q.accounts} (${a("tenant")}${perOrganization ? "" : `, ${a("currency")}`})${noCurrency && !perOrganization ? " nulls not distinct" : ""} where ${a("isPrimary")} and ${a("archivedAt")} is null;
+${
+  perOrganization
+    ? `drop index if exists ${sqlIdent(ctx.tableName("accounts").schema)}.${name("accounts", "primary_key")};
+create unique index if not exists ${name("accounts", "primary_org_key")} on ${q.accounts} (${a("tenant")}) where ${a("isPrimary")} and ${a("archivedAt")} is null;`
+    : `create unique index if not exists ${name("accounts", "primary_key")} on ${q.accounts} (${a("tenant")}, ${a("currency")})${noCurrency ? " nulls not distinct" : ""} where ${a("isPrimary")} and ${a("archivedAt")} is null;`
+}${noCurrency && ctx.owns("accounts") ? `\nalter table ${q.accounts} alter column ${a("currency")} drop not null;` : ""}
 create index if not exists ${name("accounts", "tenant_idx")} on ${q.accounts} (${a("tenant")}, ${a("name")});
 create index if not exists ${name("accounts", "journal_idx")} on ${q.accounts} (${a("journal")}) where ${a("journal")} is not null;
 ${lockTable(q.accounts, { read: true })}
