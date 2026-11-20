@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { gzipSync } from "node:zlib";
 import { rolldown } from "rolldown";
@@ -599,32 +599,34 @@ describe("bundle", () => {
   });
 
   it(
-    "answers root --help about as fast as --version",
-    { timeout: 60_000 },
+    "loads only the startup chunks for root --help",
+    { timeout: 30_000 },
     async () => {
-      const time = async (argv: readonly string[]): Promise<number> => {
-        const start = performance.now();
-        await promisify(execFile)(process.execPath, [SHIM, ...argv]);
+      const trace = [
+        'import { registerHooks } from "node:module";',
+        "const loaded = new Set();",
+        "registerHooks({ load(url, context, next) { loaded.add(url); return next(url, context); } });",
+        "process.on('exit', () => process.stderr.write('\\n@@' + JSON.stringify([...loaded])));",
+      ].join("\n");
 
-        return performance.now() - start;
-      };
+      const { stderr } = await promisify(execFile)(process.execPath, [
+        "--import",
+        `data:text/javascript,${encodeURIComponent(trace)}`,
+        SHIM,
+        "--help",
+      ]);
 
-      // Turbo runs this next to other test suites, so the runner's load
-      // changes during the test (a loaded CI runner measured 63 ms for
-      // --version and 131 ms for --help): alternate the two commands so both see the
-      // same load, and compare the least disturbed run of each.
-      const versionTimes: number[] = [];
-      const helpTimes: number[] = [];
+      const loaded = (JSON.parse(stderr.split("\n@@")[1]!) as string[])
+        .filter((url) => url.startsWith("file:"))
+        .map((url) => fileURLToPath(url));
 
-      for (let index = 0; index < 15; index += 1) {
-        versionTimes.push(await time(["--version"]));
-        helpTimes.push(await time(["--help"]));
-      }
+      const allowed = new Set([...closures.get(CLI_STARTUP)!.files, SHIM]);
 
-      const version = Math.min(...versionTimes);
-      const help = Math.min(...helpTimes);
+      const extra = loaded
+        .filter((file) => !allowed.has(file) && !file.endsWith("package.json"))
+        .map((file) => file.slice(PACKAGE.length + 1));
 
-      expect(help).toBeLessThan(Math.max(version * 2, version + 100));
+      expect(extra).toEqual([]);
     },
   );
 
