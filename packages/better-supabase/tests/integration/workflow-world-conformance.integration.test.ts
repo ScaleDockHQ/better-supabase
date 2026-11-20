@@ -45,6 +45,29 @@ describe.skipIf(!live).each(MODES)(
     });
 
     afterAll(async () => {
+      // The suites leave runs of workflows no deployment registers. The next
+      // World to start re-enqueues active runs, so another suite's poller
+      // would log errors for them: the queued messages and the runs go.
+      await pool.query(
+        `delete from pgmq.q_workflow_deliveries m
+          using workflow.workflow_runs r
+          where r.name in ('startHookConformance', 'fenceConformance')
+            and m.message::text like '%' || r.id || '%'`,
+      );
+      await pool.query(
+        `do $$
+         declare t record;
+         begin
+           for t in select table_name from information_schema.columns
+                    where table_schema = 'workflow' and column_name = 'run_id'
+                      and table_name <> 'workflow_run_keys' loop
+             execute format(
+               'delete from workflow.%I where run_id in (select id from workflow.workflow_runs where name in (''startHookConformance'', ''fenceConformance''))',
+               t.table_name);
+           end loop;
+           delete from workflow.workflow_runs where name in ('startHookConformance', 'fenceConformance');
+         end $$`,
+      );
       await world.close();
       await second.close();
       await pool.end();
