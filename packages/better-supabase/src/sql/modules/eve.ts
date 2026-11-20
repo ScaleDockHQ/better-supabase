@@ -329,11 +329,7 @@ $$;`;
 export function eveContract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "eve_session_wake", args: ["text", "integer"], returns: "void" },
-    {
-      name: "eve_session_lease",
-      args: ["text", "integer"],
-      returns: "record",
-    },
+    { name: "eve_session_lease", args: ["text", "integer"], returns: "record" },
     {
       name: "eve_session_commit",
       args: [

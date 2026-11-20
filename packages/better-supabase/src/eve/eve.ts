@@ -113,7 +113,55 @@ export type {
 
 export { chatIdOf, persistSessions } from "./sessions.ts";
 
-export type { EveSessionHooks, PersistSessionsOptions } from "./sessions.ts";
+export {
+  createSessionSync,
+  sessionChatId,
+  sweepSessions,
+  syncSession,
+} from "./sync.ts";
+
+export { sessionHistory } from "./history.ts";
+
+export { endStrandedSessions, openSessions } from "./upgrade.ts";
+
+export { createEveSessionStore } from "./store.ts";
+
+export type {
+  EvePersistedEvent,
+  EveSessionHooks,
+  PersistSessionsOptions,
+} from "./sessions.ts";
+
+export type {
+  EveSessionMeters,
+  EveSessionPrincipal,
+  EveSessionRead,
+  EveSessionResolveInput,
+  EveSessionTarget,
+  EveSyncEvent,
+  SessionSync,
+  SyncSessionResult,
+  SyncSessionsOptions,
+  SyncSessionStatus,
+} from "./sync.ts";
+
+export type { EveHistoryMessage, SessionHistoryOptions } from "./history.ts";
+
+export type {
+  EndStrandedSessionsOptions,
+  EndStrandedSessionsResult,
+  OpenSessionsOptions,
+} from "./upgrade.ts";
+
+export type {
+  EveBehindOptions,
+  EveOpenOptions,
+  EveOpenSession,
+  EveSessionCommit,
+  EveSessionLease,
+  EveSessionStatus,
+  EveSessionStore,
+} from "./store.ts";
 
 export { eveContext, supabaseTool, tenantToolApproval } from "./tools.ts";
 

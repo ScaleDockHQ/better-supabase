@@ -1079,7 +1079,10 @@ export function createApprovals<
         }),
       ),
     cancel: (id, options) =>
-      one("cancel_approval", { request_id: id, reason: options?.reason ?? null }),
+      one("cancel_approval", {
+        request_id: id,
+        reason: options?.reason ?? null,
+      }),
     get: getRequest,
     getMany: (ids) =>
       call("get_approvals", { request_ids: ids }, (value) =>

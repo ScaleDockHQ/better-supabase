@@ -12,6 +12,7 @@ import { parseQueueRoute, reenqueueActiveRuns } from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
+import type { EveSessionStore } from "../../eve/store.ts";
 import type { WorkflowMaintenance } from "../run-keys.ts";
 import type {
   ClaimedJob,
@@ -26,6 +27,7 @@ import { consoleLogger } from "../../core/logger.ts";
 import { memoized } from "../../core/optional-peer.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { createEveSessionStore } from "../../eve/store.ts";
 import { watchPoolErrors } from "../../postgres/pool-errors.ts";
 import { usesTransactionPooler } from "../../postgres/pooler.ts";
 import {
@@ -163,6 +165,8 @@ function worldRegistry(): Map<string, SupabaseWorld> {
 /** The World plus the delivery helpers the tests and routes use. */
 export type SupabaseWorld = World &
   WorkflowMaintenance & {
+    /** The eve projection's lease and cursor functions, for `syncSession`. */
+    readonly eveSessions: EveSessionStore;
     start(): Promise<void>;
     close(): Promise<void>;
     /**
@@ -915,6 +919,7 @@ export function createSupabaseWorld(
     getEncryptionKeyForRun,
     deliverOnce,
     ...createMaintenance(call, (runId) => getEncryptionKeyForRun(runId)),
+    eveSessions: createEveSessionStore(call),
     async start() {
       await assertWorldMigrations();
       await warnWithoutKey();

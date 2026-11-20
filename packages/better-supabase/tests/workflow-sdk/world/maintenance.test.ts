@@ -96,7 +96,7 @@ describe("createMaintenance", () => {
 
     await createMaintenance(call, noKey).purgeRuns({ skipUnprojected: true });
 
-    expect(sent[0]?.args?.[3]).toBe(true);
+    expect(sent[0]?.args[3]).toBe(true);
   });
 
   it("maps open hooks and their creation time", async () => {
