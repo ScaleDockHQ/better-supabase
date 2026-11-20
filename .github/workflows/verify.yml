@@ -30,9 +30,10 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
-  # The cheap gates share one machine and one install.
+  # The cheap gates run as three lanes, so the first failure from lint or a script check arrives
+  # within a few minutes and the slowest lane sets the wall time instead of their sum.
   static:
-    name: static
+    name: static (${{ matrix.lane }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -41,40 +42,66 @@ jobs:
       id-token: write
       # Doctor uploads SARIF to code scanning.
       security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lane: lint
+            tasks: >-
+              lint lint:root typecheck:tooling check:prose check:skills check:adrs check:agent-docs
+          - lane: checks
+            tasks: >-
+              check:app-architecture check:empty-translations check:example-coverage
+              check:example-findings check:migration-order check:naming check:no-permdock
+              recipes:check skill-references:check test:scripts catalog:check docs:drift knip
+          - lane: generated
+            tasks: gen:check doctor:sarif typecheck:matrix
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          # `turbo --affected` needs the merge base, not old file contents.
+          # `turbo --affected` and `check:migration-order` need the merge base, not old file contents.
           fetch-depth: 0
           filter: blob:none
 
       - uses: $/.github/actions/setup
         with:
-          save-cache: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+          save-cache: ${{ matrix.lane == 'lint' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
       # `test:scripts` runs the `check-changed` tests, which search with `rg`; the runner image has none.
       - name: Install ripgrep
+        if: matrix.lane == 'checks'
         run: sudo apt-get install --yes --no-install-recommends ripgrep
 
       - parallel:
           - name: Workspace tasks
-            run: >-
-              pnpm exec turbo run
-              lint lint:root typecheck:tooling check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations
-              check:example-coverage check:example-findings check:migration-order check:naming
-              check:no-permdock recipes:check skill-references:check test:scripts catalog:check docs:drift knip gen:check doctor:sarif typecheck:matrix
-              $AFFECTED --log-file
+            env:
+              TASKS: ${{ matrix.tasks }}
+            run: |
+              read -ra tasks <<< "$TASKS"
+              read -ra affected <<< "$AFFECTED"
+              pnpm exec turbo run "${tasks[@]}" "${affected[@]}" --log-file
           - name: Format
+            if: matrix.lane == 'lint'
             run: pnpm run format:check
           - name: Boundaries
+            if: matrix.lane == 'lint'
             run: pnpm run boundaries
           - name: Audit
+            if: matrix.lane == 'checks'
             run: pnpm run audit:high
+          - name: Publish checks
+            if: matrix.lane == 'generated'
+            run: pnpm run check:publish
+          - name: Lint the PR title
+            if: ${{ github.event_name == 'pull_request' && matrix.lane == 'lint' }}
+            env:
+              TITLE: ${{ github.event.pull_request.title }}
+            run: printf '%s\n' "$TITLE" | pnpm exec commitlint
 
       # `doctor:sarif` is the only doctor run in CI: it prints the findings and restores `doctor.sarif` on a cache hit.
       - name: Upload doctor findings
-        if: always() && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
+        if: always() && matrix.lane == 'generated' && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: apps/examples/nextjs/doctor.sarif
@@ -85,7 +112,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: turbo-logs-static
+          name: turbo-logs-static-${{ matrix.lane }}
           path: .turbo/logs/
           if-no-files-found: ignore
           retention-days: 7
@@ -108,8 +135,6 @@ jobs:
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
             run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED --log-file
-          - task: publish checks
-            run: pnpm run check:publish
           # A benchmark: it gets a machine to itself so its timings stay comparable.
           - task: type performance
             run: pnpm exec turbo run typecheck:perf

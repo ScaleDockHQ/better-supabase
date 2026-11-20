@@ -28,25 +28,6 @@ env:
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
 jobs:
-  pr-title:
-    name: PR title
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: $/.github/actions/setup
-        with:
-          cache: "false"
-
-      - name: Lint the PR title
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: printf '%s\n' "$TITLE" | pnpm exec commitlint
-
   # release.yml runs the same gate on every push to main.
   verify:
     if: github.event_name == 'pull_request'
