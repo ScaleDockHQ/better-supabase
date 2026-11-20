@@ -35,12 +35,16 @@ interface ConnectTokenParams {
 
 interface ConnectOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   forceRefresh?: boolean;
   region?: string;
 }
 
 interface ConnectAuthorizationOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   callbackUrl?: string;
   deviceCode?: boolean;
   prompt?: string;
@@ -110,6 +114,8 @@ export interface VercelConnectModule {
 
 interface ConnectInstallationOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   returnUrl?: string;
   webhook?: string;
   tenantId?: string;
@@ -135,6 +141,7 @@ export type VercelConnectChannel =
   | "linear"
   | "linq"
   | "notion"
+  | "resend"
   | "sendblue"
   | "slack"
   | "teams"
@@ -155,6 +162,7 @@ const CHANNEL_HELPERS: Readonly<Record<VercelConnectChannel, string>> = {
   linear: "connectLinearAdapter",
   linq: "connectLinqAdapter",
   notion: "connectNotionAdapter",
+  resend: "connectResendAdapter",
   sendblue: "connectSendblueAdapter",
   slack: "connectSlackAdapter",
   teams: "connectTeamsAdapter",
@@ -245,6 +253,14 @@ export interface VercelConnectCredentialsOptions {
   readonly vercelToken?: string;
   /** The Connect region, for a project outside the default one. */
   readonly region?: string;
+  /**
+   * The Vercel team the connector belongs to, for a `vercelToken` that can
+   * reach more than one (needs `@vercel/connect` 2.9). Set at most one of
+   * `teamId` and `orgId`.
+   */
+  readonly teamId?: string;
+  /** The Vercel organization the connector belongs to (`@vercel/connect` 2.9). */
+  readonly orgId?: string;
   /**
    * Passed to `createConnectWebhookVerifier`: the project and environment a
    * forwarded webhook's OIDC token must name. Defaults to the deployment's.
@@ -481,6 +497,8 @@ export function vercelConnectCredentials(
       ? {}
       : { vercelToken: options.vercelToken }),
     ...(options.region === undefined ? {} : { region: options.region }),
+    ...(options.teamId === undefined ? {} : { teamId: options.teamId }),
+    ...(options.orgId === undefined ? {} : { orgId: options.orgId }),
   };
 
   const foreign = (): DbException =>

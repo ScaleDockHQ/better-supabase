@@ -23,6 +23,7 @@ export const inboxBot = inboxAdapter({ inbox, userName: "Acme bot", streams });
 | `inbox`            | required | `createInbox` on a service transport; the bot writes as the service                                |
 | `userName`         | `bot`    | The bot's name on its messages and reactions                                                       |
 | `verify`           | none     | Checks requests to `handleWebhook`; without it `handleWebhook` answers 401                         |
+| `reasoning`        | `"drop"` | `"metadata"` keeps the model's reasoning in `metadata.reasoning`; it is never in the body          |
 | `streams`          | none     | A [stream store](/docs/blocks/streams) for streamed replies a reader can resume                    |
 | `identities`       | none     | `principalByIdentity` (or `server`) and `ticketFor`: tickets for linked contacts                   |
 | `concurrencyScope` | none     | What `getConcurrencyScope()` returns, such as the tenant id when one `Chat` serves several tenants |
@@ -129,6 +130,12 @@ A streamed `thread.post` shows the bot as typing while it writes, then
 posts one message with the full text. With `streams`, the chunks also go
 to the stream store as they arrive, and the message's `metadata.stream_id`
 names the stream, so a client can replay the reply chunk by chunk.
+
+The adapter accepts `reasoning` chunks, so the Chat SDK does not strip them
+before `stream` runs. They never become part of the message a contact reads.
+By default they are dropped. With `reasoning: "metadata"`, the text is kept in
+the stored message's `metadata.reasoning`, for your own tooling. Choose it
+only when the contact's client does not show message metadata.
 
 ## DMs, replies and listing threads
 

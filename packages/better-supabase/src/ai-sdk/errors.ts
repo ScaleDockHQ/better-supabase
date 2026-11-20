@@ -135,6 +135,14 @@ function ofGateway(type: string, error: Record<string, unknown>): DbError {
       });
     }
 
+    case "access_policy_denied": {
+      return dbError(
+        "forbidden",
+        "An AI Gateway access policy does not allow this model or provider.",
+        { code: "AI_GATEWAY_ACCESS_POLICY_DENIED" },
+      );
+    }
+
     case "authentication_error": {
       return dbError("unexpected", "The AI Gateway refused the credentials.", {
         code: "AI_GATEWAY_AUTH",

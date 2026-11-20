@@ -101,6 +101,10 @@ describe("aiErrorToDbError", () => {
       "forbidden",
       "AI_GATEWAY_FORBIDDEN",
     ]);
+    expect(pick(gateway("access_policy_denied"))).toEqual([
+      "forbidden",
+      "AI_GATEWAY_ACCESS_POLICY_DENIED",
+    ]);
     expect(pick(gateway("authentication_error"))).toEqual([
       "unexpected",
       "AI_GATEWAY_AUTH",

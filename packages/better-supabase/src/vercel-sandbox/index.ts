@@ -2,6 +2,8 @@ export type {
   BrokeredOptions,
   ForChatOptions,
   VercelChatSandbox,
+  VercelDriveMount,
+  VercelDriveMountMode,
   VercelNetworkPolicy,
   VercelNetworkRule,
   VercelSandboxCreateOptions,

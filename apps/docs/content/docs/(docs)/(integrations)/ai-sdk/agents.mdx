@@ -253,10 +253,11 @@ a per-call `integrations` list.
 
 `createWorkflowAgentRuntime` from `better-supabase/ai-sdk/workflow` builds a
 `WorkflowAgent` from the same options: the same tools, instructions, runtime
-context, gateway attribution and `authorizeModel` check. `WorkflowAgent` has
-no `toolApproval` setting, so the tenant's `ask` tools, high-risk operations
-and your `toolApproval` check run as each tool's `needsApproval`: a call that
-asks waits for the user and a denied call throws. `toolApprovalSecret`
+context, gateway attribution and `authorizeModel` check. The tenant's `ask`
+tools, high-risk operations and your `toolApproval` check go to the agent's
+`toolApproval` setting, which runs in workflow context: a call that asks waits
+for the user, and a denied call becomes an `execution-denied` tool result that
+the model sees, where earlier versions threw from the tool. `toolApprovalSecret`
 (`{ environmentVariable }`) signs the approval requests with AI SDK 7's
 `experimental_toolApprovalSecret`.
 

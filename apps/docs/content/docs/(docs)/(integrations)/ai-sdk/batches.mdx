@@ -66,6 +66,12 @@ A poll that fails keeps the batch due and notes the error on the row; the
 next run tries again. `onItem(item, batch)` changes what is stored for a
 result, for example to move a generated image to Storage and keep its path.
 
+Pass the `output` specification the requests used, for example
+`Output.object({ schema })`, and the AI SDK parses and validates each
+successful item's text. The stored output then holds the parsed `output`, or
+an `outputError` with the reason when the text did not parse. A parse failure
+does not fail the item, so `text` and `usage` are still stored.
+
 ## Reading results
 
 ```ts
@@ -79,10 +85,11 @@ Both read as the caller: a member sees the batches they started, and
 `ai_keys.manage` sees every batch in the organization. `cancel(batch)` asks
 the provider to cancel and stores the new status.
 
-| Option      | Default                             | Sets                                                      |
-| ----------- | ----------------------------------- | --------------------------------------------------------- |
-| `providers` | required                            | The providers block, with a service transport for polling |
-| `provider`  | the global provider, or the gateway | The batch provider, or a function of the stored reference |
-| `pollEvery` | 60                                  | Seconds between two polls of a running batch              |
-| `onItem`    | output, usage and error as JSON     | What is stored for one result                             |
-| `onDone`    | none                                | Called once a batch's results are stored, or it failed    |
+| Option      | Default                             | Sets                                                                                                        |
+| ----------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `providers` | required                            | The providers block, with a service transport for polling                                                   |
+| `provider`  | the global provider, or the gateway | The batch provider, or a function of the stored reference                                                   |
+| `output`    | none                                | The `Output` the requests were started with; each item then stores `output` or `outputError` next to `text` |
+| `pollEvery` | 60                                  | Seconds between two polls of a running batch                                                                |
+| `onItem`    | output, usage and error as JSON     | What is stored for one result                                                                               |
+| `onDone`    | none                                | Called once a batch's results are stored, or it failed                                                      |

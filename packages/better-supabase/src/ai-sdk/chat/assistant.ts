@@ -39,7 +39,7 @@ import {
   pathToHistory,
   repairDanglingToolCalls,
 } from "../../blocks/ai-chat/history.ts";
-import { isRecord } from "../../core/block-helpers.ts";
+import { errorText, isRecord } from "../../core/block-helpers.ts";
 import { dbError } from "../../core/errors.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { resumeFromStore, teeToStore } from "../../streams/tee.ts";
@@ -884,6 +884,7 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
     }
 
     let finished: Promise<void> | undefined;
+    let streamError: unknown;
 
     const onEnd: UIMessageStreamOnEndCallback<UI_MESSAGE> = (event) => {
       const responseMessage =
@@ -892,14 +893,33 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
 
       finished = (async () => {
         const stopped = event.isAborted || abort.signal.aborted;
-        const status: AiRunStatus = stopped ? "cancelled" : "completed";
+        const { outcome } = event;
+
+        // A stream that failed after it started still ends with a message.
+        const failed =
+          !stopped &&
+          (outcome.status === "failed" || event.finishReason === "error");
+
+        const failure = failed
+          ? errorText(
+              outcome.status === "failed" && outcome.error !== undefined
+                ? outcome.error
+                : streamError,
+            )
+          : undefined;
+
+        const status: AiRunStatus = stopped
+          ? "cancelled"
+          : failed
+            ? "failed"
+            : "completed";
 
         const saved = await context.chats.messages.saveAssistant({
           chatId: chat.id,
           message: fromUIMessage(responseMessage),
           options: {
             parentId,
-            status: stopped ? "aborted" : "complete",
+            status: stopped ? "aborted" : failed ? "error" : "complete",
             model,
             format: AI_SDK_UI_FORMAT,
             native: responseMessage,
@@ -915,7 +935,7 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
         await release(
           saved.ok ? status : "failed",
           usage,
-          saved.ok ? undefined : saved.error.message,
+          saved.ok ? failure : saved.error.message,
         );
 
         if (
@@ -952,7 +972,11 @@ export function createAssistant<UI_MESSAGE extends UIMessage = UIMessage>(
       originalMessages: uiMessages,
       generateMessageId: () => assistantId,
       onEnd,
-      onError: options.onError ?? aiErrorMessage,
+      onError: (error: unknown) => {
+        streamError ??= error;
+
+        return (options.onError ?? aiErrorMessage)(error);
+      },
     };
 
     const chunks = uiChunksOf(result, streamOptions);
