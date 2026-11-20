@@ -158,6 +158,7 @@ Agent notes, by topic: [`adapters`](docs/agents/adapters.md),
 [`blocks`](docs/agents/blocks.md), [`cli`](docs/agents/cli.md),
 [`commands`](docs/agents/commands.md),
 [`core`](docs/agents/core.md), [`database`](docs/agents/database.md),
+[`eve`](docs/agents/eve.md),
 [`formatting`](docs/agents/formatting.md), [`nextjs`](docs/agents/nextjs.md)
 and [`tooling`](docs/agents/tooling.md).
 

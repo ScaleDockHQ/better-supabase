@@ -92,9 +92,9 @@ const FINAL_STATES: Readonly<Record<string, FinalRunState>> = {
 /**
  * Hook handlers that copy an eve session into the canonical chat tables, so the
  * chat UI, search, memory recall and analytics read eve sessions like any other
- * chat. Every write is keyed by the event, so eve's at-least-once delivery
- * stores each message once. Sessions without a signed-in user and tenant are
- * skipped.
+ * chat. Every write is keyed by the event. eve does not retry or rerun hooks,
+ * so a missed hook is never replayed. Sessions without a signed-in user and
+ * tenant are skipped.
  */
 export function persistSessions(
   options: PersistSessionsOptions,

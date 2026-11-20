@@ -1,0 +1,99 @@
+# eve on the Supabase World
+
+Gap report for running eve 1.2.0 on the Supabase World and projecting its
+sessions into the blocks. Read it before you change `src/eve`,
+`src/workflow-sdk/world` or the `workflow-sdk` SQL module.
+
+Status values: `done`, `partly`, `missing` and `unproven`. Unproven means only
+a live run on Vercel can settle it; `scripts/eve-vercel-check.ts` collects the
+numbers and the report records them once a maintainer runs it.
+
+## Version line
+
+| Package                      | Floor                                                              | Passes `minimumReleaseAge` |
+| ---------------------------- | ------------------------------------------------------------------ | -------------------------- |
+| `eve`                        | 1.2.0 (bundles `@workflow/core` 5.7.0 and `@workflow/world` 5.3.0) | 2026-11-21 15:55 UTC       |
+| `workflow`, `@workflow/core` | 5.7.0                                                              | 2026-11-20 20:41 UTC       |
+| `@workflow/world`            | 5.3.0                                                              | 2026-11-20 20:41 UTC       |
+| `@workflow/world-postgres`   | 5.4.0                                                              | 2026-11-20 20:41 UTC       |
+
+eve 1.1.0 bundles core 5.6.1 and world 5.2.2, so it is not the supported line.
+Never lower or bypass `minimumReleaseAge`; read versions with `pnpm view` when
+you bump.
+
+## Facts the code relies on
+
+- eve does not retry or rerun hooks. A hook runs once per event.
+- eve stamps `$eve.version` on every run and `$eve.session` on handoff
+  successors. No other run attribute names a tenant or a principal.
+- `WORKFLOW_ENCRYPTION_KEY` is read by none of the SDK packages. Keys come only
+  from `World.getEncryptionKeyForRun`.
+- Core's default stream flush interval is 0, not 10.
+- On Vercel, eve's flow route has a Vercel Queues trigger and `pg_net` cannot
+  reach it, so it needs the `vercel-queue` delivery mode.
+- Migration 0031 adds `workflow.workflow_run_delivery_leases`. Migration 0032
+  adds `workflow_runs.wake_pending`; upstream backfills existing rows with
+  `true`, then sets the default to `false`.
+- No structural type in `src/eve` breaks from eve 1.0.0-rc.13 to 1.2.0
+  (stream version 27, approvals and the session reader are unchanged).
+
+## Part A: the World
+
+| Item                              | Status                                                                                                                                                                                                                                 | Where                                                    | Test                                                                         |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| A1 Pins and migrations 0031, 0032 | missing: pins are 5.2.0 with peers `<5.3`; `assertWorldMigrations` throws on a newer world-postgres                                                                                                                                    | `src/workflow-sdk/world/types.ts`, `pnpm-workspace.yaml` | waits for the version gate                                                   |
+| A2 eve loads the World            | partly: default export and `createWorld()` exist; eve skips its major-version check for a subpath specifier; the Vercel build is unproven (the World is bundled with `pg` unless `better-supabase` is in `build.externalDependencies`) | `src/workflow-sdk/world/index.ts`                        | `tests/workflow-sdk/world` ("shares one World per connection and namespace") |
+| A3 eve's required capabilities    | partly: inherited through `...base`, but `atomicStartHook`, spec 9, handoff, steering and retention are not asserted                                                                                                                   | `src/workflow-sdk/world/world.ts`                        | none                                                                         |
+| A4 Delivery                       | partly: signing, 73 deliveries and dead letters are tested; delivery waits for a 1 second `pg_cron` tick; no extra headers; `pg_net` cannot reach the flow route on Vercel                                                             | `src/workflow-sdk/world/`                                | `tests/workflow-sdk/world`                                                   |
+| A5 Pooling and streams            | partly: pool `max` is 10 per instance; the World warns only on port 6543; streams, run status and `events.subscribe` need `LISTEN`, which the transaction pooler lacks; no benchmark                                                   | `world.ts`                                               | none                                                                         |
+| A6 Encryption                     | partly: per-run HKDF keys are tested; no rotation path and no missing-key warning; run attributes such as `$eve.title` are plain text by design                                                                                        | `crypto.ts`                                              | `tests/workflow-sdk/world`                                                   |
+| A7 Run attribution                | partly: tenant and principal are recorded nowhere; `persistSessions` never sets `ai_runs.external_run_id`                                                                                                                              | `src/eve/sessions.ts`                                    | none                                                                         |
+| A8 Session upgrades               | missing, apart from `cancelRuns`                                                                                                                                                                                                       | `maintenance.ts`                                         | none                                                                         |
+| A9 Retention                      | partly: `purgeRuns` is tested; it cannot skip unprojected runs; retention is undocumented for eve                                                                                                                                      | `maintenance.ts`                                         | `tests/workflow-sdk/world`                                                   |
+| A10 `eve dev` with a custom World | unproven: eve's code honours a configured World; nothing here documents or tests it                                                                                                                                                    | none                                                     | none                                                                         |
+
+## Part B: persistence
+
+| Item                | Status                                                                                                                                                                                                                                                                                                                                                        | Where                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| B1 to B5 Projection | missing: `persistSessions` writes from five hooks with no cursor and skips sessions without a user. The hooks are not retried, so the write is once per event, not at-least-once. Building blocks that exist: `runs.steps.record`, `usage.record` with idempotency keys, `ai_tool_approvals`, `ai_pending_inputs`, queue `dedupe: "waiting"`, `pathToHistory` | `src/eve/sessions.ts` |
+
+Design decision: `syncSession` reads through eve's public reader
+(`sessions.attach` from `eve/server`) with `stream({ startIndex: cursor,
+follow: false })`. Decoding `workflow_stream_chunks` directly would couple the
+code to Workflow's framing and encryption and to eve's line format, and it
+breaks on Vercel Workflow. The cost is that the sync job runs inside the eve
+server process.
+
+## Part C: blocks and SDKs
+
+| Item            | Status                                                                                                                                               | Notes                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| C1 Types        | done: no structural type breaks; dynamic schedule `scopes` and `validateExpression` are unsupported                                                  | `src/eve/types.ts`                                 |
+| C2 Chat sharing | partly: organization visibility, participants with roles and a revocable live link exist; the live link has no Postgres test and `mode` is free text | `ai-chat`                                          |
+| C3 Inbox on eve | missing: no `runAs`, no draft mode, no per-connection webhook path; `routeInbox` needs the static `chatSdkChannel` bridge                            | `src/eve/inbox.ts`                                 |
+| C4 TTL          | done: every `ttl_ms` is `bigint`; tests "sends a 30-day TTL as a plain number" and "stores thread state under a 30 day TTL"                          | chat-sdk state                                     |
+| C5 Memory       | partly: organization and record scopes with admin-only writes exist; `supabaseMemory` uses only the per-user agent scope; no import                  | `src/eve` memory                                   |
+| C6 Knowledge    | partly: PDF and Office parsing, a URL source and typed chunk positions are missing                                                                   | knowledge block                                    |
+| C7 Schedules    | partly: `ai-schedules` exists but eve schedules do not write to it; a stale run failed in SQL notifies nobody                                        | `src/eve/schedules.ts`, `dynamic-schedules.ts`     |
+| C8 Approvals    | partly: `tenantToolApproval` keeps the stricter of two results; there is no general combinator and `scopes` is a static list                         | `src/eve/tools.ts`                                 |
+| C9 Guide        | missing                                                                                                                                              | `apps/docs/content/docs/(docs)/(integrations)/eve` |
+
+## Verification on Vercel
+
+No Vercel deployment is available to the agents that work on this repository.
+A maintainer runs `node scripts/eve-vercel-check.ts <deployment-url>` and
+pastes the output here. Until then these stay unproven: the Vercel build with
+and without `build.externalDependencies`, the private flow route, time to
+first token, reconnect time and the comparison with Vercel Workflow. Enable
+Vercel Queues on the project that hosts the eve service before the run.
+
+## Order of work
+
+1. Phases that need only the current versions: block modes and live-link
+   tests, chat state upgrade tests, memory scopes and import, knowledge
+   extractors, schedules, `strictestApproval`, and the projection written
+   against structural types.
+2. After the release-age gates: the catalog bump, trust exclusions (each with
+   its trust date, recorded in an ADR), the World DDL regeneration against the
+   local stack, and workflow-sdk module version 6.
