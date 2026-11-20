@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:36f3f0500e97b4b049dfa7a44c42891f3297eca5ecd16764a6bb20e307ee71ce
+-- @bsb-hash sha256:8f215c828a61fa92ad045f4589612efa83617864a7a93a267d4c943517e33205
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -767,7 +767,7 @@ begin
     select 1 from jsonb_array_elements(v_steps) d(s)
     where d.s -> 'approvers' -> 'decider' = 'true'::jsonb or d.s -> 'escalateTo' -> 'decider' = 'true'::jsonb
   ) then
-    raise exception 'steps must be a list of { approvers: { permission, role, team, users, manager, decider }, required, escalateAfter, escalateTo } objects' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+    raise exception 'decider is only valid for subject types a block decides' using errcode = '22023', hint = 'APPROVAL_POLICY_DECIDER_UNAVAILABLE';
   end if;
   v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
     then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) || '{"all": true}'::jsonb else s - 'all' end order by o), '[]'::jsonb)

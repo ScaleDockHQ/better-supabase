@@ -64,10 +64,12 @@ const BLOCKS: AnyBlocksConfig = {
 
 const BOOT = { timeout: 90_000 };
 
-async function run(check: string): Promise<void> {
-  const files = renderBlocks(["time-entries", "expenses"], {
-    modules: BLOCKS,
-  }).map((file) => ({
+async function run(
+  check: string,
+  names: readonly string[] = ["time-entries", "expenses"],
+  modules: AnyBlocksConfig = BLOCKS,
+): Promise<void> {
+  const files = renderBlocks(names, { modules }).map((file) => ({
     ...file,
     contents: file.contents
       .replace(
@@ -181,6 +183,46 @@ $$;`),
       .join("\n");
 
     expect(sql).toContain("-> 'approvers' -> 'decider' = 'true'::jsonb");
+    expect(sql).toContain("hint = 'APPROVAL_POLICY_DECIDER_UNAVAILABLE'");
     expect(sql).toContain("and v_type not in ('timesheet')");
+  });
+
+  it("refuses a tenant decider step on a type no block decides", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_hint text;
+begin
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform better_supabase.save_approval_policy('${TENANT}', '{"subjectType": "timesheet", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
+  begin
+    perform better_supabase.save_approval_policy('${TENANT}', '{"subjectType": "contract", "action": "approve", "name": "Chain", "steps": [{"approvers": {"decider": true}}]}');
+    raise exception 'allowed';
+  exception when sqlstate '22023' then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'APPROVAL_POLICY_DECIDER_UNAVAILABLE' then
+      raise exception 'hint %', v_hint;
+    end if;
+  end;
+end;
+$$;`,
+        ["time-entries"],
+        {
+          approvals: {
+            options: {
+              tenantPolicies: true,
+              policies: {
+                timesheet: { approve: { steps: [] } },
+                contract: { approve: { steps: [] } },
+              },
+            },
+          },
+          "time-entries": {
+            options: { decider: "public.app_decides", overlap: "allow" },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
   });
 });

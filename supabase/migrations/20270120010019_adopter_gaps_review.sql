@@ -92,7 +92,7 @@ begin
     select 1 from jsonb_array_elements(v_steps) d(s)
     where d.s -> 'approvers' -> 'decider' = 'true'::jsonb or d.s -> 'escalateTo' -> 'decider' = 'true'::jsonb
   ) then
-    raise exception 'steps must be a list of { approvers: { permission, role, team, users, manager, decider }, required, escalateAfter, escalateTo } objects' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
+    raise exception 'decider is only valid for subject types a block decides' using errcode = '22023', hint = 'APPROVAL_POLICY_DECIDER_UNAVAILABLE';
   end if;
   v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
     then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) || '{"all": true}'::jsonb else s - 'all' end order by o), '[]'::jsonb)

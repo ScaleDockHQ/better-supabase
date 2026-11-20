@@ -446,6 +446,10 @@
     "message": "this record already has a pending request for that action"
   },
   {
+    "code": "APPROVAL_POLICY_DECIDER_UNAVAILABLE",
+    "message": "decider is only valid for subject types a block decides"
+  },
+  {
     "code": "APPROVAL_POLICY_INVALID",
     "message": "policy must be an object"
   },

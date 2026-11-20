@@ -498,19 +498,18 @@ function tenantPoliciesSql(
   const platformManage =
     platformKey === undefined ? manage : sqlString(platformKey);
 
-  // A decider step needs a block that decides the subject type; it fails
-  // with the steps message.
+  // A decider step needs a block that decides the subject type.
   const deciding = ctx
     .contributions("approvals")
     .filter((each) => each.decides !== undefined)
     .map((each) => sqlString(each.subject));
 
-  const deciderCheck = (invalid: string): string => `
+  const deciderCheck = `
   if exists (
     select 1 from jsonb_array_elements(v_steps) d(s)
     where d.s -> 'approvers' -> 'decider' = 'true'::jsonb or d.s -> 'escalateTo' -> 'decider' = 'true'::jsonb
   )${deciding.length === 0 ? "" : ` and v_type not in (${deciding.join(", ")})`} then
-    ${invalid}
+    ${fail("APPROVAL_POLICY_DECIDER_UNAVAILABLE", "decider is only valid for subject types a block decides", "22023")}
   end if;`;
 
   const platformRead =
@@ -679,7 +678,7 @@ begin
   if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
     ${stepsInvalid}
   end if;
-${stepsCheck("v_steps", stepsInvalid, manager)}${deciderCheck(stepsInvalid)}
+${stepsCheck("v_steps", stepsInvalid, manager)}${deciderCheck}
   v_steps := ${allUsersCounted("v_steps")};
   if coalesce(save_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
     ${fail("APPROVAL_POLICY_INVALID", "mode must be confirm or authorize", "22023")}
