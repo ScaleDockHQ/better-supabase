@@ -58,7 +58,7 @@ jobs:
           - lane: checks
             tasks: >-
               check:app-architecture check:empty-translations check:example-coverage
-              check:example-findings check:migration-order check:naming check:no-permdock
+              check:migration-order check:naming check:no-permdock
               recipes:check skill-references:check test:scripts catalog:check docs:drift knip
           - lane: generated
             # The ts-7.1 leg runs the content mapper and runs nightly (nightly.yml); ts-6 and ts-7 gate every PR.

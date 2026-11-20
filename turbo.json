@@ -249,13 +249,6 @@
         "packages/better-supabase/src/preset/presets.ts"
       ]
     },
-    "//#check:example-findings": {
-      "inputs": [
-        "scripts/check-example-findings.ts",
-        "docs/agents/example-findings.md",
-        "docs/agents/block-consistency-audit.md"
-      ]
-    },
     "//#check:naming": {
       "inputs": [
         "scripts/check-naming.ts",

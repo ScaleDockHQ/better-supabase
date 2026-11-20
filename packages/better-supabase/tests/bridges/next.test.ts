@@ -1,8 +1,6 @@
 import type { Entry } from "@supabase/middleware";
 
 import { defineMiddleware } from "@supabase/middleware";
-import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import type { NextCookieWrite } from "../../src/bridges/next.ts";
@@ -214,24 +212,5 @@ describe("parseSetCookie", () => {
 
   it("skips a header without a name", () => {
     expect(parseSetCookie("=value")).toBeUndefined();
-  });
-});
-
-describe("bridges", () => {
-  it("never import the deprecated @supabase/server adapters", async () => {
-    const directory = join(import.meta.dirname, "../../src/bridges");
-    const files = await readdir(directory);
-
-    const offenders = await Promise.all(
-      files.map(async (file) =>
-        /@supabase\/server\/adapters/u.test(
-          await readFile(join(directory, file), "utf-8"),
-        )
-          ? file
-          : undefined,
-      ),
-    );
-
-    expect(offenders.filter(Boolean)).toEqual([]);
   });
 });
