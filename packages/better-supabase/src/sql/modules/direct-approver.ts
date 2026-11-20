@@ -77,3 +77,27 @@ export function deciderCall(
 
   return ` or coalesce(${sqlIdent(schema)}.${sqlIdent(fn)}(${id}), false)`;
 }
+
+/**
+ * The quoted `"schema"."function"` an option such as `approvalRequired` names,
+ * or undefined when it is unset.
+ */
+export function appFunction(
+  ctx: BlockSqlContext,
+  where: string,
+  option: string,
+): string | undefined {
+  const name = ctx.text(option, "");
+
+  if (name === "") {
+    return undefined;
+  }
+
+  if (!FUNCTION.test(name)) {
+    throw new TypeError(`${where}.${option} is "schema.function"`);
+  }
+
+  const [schema = "", fn = ""] = name.split(".");
+
+  return `${sqlIdent(schema)}.${sqlIdent(fn)}`;
+}

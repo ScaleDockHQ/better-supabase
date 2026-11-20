@@ -13,6 +13,7 @@ import {
   accountingContributions,
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
+import { subjectUuid } from "../contributions.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
@@ -139,6 +140,8 @@ const NAMES: BlockSqlNames = {
     "standaloneApprovals",
     "policy",
     "approver",
+    "selfDecideWhenTopOfChain",
+    "approvalRequired",
   ],
   tables: {
     categories: {
@@ -449,10 +452,17 @@ const CONTRIBUTES: BlockContributes = {
           {
             subject: EXPENSE_SUBJECT,
             access: "declared",
+            filedBy: "block",
             approve: ({ subjectId, comment, approver }) =>
-              `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
+              `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, true, ${comment}, ${approver});`,
             reject: ({ subjectId, comment, approver }) =>
-              `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+              `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, false, ${comment}, ${approver});`,
+            ...(own.flag("selfDecideWhenTopOfChain", false)
+              ? {
+                  selfDecides: ({ subjectId }) =>
+                    `${own.fn("expense_self_decides")}(${subjectId}::uuid)`,
+                }
+              : {}),
             ...(deciderCall(own, "blocks.expenses.options", "null") === ""
               ? {}
               : {

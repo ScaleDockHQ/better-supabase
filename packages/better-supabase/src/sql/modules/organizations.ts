@@ -66,6 +66,7 @@ const NAMES: BlockSqlNames = {
     "slugMaxLength",
     "slugMinLength",
     "slugPattern",
+    "soleOwnedPermission",
   ],
   tables: {
     organizations: {
@@ -885,7 +886,7 @@ begin
 end;
 $$;
 
-${soleOwnedSql(ctx, n, id, (alias) => isOwner(ctx, n, alias))}
+${soleOwnedSql(ctx, n, id, (alias) => isOwner(ctx, n, alias), ctx.text("soleOwnedPermission", "") === "" ? ctx.permission("removeMember", p.removeMember) : sqlString(ctx.text("soleOwnedPermission", "")))}
 -- Makes new_owner an owner in one transaction; a calling owner becomes
 -- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function ${ctx.fn("transfer_ownership")}(organization ${id}, new_owner uuid, former_role text default ${former})

@@ -17,6 +17,8 @@ export type TimeEntriesEvents = {
   readonly "timesheet.submitted": TimesheetEventData;
   readonly "timesheet.approved": TimesheetEventData;
   readonly "timesheet.reopened": TimesheetEventData;
+  /** The owner or a manager took back a submitted week. */
+  readonly "timesheet.withdrawn": TimesheetEventData;
   /** With `options.approvals: false`: an approver rejected the week. */
   readonly "timesheet.rejected": TimesheetEventData;
 };
@@ -32,5 +34,6 @@ export const timeEntriesEvents: Events<TimeEntriesEvents> = defineEvents({
   "timesheet.submitted": event<TimesheetEventData>(),
   "timesheet.approved": event<TimesheetEventData>(),
   "timesheet.reopened": event<TimesheetEventData>(),
+  "timesheet.withdrawn": event<TimesheetEventData>(),
   "timesheet.rejected": event<TimesheetEventData>(),
 });

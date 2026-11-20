@@ -30,6 +30,17 @@ export type ApprovalsSqlOptions = {
    */
   readonly notifications?: boolean;
   /**
+   * Per subject type, the columns the app adds to `approval_requests` that
+   * `open_approval` fills when a block files a request, as a SQL expression per
+   * column over `subject.tenant`, `subject.subject_id`, `subject.action`,
+   * `subject.payload` and `subject.requested_by`, such as `{ leave_request: {
+   * source: "'hr'", employee_id: "(subject.payload ->> 'employeeId')::uuid" }
+   * }`. Each column must be one the app adds to the table.
+   */
+  readonly requestColumns?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
+  /**
    * Columns the app adds to `approval_policies`, such as a description. Needs
    * `tenantPolicies`; `savePolicy` writes them from `fields`.
    */
@@ -43,4 +54,8 @@ export const approvalsSqlOptions: BlockOptionsSchema<ApprovalsSqlOptions> =
     conditions: option.string<"rules" | "payload">({ default: "rules" }),
     tenantless: option.strings(),
     notifications: option.boolean({ default: true }),
+    requestColumns:
+      option.unknown<
+        Readonly<Record<string, Readonly<Record<string, string>>>>
+      >(),
   });

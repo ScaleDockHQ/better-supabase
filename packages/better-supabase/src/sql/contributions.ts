@@ -200,10 +200,20 @@ export interface ApprovalContribution {
    * `approval_settle` closes them.
    */
   readonly access: "declared" | "linked";
+  /**
+   * `"block"`: only the contributing block files requests of this subject type,
+   * so `request_approval` refuses them from anyone but the service role.
+   */
+  readonly filedBy?: "block";
   /** Statements `approval_finalize` runs once a request is approved. */
   readonly approve: (request: ApprovalRequestSql) => string;
   /** Statements `decide_approval` runs when a request is rejected. */
   readonly reject?: (request: ApprovalRequestSql) => string;
+  /**
+   * Statements `cancel_approval` runs when the requester or a manager cancels a
+   * pending request; `approver` is the caller.
+   */
+  readonly cancel?: (request: ApprovalRequestSql) => string;
   /** A boolean expression: whether the request can still be decided. */
   readonly approvable?: (request: ApprovalRequestSql) => string;
   /**
@@ -507,3 +517,10 @@ export function uniqueContributions<T>(
 
   return contributions;
 }
+
+/**
+ * A subject id as uuid, or null when it isn't one, so a hook's cast never
+ * raises on a request filed with another kind of id.
+ */
+export const subjectUuid = (subjectId: string): string =>
+  `(case when ${subjectId} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${subjectId}::uuid end)`;

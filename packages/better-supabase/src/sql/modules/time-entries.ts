@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the approvalRequired and selfApproveWhenTopOfChain options add lines past the limit. 1 finding. */
 import type { TimeEntriesEvents } from "../../blocks/time-entries/events.ts";
 import type {
   BlockSqlContext,
@@ -24,16 +25,20 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { appUniqueIndex } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
   approvalTimesheetFunctions,
   TIME_ENTRIES_CONTRIBUTES,
-  TIMESHEET_SUBJECT,
 } from "./time-entries-approvals.ts";
 import { approvedWeekFunction } from "./time-entries-approved.ts";
 import { archiveSql, upgradeArchive } from "./time-entries-archive.ts";
 import { subjectOnSql } from "./time-entries-on.ts";
-import { timesheetPolicy, weekTimeZone } from "./time-entries-options.ts";
+import {
+  timesheetPolicy,
+  TIMESHEET_SUBJECT,
+  weekTimeZone,
+} from "./time-entries-options.ts";
 import {
   byEmployee,
   durationEntries,
@@ -95,6 +100,7 @@ const EVENTS: BlockSqlEvents<TimeEntriesEvents> = {
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.approved": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.reopened": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
+  "timesheet.withdrawn": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.rejected": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
 };
 
@@ -127,6 +133,8 @@ const NAMES: BlockSqlNames = {
     "lockedColumns",
     "on",
     "decider",
+    "approvalRequired",
+    "selfApproveWhenTopOfChain",
   ],
   tables: {
     entries: {
@@ -198,7 +206,6 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** `options.timeZone`: the IANA zone weeks start in. Default `UTC`. */
 /** The keys the entry reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
@@ -372,7 +379,9 @@ function build(ctx: BlockSqlContext): string {
   const approvalOf = (row: string): string =>
     !statusMode && ctx.has("timesheets", "approval")
       ? `${row}.${t("approval")}`
-      : "null::uuid";
+      : linked === undefined
+        ? "null::uuid"
+        : `(select x.${linked.col("requests", "id")} from ${linked.table("requests")} x where x.${linked.col("requests", "subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} and x.${linked.col("requests", "subjectId")} = ${row}.${t("id")}::text order by x.${linked.col("requests", "createdAt")} desc limit 1)`;
 
   const timesheetJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${sheetUserJson(row)}, 'week', ${row}.${t("week")}, 'status', ${status(row, approval)}, 'approvalId', ${approvalOf(row)}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${decision(row)})`;
@@ -544,7 +553,7 @@ ${renderPolicy(makePolicy({ table: timesheets, name: ctx.naming.rename("timeshee
     ].join("\n");
 
   return `${schemaPreamble(ctx)}${owner.helper}
-${tables}
+${tables}${appUniqueIndex(ctx, "timesheets", ["tenant", employeeMode ? "employee" : "user", "week"])}
 -- The Monday of the week an instant falls in, in options.timeZone.
 create or replace function ${fn("time_week")}(at timestamptz)
 returns date

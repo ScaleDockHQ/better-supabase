@@ -1,9 +1,10 @@
 -- sole_owned_organizations lists the organizations whose last owner a member
--- is, by the rule ensure_organization_owner checks at commit. The admin (…a1)
+-- is, by the rule ensure_organization_owner checks at commit. For another
+-- member it lists only the organizations where the caller may remove members. The admin (…a1)
 -- owns Acme (…0001) alone and is a member of Globex (…0002); the member
 -- (…a2) owns nothing (supabase/seed.sql).
 begin;
-select plan(6);
+select plan(7);
 
 select set_config(
   'request.jwt.claims',
@@ -22,11 +23,21 @@ select is(
   array['00000000-0000-4000-8000-000000000001']::uuid[],
   'a member passes their own id'
 );
-select throws_ok(
-  $$select better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3')$$,
-  '42501',
-  null,
-  'a member can''t read another user''s organizations'
+select is(
+  better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3'),
+  '{}'::uuid[],
+  'another member''s organizations are left out where the caller can''t remove members'
+);
+
+reset role;
+update public.memberships set role = (select r.id from better_supabase.roles r where r.key = 'admin')
+where organization_id = '00000000-0000-4000-8000-000000000002' and user_id = '00000000-0000-4000-8000-0000000000a1';
+set local role authenticated;
+
+select is(
+  better_supabase.sole_owned_organizations('00000000-0000-4000-8000-0000000000a3'),
+  array['00000000-0000-4000-8000-000000000002']::uuid[],
+  'a member who may remove members reads another member''s organizations there'
 );
 
 reset role;

@@ -91,6 +91,27 @@ export interface BankingSql {
   ) => string;
 }
 
+/**
+ * `options.primary`: `"currency"` (default) keeps one primary account per
+ * organization and currency, `"organization"` one per organization.
+ */
+export function primaryPerOrganization(ctx: BlockSqlContext): boolean {
+  const value = ctx.text("primary", "currency");
+
+  if (value !== "currency" && value !== "organization") {
+    throw new TypeError(
+      'blocks.banking.options.primary must be "currency" or "organization"',
+    );
+  }
+
+  return value === "organization";
+}
+
+/** `options.optionalCurrency`: an account may have no currency. */
+export function optionalCurrency(ctx: BlockSqlContext): boolean {
+  return ctx.flag("optionalCurrency", false);
+}
+
 export function bankingSql(ctx: BlockSqlContext): BankingSql {
   const col =
     (table: string) =>

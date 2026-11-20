@@ -229,6 +229,7 @@ export const blockEvents: Events<BlockEvents> = {
     "timesheet.rejected",
     "timesheet.reopened",
     "timesheet.submitted",
+    "timesheet.withdrawn",
   ],
 };
 
@@ -361,6 +362,7 @@ export const blockEventSchemas = {
   "timesheet.rejected": true,
   "timesheet.reopened": true,
   "timesheet.submitted": true,
+  "timesheet.withdrawn": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

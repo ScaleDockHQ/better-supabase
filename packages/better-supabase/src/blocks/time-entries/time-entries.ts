@@ -341,6 +341,11 @@ export interface TimeEntries<F extends object = Record<never, never>> {
   /** Unlocks an approved week; needs `time_entries.manage`. */
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /**
+   * Takes back a submitted week and cancels its pending approval request; its
+   * owner or `time_entries.manage`.
+   */
+  withdraw(timesheetId: string): AsyncResult<Timesheet>;
+  /**
    * With `options.approvals: false`: approves a submitted week; needs
    * `time_entries.approve`, and nobody approves their own. A service role
    * client may pass `decidedBy` to record the user who decided, never the
@@ -761,6 +766,10 @@ export function createTimeEntries<
     reopen: (timesheetId) =>
       call("reopen_timesheet", { timesheet_id: timesheetId }, (value) =>
         timesheetOf(value, "reopen_timesheet"),
+      ),
+    withdraw: (timesheetId) =>
+      call("withdraw_timesheet", { timesheet_id: timesheetId }, (value) =>
+        timesheetOf(value, "withdraw_timesheet"),
       ),
     timesheets: (list = {}) =>
       tenant().andThen((organizationId) =>

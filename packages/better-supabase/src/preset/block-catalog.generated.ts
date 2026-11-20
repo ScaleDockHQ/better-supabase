@@ -2375,7 +2375,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "time_entry.updated",
         "timesheet.approved",
         "timesheet.reopened",
-        "timesheet.submitted"
+        "timesheet.submitted",
+        "timesheet.withdrawn"
       ],
       "subpath": "better-supabase/blocks/time-entries",
       "react": null,
@@ -3092,6 +3093,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "leave_balance.adjusted",
         "leave_request.approved",
         "leave_request.cancelled",
+        "leave_request.rejected",
         "leave_request.requested",
         "leave_request.split",
         "leave_request.updated",

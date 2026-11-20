@@ -1401,7 +1401,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "user" | "employee" | "type" | "startsOn" | "endsOn" | "partial" | "startPart" | "endPart" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "get_leave_request" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "page_leave_requests" | "request_leave" | "restore_leave_type" | "save_leave_type" | "split_leave_request" | "update_leave_request";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "get_leave_request" | "leave_approval_decided" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "page_leave_requests" | "request_leave" | "restore_leave_type" | "save_leave_type" | "split_leave_request" | "update_leave_request";
     readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential" | "reapprove";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
@@ -2471,7 +2471,7 @@ export interface BlockNameRegistry {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "archivedAt" | "seconds" | "runningSince" | "employee";
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
-    readonly functions: "approve_timesheet" | "archive_time_entry" | "get_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "page_time_entries" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
+    readonly functions: "approve_timesheet" | "archive_time_entry" | "get_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "page_time_entries" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry" | "withdraw_timesheet";
     readonly actions: "read" | "track" | "approve" | "manage" | "purge";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {

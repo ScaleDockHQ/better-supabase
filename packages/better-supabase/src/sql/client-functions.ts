@@ -217,7 +217,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   orders:
     "add_to_cart cancel_fulfillment cancel_order complete_refund confirm_draft_order create_cart create_fulfillment create_refund delete_shipping_rate deliver_fulfillment expire_orders get_order hold_order merge_carts order_from_lines order_from_quote order_status_board place_order price_cart purchase_order_from_order receive_return record_payment reject_return release_order_hold request_return save_shipping_rate set_cart_details set_cart_line set_cart_shipping_rate set_order_tax_transaction ship_fulfillment shipping_options",
   organizations:
-    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem page_organization_members remove_member resume_member suspend_member switch_organization transfer_ownership update_member_role update_member_roles update_organization",
+    "create_organization delete_organization leave_organization list_members list_my_organizations mark_used organization_overview organization_slug_problem page_organization_members remove_member resume_member sole_owned_organizations suspend_member switch_organization transfer_ownership update_member_role update_member_roles update_organization",
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   "option-sets":
@@ -296,7 +296,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   templates:
     "fork_template page_templates publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":
-    "archive_time_entry get_time_entry get_timesheet list_time_entries list_timesheets log_time page_time_entries purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
+    "archive_time_entry get_time_entry get_timesheet list_time_entries list_timesheets log_time page_time_entries purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry withdraw_timesheet",
   timeline: "list_activity record_activity",
   trash: "get_trash list_trash page_trash purge_trash restore_trash trash",
   usage:

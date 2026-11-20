@@ -56,6 +56,22 @@ export type ExpensesSqlOptions = {
    * chain can either, as in the leave block.
    */
   readonly decider?: string;
+  /**
+   * With `standaloneApprovals`, the owner decides their own expense's approval
+   * request when nobody else can: they hold the approve permission (or the
+   * decider accepts them), no other active member holds it, and no active
+   * manager with a login can decide it (`approver: "manager"`, or anyone up the
+   * chain with a `decider`), as in the leave block. The policy's approvers must
+   * be the approve permission, the manager or the decider. Default `false`.
+   */
+  readonly selfDecideWhenTopOfChain?: boolean;
+  /**
+   * With `standaloneApprovals`, an app function `"schema.function"`, `(tenant,
+   * expense_id uuid) returns boolean`. When it answers false, `submitExpense`
+   * approves the expense at once without an approval request; true or null
+   * files one.
+   */
+  readonly approvalRequired?: string;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -71,4 +87,6 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
       default: "permission",
     }),
     decider: option.string(),
+    selfDecideWhenTopOfChain: option.boolean({ default: false }),
+    approvalRequired: option.string(),
   });

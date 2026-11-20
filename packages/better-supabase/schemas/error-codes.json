@@ -466,6 +466,10 @@
     "message": "this approval requests table has no step column, so a policy has one step"
   },
   {
+    "code": "APPROVAL_SUBJECT_BLOCK_FILED",
+    "message": "the block that owns this subject type files its approval requests"
+  },
+  {
     "code": "APPROVAL_TENANT_REQUIRED",
     "message": "a request for this subject type needs an organization"
   },
@@ -5736,6 +5740,10 @@
   {
     "code": "TIME_ENTRIES_TIMESHEET_NOT_FOUND",
     "message": "timesheet not found"
+  },
+  {
+    "code": "TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED",
+    "message": "only a submitted week can be withdrawn"
   },
   {
     "code": "TIME_ENTRIES_TIMESHEET_SUBMITTED",

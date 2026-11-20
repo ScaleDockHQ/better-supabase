@@ -17,7 +17,7 @@ Time entries with one running timer per member and no overlaps, on any record, b
 - Entities: `time_entry`, `timesheet`
 - Tables: `time_entries`, `timesheets`
 - Permission keys: `time_entries.read`, `time_entries.track`, `time_entries.approve`, `time_entries.manage`
-- Events (`TimeEntriesEvents`): `time_entry.archived`, `time_entry.purged`, `time_entry.recorded`, `time_entry.restored`, `time_entry.started`, `time_entry.updated`, `timesheet.approved`, `timesheet.reopened`, `timesheet.submitted`
+- Events (`TimeEntriesEvents`): `time_entry.archived`, `time_entry.purged`, `time_entry.recorded`, `time_entry.restored`, `time_entry.started`, `time_entry.updated`, `timesheet.approved`, `timesheet.reopened`, `timesheet.submitted`, `timesheet.withdrawn`
 
 ## hiring
 
@@ -63,7 +63,7 @@ Leave types, requests that go through approvals, and a balance ledger per member
 - Entities: `leave_request`, `leave_type`
 - Tables: `leave_requests`, `leave_types`
 - Permission keys: `leave.request`, `leave.read`, `leave.approve`, `leave.manage`
-- Events (`LeaveEvents`): `leave_balance.adjusted`, `leave_request.approved`, `leave_request.cancelled`, `leave_request.requested`, `leave_request.split`, `leave_request.updated`, `leave_type.archived`, `leave_type.restored`
+- Events (`LeaveEvents`): `leave_balance.adjusted`, `leave_request.approved`, `leave_request.cancelled`, `leave_request.rejected`, `leave_request.requested`, `leave_request.split`, `leave_request.updated`, `leave_type.archived`, `leave_type.restored`
 
 ## enrollments
 

@@ -8,7 +8,13 @@ import {
   searchPattern,
 } from "../list-template.ts";
 import { pageSize, userGrant, writeExtraColumns } from "../shared.ts";
-import { bankingSql, linked, STATEMENT_FORMATS } from "./banking-sql.ts";
+import {
+  bankingSql,
+  linked,
+  optionalCurrency,
+  primaryPerOrganization,
+  STATEMENT_FORMATS,
+} from "./banking-sql.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
@@ -96,6 +102,8 @@ revoke execute on function ${fn("bank_reference")}(text) from public, anon, auth
 /** Bank accounts, statement import, the reads and the reconciliation status. */
 export function bankingFunctions(ctx: BlockSqlContext): string {
   const q = bankingSql(ctx);
+  const noCurrency = optionalCurrency(ctx);
+  const perOrganization = primaryPerOrganization(ctx);
   const { a, s, t } = q;
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
@@ -235,10 +243,10 @@ begin
     ${q.accountInvalid("a BIC has 8 or 11 letters and digits")}
   end if;
   v_currency := upper(coalesce(save_bank_account.input ->> 'currency', v_account.${a("currency")}));
-  if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
-    ${q.accountInvalid("a bank account has an ISO 4217 currency")}
+  if ${noCurrency ? "" : "v_currency is null or "}v_currency !~ '^[A-Z]{3}$' then
+    ${q.accountInvalid(noCurrency ? "a bank account's currency is an ISO 4217 code" : "a bank account has an ISO 4217 currency")}
   end if;
-  if v_account.${a("id")} is not null and v_currency <> v_account.${a("currency")} and exists (
+  if v_account.${a("id")} is not null and v_currency ${noCurrency ? "is distinct from" : "<>"} v_account.${a("currency")} and exists (
     select 1 from ${q.transactions} y where y.${t("account")} = v_account.${a("id")}
   ) then
     ${q.accountInvalid("a bank account with transactions keeps its currency")}
@@ -254,7 +262,7 @@ begin
     else coalesce(v_account.${a("isPrimary")}, false) end;
   if v_primary then
     update ${q.accounts} x set ${a("isPrimary")} = false, ${a("updatedAt")} = now()
-    where x.${a("tenant")} = save_bank_account.tenant and x.${a("currency")} = v_currency
+    where x.${a("tenant")} = save_bank_account.tenant${perOrganization ? "" : ` and x.${a("currency")} ${noCurrency ? "is not distinct from" : "="} v_currency`}
       and x.${a("isPrimary")} and x.${a("id")} is distinct from v_account.${a("id")};
   end if;
   v_position := case when save_bank_account.input ? 'position'
@@ -413,8 +421,8 @@ begin${loadAccount("import_bank_statement.account_id", q.import, true)}
       or coalesce(v_item.tx ->> 'valueOn', '2000-01-01') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
       ${q.statementInvalid("each transaction has a bookedOn date and a nonzero amount of minor units")}
     end if;
-    if v_currency <> v_account.${a("currency")} then
-      ${q.statementInvalid("a transaction is in its bank account's currency")}
+    if ${noCurrency ? `v_currency is null or (v_account.${a("currency")} is not null and v_currency <> v_account.${a("currency")})` : `v_currency <> v_account.${a("currency")}`} then
+      ${q.statementInvalid(noCurrency ? "a transaction is in its bank account's currency, and names one when the account has none" : "a transaction is in its bank account's currency")}
     end if;
     v_external := coalesce(
       left(nullif(trim(v_item.tx ->> 'externalId'), ''), 200),

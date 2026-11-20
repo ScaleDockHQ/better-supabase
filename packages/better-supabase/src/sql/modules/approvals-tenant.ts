@@ -24,6 +24,7 @@ import {
   approvalConditionSql,
 } from "./approvals-conditions.ts";
 import { approvalPolicies, floorsJson } from "./approvals-policies.ts";
+import { fieldsWithoutRequestColumns } from "./approvals-request-columns.ts";
 import { lockModuleTable } from "./over-app.ts";
 
 /** The table `options.tenantPolicies` adds, for the module's names. */
@@ -280,6 +281,8 @@ export interface ApprovalRequestHelpers {
     readonly manage: string;
   };
   readonly extras: readonly ExtraColumn[];
+  /** Subject types whose block files the requests itself (`filedBy: "block"`). */
+  readonly blockFiled: readonly string[];
 }
 
 /** Request_approval's leading argument types, before `fields`. */
@@ -930,7 +933,14 @@ declare
 begin
   if request_approval.policy is not null and not v_service then
     ${fail("APPROVAL_FORBIDDEN", "only the service role files a request under its own policy")}
-  end if;
+  end if;${
+    helpers.blockFiled.length === 0
+      ? ""
+      : `
+  if not v_service and request_approval.subject_type in (${helpers.blockFiled.map((type) => sqlString(type)).join(", ")}) then
+    ${fail("APPROVAL_SUBJECT_BLOCK_FILED", "the block that owns this subject type files its approval requests")}
+  end if;`
+  }
   if request_approval.requested_by is not null and not v_service and request_approval.requested_by is distinct from auth.uid() then
     ${fail("APPROVAL_FORBIDDEN", "only the service role files a request for another user")}
   end if;
@@ -968,7 +978,7 @@ begin
     extras.length === 0
       ? ""
       : `
-${writeExtraColumns(requests, extras, "request_approval.fields", `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}`
+${writeExtraColumns(requests, extras, fieldsWithoutRequestColumns(ctx, extras, "request_approval.fields", "request_approval.subject_type"), `x.${c("id")} = (v_result ->> 'id')::uuid`, "v_req")}`
   }
   select * into v_req from ${requests} x where x.${c("id")} = (v_result ->> 'id')::uuid;
   if found then

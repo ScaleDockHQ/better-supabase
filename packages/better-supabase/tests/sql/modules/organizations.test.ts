@@ -553,4 +553,20 @@ describe("roles through a lookup table", () => {
       }),
     ).toContain("mine.can(");
   });
+
+  it("asks another member's sole-owned organizations with the configured key", () => {
+    const sql = (options: Record<string, unknown>) =>
+      renderBlocks(["organizations"], {
+        modules: { organizations: { options } },
+      })
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(sql({})).toContain(
+      `better_supabase.member_can(auth.uid(), m."organization_id", 'members.remove')`,
+    );
+    expect(sql({ soleOwnedPermission: "person.update" })).toContain(
+      `better_supabase.member_can(auth.uid(), m."organization_id", 'person.update')`,
+    );
+  });
 });

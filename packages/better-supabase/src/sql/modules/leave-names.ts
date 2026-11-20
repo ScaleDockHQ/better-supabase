@@ -86,6 +86,8 @@ export const LEAVE_NAMES: BlockSqlNames = {
     "approver",
     "decider",
     "selfDecideWhenTopOfChain",
+    "approvalSubject",
+    "approvalRequired",
   ],
   tables: {
     types: {

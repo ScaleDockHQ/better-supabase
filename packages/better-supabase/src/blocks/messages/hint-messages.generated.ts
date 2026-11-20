@@ -1666,6 +1666,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "TIME_ENTRIES_TIMESHEET_APPROVED": "This week is already approved.",
   "TIME_ENTRIES_TIMESHEET_NOT_APPROVED": "Only an approved week can be reopened.",
   "TIME_ENTRIES_TIMESHEET_NOT_FOUND": "Timesheet not found.",
+  "TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED": "Only a submitted week can be withdrawn.",
   "TIME_ENTRIES_TIMESHEET_SUBMITTED": "This week is already waiting for approval.",
   "TIME_ENTRIES_TIMESHEET_TIMER_RUNNING": "Stop the running timer before submitting this week.",
   "TIME_ENTRY_INVALID": "Ended_at must be after started_at.",

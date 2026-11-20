@@ -8,6 +8,8 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
+import { deciderCall } from "./direct-approver.ts";
+import { atOnceSql, timesheetAtOnce } from "./time-entries-options.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options.userTimeZone";
@@ -161,6 +163,16 @@ export function statusTimesheetFunctions(
 
   const ownerVar = by ? "v_owner" : "v_user";
 
+  // Without approvals this only refuses the options that need them.
+  const checks = timesheetAtOnce(ctx, {
+    tenant: "submit_timesheet.tenant",
+    sheet: `v_sheet.${t("id")}`,
+    requester: by ? owner.userOf("v_owner") : "v_me",
+    ...(by ? { employee: "v_owner::text" } : {}),
+  });
+
+  const atOnce = atOnceSql(linked === undefined ? {} : checks);
+
   const sheetMine = (row: string): string =>
     by
       ? `(${owner.sheetUser ? `coalesce(${row}.${t("user")} = auth.uid(), false) or ` : ""}${row}.${owner.timesheets} = ${owner.mine(`${row}.${t("tenant")}`)})`
@@ -191,7 +203,7 @@ export function statusTimesheetFunctions(
       : "";
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${owner.json(row)}, 'week', ${row}.${t("week")}, 'status', ${label(row)}, 'approvalId', null, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${optional("decidedBy", row)}${optional("decidedAt", row)}${optional("decisionNote", row)})`;
+    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${owner.json(row)}, 'week', ${row}.${t("week")}, 'status', ${label(row)}, 'approvalId', ${linked === undefined ? "null" : `(select x.${linked.a("id")} from ${linked.requests} x where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = ${row}.${t("id")}::text order by x.${linked.a("createdAt")} desc limit 1)`}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${optional("decidedBy", row)}${optional("decidedAt", row)}${optional("decisionNote", row)})`;
 
   const decide = (note: string, decider: string): string =>
     [
@@ -327,7 +339,7 @@ as $$
 declare
   v_me uuid := auth.uid();
   v_week date := date_trunc('week', submit_timesheet.week)::date;
-  v_sheet ${timesheets}%rowtype;${by ? `\n  v_mine uuid := ${owner.mine("submit_timesheet.tenant")};\n  v_owner uuid := coalesce(submit_timesheet.employee_id, v_mine);` : ""}
+  v_sheet ${timesheets}%rowtype;${by ? `\n  v_mine uuid := ${owner.mine("submit_timesheet.tenant")};\n  v_owner uuid := coalesce(submit_timesheet.employee_id, v_mine);` : ""}${atOnce.declare}
 begin
 ${
   by
@@ -379,15 +391,16 @@ ${
   returning * into v_sheet;${
     linked === undefined
       ? ""
-      : `
-  perform ${linked.open}(
+      : `${atOnce.decide}
+  ${atOnce.open(`perform ${linked.open}(
     submit_timesheet.tenant, ${sqlString(linked.subject)}, v_sheet.${t("id")}::text, 'approve',
     ${sqlString(linked.policy)}::jsonb || jsonb_build_object('managerOf', v_owner::text), submit_timesheet.note,
     jsonb_build_object('userId', ${owner.userOf("v_owner")}, 'employeeId', v_owner, 'week', v_week),
     ${owner.userOf("v_owner")}
-  );`
+  );`)}`
   }
-  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}
+  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("timesheet_approval_decided")}(v_sheet.${t("id")}, true, null, auth.uid());
+    select * into v_sheet from ${timesheets} s where s.${t("id")} = v_sheet.${t("id")};`)}
   ${ctx.hook("after_timesheet_submit", [["uuid", `v_sheet.${t("id")}`]])}
   return ${json("v_sheet")};
 end;
@@ -409,7 +422,7 @@ as $$
 declare
   v_sheet ${timesheets}%rowtype;
 begin
-  update ${timesheets} s set ${t("status")} = case when timesheet_approval_decided.approved then ${value("approved")} else ${value("rejected")} end,
+  update ${timesheets} s set ${t("status")} = ${ctx.cast("timesheets", "status", "case when timesheet_approval_decided.approved then 'approved' else 'rejected' end")},
     ${t("approvedAt")} = case when timesheet_approval_decided.approved then now() end${[
       ...(ctx.has("timesheets", "decidedBy")
         ? [`${t("decidedBy")} = timesheet_approval_decided.decided_by`]
@@ -467,6 +480,43 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reopen_timesheet")}(uuid)`)}
+
+-- Takes back a submitted week before it is decided: the owner, a member with
+-- the manage permission, or a caller options.decider accepts. A pending
+-- approval request is cancelled with it, and the week is open again.
+create or replace function ${fn("withdraw_timesheet")}(timesheet_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet ${timesheets}%rowtype;
+begin
+  select * into v_sheet from ${timesheets} s where s.${t("id")} = withdraw_timesheet.timesheet_id for update;
+  if not found then
+    ${timesheetNotFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}) then
+    ${forbidden("not allowed to withdraw this timesheet")}
+  end if;
+  if not ${is("v_sheet", ["submitted"])} then
+    ${fail("TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED", "only a submitted week can be withdrawn", "55000")}
+  end if;${
+    linked === undefined
+      ? ""
+      : `
+  update ${linked.requests} x set ${linked.a("status")} = 'cancelled'
+    where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = v_sheet.${t("id")}::text and x.${linked.a("status")} = 'pending';`
+  }
+  update ${timesheets} s set ${t("status")} = ${value("open")}, ${t("submittedAt")} = null${clearDecision}
+    where s.${t("id")} = v_sheet.${t("id")}
+    returning * into v_sheet;
+  ${timesheetRecord("timesheet.withdrawn", "v_sheet", "withdrew a timesheet")}
+  return ${json("v_sheet")};
+end;
+$$;
+${userGrant(`${fn("withdraw_timesheet")}(uuid)`)}
 
 -- Newest week first: the caller's timesheets, or everyone's with the read permission.
 ${by ? `drop function if exists ${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date);\n` : ""}create or replace function ${fn("list_timesheets")}(tenant ${ctx.idType}, user_id uuid default null, status text default null, page_size integer default 50, before date default null${ownerParam})

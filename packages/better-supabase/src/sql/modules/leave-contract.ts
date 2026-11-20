@@ -6,17 +6,37 @@ import type {
 } from "../contributions.ts";
 import type { ApprovalPolicy } from "./approvals-policies.ts";
 
+import { subjectUuid } from "../contributions.ts";
 import { extraFieldsArg } from "../shared.ts";
-import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import {
+  assertCountedApprovers,
+  policyOf,
+  policySnapshot,
+} from "./approvals-policies.ts";
 import { deciderCall } from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
 import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** Leave requests this block files with approvals. */
-export const LEAVE_REQUEST_SUBJECT = "leave_request";
+const LEAVE_REQUEST_SUBJECT = "leave_request";
 
 const WHERE = "blocks.leave.options";
+
+const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/u;
+
+/** `options.approvalSubject`: the subject type of the approval requests. */
+export function leaveApprovalSubject(ctx: BlockSqlContext): string {
+  const value = ctx.text("approvalSubject", LEAVE_REQUEST_SUBJECT);
+
+  if (!SUBJECT_TYPE.test(value)) {
+    throw new TypeError(
+      `${WHERE}.approvalSubject must be a snake_case subject type, such as "time_off_request"`,
+    );
+  }
+
+  return value;
+}
 
 /** The keys the request reads return next to the extra columns. */
 export const RESERVED = ["fields"] as const;
@@ -71,7 +91,7 @@ export function leavePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
   };
 
   const policy = policyOf(
-    LEAVE_REQUEST_SUBJECT,
+    leaveApprovalSubject(ctx),
     "approve",
     raw,
     `${WHERE}.policy`,
@@ -98,23 +118,11 @@ export function leaveSelfDecideSteps(ctx: BlockSqlContext): void {
     return;
   }
 
-  const approve = ctx.permissionKey("approve", OPERATIONS["leave.approve"]);
-
-  const counted = leavePolicyOf(ctx).steps.every((step) =>
-    [step.approvers, ...(step.escalateTo ? [step.escalateTo] : [])].every(
-      (who) =>
-        who.role === undefined &&
-        who.team === undefined &&
-        who.users === undefined &&
-        (who.permission === undefined || who.permission === approve),
-    ),
+  assertCountedApprovers(
+    leavePolicyOf(ctx),
+    ctx.permissionKey("approve", OPERATIONS["leave.approve"]),
+    `${WHERE}.selfDecideWhenTopOfChain`,
   );
-
-  if (!counted) {
-    throw new TypeError(
-      `${WHERE}.selfDecideWhenTopOfChain counts only ${approve}, manager and decider approvers, so the policy can't name a role, team, users or another permission`,
-    );
-  }
 }
 
 /** `leavePolicyOf` as the snapshot `open_approval` takes. */
@@ -260,14 +268,32 @@ export const LEAVE_CONTRIBUTES: BlockContributes = {
       ? []
       : [
           {
-            subject: LEAVE_REQUEST_SUBJECT,
+            subject: leaveApprovalSubject(own),
             access: "declared",
-            approve: ({ subjectId }) =>
-              `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
+            filedBy: "block",
+            approve: (request) => leaveDecided(own, request, "'approved'"),
+            reject: (request) => leaveDecided(own, request, "'rejected'"),
+            cancel: (request) =>
+              leaveDecided(own, { ...request, comment: "null" }, "'cancelled'"),
             ...leaveDeciders(own),
           },
         ],
 };
+
+/**
+ * Applies a decision of the approval request `request` to its leave request,
+ * only while that leave request still points at this approval.
+ */
+function leaveDecided(
+  own: BlockSqlContext,
+  request: ApprovalRequestSql,
+  decision: string,
+): string {
+  const id = subjectUuid(request.subjectId);
+
+  return `perform ${own.fn("leave_approval_decided")}(${id}, ${decision}, ${request.comment}, ${request.approver})
+    where exists (select 1 from ${own.table("requests")} x where x.${own.col("requests", "id")} = ${id} and x.${own.col("requests", "approval")} = ${request.id});`;
+}
 
 /**
  * `options.decider` and `options.selfDecideWhenTopOfChain` in approvals mode:

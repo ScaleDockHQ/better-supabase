@@ -49,6 +49,7 @@ import {
   validateApprovers,
   validateRuns,
 } from "./approvals-policies.ts";
+import { requestColumnsSql } from "./approvals-request-columns.ts";
 import {
   allHoldersSql,
   decideSql,
@@ -345,6 +346,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : `(not ${linkedRow(`${row}.${c("subjectType")}`)} and ${declared(row)})`;
 
   const extras = ctx.extraColumns("requests", REQUEST_KEYS);
+  const filled = requestColumnsSql(ctx, extras);
 
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)}, 'steps', ${policyOf(row)} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${or("requests", row, "reason")}, 'payload', ${or("requests", row, "payload")}, 'expiresAt', ${or("requests", row, "expiresAt")}, 'decidedAt', ${or("requests", row, "decidedAt")}, 'mode', coalesce(${policyOf(row)} ->> 'mode', 'authorize'), 'fingerprint', ${or("requests", row, "fingerprint")}, 'consumedAt', ${or("requests", row, "consumedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
@@ -604,6 +606,25 @@ ${indent}end if;`;
                 approver: "v_actor",
               }),
               "    ",
+            ),
+          ],
+    )
+    .join("");
+
+  const contributedCancel = contributed
+    .flatMap((each) =>
+      each.cancel === undefined
+        ? []
+        : [
+            when(
+              each.subject,
+              each.cancel({
+                id: `v_req.${c("id")}`,
+                subjectId: subjectId(""),
+                comment: "null",
+                approver: "auth.uid()",
+              }),
+              "  ",
             ),
           ],
     )
@@ -1119,7 +1140,7 @@ begin
   returning * into v_req;
   if not found then
     ${fail("APPROVAL_PENDING", "this record already has a pending request for that action", "23505")}
-  end if;
+  end if;${filled}
   ${record("approval.requested", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'requested');
   ${ctx.hook("after_approval_request", [["uuid", `v_req.${c("id")}`]])}
@@ -1142,6 +1163,9 @@ ${approvalsTenantSql(ctx, {
   ),
   permissions: { read, request, manage },
   extras,
+  blockFiled: contributed
+    .filter((each) => each.filedBy === "block")
+    .map((each) => each.subject),
 })}
 
 ${decideSql(ctx, kit)}
@@ -1217,7 +1241,7 @@ begin
   end if;
   update ${requests} r set ${c("status")} = 'cancelled'${decided}
     where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-  ${record("approval.cancelled", "v_req", true)}
+  ${record("approval.cancelled", "v_req", true)}${contributedCancel}
   return ${json("v_req")};
 end;
 $$;

@@ -81,6 +81,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "conditions",
     "tenantless",
     "notifications",
+    "requestColumns",
   ],
   tables: {
     requests: {

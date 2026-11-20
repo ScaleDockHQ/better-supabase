@@ -81,7 +81,7 @@ blocks: {
 | `mode`                                        | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                         |
 | `run`                                         | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue)   |
 
-A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
+A subject can have one pending request per action (`APPROVAL_PENDING`). The subject types that leave, expenses and time tracking file themselves (`leave_request`, `expense`, `timesheet`) are refused from `request_approval` for anyone but the service role (`APPROVAL_SUBJECT_BLOCK_FILED`), and those blocks only act on a decision of the request their own row points at. A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
 An action name may have dotted segments, such as `quote.send` or `access.member.role.update`, so an action catalog keeps its own keys. A floor under the action `"*"` covers every action of its subject type that has no floor of its own, such as every tool an AI agent can call. A floor under the subject type `"*"` holds an action for every subject type, so one floor covers `quote.send` whether it is filed on a chat thread, an MCP client or a workflow run. The most specific floor wins: the subject type and action, then the subject type's `"*"`, then the action under `"*"`, then `"*"` under `"*"`.
 
@@ -492,6 +492,24 @@ await approvals
     fields: { description: "Invoices over 10,000 need finance" },
   })
   .orThrow();
+```
+
+### Fields of requests a block files
+
+A block that files its own requests, such as leave, expenses or time tracking, doesn't pass `fields`. `options.requestColumns` fills your columns of those requests instead: per subject type, a SQL expression per column over `subject.tenant`, `subject.subject_id`, `subject.action`, `subject.payload` and `subject.requested_by`. `open_approval` sets them right after it inserts the request, and `request_approval` drops the same keys from the caller's `fields`, so the configured value always wins. Each column must be one your schema files add to `approval_requests`, and each value one expression, or rendering fails. For a subject type that members file themselves through `request_approval`, `subject.payload` and `subject.subject_id` are whatever the caller sent, so don't derive a column that grants anything from them.
+
+```ts title="better-supabase.config.ts"
+approvals: {
+  options: {
+    requestColumns: {
+      leave_request: {
+        source: "'hr'",
+        employee_id:
+          "(select r.employee_id from better_supabase.leave_requests r where r.id = subject.subject_id::uuid)",
+      },
+    },
+  },
+},
 ```
 
 ## Policies over the requests you may decide

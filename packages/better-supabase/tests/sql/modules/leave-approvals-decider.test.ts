@@ -195,6 +195,189 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("stamps the approval's decision on the request under its own subject type", async () => {
+    await expect(
+      run(
+        { leave: { options: { approvalSubject: "time_off_request" } } },
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_approval uuid;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  if (select a.subject_type from better_supabase.approval_requests a where a.id = v_approval) <> 'time_off_request' then
+    raise exception 'the approval is not filed under the configured subject type';
+  end if;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_approval, 'rejected', 'Too busy');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.rejected_at is null or v_row.decided_by is distinct from '${CAROL}'::uuid or v_row.decision_note is distinct from 'Too busy' then
+    raise exception 'the rejection is not stamped on the request: %', to_jsonb(v_row);
+  end if;
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_approval, 'approved', 'Enjoy');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.approved_at is null or v_row.decided_by is distinct from '${CAROL}'::uuid or v_row.decision_note is distinct from 'Enjoy' or v_row.rejected_at is not null then
+    raise exception 'the approval is not stamped on the request: %', to_jsonb(v_row);
+  end if;
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-05-04', '2099-05-05') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  perform better_supabase.cancel_approval(v_approval);
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.cancelled_at is null or v_row.cancelled_by is distinct from '${ALICE}'::uuid then
+    raise exception 'the withdrawn approval did not cancel the request: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("leaves a request alone when another approval names it", async () => {
+    await expect(
+      run(
+        {
+          approvals: {
+            options: {
+              policies: {
+                leave_request: {
+                  other: {
+                    steps: [{ approvers: { permission: "leave.approve" } }],
+                  },
+                },
+              },
+            },
+          },
+        },
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_forged uuid;
+  v_hint text;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  ${as(BOB)}
+  begin
+    perform better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other');
+    raise exception 'a member filed an approval on someone else''s leave';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'APPROVAL_SUBJECT_BLOCK_FILED' then
+      raise exception 'hint %', v_hint;
+    end if;
+  end;
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  perform better_supabase.cancel_approval(v_forged);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', v_id::text, 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_forged, 'rejected', 'forged');
+  perform set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  v_forged := (better_supabase.request_approval('${TENANT}', 'leave_request', 'not-a-uuid', 'other', requested_by => '${BOB}') ->> 'id')::uuid;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_forged, 'approved');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.cancelled_at is not null or v_row.rejected_at is not null or v_row.approved_at is not null or v_row.decided_by is not null then
+    raise exception 'another approval changed the request: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("approves at once and files nothing when the app says no approval is needed", async () => {
+    await expect(
+      run(
+        {
+          leave: {
+            options: { approvalRequired: "public.leave_needs_approval" },
+          },
+        },
+        `create function public.leave_needs_approval(tenant uuid, request_id uuid) returns boolean
+language sql stable as $f$ select false $f$;
+do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.approved_at is null or v_row.approval_id is not null
+    or exists (select 1 from better_supabase.approval_requests a where a.subject_id = v_id::text) then
+    raise exception 'leave that needs no approval filed one: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("asks approvalRequired once, so a request is always filed or booked", async () => {
+    await expect(
+      run(
+        {
+          leave: {
+            options: { approvalRequired: "public.flip_needs_approval" },
+          },
+        },
+        `create function public.flip_needs_approval(tenant uuid, id uuid) returns boolean
+language plpgsql volatile as $f$
+declare
+  v_n integer := coalesce(nullif(current_setting('test.flips', true), ''), '0')::integer + 1;
+begin
+  perform set_config('test.flips', v_n::text, false);
+  return v_n % 2 = 0;
+end;
+$f$;
+do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_row better_supabase.leave_requests%rowtype;
+  v_day integer;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  for v_day in 0..3 loop
+    v_id := (better_supabase.request_leave('${TENANT}', v_type, date '2099-03-02' + v_day * 7, date '2099-03-02' + v_day * 7) ->> 'id')::uuid;
+    select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+    if (v_row.approval_id is null) = (v_row.approved_at is null) then
+      raise exception 'request % is filed and booked, or neither: %', v_day, to_jsonb(v_row);
+    end if;
+  end loop;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses an approval subject type that isn't snake case", () => {
+    expect(() =>
+      renderBlocks(["employees", "leave"], {
+        modules: { leave: { options: { approvalSubject: "Time Off" } } },
+      }),
+    ).toThrow(/approvalSubject/u);
+  });
+
   it("refuses self-decide with approvers it can't count", () => {
     for (const approvers of [
       { role: "admin" },

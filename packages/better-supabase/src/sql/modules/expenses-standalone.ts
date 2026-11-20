@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 import type { BlockSqlUpgrade } from "../module-types.ts";
+import type { ApprovalPolicy } from "./approvals-policies.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -21,9 +22,13 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import {
+  assertCountedApprovers,
+  policyOf,
+  policySnapshot,
+} from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
-import { deciderCall, managerDecides } from "./direct-approver.ts";
+import { appFunction, deciderCall, managerDecides } from "./direct-approver.ts";
 import {
   EXPENSE_RESERVED,
   invoicedCheck,
@@ -108,6 +113,12 @@ export function standaloneApprovals(ctx: BlockSqlContext): boolean {
     );
   }
 
+  if (!on && ctx.flag("selfDecideWhenTopOfChain", false)) {
+    throw new TypeError(
+      "blocks.expenses.options.selfDecideWhenTopOfChain needs standaloneApprovals; decideExpense already lets the owner decide when nobody else can",
+    );
+  }
+
   return on;
 }
 
@@ -116,6 +127,20 @@ export function standaloneApprovals(ctx: BlockSqlContext): boolean {
  * `options.decider`, whoever the app's decider accepts.
  */
 function standalonePolicy(ctx: BlockSqlContext): string {
+  const policy = standalonePolicyOf(ctx);
+
+  if (ctx.flag("selfDecideWhenTopOfChain", false)) {
+    assertCountedApprovers(
+      policy,
+      ctx.permissionKey("approve", OPERATIONS["expenses.approve"]),
+      "blocks.expenses.options.selfDecideWhenTopOfChain",
+    );
+  }
+
+  return policySnapshot(policy);
+}
+
+function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
   const policy = policyOf(
     EXPENSE_SUBJECT,
     "approve",
@@ -141,7 +166,7 @@ function standalonePolicy(ctx: BlockSqlContext): string {
     );
   }
 
-  return policySnapshot(policy);
+  return policy;
 }
 
 export function expensesStandalone(ctx: BlockSqlContext): boolean {
@@ -431,11 +456,46 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   // Without a policy column the snapshot can't carry the list; the creator
   // still can't decide (expense_approval_decided).
-  const openApproval = openApprovalWith(
+  const filing = openApprovalWith(
     has("createdBy") && linked?.has("requests", "policy") === true
       ? ` || case when ${cb} is not null and ${cb} is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", cb)} then jsonb_build_object('excludedUserIds', jsonb_build_array(${cb}::text)) else '{}'::jsonb end`
       : "",
   );
+
+  // options.approvalRequired: an app function whose false approves the
+  // submitted expense at once, without an approval request.
+  const required =
+    linked === undefined
+      ? undefined
+      : appFunction(ctx, "blocks.expenses.options", "approvalRequired");
+
+  if (linked === undefined && ctx.text("approvalRequired", "") !== "") {
+    throw new TypeError(
+      "blocks.expenses.options.approvalRequired needs standaloneApprovals",
+    );
+  }
+
+  const needed = `coalesce(${required ?? ""}(v_row.${e("tenant")}, v_row.${e("id")}), true)`;
+
+  // The app function runs once per submit: its answer decides both whether a
+  // request is filed and whether the expense is approved at once.
+  const openApproval =
+    required === undefined
+      ? filing
+      : `
+  v_needed := ${needed};
+  if v_needed then${filing.replaceAll("\n  ", "\n    ")}
+  end if;`;
+
+  // Approves the expense at once when options.approvalRequired answers false.
+  const approvedAtOnce =
+    required === undefined
+      ? ""
+      : `
+  if not v_needed then
+    perform ${fn("expense_approval_decided")}(v_row.${e("id")}, true, null, null);
+    select * into v_row from ${table} x where x.${e("id")} = v_row.${e("id")};
+  end if;`;
 
   const ownerOrManager = (key: string): string => `
   if not (${mine("v_row")} or ${managed("v_row", key)}) then
@@ -640,7 +700,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${table}%rowtype;
+  v_row ${table}%rowtype;${required === undefined ? "" : "\n  v_needed boolean;"}
 begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
   if ${status("v_row")} = 'submitted' then
     ${conflict("EXPENSE_ALREADY_SUBMITTED", "this expense is already submitted")}
@@ -654,7 +714,7 @@ begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;${openApproval}
-  ${record("expense.submitted", "submitted an expense")}
+  ${record("expense.submitted", "submitted an expense")}${approvedAtOnce}
   return ${json("v_row")};
 end;
 $$;
@@ -853,7 +913,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${table}%rowtype;
+  v_row ${table}%rowtype;${required === undefined ? "" : "\n  v_needed boolean;"}
 begin${load("reopen_expense.expense_id")}
   if not (${SERVICE_CALLER} or (${decides("v_row")} and (not ${selfOf("v_row", "auth.uid()")} or ${nobodyElse("v_row", creatorOf("v_row"))}))) then
     ${forbidden("not allowed to reopen this expense")}

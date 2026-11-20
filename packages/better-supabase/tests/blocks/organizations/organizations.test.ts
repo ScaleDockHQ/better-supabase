@@ -149,6 +149,27 @@ describe("createOrganizations", () => {
     });
   });
 
+  it("asks for the organizations a member owns alone", async () => {
+    const { transport, calls } = fake({
+      sole_owned_organizations: ["org-1", "org-2"],
+    });
+
+    const organizations = createOrganizations({ transport });
+
+    expect(await organizations.soleOwnedOrganizations()).toMatchObject({
+      ok: true,
+      data: ["org-1", "org-2"],
+    });
+    expect(await organizations.soleOwnedOrganizations("user-2")).toMatchObject({
+      ok: true,
+      data: ["org-1", "org-2"],
+    });
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      ["sole_owned_organizations", {}],
+      ["sole_owned_organizations", { member: "user-2" }],
+    ]);
+  });
+
   it("turns other failures into unexpected errors", async () => {
     const { transport } = fake({ mark_used: new Error("socket closed") });
 

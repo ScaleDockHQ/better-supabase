@@ -13,17 +13,22 @@ interface OwnerNames {
 
 /**
  * `sole_owned_organizations(member)`: the organizations the deferred owner
- * check would refuse to leave without `member`.
+ * check would refuse to leave without `member`. `remove` is the permission key,
+ * as SQL, that lets the caller ask about another member of an organization.
  */
 export function soleOwnedSql(
   ctx: BlockSqlContext,
   n: OwnerNames,
   id: string,
   isOwner: (alias: string) => string,
+  remove: string,
 ): string {
   return `-- The organizations whose last owner the member is: removing their
 -- memberships (leaving, or deleting the account) would fail the owner check.
--- A member reads their own; the service role passes any member.
+-- A member reads their own and the service role any member's; for another
+-- member, the caller gets the organizations where they may remove members
+-- (blocks.organizations.permissions.removeMember), so an offboarding run by
+-- HR can ask first. It never raises for another member.
 create or replace function ${ctx.fn("sole_owned_organizations")}(member uuid default null)
 returns ${id}[]
 language plpgsql
@@ -34,14 +39,16 @@ as $$
 #variable_conflict use_variable
 declare
   v_member uuid := coalesce(member, auth.uid());
+  v_all boolean := ${SERVICE_CALLER} or v_member = auth.uid();
 begin
-  if v_member is null or (not (${SERVICE_CALLER}) and v_member is distinct from auth.uid()) then
+  if v_member is null then
     ${fail("ORGANIZATION_FORBIDDEN", "Only the member or the service role can read this")}
   end if;
   return coalesce((
     select array_agg(m.${n.tenant} order by m.${n.tenant})
     from ${n.m} m
     where m.${n.user} = v_member and ${isOwner("m")}
+      and (v_all or coalesce(better_supabase.member_can(auth.uid(), m.${n.tenant}, ${remove}), false))
       and exists (select 1 from ${n.organization} o where o.${n.id} = m.${n.tenant})
       and not exists (
         select 1 from ${n.m} y

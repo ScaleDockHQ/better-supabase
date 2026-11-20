@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:4bb1b68e1fd1c47b00cd10b5b7ce473e07d18f98cab57a409d9394da028681d0
+-- @bsb-hash sha256:b5f1665925702dddb58f44d4517d3b6ce71003cba7c83df773cbe3861194ab23
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,6 +48,9 @@ create table "better_supabase"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -515,6 +518,7 @@ declare
   v_row "better_supabase"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -581,7 +585,8 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -593,7 +598,7 @@ begin
     select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
   end if;
   null;
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "better_supabase"."approve_leave_request"(v_row."id");
     select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -634,6 +639,42 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -709,6 +750,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -793,7 +835,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -804,7 +847,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "better_supabase"."approve_leave_request"(v_row."id");
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;
@@ -1392,7 +1435,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:857f13a5a0008e2bb2c90b9c0726b99585adc9d4463a5d254b87834866d665db
+-- @bsb-hash sha256:2c46faffb80453b2949f20f722a2e1093272457c50310ab34814473ca52e85e9
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1439,6 +1482,9 @@ create table "better_supabase"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -1980,6 +2026,7 @@ declare
   v_row "better_supabase"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2047,7 +2094,8 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -2068,7 +2116,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
   );
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "better_supabase"."approve_leave_request"(v_row."id");
     select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -2125,6 +2173,60 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      perform "better_supabase".emit_event('leave_request.rejected', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform better_supabase.audit_event(
+    event_type => 'leave_request.rejected',
+    category => 'data',
+    target_type => 'leave_request',
+    record_id => v_row."id"::text,
+    summary => 'rejected leave' || ' from ' || v_row."starts_on"::text || ' to ' || v_row."ends_on"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
+  );
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      perform "better_supabase".emit_event('leave_request.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform better_supabase.audit_event(
+    event_type => 'leave_request.cancelled',
+    category => 'data',
+    target_type => 'leave_request',
+    record_id => v_row."id"::text,
+    summary => 'cancelled leave' || ' from ' || v_row."starts_on"::text || ' to ' || v_row."ends_on"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
+  );
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -2216,6 +2318,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2300,7 +2403,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -2311,7 +2415,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "better_supabase"."approve_leave_request"(v_row."id");
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;
@@ -3150,7 +3254,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:01eec1893db2a444e84610b80963c5d06d035c385bb7ddb15322d0cd88429c5c
+-- @bsb-hash sha256:19058bf3e4ed4831da8724f4b9fc519262df5a7e65219504489bb07e989ab58b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3202,6 +3306,9 @@ create table "app_private"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -3669,6 +3776,7 @@ declare
   v_row "app_private"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3735,7 +3843,8 @@ begin
   insert into "app_private"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -3747,7 +3856,7 @@ begin
     select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
   end if;
   null;
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "app_private"."approve_leave_request"(v_row."id");
     select * into v_row from "app_private"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -3788,6 +3897,42 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "app_private"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "app_private"."approve_leave_request"(leave_approval_decided.request_id);
+    update "app_private"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "app_private"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "app_private"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "app_private"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -3863,6 +4008,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3947,7 +4093,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -3958,7 +4105,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "app_private"."approve_leave_request"(v_row."id");
       select * into v_row from "app_private"."leave_requests" x where x."id" = v_row."id";
     end if;
@@ -4546,7 +4693,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:8ce66dc13b751e5ab6de1974e7eac4398e22c21b27d61ed65d3a83bd1b944a82
+-- @bsb-hash sha256:7450d380af840696fa5c31aabf34b22ba15620dbcfd63f847b3b0c8732ded110
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4593,6 +4740,9 @@ create table "better_supabase"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -5060,6 +5210,7 @@ declare
   v_row "better_supabase"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5126,7 +5277,8 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -5138,7 +5290,7 @@ begin
     select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
   end if;
   null;
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "better_supabase"."approve_leave_request"(v_row."id");
     select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -5179,6 +5331,42 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -5254,6 +5442,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5338,7 +5527,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -5349,7 +5539,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "better_supabase"."approve_leave_request"(v_row."id");
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;
@@ -6113,7 +6303,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:6bd2d76cc1770c212261399b0b1847b0bb1b624e96435539263732b4fcfc4455
+-- @bsb-hash sha256:31bbe25665dbe145f992c3b19c46f9138d4c7e097820f898fddf68038f39dd0c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6153,6 +6343,9 @@ alter table "better_supabase"."leave_requests" add column if not exists "amount"
 alter table "better_supabase"."leave_requests" add column if not exists "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."leave_requests" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null;
 alter table "better_supabase"."leave_requests" add column if not exists "approved_at" timestamptz;
+alter table "better_supabase"."leave_requests" add column if not exists "rejected_at" timestamptz;
+alter table "better_supabase"."leave_requests" add column if not exists "decided_by" uuid;
+alter table "better_supabase"."leave_requests" add column if not exists "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000);
 alter table "better_supabase"."leave_requests" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."leave_requests" add column if not exists "cancelled_by" uuid;
 alter table "better_supabase"."leave_requests" add column if not exists "created_at" timestamptz not null default now();
@@ -6732,6 +6925,42 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -7484,7 +7713,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:aaafc41ab02b5d5c9c7312f870df5938b0041703e7ecbf28f0ef7ac754084011
+-- @bsb-hash sha256:6a6058793ec0c05a8ca1246373c6795cfc89137c7e34dca42a0aac9b6dd90b46
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7531,6 +7760,9 @@ create table "better_supabase"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -7998,6 +8230,7 @@ declare
   v_row "better_supabase"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -8064,7 +8297,8 @@ begin
   insert into "better_supabase"."leave_requests" ("org_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -8076,7 +8310,7 @@ begin
     select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
   end if;
   null;
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "better_supabase"."approve_leave_request"(v_row."id");
     select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -8117,6 +8351,42 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
@@ -8192,6 +8462,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -8276,7 +8547,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."org_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -8287,7 +8559,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "better_supabase"."approve_leave_request"(v_row."id");
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;
