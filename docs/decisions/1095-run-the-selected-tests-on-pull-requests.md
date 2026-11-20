@@ -16,8 +16,9 @@ files made the Schema job swing by minutes, and a one-line docs change still sta
 ## Decision
 
 - `ci.yml` starts with an install-free `changes` job. `verify.yml` splits `static` into parallel
-  lanes, runs the heavy checks as a matrix, and runs one `unit` job on `vars.UNIT_RUNNER` (falling
-  back to `ubuntu-latest`) instead of shards plus a coverage job.
+  lanes, runs the heavy checks as a matrix, and runs one `unit` job on `vars.UNIT_RUNNER`. Without
+  that variable the job falls back to four Vitest shards on `ubuntu-latest` and skips coverage,
+  because the thresholds need the whole suite in one process.
 - A pull request runs the library tests `scripts/select-tests.ts` picks from the diff: the files
   that import a changed file, directly or through each other, the owner rules for generated and
   shared inputs, and the whole suite when it cannot tell. `main` and `workflow_dispatch` run the
