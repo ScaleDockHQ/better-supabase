@@ -149,9 +149,10 @@ const handlers = {
 
 `createKnowledge({ extract })` takes the text extractor. `extractors` picks one
 by media type and falls back to the default text decoder, and `pdfExtractor`
-and `docxExtractor` wrap a library you pass through `load`. better-supabase
-lists neither library as a dependency; install the one you use and the first
-file of that type imports it.
+and `docxExtractor` read PDF and Word files with the optional peers `unpdf` and
+`mammoth`. Install the one you use (`pnpm add unpdf mammoth`) and the first
+file of that type imports it. Without the library, the extractor throws an
+error that names it.
 
 ```ts title="lib/knowledge.ts"
 import {
@@ -166,13 +167,14 @@ import {
 export const knowledge = createKnowledge({
   transport,
   extract: extractors({
-    [PDF_TYPE]: pdfExtractor({ load: () => import("unpdf") }),
-    [DOCX_TYPE]: docxExtractor({ load: () => import("mammoth") }),
+    [PDF_TYPE]: pdfExtractor(),
+    [DOCX_TYPE]: docxExtractor(),
   }),
 });
 ```
 
-`load` has to return a module with `extractText(data, { mergePages: false })`
+To bundle the library yourself or use another one, pass
+`load: () => import("unpdf")`. `load` has to return a module with `extractText(data, { mergePages: false })`
 (`unpdf`) or `extractRawText({ arrayBuffer })` (`mammoth`). The PDF extractor
 puts a form feed between pages, which gives chunks a `position.page`. A failed
 `load` is retried on the next file.

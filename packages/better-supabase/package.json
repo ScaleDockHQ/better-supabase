@@ -2877,6 +2877,7 @@
     "hono": "catalog:",
     "jsonpath-rfc9535": "catalog:",
     "koa": "catalog:",
+    "mammoth": "catalog:",
     "next": "catalog:",
     "nuqs": "catalog:",
     "nuxt": "catalog:",
@@ -2901,6 +2902,7 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "undici": "catalog:",
+    "unpdf": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:",
@@ -2965,6 +2967,7 @@
     "hono": "catalog:peers",
     "jsonpath-rfc9535": "catalog:peers",
     "koa": "catalog:peers",
+    "mammoth": "catalog:peers",
     "next": "catalog:peers",
     "nuqs": "catalog:peers",
     "nuxt": "catalog:peers",
@@ -2979,6 +2982,7 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "undici": "catalog:peers",
+    "unpdf": "catalog:peers",
     "valibot": "catalog:peers",
     "vue": "catalog:peers",
     "workflow": "catalog:peers",
@@ -3124,6 +3128,9 @@
     "koa": {
       "optional": true
     },
+    "mammoth": {
+      "optional": true
+    },
     "next": {
       "optional": true
     },
@@ -3170,6 +3177,9 @@
       "optional": true
     },
     "undici": {
+      "optional": true
+    },
+    "unpdf": {
       "optional": true
     },
     "valibot": {

@@ -1,3 +1,5 @@
+import { isRecord } from "../../core/block-helpers.ts";
+import { importOptionalPeer } from "../../core/optional-peer.ts";
 import { textExtract } from "./knowledge.ts";
 
 /** The part of a file an extractor looks at. An `AiFile` fits. */
@@ -26,6 +28,7 @@ export interface PdfModule {
 export interface DocxModule {
   extractRawText(input: {
     readonly arrayBuffer: ArrayBuffer;
+    readonly buffer: ArrayBuffer;
   }): Promise<{ readonly value: string }>;
 }
 
@@ -55,17 +58,53 @@ function once<T>(load: () => Promise<T>): () => Promise<T> {
 }
 
 /**
+ * Imports an optional peer on the first file that needs it. The specifier is a
+ * variable so bundlers leave the peer out of apps that never extract that file
+ * type (invariant 12, `.agents/rules/lazy-imports.mdc`); without the package,
+ * the extractor says how to install it, or the app passes `load` itself.
+ */
+function peer<T>(
+  name: string,
+  isLibrary: (module: unknown) => module is T,
+  unwrap: (module: unknown) => unknown = (module) => module,
+) {
+  return async (): Promise<T> => {
+    const loaded = unwrap(await importOptionalPeer(name));
+
+    if (!isLibrary(loaded)) {
+      throw new TypeError(
+        `better-supabase: reading this file needs "${name}". Install it (pnpm add ${name}) or pass \`load\` to the extractor.`,
+      );
+    }
+
+    return loaded;
+  };
+}
+
+const isPdf = (module: unknown): module is PdfModule =>
+  isRecord(module) && typeof module["extractText"] === "function";
+
+const isDocx = (module: unknown): module is DocxModule =>
+  isRecord(module) && typeof module["extractRawText"] === "function";
+
+// mammoth is CommonJS: Node puts its exports on `default` as well.
+const commonJs = (module: unknown): unknown =>
+  isRecord(module) ? (module["default"] ?? module) : module;
+
+/**
  * Extracts the text of PDF files, one form feed between pages so chunks get a
- * `position.page`. `load` returns the PDF library; it runs on the first PDF:
+ * `position.page`. It loads the optional peer `unpdf` on the first PDF, or
+ * calls `load`, which returns any module with its `extractText`:
  *
  * ```ts
+ * pdfExtractor();
  * pdfExtractor({ load: () => import("unpdf") });
  * ```
  */
-export function pdfExtractor(options: {
-  readonly load: () => Promise<PdfModule>;
-}): KnowledgeExtractor {
-  const library = once(options.load);
+export function pdfExtractor(
+  options: { readonly load?: () => Promise<PdfModule> } = {},
+): KnowledgeExtractor {
+  const library = once(options.load ?? peer("unpdf", isPdf));
 
   return async (_file, data) => {
     const pdf = await library();
@@ -76,17 +115,19 @@ export function pdfExtractor(options: {
 }
 
 /**
- * Extracts the text of `.docx` files. `load` returns the library and runs on
- * the first file:
+ * Extracts the text of `.docx` files. It loads the optional peer `mammoth` on
+ * the first file, or calls `load`, which returns any module with its
+ * `extractRawText`:
  *
  * ```ts
+ * docxExtractor();
  * docxExtractor({ load: () => import("mammoth") });
  * ```
  */
-export function docxExtractor(options: {
-  readonly load: () => Promise<DocxModule>;
-}): KnowledgeExtractor {
-  const library = once(options.load);
+export function docxExtractor(
+  options: { readonly load?: () => Promise<DocxModule> } = {},
+): KnowledgeExtractor {
+  const library = once(options.load ?? peer("mammoth", isDocx, commonJs));
 
   return async (_file, data) => {
     const docx = await library();
@@ -95,7 +136,11 @@ export function docxExtractor(options: {
 
     new Uint8Array(arrayBuffer).set(data);
 
-    const { value } = await docx.extractRawText({ arrayBuffer });
+    // mammoth reads `buffer` in Node and `arrayBuffer` in its browser build.
+    const { value } = await docx.extractRawText({
+      arrayBuffer,
+      buffer: arrayBuffer,
+    });
 
     return value;
   };

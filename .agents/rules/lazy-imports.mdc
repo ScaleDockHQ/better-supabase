@@ -46,7 +46,9 @@ Imports stay at the top of the module. The exceptions are optional
     (an install message, or pass the module), `fast-xml-parser` through `importOptionalPeer` in
     `src/e-invoicing/read.ts` for `fromUbl` (an install message, or pass the
     module) and in `src/blocks/banking/camt053.ts` for `parseCamt053` (an
-    install message; `parseMt940` needs no peer), `@supabase/lite` through `importOptionalPeer` in
+    install message; `parseMt940` needs no peer), `unpdf` and `mammoth` through `importOptionalPeer` in
+    `src/blocks/knowledge/extractors.ts` for `pdfExtractor` and `docxExtractor`
+    (an install message, or pass `load`), `@supabase/lite` through `importOptionalPeer` in
     `src/lite/runtime.ts` for `liteStack()` and in `src/cli/lite.ts` for
     `gen` and `doctor` on a Lite project (an install message), and `@nestjs/common` through a synchronous
     `createRequire` in `src/nestjs/index.ts`, because `@Ctx()` runs while
