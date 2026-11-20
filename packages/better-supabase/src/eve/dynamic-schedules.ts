@@ -11,9 +11,9 @@ import type {
 } from "./schedules.ts";
 import type { EveSessionAuth } from "./types.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { nextCronRun } from "../core/cron.ts";
 import { DbException, dbError } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { stableUuid } from "./ids.ts";

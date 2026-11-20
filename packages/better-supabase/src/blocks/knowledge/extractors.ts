@@ -1,4 +1,4 @@
-import { isRecord } from "../../core/block-helpers.ts";
+import { isRecord } from "../../core/guards.ts";
 import { importOptionalPeer } from "../../core/optional-peer.ts";
 import { textExtract } from "./knowledge.ts";
 

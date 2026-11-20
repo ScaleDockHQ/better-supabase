@@ -7,8 +7,8 @@ import type { DbError } from "../core/errors.ts";
 import type { RecordRef } from "../schema/types.ts";
 import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { DbException } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 

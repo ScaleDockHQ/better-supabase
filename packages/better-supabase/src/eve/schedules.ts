@@ -9,7 +9,7 @@ import type { RequestContext } from "../core/plugin.ts";
 import type { AsyncResult } from "../core/result.ts";
 import type { EveSessionAuth } from "./types.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
+import { isRecord } from "../core/guards.ts";
 
 /** What one `eve` queue job asks for: a prompt sent to a channel's target. */
 export interface EveAgentJob {

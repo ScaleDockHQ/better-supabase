@@ -1,7 +1,7 @@
 import type { DbError } from "../core/errors.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { dbError, dbErrorOf } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 
 const INVALID_INPUT: ReadonlySet<string> = new Set([
   "AI_InvalidArgumentError",
