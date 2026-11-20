@@ -18,7 +18,7 @@ import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** Leave requests this block files with approvals. */
-export const LEAVE_REQUEST_SUBJECT = "leave_request";
+const LEAVE_REQUEST_SUBJECT = "leave_request";
 
 const WHERE = "blocks.leave.options";
 
