@@ -1,9 +1,18 @@
 // Narrow check for the files you changed: format, lint, typecheck and the tests that cover them.
 // `pnpm verify` runs everything in CI; this finishes in seconds on a leaf file.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { argv, cwd, exit } from "node:process";
+
+import { select } from "./select-tests.ts";
+
+/**
+ * A selection this large is CI's job; locally the narrow mirror and related
+ * tests run instead.
+ */
+export const LOCAL_SELECTION_CAP = 25;
 
 /** `vitest related` is only worth running for a file this few modules import. */
 export const RELATED_IMPORTER_CAP = 3;
@@ -276,6 +285,28 @@ export const planSteps = (files: string[]): Step[] => {
     tests.set(workspace, set);
   }
 
+  // The library's tests come from the selector CI uses, when it picks few enough to run here.
+  const library = "packages/better-supabase";
+
+  const selection =
+    byWorkspace.has(library) || tests.has(library)
+      ? select(files, repoRoot)
+      : undefined;
+
+  const picked = selection?.tests.length ?? 0;
+
+  if (
+    selection?.mode === "files" &&
+    picked > 0 &&
+    picked <= LOCAL_SELECTION_CAP
+  ) {
+    tests.set(library, new Set(selection.tests));
+  } else if (picked > LOCAL_SELECTION_CAP) {
+    console.log(
+      `CI runs ${picked} library test files for this change; running the narrow set here.`,
+    );
+  }
+
   for (const [workspace, entries] of tests) {
     const direct = [...entries].filter(
       (entry) => !entry.startsWith("related:"),
@@ -319,12 +350,47 @@ export const planSteps = (files: string[]): Step[] => {
   return steps;
 };
 
+/**
+ * The same changed files with the same contents pass once: pre-commit checks
+ * what pre-push would.
+ */
+const fingerprint = (files: string[]): string => {
+  const hash = createHash("sha1");
+
+  for (const file of files.toSorted()) {
+    hash.update(`${file}\0`);
+    hash.update(readFileSync(join(repoRoot, file)));
+  }
+
+  return hash.digest("hex");
+};
+
+const PASSED = join(repoRoot, "node_modules/.cache/check-changed-passed");
+
 const main = (): void => {
-  const given = argv.slice(2).map((file) => relative(repoRoot, resolve(file)));
+  const given = argv
+    .slice(2)
+    .filter((arg) => arg !== "--force")
+    .map((file) => relative(repoRoot, resolve(file)));
+
   const files = given.length > 0 ? given : changedFiles();
 
   if (files.length === 0) {
     console.log("No changed files.");
+
+    return;
+  }
+
+  const stamp = fingerprint(files);
+
+  if (
+    !argv.includes("--force") &&
+    existsSync(PASSED) &&
+    readFileSync(PASSED, "utf-8") === stamp
+  ) {
+    console.log(
+      "These files already passed the check. Pass --force to run it again.",
+    );
 
     return;
   }
@@ -358,6 +424,9 @@ const main = (): void => {
     );
     exit(1);
   }
+
+  mkdirSync(dirname(PASSED), { recursive: true });
+  writeFileSync(PASSED, stamp);
 };
 
 if (
