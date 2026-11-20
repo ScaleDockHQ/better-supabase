@@ -64,9 +64,9 @@ export interface VercelQueueSdk {
 export const VERCEL_MAX_DELAY_SECONDS: number = 23 * 3600;
 
 /** Vercel Queues redelivers a failed message after 5 through 900 seconds. */
-export const VERCEL_MIN_RETRY_SECONDS: number = 5;
+const VERCEL_MIN_RETRY_SECONDS: number = 5;
 
-export const VERCEL_MAX_RETRY_SECONDS: number = 900;
+const VERCEL_MAX_RETRY_SECONDS: number = 900;
 
 const MAX_RETENTION_SECONDS = 7 * 86_400;
 

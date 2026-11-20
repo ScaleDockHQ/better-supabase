@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
 /** The queue the projection jobs run on: one debounced job per eve session. */
-export const EVE_SESSION_SYNC_QUEUE = "eve_session_sync";
+const EVE_SESSION_SYNC_QUEUE = "eve_session_sync";
 
 /** The tables of the eve projection, in the `workflow` schema. */
 export const EVE_TABLES: readonly string[] = [
@@ -23,7 +23,7 @@ export const EVE_SERVICE_FUNCTIONS: readonly (readonly [string, string])[] = [
   ["eve_session_mark", "text, text"],
 ];
 
-export const EVE_SESSION_STATUSES = [
+const EVE_SESSION_STATUSES = [
   "open",
   "ended",
   "failed",

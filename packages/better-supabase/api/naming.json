@@ -2635,6 +2635,9 @@
       ],
       "vercel-marketplace": [
         "MISSING_CREDENTIALS"
+      ],
+      "workflow-sdk": [
+        "EVE_"
       ]
     }
   },

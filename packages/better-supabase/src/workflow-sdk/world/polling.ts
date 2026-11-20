@@ -13,7 +13,7 @@ export interface ChunkRow {
 }
 
 /** The sleep between reads of a stream that is still open. */
-export const DEFAULT_STREAM_POLL_MS = 100;
+const DEFAULT_STREAM_POLL_MS = 100;
 
 /**
  * A stream reader that polls `workflow.workflow_stream_chunks` instead of
