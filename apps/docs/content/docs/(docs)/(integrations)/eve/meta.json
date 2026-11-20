@@ -1,4 +1,15 @@
 {
   "title": "eve",
-  "pages": ["index"]
+  "pages": [
+    "index",
+    "world",
+    "auth",
+    "tools",
+    "approvals",
+    "schedules",
+    "connections",
+    "memory",
+    "sessions",
+    "inbox"
+  ]
 }

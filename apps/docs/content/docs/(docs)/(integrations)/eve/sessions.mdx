@@ -1,0 +1,106 @@
+---
+title: Sessions in the chat tables
+description: Project eve sessions into the chat tables from a stored cursor with createSessionSync, sweepSessions, resolve and sessionHistory, purge runs without losing unread ones and end stranded sessions before an eve upgrade.
+---
+
+A session sync copies eve sessions into the canonical chat tables, so the chat
+UI, search, memory recall and analytics read them like any other chat. It reads
+the session's stream through eve's own reader from a stored cursor, so a hook
+that eve does not retry can never lose an event.
+
+The [World](/docs/eve/world) tracks each session in `workflow.eve_sessions` (the
+`workflow-sdk` module, version 7) and queues a debounced job in the
+`eve_session_sync` queue whenever a run or an event of the session changes.
+`persistSessions` returns hook handlers that wake the same job, which only
+matters on a World that lacks the triggers:
+
+```ts title="agent/hooks/persist.ts"
+import { defineHook } from "eve/hooks";
+import { persistSessions } from "better-supabase/eve";
+import { createSupabaseWorld } from "better-supabase/workflow-sdk/world";
+
+export default defineHook({
+  events: persistSessions({ store: createSupabaseWorld().eveSessions }),
+});
+```
+
+`createSessionSync` is the job. It runs inside the eve server, where
+`sessions.attach` from `eve/server` can read the stream:
+
+```ts title="agent/lib/sync.ts"
+import { createSessionSync } from "better-supabase/eve";
+import { createSupabaseWorld } from "better-supabase/workflow-sdk/world";
+import { sessions } from "eve/server";
+
+export const sync = createSessionSync({
+  store: createSupabaseWorld().eveSessions,
+  chats,
+  read: (sessionId, startIndex) =>
+    sessions.attach(sessionId).stream({ startIndex, follow: false }),
+  resolve: async ({ principal }) =>
+    principal === undefined
+      ? undefined
+      : { organizationId: await tenantOf(principal.id), ownerId: principal.id },
+});
+```
+
+`resolve` names the tenant and owner of a session, because eve's principal has
+no tenant. Return `undefined` to leave a session out. Run
+`sync.sweepSessions()` from an eve schedule as a safety net, and `sync.job`
+as the handler of the `eve_session_sync` queue. A pass takes a lease on the
+session, so two jobs never write the same session at once, and it moves the
+cursor only after its writes succeeded.
+
+| eve event                           | Written                                                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `session.started`                   | an `ai_chats` row with the id `chatIdOf(sessionId)`, owned by the user                                    |
+| `turn.started`                      | an `ai_runs` row with the engine `eve` and the run id as `external_run_id`                                |
+| `delivery.consumed`                 | the text the user sent, in the canonical format, with the id `<turnId>:<deliveryId>`                      |
+| `content.completed`                 | each text part, format `eve`, with eve's event as the native copy; a part that isn't the reply is interim |
+| `model.*` and `call.*`              | one run step per model call and tool call                                                                 |
+| `interaction.opened` and `.settled` | an approval request and its decision, or a pending input and its answer                                   |
+| `usage.recorded`                    | one usage entry per model call (`usage`: tokens and `costUsd`, in micro-USD), keyed by its position       |
+| `turn.settled`                      | the run's status from the outcome: `completed`, `failed` or `cancelled`                                   |
+| `session.ended`                     | the session's status in `eve_sessions`                                                                    |
+
+Each write is keyed by the event, so a pass that failed halfway runs again from
+the same line and stores nothing new. The chat id is a UUID derived from the
+session id, so a client that knows the chat can open the eve session with
+`useEveAgent({ initialSession: { sessionId, streamIndex: 0 } })`.
+
+`persistSessions` no longer takes `chats`: it only wakes the job. Pass
+`store: world.eveSessions` and move the `agentId` into `resolve`.
+
+## Retention, upgrades and history
+
+Keep runs the sync has not read yet when you purge (see
+[Purging runs](/docs/eve/world#purging-runs)):
+
+```ts
+await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
+```
+
+A session keeps the eve version it started on. Before you deploy a version that
+cannot resume the old sessions, list them and end them:
+
+```ts
+import { endStrandedSessions, openSessions } from "better-supabase/eve";
+
+const old = await openSessions({
+  store: world.eveSessions,
+  notVersion: "1.1.0",
+});
+
+await endStrandedSessions({
+  store: world.eveSessions,
+  notVersion: "1.1.0",
+  cancelRun: (session) => cancelInEve(session.runId),
+});
+```
+
+`endStrandedSessions` marks the sessions `stranded`, so the sync writes their
+last state, and `dryRun: true` only lists them. `sessionHistory(chats, sessionId)`
+returns a synced session's text messages in eve's `history` shape, to seed a
+session on the new version with what the old one said. `approvals.cancel(id,
+{ reason })` records why an approval was cancelled, for example when its
+session ended.

@@ -125,7 +125,7 @@ back from the chunks present at the first read. Setting `connection:
 `transaction` mode the underlying World still holds one idle `LISTEN`
 connection that nothing waits on.
 
-Messages carry the Messages carry the
+Messages carry the
 `x-vqs-message-delivery-count` and `x-vqs-message-created-at` headers that
 `@workflow/world-postgres` sends, and `queueBatch` writes a batch in one
 statement. `world.start()` calls `assertWorldMigrations()`, which compares

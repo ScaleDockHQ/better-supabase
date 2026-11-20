@@ -1,0 +1,276 @@
+---
+title: Schedules on eve
+description: Run eve sessions from the queue block's schedules, store eve's dynamic schedules in a queue scheduler, mirror them into ai-schedules and check scopes and expressions.
+---
+
+The [queue](/docs/blocks/queue) block keeps schedules per tenant, with a
+time zone and the user to run as. `queueSchedules` is the `run` of one
+eve schedule that fires every minute: it enqueues the due schedules, then
+drains the `eve` queue and sends each job's prompt to its channel target as
+the job's user.
+
+```ts title="agent/lib/server.ts"
+import { createQueue } from "better-supabase/blocks/queue";
+import { eveAgentJob } from "better-supabase/eve";
+
+export const agentJobs = createQueue({
+  sql: postgres.admin,
+  queues: { eve: eveAgentJob },
+});
+```
+
+```ts title="agent/schedules/dispatch.ts"
+import { queueSchedules } from "better-supabase/eve";
+import { defineSchedule } from "eve/schedules";
+
+import eve from "../channels/eve";
+import { agentJobs } from "../lib/server";
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: queueSchedules({ queue: agentJobs, channels: { eve } }),
+});
+```
+
+A member schedules their own run with `scheduleAgent`. `context` is the
+user the session runs as and `timeZone` the zone the cron is read in:
+
+```ts
+await scheduleAgent(
+  agentJobs,
+  `digest-${userId}`,
+  "0 9 * * 1-5",
+  { prompt: "Send my morning digest", channel: "eve", target: {} },
+  {
+    tenant,
+    timeZone: "Europe/Amsterdam",
+    context: { actor: { id: userId, kind: "user" }, tenant },
+  },
+).orThrow();
+```
+
+`channel` names a key of `channels`, and `target` is that channel's
+proactive target. A job without a user runs as eve's app principal. To
+drain the queue from your own route instead, pass
+`agentJobHandler({ channels }, args)` to `drain`.
+
+## Dynamic schedules
+
+eve's `defineDynamicSchedules` (from `eve/experimental/schedules`) lets
+members and the model create, list, update, pause and delete schedules while
+the agent runs, with eve's management tools, `scope`, approvals and its
+`auth` check of the creator before each run. `queueScheduleProvider` stores
+those schedules in a [queue block](/docs/blocks/queue) scheduler, and
+`queueDynamicSchedules` fires them from a minute schedule, the way eve's
+application-managed scheduling pattern does.
+
+```ts title="agent/lib/server.ts"
+import { createQueue, sqlScheduler } from "better-supabase/blocks/queue";
+import { eveScheduleRun, queueScheduleProvider } from "better-supabase/eve";
+
+const scheduler = sqlScheduler(postgres.admin, { mode: "drain" });
+
+export const memberSchedules = queueScheduleProvider({
+  scheduler,
+  // The scope below is [tenant, member].
+  tenantOf: (scope) => (Array.isArray(scope) ? scope[0] : undefined),
+});
+
+export const scheduleRuns = createQueue({
+  sql: postgres.admin,
+  scheduler,
+  queues: { eve_schedules: eveScheduleRun },
+});
+```
+
+```ts title="agent/schedules/requests.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { defineDynamicSchedules } from "eve/experimental/schedules";
+import * as v from "valibot";
+
+import eve from "../channels/eve";
+import { memberSchedules } from "../lib/server";
+
+export default defineDynamicSchedules({
+  inputSchema: toStandardJsonSchema(v.object({ task: v.string() })),
+  provider: memberSchedules,
+  scope: ({ session }) => {
+    const auth = session.auth.current;
+    const tenant = auth?.attributes.tenantId;
+
+    return auth?.principalType === "user" && typeof tenant === "string"
+      ? [tenant, auth.principalId]
+      : null;
+  },
+  // findMember is application code: it looks up the creator's current access
+  // and returns null to fail the run without a retry.
+  auth: ({ principal }) => findMember(principal.principalId),
+  run: ({ payload, to }) => to(eve, {}).send(payload.task),
+});
+```
+
+```ts title="agent/schedules/dispatch.ts"
+import { queueDynamicSchedules } from "better-supabase/eve";
+import { defineSchedule } from "eve/schedules";
+
+import { memberSchedules, scheduleRuns } from "../lib/server";
+import requests from "./requests";
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: queueDynamicSchedules({
+    queue: scheduleRuns,
+    provider: memberSchedules,
+    // The key is the collection name: the definition's `id`, or its path
+    // under agent/schedules/ when it sets none.
+    collections: { requests },
+  }),
+});
+```
+
+Each eve schedule is one queue block schedule named
+`eve:<collection>:<namespace>:<name>`, whose payload holds eve's record: the
+timing, state, timestamps and eve's stored payload with the creator and
+scope. A `single` time becomes the cron of its local minute, hour, day and
+month, and completes after its run. `get`, `list`, `update`, `enable`,
+`disable` and `delete` read and write those schedules, always inside eve's
+collection and namespace. `tenantOf` reads the tenant from the scope eve
+resolved, so `unscheduleAll({ tenant })` removes a tenant's schedules with
+the rest of its data.
+
+Every minute, `queueDynamicSchedules` calls `runSchedules`, then drains
+`eve_schedules`. For each run it reads the schedule again and skips it when
+it was paused or deleted after it was enqueued, validates the stored payload
+with `inputSchema` (unless `preparePayload` shaped it), calls the
+definition's `auth` with the creator and then its `run`. Both receive eve's
+`schedule` handle, whose `disable()` and `delete()` act on the schedule that
+fired, and `auth` may return only `{ attributes }` to run as the stored
+creator. Sessions start through the minute schedule's `to()`, as the
+creator. A send without an
+`idempotencyKey` gets one from the occurrence and the message, so a retried
+run reaches the session the first attempt started. `null` from `auth`, a
+different creator, an invalid payload or an unknown collection fail the
+occurrence for good and call `occurrence.failed`; a thrown error retries the
+job, and the last attempt calls `occurrence.failed` too. A run that finishes
+calls `occurrence.dispatched` with the session ids. eve's `invoke` (a
+manual run) delivers through the target eve passes with the call.
+
+The provider needs a scheduler that lists schedules with their payloads,
+because eve's `update` keeps the stored payload, `invoke` delivers it and
+`get` returns the timing and state: the drain scheduler
+(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
+"drain" })` and `transportScheduler`). It pairs with Supabase Queues and
+Vercel Queues alike. pg_cron keeps only the command, in UTC and without a
+tenant, and Vercel Schedules returns no payloads, so the provider throws a
+`TypeError` for a scheduler that can't list and an `unsupported`
+`DbException` (`EVE_SCHEDULE_PAYLOAD_UNREADABLE`) for one that lists without
+payloads.
+
+eve gives a provider its delivery target only during a management call, and
+fires a timed run only through its own Vercel Queues route, so a provider has
+no public way to hand eve a run at the scheduled minute (still true in
+eve 1.2). `queueDynamicSchedules`
+runs the definition's `auth` and `run` itself instead. Runs fire at the next
+minute tick, and a session it starts is an ordinary session of the minute
+schedule: `ctx.session.schedule` names that schedule, not the dynamic one, and
+the session could ask for input that nobody answers, so give scheduled work
+tools that don't wait for a person.
+
+## Checks, scopes and failure notices
+
+`queueScheduleProvider` checks every expression it stores with
+`validateExpression`, which you can also call yourself. It throws a
+`validation` error for a cron that does not parse, an unknown time zone, a
+malformed or past `single` time, a negative jitter and, with `minIntervalMs`, a
+cron that runs more often than that. Pass your own check as
+`validateExpression(expression, { collection, scope })`; whatever it throws is
+returned as a `validation` error.
+
+`scopes` names the scopes eve resolves for a creator, by the first part of the
+scope (`"user"` for `["user", id]`). A schedule in a scope that is not listed is
+rejected, and each rule can read the tenant from the rest of the scope
+(`tenantOf`), limit how many schedules one scope holds (`maxSchedules`, error
+hint `EVE_SCHEDULE_LIMIT`) and set its own `minIntervalMs`. eve 1.2 was not
+installed when these options were written, so they follow eve's scope
+resolution as the provider stores it and have not been run against eve's own
+`scopes` option.
+
+```ts
+queueScheduleProvider({
+  scheduler,
+  minIntervalMs: 5 * 60_000,
+  scopes: {
+    user: { tenantOf: ([org]) => org, maxSchedules: 20 },
+    team: { tenantOf: ([org]) => org, minIntervalMs: 3_600_000 },
+  },
+});
+```
+
+`queueDynamicSchedules({ notify })` tells the creator when an occurrence fails
+for good (`auth` returned null, the payload is invalid, the retries ran out or
+the occurrence was stale) by sending `notify.type` through the notifications
+block, with the schedule, occurrence and reason as data and the occurrence id as
+the dedup key. `staleAfterMs` fails a cron occurrence that starts that long after
+its time instead of firing it, so a backlog after an outage does not send old
+prompts. A notifier that throws changes nothing, like an event handler.
+
+## Tasks from the ai-schedules block
+
+If users manage their schedules as `ai-schedules` tasks, `aiScheduleDispatch`
+runs those tasks as eve sessions. The block keeps the tasks, claims the due ones
+and records each occurrence in `ai_task_runs` with its status and error, and its
+`notifier` tells the task's user when a run fails.
+
+```ts title="agent/schedules/tasks.ts"
+import { defineSchedule } from "eve/experimental/schedules";
+import { aiScheduleDispatch } from "better-supabase/eve";
+
+import { createAiSchedules } from "better-supabase/blocks/ai-schedules";
+
+const dispatch = aiScheduleDispatch({ channels: { slack }, channel: "slack" });
+
+const schedules = createAiSchedules({ transport, service, run: dispatch.run });
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: dispatch.handler(schedules),
+});
+```
+
+Each prompt goes to the channel's target as the task's user, with the run id as
+the idempotency key.
+
+### Mirror into ai-schedules
+
+By default, schedules that eve creates through `queueScheduleProvider` live only
+in the queue block's scheduler. Pass `mirror` to also write each schedule and
+each occurrence to `ai_scheduled_tasks` and `ai_task_runs`, so one task list and
+run history covers both:
+
+```ts title="agent/lib/server.ts"
+export const memberSchedules = queueScheduleProvider({
+  scheduler,
+  tenantOf,
+  mirror: { schedules: aiSchedules },
+});
+```
+
+`aiSchedules` is the block's client with a service transport. Mirrored tasks
+have the `source` `eve` and the schedule's key as their `externalId`, and
+`aiScheduleDispatch` never claims them, because eve fires them. The task's user
+is the creator when the principal id is a uuid (`mirror.userOf` changes that),
+and the prompt is the schedule's display name (`mirror.promptOf`). A schedule
+without a user is not mirrored. Writing an occurrence never fails the run. The
+module needs version 3: run `better-supabase upgrade`.
+
+## Queue schedulers
+
+`queueSchedules` calls `runSchedules` and then drains the
+[queue block](/docs/blocks/queue), so its schedules need the drain scheduler
+(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
+"drain" })`). Under pg_cron or Vercel Schedules, `runSchedules` enqueues
+nothing and the runs reach the queue another way (see
+[Queues and schedulers](/docs/blocks/queue#queues-and-schedulers)).
+`ScheduleProvider` from `better-supabase/blocks/queue` is the port a
+scheduler implements, and the one `queueScheduleProvider` stores eve's dynamic
+schedules in.

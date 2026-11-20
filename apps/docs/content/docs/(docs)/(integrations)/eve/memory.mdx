@@ -1,0 +1,76 @@
+---
+title: Memory on eve
+description: Recall core and archival memory and tenant documents per turn, and store eve's file memory in the memory module.
+---
+
+`supabaseMemory` is a memory provider over the memory block, with
+optional tenant documents from the knowledge block. Pass both blocks on a
+service transport, since eve calls the provider outside the user's request.
+
+```ts title="agent/memory/profile.ts"
+import { defineMemory, defineMemoryProvider } from "eve/memory";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseMemory } from "better-supabase/eve";
+
+import { knowledge, memory } from "../lib/blocks";
+
+export default defineMemory({
+  description: "What the agent knows about this user and their team",
+  scope: byPrincipal,
+  provider: defineMemoryProvider(supabaseMemory({ memory, knowledge })),
+});
+```
+
+On `turn.started` the provider returns the user's core memory, the
+archival memories and knowledge chunks closest to the new message (`k`,
+5 by default) and stores that answer under eve's operation id, so a
+replayed step recalls the same messages. Every read and write is
+partitioned by the memory scope key and the signed-in user; sessions
+without a user and tenant recall nothing. Knowledge search defaults to
+the tenant's shared documents, because the provider searches as the
+service role; widen `knowledgeScopes` only when every member may read the
+wider scope.
+
+The model gets `remember` and `forget` tools (eve shows them as
+`<slot>__remember`). Pass `extract(messages, ctx)`, an LLM call of yours, to
+also keep facts from every finished turn; `tools: false` drops the tools.
+
+Pass `scopes` to recall from and write to more than the user's own memory:
+`"user"` (the default), `"organization"` (shared by the tenant) and
+`{ scope: "record", subject }`, which names one record such as the inbox
+contact the conversation is about. Each scope recalls its own core memory (the
+message ids are `core`, `core:organization` and `core:record:<type>`), and
+`remember` and `forget` take a `scope` argument when more than one scope is
+writable. Shared scopes are read-only unless the entry sets `write: true`: the
+provider runs as the service role, so a writable shared scope lets the model
+change what every user of the tenant recalls.
+
+```ts
+supabaseMemory({
+  memory,
+  scopes: [
+    "user",
+    { scope: "organization", write: false },
+    { scope: "record", write: true, subject: (ctx) => recordFor(ctx.session) },
+  ],
+});
+```
+
+To keep eve's own file memory instead, store it in Postgres with
+`supabaseDocumentBackend`. A write with a stale version throws
+`MemoryDocumentConflictError`, and eve retries with the current document.
+
+```ts title="agent/memory/notes.ts"
+import { defineMemory } from "eve/memory";
+import { fileMemory } from "eve/memory/file";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseDocumentBackend } from "better-supabase/eve";
+
+import { memory } from "../lib/blocks";
+
+export default defineMemory({
+  description: "Notes the agent keeps for itself",
+  scope: byPrincipal,
+  provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
+});
+```

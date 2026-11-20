@@ -327,7 +327,7 @@ before the upgrade and finishes after it can store its reply twice.
 Schema, such as a plain Valibot schema: wrap it in `toStandardJsonSchema` from
 `@valibot/to-json-schema` when you pass it to `supabaseTool`. `queueScheduleProvider` and `queueDynamicSchedules` are new:
 they store eve's dynamic schedules in the queue block's drain scheduler (see
-[eve on Supabase](/docs/eve#dynamic-schedules)).
+[eve on Supabase](/docs/eve/schedules#dynamic-schedules)).
 
 eve 1.0.0-rc.13 marks `content.completed`'s `runId` optional: a part the turn
 wrote without a model run has none, and `scope.turnId` names its turn.

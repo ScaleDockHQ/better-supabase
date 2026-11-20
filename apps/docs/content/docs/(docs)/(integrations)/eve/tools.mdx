@@ -1,0 +1,65 @@
+---
+title: Tools under row-level security
+description: Build eve tools that run as the session's user with supabaseTool, grant the agent delegated permission scopes and apply tenant tool policies.
+---
+
+`supabaseTool` builds the definition for eve's `defineTool`. Its `execute`
+gets `db` from `server.forContext()` for the session's user and tenant, so
+every query runs under row-level security. The token carries the agent's
+`act` claim (`auth.jwt() -> 'act'`), so your policies can tell the agent's
+calls from the user's own.
+
+```ts title="agent/tools/add_note.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { supabaseTool } from "better-supabase/eve";
+import { defineTool } from "eve/tools";
+import * as v from "valibot";
+
+import { server } from "../lib/server";
+
+export default defineTool(
+  supabaseTool({
+    server,
+    agent: "assistant",
+    description: "Adds a note to one of the organization's customers",
+    // eve sends the model the input's JSON Schema.
+    inputSchema: toStandardJsonSchema(
+      v.object({ customerId: v.string(), body: v.string() }),
+    ),
+    async execute({ customerId, body }, { db, context }) {
+      const note = await db.notes
+        .create({ customerId, body, organizationId: context.tenant ?? "" })
+        .orThrow();
+
+      return { id: note.id };
+    },
+  }),
+);
+```
+
+`server` is `createServer(betterSupabase, { postgres: createPostgres() })`;
+`forContext` needs the direct Postgres connection. A session without a
+signed-in user fails the call, unless `runAs` names the user an app-owned
+session (a schedule, a contact in the inbox) acts for.
+
+An agent claim is delegated: the token holds no permission keys unless
+`scopes` grants them. `scopes: ["tasks.*"]` lends the agent the user's
+`tasks.*` keys, and `["*"]` every key the user holds. `permissions` narrows
+the call further, the way `forContext({ permissions })` does. `readOnly: true`
+makes `actor_may_write()` refuse the block writes, and `tools` lists the
+tools the claim allows.
+
+Pass `policies` (such as `chats.approvals` from the AI chat block) to apply
+the tenants' tool settings: `deny` refuses the call, `ask` waits for a
+person, and `auto` leaves the decision to the tool's own `approval`. The
+stricter answer wins. `tenantToolApproval(source, inner)` does the same for
+a tool you define without `supabaseTool`.
+
+## What the policies see
+
+Every query a tool runs carries the user's token with the agent's `act` claim,
+so an RLS policy sees `auth.uid()` as the user and `auth.jwt() -> 'act'` as the
+agent. A tool that writes with `db` fails closed: a policy that refuses the
+user refuses the agent too. Tools never get the service role. `runAs` is the
+one way to name a user for an app-owned session, and it still goes through the
+same policies.

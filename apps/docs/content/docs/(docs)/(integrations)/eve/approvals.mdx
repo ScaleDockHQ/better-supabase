@@ -1,0 +1,73 @@
+---
+title: Approvals on eve
+description: File each tool call as an approvals block request, combine policies with strictestApproval and set the agent's permission scopes.
+---
+
+`approvalPolicy` is a tool `approval` backed by the
+[approvals](/docs/blocks/approvals) block. Each call files one request as
+the session's user, with the subject `{ type: "eve_tool_call", id: callId }`
+and the tool name as the action, so a replayed call finds the request it
+filed. The agent gets the `approvals.read` and `approvals.request` scopes
+for this on its own.
+
+```ts title="agent/tools/add_note.ts"
+approval: approvalPolicy({ server, agent: "assistant" }),
+```
+
+Set who approves each tool in the block's policies, under the subject type
+`eve_tool_call`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  approvals: {
+    options: {
+      policies: {
+        eve_tool_call: {
+          add_note: {
+            steps: [
+              { approvers: { role: "owner" }, required: 1 },
+              { approvers: { role: "admin" }, required: 1 },
+            ],
+          },
+        },
+      },
+    },
+  },
+},
+```
+
+When someone answers eve's prompt, `approvalPolicy` approves or rejects as
+that person through `forContext`, so the block decides whether they may.
+The requester can always withdraw the call. A multi-step policy keeps the
+prompt open until the last step, and a call whose request is already
+approved or rejected settles without asking. `action` and `subjectType`
+file requests under other names.
+
+### Combining policies
+
+`strictestApproval(...policies)` merges several approvals into one for a
+tool, such as the approvals block next to a rule of your own. Each argument
+is an approval policy function or an object with `request`, and optionally
+`response` and `prompt`. The strictest request result wins: `denied`, then
+`user-approval`, then `approved`, then `not-applicable`. A denial stops the
+check, and on a tie the earlier policy's answer and reason stay. Every
+`response` must allow the answer, and the first rejection is the result. The
+prompt is the first one a policy defines.
+
+```ts title="agent/tools/add_note.ts"
+approval: strictestApproval(
+  approvalPolicy({ server: bsb, agent: "assistant" }),
+  ({ toolInput }) =>
+    JSON.stringify(toolInput).includes("password") ? "denied" : "not-applicable",
+),
+```
+
+## Permission scopes for approvals
+
+`approvalPolicy` gives the agent the `approvals.read` and `approvals.request`
+scopes for the request it files, and nothing else. The answer comes from the
+person who answers eve's prompt, as that person, so the block's own permission
+check (`approvals.decide` and the policy's approver roles) decides, not the
+agent's scopes. A tool's own `scopes` (see
+[Tools under row-level security](/docs/eve/tools)) stay separate: they lend the
+agent the user's keys for the tool's queries only.
