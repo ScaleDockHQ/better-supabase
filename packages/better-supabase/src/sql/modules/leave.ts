@@ -722,10 +722,17 @@ ${
         ]),
   ].join(" or ");
 
+  // The app function runs once per request: its answer decides both whether
+  // an approval is filed and whether the leave is booked at once.
+  const atOnceVar = atOnce === "" ? "" : "\n  v_at_once boolean;";
+
+  const decideAtOnce =
+    atOnce === "" ? "" : `\n  v_at_once := coalesce(${atOnce}, false);`;
+
   // Opens the approval of v_row for v_type, unless the type needs none.
   const openApproval = (tenant: string): string => {
     if (approvals === undefined) {
-      return "";
+      return decideAtOnce;
     }
 
     const open = `
@@ -740,8 +747,8 @@ ${
 
     return atOnce === ""
       ? open
-      : `
-  if not (${atOnce}) then${open.replaceAll("\n  ", "\n    ")}
+      : `${decideAtOnce}
+  if not v_at_once then${open.replaceAll("\n  ", "\n    ")}
   end if;`;
   };
 
@@ -750,7 +757,7 @@ ${
     atOnce === ""
       ? ""
       : `
-  if ${atOnce} then
+  if v_at_once then
     perform ${fn("approve_leave_request")}(v_row.${q("id")});
     select * into v_row from ${requests} x where x.${q("id")} = v_row.${q("id")};
   end if;`;
@@ -813,7 +820,7 @@ declare
   v_manager boolean;${reapproves ? "\n  v_holder boolean;\n  v_reapprove boolean;" : ""}
   v_status text;
   v_starts date;
-  v_ends date;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
+  v_ends date;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}${atOnceVar}
 begin
   select * into v_row from ${requests} x where x.${q("id")} = update_leave_request.request_id for update;
   if not found then
@@ -883,7 +890,7 @@ ${overlapCheck(`v_row.${q("tenant")}`, "v_starts", "v_ends", `v_row.${q("id")}`)
     approvals === undefined
       ? reapproves && autoApproved !== ""
         ? `
-  if v_reapprove then${autoApproved.replaceAll("\n  ", "\n    ")}
+  if v_reapprove then${decideAtOnce.replaceAll("\n  ", "\n    ")}${autoApproved.replaceAll("\n  ", "\n    ")}
   end if;`
         : ""
       : `
@@ -1156,7 +1163,7 @@ declare
   v_type ${types}%rowtype;
   v_partial text := coalesce(request_leave.partial, 'full');${parts ? "\n  v_start text;\n  v_end text;" : ""}${owner.declare}
   v_amount numeric;
-  v_row ${requests}%rowtype;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
+  v_row ${requests}%rowtype;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}${atOnceVar}
 begin
 ${
   owner.employee

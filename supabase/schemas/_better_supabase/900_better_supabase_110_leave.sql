@@ -1,6 +1,6 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:68d606dec49985b45295d6e47a33f9c9cd1e60aff9c025db572394953b69a077
+-- @bsb-hash sha256:b6d50c09d91cb817078df6b9867be6aae44ea6cff011e023513b5a5c1ee52fa1
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -591,6 +591,7 @@ declare
   v_row "better_supabase"."leave_requests"%rowtype;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -658,7 +659,8 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not (v_type."auto_approve") then
+  v_at_once := coalesce(v_type."auto_approve", false);
+  if not v_at_once then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -679,7 +681,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id")
   );
-  if v_type."auto_approve" then
+  if v_at_once then
     perform "better_supabase"."approve_leave_request"(v_row."id");
     select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
   end if;
@@ -881,6 +883,7 @@ declare
   v_ends date;
   v_approval "better_supabase"."approval_requests"%rowtype;
   v_request jsonb;
+  v_at_once boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -965,7 +968,8 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not (v_type."auto_approve") then
+    v_at_once := coalesce(v_type."auto_approve", false);
+    if not v_at_once then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -976,7 +980,7 @@ begin
         returning * into v_row;
       select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
     end if;
-    if v_type."auto_approve" then
+    if v_at_once then
       perform "better_supabase"."approve_leave_request"(v_row."id");
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;

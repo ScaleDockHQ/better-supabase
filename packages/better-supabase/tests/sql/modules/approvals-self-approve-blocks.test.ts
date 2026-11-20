@@ -25,6 +25,15 @@ create or replace function auth.uid() returns uuid language sql stable as $$
 $$;
 create function public.week_needs_approval(tenant uuid, timesheet_id uuid) returns boolean
 language sql stable as $$ select false $$;
+create function public.flip_needs_approval(tenant uuid, id uuid) returns boolean
+language plpgsql volatile as $$
+declare
+  v_n integer := coalesce(nullif(current_setting('test.flips', true), ''), '0')::integer + 1;
+begin
+  perform set_config('test.flips', v_n::text, false);
+  return v_n % 2 = 0;
+end;
+$$;
 create function public.claim_needs_approval(tenant uuid, expense_id uuid) returns boolean
 language plpgsql stable as $$
 begin
@@ -178,6 +187,40 @@ begin
     or not exists (select 1 from better_supabase.approval_requests where subject_id = v_expense::text and status = 'pending') then
     raise exception 'a large claim is %', better_supabase.get_expense(v_expense) ->> 'status';
   end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("asks approvalRequired once, so a claim is always filed or approved", async () => {
+    await expect(
+      run(
+        ["expenses"],
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: {
+              standaloneApprovals: true,
+              approvalRequired: "public.flip_needs_approval",
+            },
+          },
+        },
+        `do $$
+declare
+  v_expense uuid;
+  v_n integer;
+  v_filed boolean;
+begin
+  ${as(ALICE)}
+  for v_n in 1..4 loop
+    v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 100 * v_n, 'EUR') ->> 'id')::uuid;
+    perform better_supabase.submit_expense(v_expense);
+    v_filed := exists (select 1 from better_supabase.approval_requests where subject_id = v_expense::text and status = 'pending');
+    if v_filed = (better_supabase.get_expense(v_expense) ->> 'status' = 'approved') then
+      raise exception 'claim % is %, filed %', v_n, better_supabase.get_expense(v_expense) ->> 'status', v_filed;
+    end if;
+  end loop;
 end;
 $$;`,
       ),

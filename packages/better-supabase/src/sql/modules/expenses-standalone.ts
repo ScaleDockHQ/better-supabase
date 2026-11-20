@@ -477,11 +477,14 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   const needed = `coalesce(${required ?? ""}(v_row.${e("tenant")}, v_row.${e("id")}), true)`;
 
+  // The app function runs once per submit: its answer decides both whether a
+  // request is filed and whether the expense is approved at once.
   const openApproval =
     required === undefined
       ? filing
       : `
-  if ${needed} then${filing.replaceAll("\n  ", "\n    ")}
+  v_needed := ${needed};
+  if v_needed then${filing.replaceAll("\n  ", "\n    ")}
   end if;`;
 
   // Approves the expense at once when options.approvalRequired answers false.
@@ -489,7 +492,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     required === undefined
       ? ""
       : `
-  if not ${needed} then
+  if not v_needed then
     perform ${fn("expense_approval_decided")}(v_row.${e("id")}, true, null, null);
     select * into v_row from ${table} x where x.${e("id")} = v_row.${e("id")};
   end if;`;
@@ -697,7 +700,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${table}%rowtype;
+  v_row ${table}%rowtype;${required === undefined ? "" : "\n  v_needed boolean;"}
 begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
   if ${status("v_row")} = 'submitted' then
     ${conflict("EXPENSE_ALREADY_SUBMITTED", "this expense is already submitted")}
@@ -910,7 +913,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${table}%rowtype;
+  v_row ${table}%rowtype;${required === undefined ? "" : "\n  v_needed boolean;"}
 begin${load("reopen_expense.expense_id")}
   if not (${SERVICE_CALLER} or (${decides("v_row")} and (not ${selfOf("v_row", "auth.uid()")} or ${nobodyElse("v_row", creatorOf("v_row"))}))) then
     ${forbidden("not allowed to reopen this expense")}

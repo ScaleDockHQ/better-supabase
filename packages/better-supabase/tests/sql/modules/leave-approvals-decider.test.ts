@@ -331,6 +331,45 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("asks approvalRequired once, so a request is always filed or booked", async () => {
+    await expect(
+      run(
+        {
+          leave: {
+            options: { approvalRequired: "public.flip_needs_approval" },
+          },
+        },
+        `create function public.flip_needs_approval(tenant uuid, id uuid) returns boolean
+language plpgsql volatile as $f$
+declare
+  v_n integer := coalesce(nullif(current_setting('test.flips', true), ''), '0')::integer + 1;
+begin
+  perform set_config('test.flips', v_n::text, false);
+  return v_n % 2 = 0;
+end;
+$f$;
+do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_row better_supabase.leave_requests%rowtype;
+  v_day integer;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  for v_day in 0..3 loop
+    v_id := (better_supabase.request_leave('${TENANT}', v_type, date '2099-03-02' + v_day * 7, date '2099-03-02' + v_day * 7) ->> 'id')::uuid;
+    select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+    if (v_row.approval_id is null) = (v_row.approved_at is null) then
+      raise exception 'request % is filed and booked, or neither: %', v_day, to_jsonb(v_row);
+    end if;
+  end loop;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses an approval subject type that isn't snake case", () => {
     expect(() =>
       renderBlocks(["employees", "leave"], {
