@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AiChat } from "../../src/blocks/ai-chat/ai-chat.ts";
 import type { EveSyncEvent } from "../../src/eve/sync.ts";
@@ -131,6 +131,50 @@ describe("syncSession", () => {
       "runs.release",
     ]);
     expect(store.cursorOf("sess_1")).toBe(6);
+  });
+
+  it("hands each reply, never an interim part, to reply with a stable key", async () => {
+    const { chats } = fakeChats();
+    const reply = vi.fn();
+
+    const events = [
+      at(0, "session.started", {}),
+      admitted,
+      at(2, "turn.started", { turnId: "t1" }, "t1"),
+      at(
+        3,
+        "content.completed",
+        { partId: "a", kind: "text", value: "thinking", phase: "commentary" },
+        "t1",
+      ),
+      at(
+        4,
+        "content.completed",
+        { partId: "b", kind: "text", value: "done", phase: "reply" },
+        "t1",
+      ),
+    ];
+
+    await syncSession(
+      {
+        store: memoryStore(),
+        chats,
+        read: reader(events),
+        resolve: () => target,
+        reply,
+      },
+      "sess_1",
+    );
+
+    expect(reply).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        sessionId: "sess_1",
+        turnId: "t1",
+        key: "t1:b",
+        text: "done",
+        principal: { id: "user-1", type: "user" },
+      }),
+    );
   });
 
   it("reads on from the stored cursor", async () => {

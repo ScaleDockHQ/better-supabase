@@ -48,6 +48,10 @@ entry is Node-only, like the World. The inbox channel also needs `chat`
 | `supabaseDocumentBackend` | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table     |
 | `persistSessions`         | `defineHook({ events })`                        | copies each session into `ai_chats`, `ai_messages` and `ai_runs`             |
 | `routeInbox`              | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal  |
+| `inboxConnectionWebhook`  | a route per channel connection                  | verifies each request with its connection's credential and stores the event  |
+| `inboxHandoff`            | a schedule or `waitUntil`                       | stores the message and sends bot-mode conversations to eve, keyed by message |
+| `inboxRunAs`              | `supabaseTool({ runAs })`                       | runs an inbox session's tools as a service user in the conversation's tenant |
+| `inboxReplies`            | `createSessionSync({ reply })`                  | sends each reply as a bot message, or stores it as an ai draft               |
 
 The [eve example](/docs/examples) wires all of them into a Next.js app.
 
@@ -794,6 +798,59 @@ handoff pauses the agent. The turn's principal is the contact
 (`principalType: "contact"`, with `tenantId` and `conversationId`), never a
 user, so `owner: "user"` connections and per-user memory stay closed to
 contacts.
+
+## Inbox connections without Chat SDK
+
+A channel connection that has no Chat SDK adapter reaches eve through three
+pieces. `inboxConnectionWebhook` is one route for all connections: it reads
+the connection id from the last path segment (`/api/inbox/webhooks/<id>`),
+looks the connection up with your `connection` function, and checks the
+request with that connection's own credential (`credentials` and `ref`, or
+`verify`). An unknown id answers 404, a connection with nothing to verify
+with answers 500, and a request that fails the check answers 401. Only a
+verified request is stored, in the inbox's `inbound_events`.
+
+```ts title="agent/lib/inbox-webhook.ts"
+export const receive = inboxConnectionWebhook({
+  inbox,
+  connection: (id) => connections.get(id),
+});
+```
+
+`inboxHandoff` reads the stored events. A parser per adapter name turns an
+event into `{ threadId, contact, text, externalId }`, or returns `undefined`
+to ignore a status callback. The handoff stores the message with
+`inbound.record`, so a replayed event stores one message. While the
+conversation's `bot_mode` is `bot`, it sends the text to your eve channel,
+keyed by the message id so a retry starts no second turn. The target defaults
+to `{ conversationId }`; pass `target` for a channel that names its session
+differently.
+
+```ts title="agent/schedules/inbox-handoff.ts"
+const handoff = inboxHandoff({ inbox, channel: eve, parsers });
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: (args) => args.waitUntil(handoff(args)),
+});
+```
+
+The session's principal is the contact in that conversation
+(`inboxPrincipal`): the principal id is the conversation id, with `tenantId`,
+`conversationId` and `contactId` as attributes. A contact is not a user, so
+give the tools a service user with `runAs: inboxRunAs({ userId })`; the tool
+then runs in the conversation's tenant under that user's row-level security,
+and any other principal still needs its own Supabase user.
+
+Replies come from the session sync. Pass `reply: inboxReplies({ inbox })` to
+`createSessionSync`. Each finished reply (never an interim one) goes to the
+conversation its principal names, keyed by the turn, so a replayed pass sends
+it once. In `send` mode (the default) the reply is a bot message that the
+inbox's deliveries send on the conversation's channel, with provider status
+callbacks through `deliveries.setStatus`. In `draft` mode it is an `ai` draft
+that staff review and send. `mode` also takes a function, so one inbox can
+draft while another sends. `resolve` must return the conversation's tenant for
+a contact principal, as in the example.
 
 ## Limitations
 

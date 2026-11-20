@@ -136,6 +136,7 @@ export type {
   EveSessionMeters,
   EveSessionPrincipal,
   EveSessionRead,
+  EveSessionReply,
   EveSessionResolveInput,
   EveSessionTarget,
   EveSyncEvent,
@@ -162,6 +163,26 @@ export type {
   EveSessionStatus,
   EveSessionStore,
 } from "./store.ts";
+
+export {
+  inboxConnectionWebhook,
+  inboxHandoff,
+  inboxPrincipal,
+  inboxReplies,
+  inboxRunAs,
+} from "./inbox-connections.ts";
+
+export type {
+  EveInboxConnection,
+  InboxConnectionWebhookOptions,
+  InboxEventParser,
+  InboxHandoffOptions,
+  InboxHandoffResult,
+  InboxInboundMessage,
+  InboxRepliesOptions,
+  InboxReplyMode,
+  InboxRunAsOptions,
+} from "./inbox-connections.ts";
 
 export {
   eveContext,

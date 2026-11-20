@@ -68,6 +68,23 @@ export interface EveSessionMeters {
   readonly costMicroUsd?: string;
 }
 
+/** One finished reply of the agent, as `reply` receives it. */
+export interface EveSessionReply {
+  readonly sessionId: string;
+  readonly chatId: string;
+  readonly turnId: string;
+  /**
+   * Stable for this reply across replays (`<turnId>:<partId>`). A pass that
+   * fails after `reply` ran calls it again with the same key, so the handler
+   * must treat it as an idempotency key.
+   */
+  readonly key: string;
+  readonly text: string;
+  readonly target: EveSessionTarget;
+  /** Who sent the session's first message, when a delivery named them. */
+  readonly principal: EveSessionPrincipal | undefined;
+}
+
 export interface SyncSessionsOptions {
   readonly store: EveSessionStore;
   /** `createAiChat` on a service transport. */
@@ -87,6 +104,13 @@ export interface SyncSessionsOptions {
     readonly client: Pick<Usage, "recordMany">;
     readonly meters: EveSessionMeters;
   };
+  /**
+   * Called once per finished reply (the `reply` phase of a text part, never an
+   * interim one) after the message is stored, such as to send it to the
+   * contact. It runs inside the pass: a throw fails the pass, which retries
+   * from the same line. `inboxReplies` is the handler for inbox sessions.
+   */
+  readonly reply?: (reply: EveSessionReply) => void | Promise<void>;
   /** Seconds a pass holds the lease before another may take it. Default 60. */
   readonly leaseSeconds?: number;
   /**
@@ -315,6 +339,7 @@ export function createSessionSync(options: SyncSessionsOptions): SessionSync {
           target,
           events,
           activeRun: lease.runId,
+          principal,
         });
       }
 
@@ -362,8 +387,9 @@ export function createSessionSync(options: SyncSessionsOptions): SessionSync {
     readonly target: EveSessionTarget;
     readonly events: readonly EveSyncEvent[];
     readonly activeRun: string | undefined;
+    readonly principal: EveSessionPrincipal | undefined;
   }): Promise<void> {
-    const { sessionId, chatId, target, events } = input;
+    const { sessionId, chatId, target, events, principal } = input;
 
     await settle(
       chats.chats.create({
@@ -544,6 +570,18 @@ export function createSessionSync(options: SyncSessionsOptions): SessionSync {
               },
             })
             .orThrow();
+
+          if (str(data, "phase") === "reply") {
+            await options.reply?.({
+              sessionId,
+              chatId,
+              turnId,
+              key: `${turnId}:${partId}`,
+              text: value,
+              target,
+              principal,
+            });
+          }
 
           break;
         }
