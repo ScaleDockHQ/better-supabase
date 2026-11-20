@@ -67,6 +67,12 @@
       "skillPath": "skills/cedar/SKILL.md",
       "computedHash": "d71b980b2b12afd4552fb75ff5709f75daa982c37cb4140ad87925c14e8d0cd4"
     },
+    "ci-speedup": {
+      "source": "starslingdev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ci-speedup/SKILL.md",
+      "computedHash": "f5b1f131ae37b36e0e963cf8a7c53d8d57c11b741df776e7c0ffad1d7671e298"
+    },
     "chat-sdk": {
       "source": "vercel/chat",
       "sourceType": "github",

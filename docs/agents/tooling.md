@@ -44,7 +44,7 @@ bump is one commit series:
 
 ## Scripts and hooks
 
-- `pnpm verify` is the full gate and CI runs it (ADR 0686). `pnpm check` is the local
+- `pnpm verify` is the full gate. `main` runs all of it; a pull request runs the static lanes and the library tests that `scripts/select-tests.ts` picks, and widens to the whole suite when it cannot tell (ADR 1095). `pnpm check` is the local
   gate: lint, typecheck and mirrored tests of the changed workspaces. `pnpm check:format` is
   the old `ultracite check`.
 - `pnpm fix` runs `ultracite fix`: Oxfmt and the Oxlint autofixes. The
@@ -57,6 +57,9 @@ bump is one commit series:
 
 ## Tests and coverage
 
+- The unit job runs one process, not shards. Pull requests run the selected
+  files without coverage; `main` runs the whole suite with coverage, so the
+  thresholds below gate there. A red `main` opens the `main-red` issue.
 - Coverage counts every file in `packages/better-supabase/src` (except
   `src/cli/bin.ts`), from unit tests only, with a separate threshold set for
   `src/cli/**`. Code that needs a database or the

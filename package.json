@@ -26,6 +26,7 @@
     "check:prose": "node scripts/check-prose.ts",
     "check:publish": "turbo run check:publish",
     "check:skills": "node scripts/check-skills.ts",
+    "check:test-budget": "node scripts/check-test-budget.ts",
     "ci:baseline": "node scripts/ci-baseline.ts",
     "ci:wait": "node scripts/ci-wait.ts",
     "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-lienlink ] && [ \"$p\" != tests/validation-single-tenant ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
@@ -76,7 +77,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:migration-order check:naming check:no-permdock recipes:check skill-references:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:test-budget check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:migration-order check:naming check:no-permdock recipes:check skill-references:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {

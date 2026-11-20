@@ -212,6 +212,14 @@
         ".agents/skills/**"
       ]
     },
+    "//#check:test-budget": {
+      "inputs": [
+        "scripts/check-test-budget.ts",
+        "scripts/test-budget.json",
+        "packages/better-supabase/tests/**/*.test.ts",
+        "packages/better-supabase/tests/**/*.test-d.ts"
+      ]
+    },
     "//#check:agent-docs": {
       "inputs": [
         "scripts/check-agent-docs.ts",

@@ -54,7 +54,7 @@ jobs:
         include:
           - lane: lint
             tasks: >-
-              lint lint:root typecheck:tooling check:prose check:skills check:adrs check:agent-docs
+              lint lint:root typecheck:tooling check:prose check:skills check:test-budget check:adrs check:agent-docs
           - lane: checks
             tasks: >-
               check:app-architecture check:empty-translations check:example-coverage
