@@ -427,6 +427,9 @@ begin
   if v_sheet ->> 'status' <> 'approved' or exists (select 1 from better_supabase.approval_requests where subject_id = v_sheet ->> 'id') then
     raise exception 'week without approval %', v_sheet;
   end if;
+  if (select decided_by from public.week_sheets where id = (v_sheet ->> 'id')::uuid) is distinct from '${ALICE}'::uuid then
+    raise exception 'the submitter is not recorded on a week approved at once';
+  end if;
 end;
 $$;`,
           LINKED,

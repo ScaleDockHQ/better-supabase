@@ -138,6 +138,39 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("lets the decider withdraw a submitted week, and nobody else but the owner", async () => {
+    await expect(
+      run(`create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $f$
+  select permission not like '%.approve' and permission not like '%.manage' or (permission like '%.approve' and auth.uid() = '${CAROL}'::uuid)
+$f$;
+do $$
+declare
+  v_sheet uuid;
+  v_hint text;
+  v_status text;
+begin
+  ${as(ALICE)}
+  perform better_supabase.log_time('${TENANT}', '2099-03-02T09:00:00Z', '2099-03-02T10:00:00Z');
+  v_sheet := (better_supabase.submit_timesheet('${TENANT}', '2099-03-02') ->> 'id')::uuid;
+  ${as(CAROL)}
+  begin
+    perform better_supabase.withdraw_timesheet(v_sheet);
+    raise exception 'an approver who isn''t the decider withdrew the week';
+  exception when insufficient_privilege then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  ${as(DAVE)}
+  v_status := better_supabase.withdraw_timesheet(v_sheet) ->> 'status';
+  if v_status <> 'open'
+    or exists (select 1 from better_supabase.approval_requests where subject_id = v_sheet::text and status = 'pending') then
+    raise exception 'the decider could not withdraw the week: %', v_status;
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses a timesheet decider without the approvals block", () => {
     expect(() =>
       renderBlocks(["time-entries"], {

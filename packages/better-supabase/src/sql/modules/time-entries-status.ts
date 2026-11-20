@@ -8,6 +8,7 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
+import { deciderCall } from "./direct-approver.ts";
 import { atOnceSql, timesheetAtOnce } from "./time-entries-options.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
@@ -398,7 +399,7 @@ ${
     ${owner.userOf("v_owner")}
   );`)}`
   }
-  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("timesheet_approval_decided")}(v_sheet.${t("id")}, true, null, case when v_self then auth.uid() end);
+  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("timesheet_approval_decided")}(v_sheet.${t("id")}, true, null, auth.uid());
     select * into v_sheet from ${timesheets} s where s.${t("id")} = v_sheet.${t("id")};`)}
   ${ctx.hook("after_timesheet_submit", [["uuid", `v_sheet.${t("id")}`]])}
   return ${json("v_sheet")};
@@ -480,9 +481,9 @@ end;
 $$;
 ${userGrant(`${fn("reopen_timesheet")}(uuid)`)}
 
--- Takes back a submitted week before it is decided: the owner or a member with
--- the manage permission. A pending approval request is cancelled with it, and
--- the week is open again.
+-- Takes back a submitted week before it is decided: the owner, a member with
+-- the manage permission, or a caller options.decider accepts. A pending
+-- approval request is cancelled with it, and the week is open again.
 create or replace function ${fn("withdraw_timesheet")}(timesheet_id uuid)
 returns jsonb
 language plpgsql
@@ -496,7 +497,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   if not ${is("v_sheet", ["submitted"])} then

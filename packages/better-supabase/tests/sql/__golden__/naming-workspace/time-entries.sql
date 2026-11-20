@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_entries.sql
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@4 managed
--- @bsb-hash sha256:c9002a78f82cbbdfb8856f1795dcbf4a2b4d1ae29b8d05c3b89935c5a7bc8979
+-- @bsb-hash sha256:58c4fe7f64b6bf773400b156f3f235a60a757404473bbe42dbb2f2702b6d63cb
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1247,7 +1247,8 @@ revoke execute on function "better_supabase"."reopen_timesheet"(uuid) from publi
 grant execute on function "better_supabase"."reopen_timesheet"(uuid) to authenticated, service_role;
 
 -- Takes back a submitted week before it is decided: the owner or a member with
--- the manage permission. Its pending approval request is cancelled.
+-- the manage permission, or a caller options.decider accepts. Its pending
+-- approval request is cancelled.
 create or replace function "better_supabase"."withdraw_timesheet"(timesheet_id uuid)
 returns jsonb
 language plpgsql

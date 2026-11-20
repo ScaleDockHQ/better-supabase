@@ -251,7 +251,8 @@ $$;
 ${userGrant(`${fn("reopen_timesheet")}(uuid)`)}
 
 -- Takes back a submitted week before it is decided: the owner or a member with
--- the manage permission. Its pending approval request is cancelled.
+-- the manage permission, or a caller options.decider accepts. Its pending
+-- approval request is cancelled.
 create or replace function ${fn("withdraw_timesheet")}(timesheet_id uuid)
 returns jsonb
 language plpgsql
@@ -266,7 +267,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   update ${ar} x set ${a("status")} = 'cancelled'
