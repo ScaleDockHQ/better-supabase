@@ -55,7 +55,8 @@ jobs:
               check:example-findings check:migration-order check:naming check:no-permdock
               recipes:check skill-references:check test:scripts catalog:check docs:drift knip
           - lane: generated
-            tasks: gen:check doctor:sarif typecheck:matrix
+            # The ts-7.1 leg runs the content mapper and runs nightly (nightly.yml); ts-6 and ts-7 gate every PR.
+            tasks: gen:check doctor:sarif typecheck:matrix --filter=!@better-supabase/types-ts71
     steps:
       - uses: actions/checkout@v7
         with:
@@ -129,15 +130,25 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The library's unit tests run in the `unit` shards below.
+          # The library's unit tests run in the `unit` shards below, and the Next.js example's
+          # build and size baselines in `next build`, which is the slowest task of this group.
+          # The shadow-database sync suites run nightly (nightly.yml).
           - task: test
-            run: pnpm exec turbo run test --filter=!better-supabase $AFFECTED --log-file
+            run: >-
+              pnpm exec turbo run test --filter=!better-supabase
+              --filter=!@better-supabase/next-build --filter=!@better-supabase/example-nextjs
+              $AFFECTED --log-file
+          - task: next build
+            run: >-
+              pnpm exec turbo run test --filter=@better-supabase/next-build
+              --filter=@better-supabase/example-nextjs $AFFECTED --log-file
           # Next typechecks run one at a time on GitHub-hosted runners.
           - task: typecheck
             run: pnpm exec turbo run typecheck --concurrency=1 $AFFECTED --log-file
           # A benchmark: it gets a machine to itself so its timings stay comparable.
+          # Pull requests gate the exact counts; the time limits run nightly (nightly.yml).
           - task: type performance
-            run: pnpm exec turbo run typecheck:perf
+            run: BENCH_TIME_GATES=0 pnpm exec turbo run typecheck:perf
     steps:
       - uses: actions/checkout@v7
         with:

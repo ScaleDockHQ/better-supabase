@@ -69,7 +69,7 @@ jobs:
           grep -E "Maximum resident set size|Elapsed \(wall clock\)" build-usage.txt \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # Vite's example builds here. The Next.js example builds in `verify / test`, which measures
+  # Vite's example builds here. The Next.js example builds in `verify / next build`, which measures
   # its output, so a second build would miss the Turbo cache for both.
   adapter-builds:
     name: Adapter build (${{ matrix.name }})
