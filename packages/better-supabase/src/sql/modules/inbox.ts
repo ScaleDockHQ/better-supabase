@@ -11,7 +11,11 @@ import { schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
 import { EMAIL_PATTERN } from "./contacts-identities.ts";
 import { contactsUpgradeTables, personStage } from "./contacts.ts";
-import { inboxDraftFunctions, inboxDraftsDdl } from "./inbox-drafts.ts";
+import {
+  draftKeyIndex,
+  inboxDraftFunctions,
+  inboxDraftsDdl,
+} from "./inbox-drafts.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
 import { inboxScheduleFunctions } from "./inbox-schedule.ts";
@@ -660,6 +664,13 @@ const SERVICE_RECORD_INBOUND: BlockSqlUpgrade = {
       : `alter function ${inboxSql(ctx).fn("record_inbound")}(jsonb) security definer;`,
 };
 
+const AI_DRAFT_KEY: BlockSqlUpgrade = {
+  from: 10,
+  description:
+    "suggest_inbox_draft returns the ai draft that already has the same metadata replyKey, whatever its status, and inbox_drafts_ai_key enforces one per conversation.",
+  sql: (ctx) => draftKeyIndex(inboxSql(ctx)),
+};
+
 export const INBOX: BlockSqlDefinition = {
   internal: [
     "inbox_contact_ids",
@@ -703,7 +714,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 10,
+  version: 11,
   upgrades: [
     {
       from: 1,
@@ -728,6 +739,7 @@ export const INBOX: BlockSqlDefinition = {
     CONTACTS_TO_PEOPLE,
     REPLAY,
     SERVICE_RECORD_INBOUND,
+    AI_DRAFT_KEY,
   ],
   names: INBOX_NAMES,
   contract,

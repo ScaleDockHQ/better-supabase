@@ -8,6 +8,21 @@ const STRIPPED =
   "- 'files' - 'external_id' - 'author_type' - 'delivered_by_caller'";
 
 /**
+ * One ai draft per conversation and `replyKey` in its metadata, whatever its
+ * status, so a retried writer (an eve session sync that replays a pass) never
+ * adds a second draft after staff sent or discarded the first.
+ */
+export function draftKeyIndex(q: InboxSql): string {
+  if (!q.has("drafts", "metadata")) {
+    return "";
+  }
+
+  const dr = q.cols("drafts");
+
+  return `create unique index if not exists ${q.ctx.naming.rename("inbox_drafts_ai_key")} on ${q.t("drafts")} (${dr("conversation")}, (${dr("metadata")} ->> 'replyKey')) where ${dr("source")} = 'ai' and ${dr("metadata")} ? 'replyKey';`;
+}
+
+/**
  * Reply drafts: a staff member's own draft per conversation, and suggestions an
  * AI writes through the service role, which any staff member who can reply
  * sees, edits into a send or discards.
@@ -40,6 +55,7 @@ create table if not exists ${table} (
   constraint ${q.ctx.naming.rename("inbox_drafts_author_check")} check (${dr("source")} = 'ai' or ${dr("author")} is not null)
 );
 create unique index if not exists ${q.ctx.naming.rename("inbox_drafts_open_key")} on ${table} (${dr("conversation")}, ${dr("author")}) where ${dr("source")} = 'user' and ${dr("status")} = 'draft';
+${draftKeyIndex(q)}
 create index if not exists ${q.ctx.naming.rename("inbox_drafts_conversation_idx")} on ${table} (${dr("conversation")});
 create index if not exists ${q.ctx.naming.rename("inbox_drafts_author_idx")} on ${table} (${dr("author")});
 ${updatedAt(table, dr("updatedAt"))}
@@ -114,6 +130,19 @@ grant execute on function ${signature} to authenticated, service_role;`;
   end if;`
     : "";
 
+  // A draft with the same replyKey already exists (in any status): return it.
+  const aiKeyLookup = metadata
+    ? `if v_metadata ? 'replyKey' then
+    select * into v_row from ${T("drafts")} x
+    where x.${dr("conversation")} = v_conv.${cv("id")} and x.${dr("source")} = 'ai'
+      and x.${dr("metadata")} ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return ${q.json("drafts", "v_row")};
+    end if;
+  end if;
+  `
+    : "";
+
   const metadataSet = metadata
     ? `, ${dr("metadata")} = coalesce(v_metadata, x.${dr("metadata")})`
     : "";
@@ -164,7 +193,7 @@ declare
 begin
   ${loadConversation("suggest_inbox_draft.conversation")}
   ${checkBody}${metadataCheck}
-  ${insertColumns("'ai'", "null")}
+  ${aiKeyLookup}${insertColumns("'ai'", "null")}
   return ${q.json("drafts", "v_row")};
 end;
 $$;

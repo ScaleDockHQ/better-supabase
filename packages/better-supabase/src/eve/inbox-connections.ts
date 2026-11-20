@@ -171,8 +171,11 @@ export interface InboxHandoffResult {
 
 /**
  * The session principal for a conversation: the contact in that conversation.
- * The principal id is the conversation id, so the session's replies find their
- * conversation (`inboxReplies`) and every conversation is its own principal.
+ * The principal id is the conversation id, unlike `routeInbox`, which uses the
+ * contact id. The session sync gives a reply handler only the principal's id
+ * and type, and a contact can have several conversations, so a contact id could
+ * not tell `inboxReplies` which conversation to answer in. The contact id is in
+ * the attributes for tools and `inboxRunAs`.
  */
 export function inboxPrincipal(conversation: Conversation): EveSessionAuth {
   return {
@@ -410,17 +413,13 @@ export function inboxReplies(
         : (options.mode ?? "send");
 
     if (mode === "draft") {
-      const open = await inbox.drafts.list(conversation.id).orThrow();
-
-      if (open.some((draft) => draft.metadata["eveReplyKey"] === reply.key)) {
-        return;
-      }
-
+      // The inbox keeps one ai draft per `replyKey`, in any status, so a
+      // replayed pass returns the draft staff already sent or discarded.
       await inbox.drafts
         .suggest({
           conversationId: conversation.id,
           input: { body: reply.text },
-          metadata: { eveReplyKey: reply.key, eveSession: reply.sessionId },
+          metadata: { replyKey: reply.key, eveSession: reply.sessionId },
         })
         .orThrow();
 

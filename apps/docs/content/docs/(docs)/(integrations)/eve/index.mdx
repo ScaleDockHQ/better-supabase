@@ -856,7 +856,7 @@ export default defineSchedule({
 
 The session's principal is the contact in that conversation
 (`inboxPrincipal`): the principal id is the conversation id, with `tenantId`,
-`conversationId` and `contactId` as attributes. A contact is not a user, so
+`conversationId` and `contactId` as attributes. Unlike `routeInbox`, which uses the contact id, the id is the conversation's, because a contact can have several conversations and the reply handler only sees the principal's id. A contact is not a user, so
 give the tools a service user with `runAs: inboxRunAs({ userId })`; the tool
 then runs in the conversation's tenant under that user's row-level security,
 and any other principal still needs its own Supabase user.
@@ -867,7 +867,7 @@ conversation its principal names, keyed by the turn, so a replayed pass sends
 it once. In `send` mode (the default) the reply is a bot message that the
 inbox's deliveries send on the conversation's channel, with provider status
 callbacks through `deliveries.setStatus`. In `draft` mode it is an `ai` draft
-that staff review and send. `mode` also takes a function, so one inbox can
+that staff review and send. The draft is keyed by the reply, so a retried pass returns the draft even after staff sent or discarded it. `mode` also takes a function, so one inbox can
 draft while another sends. `resolve` must return the conversation's tenant for
 a contact principal, as in the example.
 

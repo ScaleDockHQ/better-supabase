@@ -12,4 +12,4 @@ A connection's webhook resolves the connection from the path and verifies with i
 
 ## Consequences
 
-The reply handler runs inside a sync pass, so a failure retries the pass and the key dedupes the send. A draft is deduplicated by a metadata key among open drafts only. `routeInbox` stays for Chat SDK apps and keeps the contact id as principal id.
+The reply handler runs inside a sync pass, so a failure retries the pass and the key dedupes the send. An `ai` draft carries the reply key as `replyKey` in its metadata, and a unique index allows one per conversation and key in any status, so a replayed pass cannot add a draft after staff sent or discarded the first (inbox module version 11). `routeInbox` stays for Chat SDK apps and keeps the contact id as principal id. The two differ on purpose: a contact can have several conversations, and the reply handler needs the conversation, which the sync can only read from the principal id.

@@ -255,6 +255,27 @@ describe("inboxHandoff", () => {
   });
 });
 
+describe("inboxPrincipal", () => {
+  it("uses the conversation id, and carries the contact id as an attribute", () => {
+    const principal = inboxPrincipal(conversation());
+
+    expect(principal.principalId).toBe("conv_1");
+    expect(principal.principalId).not.toBe(conversation().contactId);
+    expect(principal.attributes).toMatchObject({
+      conversationId: "conv_1",
+      contactId: conversation().contactId,
+    });
+  });
+
+  it("gives two conversations of one contact two principals", () => {
+    const other = { ...conversation(), id: "conv_2" };
+
+    expect(inboxPrincipal(other).principalId).not.toBe(
+      inboxPrincipal(conversation()).principalId,
+    );
+  });
+});
+
 describe("inboxRunAs", () => {
   it("runs an inbox principal as the service user in its tenant", () => {
     const runAs = inboxRunAs({ userId: "svc" });
@@ -307,7 +328,7 @@ describe("inboxReplies", () => {
     });
   });
 
-  it("stores an ai draft once in draft mode", async () => {
+  it("stores an ai draft keyed by the reply in draft mode", async () => {
     const first = fakeInbox();
 
     await inboxReplies({ inbox: first.inbox, mode: "draft" })(reply());
@@ -317,17 +338,9 @@ describe("inboxReplies", () => {
       args: {
         conversationId: "conv_1",
         input: { body: "It ships today" },
-        metadata: { eveReplyKey: "t1:p" },
+        metadata: { replyKey: "t1:p" },
       },
     });
-
-    const again = fakeInbox({
-      drafts: [{ metadata: { eveReplyKey: "t1:p" } }],
-    });
-
-    await inboxReplies({ inbox: again.inbox, mode: () => "draft" })(reply());
-
-    expect(again.calls.map((call) => call.fn)).not.toContain("drafts.suggest");
   });
 
   it("leaves other principals and tenants alone", async () => {

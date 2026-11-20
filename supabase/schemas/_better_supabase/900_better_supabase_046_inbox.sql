@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:04e33536626e38255594aafcc3e94cd965023c4280adef4bb1f4f7cc799e0173
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:9aac83023dd5fc3c4c974440c94c40d4c1cb5ddfe1ce64f4bf2112dc620836d1
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -274,6 +274,7 @@ create table "better_supabase"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
@@ -3071,6 +3072,14 @@ begin
   end if;
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
+  end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
   end if;
   insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
