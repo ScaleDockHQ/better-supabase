@@ -16,6 +16,7 @@ import type { AssetsSqlOptions } from "./assets/options.ts";
 import type { AttachmentsSqlOptions } from "./attachments/options.ts";
 import type { AuditSqlOptions } from "./audit/options.ts";
 import type { AutomationsSqlOptions } from "./automations/options.ts";
+import type { BankingSqlOptions } from "./banking/options.ts";
 import type { BillingSqlOptions } from "./billing/options.ts";
 import type { BookingsSqlOptions } from "./bookings/options.ts";
 import type { BulkActionsSqlOptions } from "./bulk-actions/options.ts";
@@ -154,6 +155,7 @@ import { assetsSqlOptions } from "./assets/options.ts";
 import { attachmentsSqlOptions } from "./attachments/options.ts";
 import { auditSqlOptions } from "./audit/options.ts";
 import { automationsSqlOptions } from "./automations/options.ts";
+import { bankingSqlOptions } from "./banking/options.ts";
 import { billingSqlOptions } from "./billing/options.ts";
 import { bookingsSqlOptions } from "./bookings/options.ts";
 import { bulkActionsSqlOptions } from "./bulk-actions/options.ts";
@@ -303,7 +305,7 @@ export interface BlockOptionsRegistry {
   readonly attachments: AttachmentsSqlOptions;
   readonly audit: AuditSqlOptions;
   readonly automations: AutomationsSqlOptions;
-  readonly banking: None;
+  readonly banking: BankingSqlOptions;
   readonly tax: Record<never, never>;
   readonly "document-templates": DocumentTemplatesSqlOptions;
   readonly "payroll-export": PayrollExportSqlOptions;
@@ -499,7 +501,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   attachments: attachmentsSqlOptions,
   audit: auditSqlOptions,
   automations: automationsSqlOptions,
-  banking: NO_OPTIONS,
+  banking: bankingSqlOptions,
   tax: NO_OPTIONS,
   "document-templates": documentTemplatesSqlOptions,
   "payroll-export": payrollExportSqlOptions,

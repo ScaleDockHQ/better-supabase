@@ -87,10 +87,10 @@ describe("leave module", () => {
 
   it("lets approvals book the leave on the final approval", () => {
     const approvals = sqlOf(BASE, {}, "approvals");
-    expect(approvals).toContain(`"better_supabase"."approve_leave_request"(`);
+    expect(approvals).toContain(`"better_supabase"."leave_approval_decided"(`);
     expect(approvals).toContain("'leave_request'");
     expect(sqlOf(["approvals"], {}, "approvals")).not.toContain(
-      "approve_leave_request",
+      "leave_approval_decided",
     );
   });
 

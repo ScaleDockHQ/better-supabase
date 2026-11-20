@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the approvalRequired and selfApproveWhenTopOfChain options add lines past the limit. 1 finding. */
 import type { TimeEntriesEvents } from "../../blocks/time-entries/events.ts";
 import type {
   BlockSqlContext,
@@ -28,12 +29,15 @@ import { moduleOperations } from "./permissions-model.ts";
 import {
   approvalTimesheetFunctions,
   TIME_ENTRIES_CONTRIBUTES,
-  TIMESHEET_SUBJECT,
 } from "./time-entries-approvals.ts";
 import { approvedWeekFunction } from "./time-entries-approved.ts";
 import { archiveSql, upgradeArchive } from "./time-entries-archive.ts";
 import { subjectOnSql } from "./time-entries-on.ts";
-import { timesheetPolicy, weekTimeZone } from "./time-entries-options.ts";
+import {
+  timesheetPolicy,
+  TIMESHEET_SUBJECT,
+  weekTimeZone,
+} from "./time-entries-options.ts";
 import {
   byEmployee,
   durationEntries,
@@ -127,6 +131,8 @@ const NAMES: BlockSqlNames = {
     "lockedColumns",
     "on",
     "decider",
+    "approvalRequired",
+    "selfApproveWhenTopOfChain",
   ],
   tables: {
     entries: {
@@ -198,7 +204,6 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** `options.timeZone`: the IANA zone weeks start in. Default `UTC`. */
 /** The keys the entry reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 

@@ -197,6 +197,20 @@ leave: {
 },
 ```
 
+### The decision on the request
+
+With the approvals block, the request's final decision is stamped on the request the same way `decide_leave_request` does without it. A final approval books the leave and sets `decided_by` to the last approver and `decision_note` to their comment. A rejection sets `rejected_at`, `decided_by` and `decision_note` and records `leave_request.rejected`. Cancelling the approval request (`cancel_approval`, by the requester or a manager) sets `cancelled_at` and `cancelled_by` and records `leave_request.cancelled`. Each column is left alone when you map it to `null`, and an expired request keeps its columns empty.
+
+`options.approvalSubject` names the subject type the approvals are filed under, `leave_request` by default. Set it to keep a name your app already uses, such as `time_off_request`; approval policies and `requestColumns` of the approvals block match it.
+
+```ts title="better-supabase.config.ts"
+leave: {
+  options: {
+    approvalSubject: "time_off_request";
+  }
+}
+```
+
 ### The part of the day a request starts and ends in
 
 Over your own requests table, `columns.requests.startPart` and `endPart` map the part of the day a request starts and ends in: `full`, `morning`, `afternoon` or `hours`, which may be an enum. `request` takes `startPart` and `endPart`: a request that starts in the `afternoon` begins halfway through its first day, and one that ends in the `morning` stops halfway through its last. A day type books the working days less half a day for each, and an hours type books `hours` with any parts. Two requests overlap only when their half days do, so a morning and an afternoon on the same date fit. `partial` still works and fills both parts.

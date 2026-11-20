@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlTableSpec } from "../context.ts";
 import type { BlockSqlUpgrade } from "../module-types.ts";
+import type { ApprovalPolicy } from "./approvals-policies.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
@@ -21,7 +22,11 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import {
+  assertCountedApprovers,
+  policyOf,
+  policySnapshot,
+} from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
 import { deciderCall, managerDecides } from "./direct-approver.ts";
 import {
@@ -108,6 +113,12 @@ export function standaloneApprovals(ctx: BlockSqlContext): boolean {
     );
   }
 
+  if (!on && ctx.flag("selfDecideWhenTopOfChain", false)) {
+    throw new TypeError(
+      "blocks.expenses.options.selfDecideWhenTopOfChain needs standaloneApprovals; decideExpense already lets the owner decide when nobody else can",
+    );
+  }
+
   return on;
 }
 
@@ -116,6 +127,20 @@ export function standaloneApprovals(ctx: BlockSqlContext): boolean {
  * `options.decider`, whoever the app's decider accepts.
  */
 function standalonePolicy(ctx: BlockSqlContext): string {
+  const policy = standalonePolicyOf(ctx);
+
+  if (ctx.flag("selfDecideWhenTopOfChain", false)) {
+    assertCountedApprovers(
+      policy,
+      ctx.permissionKey("approve", OPERATIONS["expenses.approve"]),
+      "blocks.expenses.options.selfDecideWhenTopOfChain",
+    );
+  }
+
+  return policySnapshot(policy);
+}
+
+function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
   const policy = policyOf(
     EXPENSE_SUBJECT,
     "approve",
@@ -141,7 +166,7 @@ function standalonePolicy(ctx: BlockSqlContext): string {
     );
   }
 
-  return policySnapshot(policy);
+  return policy;
 }
 
 export function expensesStandalone(ctx: BlockSqlContext): boolean {

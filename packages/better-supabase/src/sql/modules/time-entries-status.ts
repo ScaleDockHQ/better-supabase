@@ -8,6 +8,7 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
+import { atOnceSql, timesheetAtOnce } from "./time-entries-options.ts";
 import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options.userTimeZone";
@@ -160,6 +161,16 @@ export function statusTimesheetFunctions(
       : `exists (select 1 from ${linked.requests} x where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = ${row}.${t("id")}::text and x.${linked.a("status")} = 'pending')`;
 
   const ownerVar = by ? "v_owner" : "v_user";
+
+  // Without approvals this only refuses the options that need them.
+  const checks = timesheetAtOnce(ctx, {
+    tenant: "submit_timesheet.tenant",
+    sheet: `v_sheet.${t("id")}`,
+    requester: by ? owner.userOf("v_owner") : "v_me",
+    ...(by ? { employee: "v_owner::text" } : {}),
+  });
+
+  const atOnce = atOnceSql(linked === undefined ? {} : checks);
 
   const sheetMine = (row: string): string =>
     by
@@ -327,7 +338,7 @@ as $$
 declare
   v_me uuid := auth.uid();
   v_week date := date_trunc('week', submit_timesheet.week)::date;
-  v_sheet ${timesheets}%rowtype;${by ? `\n  v_mine uuid := ${owner.mine("submit_timesheet.tenant")};\n  v_owner uuid := coalesce(submit_timesheet.employee_id, v_mine);` : ""}
+  v_sheet ${timesheets}%rowtype;${by ? `\n  v_mine uuid := ${owner.mine("submit_timesheet.tenant")};\n  v_owner uuid := coalesce(submit_timesheet.employee_id, v_mine);` : ""}${atOnce.declare}
 begin
 ${
   by
@@ -379,15 +390,16 @@ ${
   returning * into v_sheet;${
     linked === undefined
       ? ""
-      : `
-  perform ${linked.open}(
+      : `${atOnce.decide}
+  ${atOnce.open(`perform ${linked.open}(
     submit_timesheet.tenant, ${sqlString(linked.subject)}, v_sheet.${t("id")}::text, 'approve',
     ${sqlString(linked.policy)}::jsonb || jsonb_build_object('managerOf', v_owner::text), submit_timesheet.note,
     jsonb_build_object('userId', ${owner.userOf("v_owner")}, 'employeeId', v_owner, 'week', v_week),
     ${owner.userOf("v_owner")}
-  );`
+  );`)}`
   }
-  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}
+  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("timesheet_approval_decided")}(v_sheet.${t("id")}, true, null, case when v_self then auth.uid() end);
+    select * into v_sheet from ${timesheets} s where s.${t("id")} = v_sheet.${t("id")};`)}
   ${ctx.hook("after_timesheet_submit", [["uuid", `v_sheet.${t("id")}`]])}
   return ${json("v_sheet")};
 end;

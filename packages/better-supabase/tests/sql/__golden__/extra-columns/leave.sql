@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:597c61b5b8fc037163655f477719b8050e842c625f5e776ce148b9e9bb051823
+-- @bsb-hash sha256:791251ad3cda62f08faaadcce80102a498262f57b71542d7ac0f4584e68d1f1f
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,6 +48,9 @@ create table "better_supabase"."leave_requests" (
   "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
+  "rejected_at" timestamptz,
+  "decided_by" uuid,
+  "decision_note" text constraint bsb_leave_requests_decision_note_check check ("decision_note" is null or length("decision_note") <= 2000),
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -634,6 +637,42 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."approve_leave_request"(uuid) from public, anon, authenticated;
+
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function "better_supabase"."leave_approval_decided"(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_requests"%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform "better_supabase"."approve_leave_request"(leave_approval_decided.request_id);
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is not null and x."cancelled_at" is null;
+  elsif leave_approval_decided.decision = 'rejected' then
+    update "better_supabase"."leave_requests" x set "updated_at" = now(), "rejected_at" = now(), "decided_by" = leave_approval_decided.decided_by, "decision_note" = nullif(trim(leave_approval_decided.note), '')
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update "better_supabase"."leave_requests" x set "cancelled_at" = now(), "cancelled_by" = leave_approval_decided.decided_by, "updated_at" = now()
+      where x."id" = leave_approval_decided.request_id and x."approved_at" is null and x."cancelled_at" is null
+      returning * into v_row;
+    if found then
+      null;
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."leave_approval_decided"(uuid, text, text, uuid) from public, anon, authenticated;
 
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back

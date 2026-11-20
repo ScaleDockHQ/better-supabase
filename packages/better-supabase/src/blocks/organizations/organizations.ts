@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the soleOwnedOrganizations method adds lines past the limit. 1 finding. */
 import type {
   BlockEventType,
   InvitationEventData,
@@ -353,6 +354,8 @@ export interface Organizations<
     userId: string;
   }): AsyncResult<boolean>;
   leave(organizationId: string): AsyncResult<true>;
+  /** Organizations `userId` (default the caller) owns alone; see the docs. */
+  soleOwnedOrganizations(userId?: string): AsyncResult<readonly string[]>;
   /** `formerRole` defaults to `options.formerOwnerRole`. */
   transferOwnership(input: {
     organizationId: string;
@@ -1001,6 +1004,13 @@ function organizationsClient<
 
           return true as const;
         },
+      );
+    },
+    soleOwnedOrganizations(userId) {
+      const args = userId === undefined ? {} : { member: userId };
+
+      return run("organizations", "sole_owned_organizations", args, (ids) =>
+        Array.isArray(ids) ? ids.map(String) : [],
       );
     },
     transferOwnership({ organizationId, newOwnerId, formerRole }) {

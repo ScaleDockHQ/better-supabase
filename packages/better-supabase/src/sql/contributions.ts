@@ -204,6 +204,11 @@ export interface ApprovalContribution {
   readonly approve: (request: ApprovalRequestSql) => string;
   /** Statements `decide_approval` runs when a request is rejected. */
   readonly reject?: (request: ApprovalRequestSql) => string;
+  /**
+   * Statements `cancel_approval` runs when the requester or a manager cancels a
+   * pending request; `approver` is the caller.
+   */
+  readonly cancel?: (request: ApprovalRequestSql) => string;
   /** A boolean expression: whether the request can still be decided. */
   readonly approvable?: (request: ApprovalRequestSql) => string;
   /**

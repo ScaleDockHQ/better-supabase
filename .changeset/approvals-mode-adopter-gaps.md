@@ -1,0 +1,5 @@
+---
+"better-supabase": minor
+---
+
+Leave in approvals mode stamps the approval's decision on the request (`rejected_at`, `decided_by`, `decision_note`, and `cancelled_at` when the approval is cancelled) as `decide_leave_request` does, and `options.approvalSubject` names the subject type its approvals are filed under. The approvals block takes `options.requestColumns`, which fills your own columns of requests a block files, and `cancel_approval` tells the filing block. Expenses with `standaloneApprovals` take `selfDecideWhenTopOfChain`. Time entries take `approvalRequired`, an app function that can skip the approval of a week, and `selfApproveWhenTopOfChain`, which approves a week at once when its owner is the only one who could decide it. `sole_owned_organizations` answers for another member with the organizations where the caller may remove members instead of raising, and the organizations client gets `soleOwnedOrganizations`. Banking takes `options.primary: "organization"` for one primary account per organization and `options.optionalCurrency` for accounts without a currency.

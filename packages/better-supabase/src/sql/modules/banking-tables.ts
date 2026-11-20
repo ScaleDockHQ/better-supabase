@@ -6,6 +6,8 @@ import { lockTable } from "../shared.ts";
 import {
   bankingSql,
   linked,
+  optionalCurrency,
+  primaryPerOrganization,
   MATCH_TARGETS,
   STATEMENT_FORMATS,
   TRANSACTION_STATUSES,
@@ -19,6 +21,8 @@ export function bankingTables(ctx: BlockSqlContext): string {
   const q = bankingSql(ctx);
   const { a, s, t, m, r } = q;
   const accounting = linked(ctx, "accounting");
+  const noCurrency = optionalCurrency(ctx);
+  const perOrganization = primaryPerOrganization(ctx);
   const attachments = linked(ctx, "attachments");
 
   const name = (logical: string, suffix: string): string =>
@@ -60,10 +64,10 @@ create table if not exists ${q.accounts} (
   -- Upper case without spaces; save_bank_account checks the ISO 13616 digits.
   ${a("iban")} text check (${a("iban")} is null or ${a("iban")} ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$'),
   ${a("bic")} text check (${a("bic")} is null or ${a("bic")} ~ '^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
-  ${a("currency")} char(3) not null check (${a("currency")} ~ '^[A-Z]{3}$'),
+  ${a("currency")} char(3)${noCurrency ? "" : " not null"} check (${a("currency")} ~ '^[A-Z]{3}$'),
   -- Who the account belongs to, as the bank prints it on a statement.
   ${a("holder")} text check (${a("holder")} is null or length(${a("holder")}) between 1 and 200),
-  -- The account an organization pays from and reconciles first, once per currency.
+  -- The account an organization pays from and reconciles first, once per ${perOrganization ? "organization" : "currency"}.
   ${a("isPrimary")} boolean not null default false,
   -- Where the account sits in the organization's own order, lowest first.
   ${a("position")} integer not null default 0 check (${a("position")} >= 0),
@@ -75,7 +79,7 @@ create table if not exists ${q.accounts} (
   unique (${a("tenant")}, ${a("id")})
 );${appKey("accounts", "tenant_id", `${a("tenant")}, ${a("id")}`)}
 create unique index if not exists ${name("accounts", "iban_key")} on ${q.accounts} (${a("tenant")}, ${a("iban")}) where ${a("iban")} is not null;
-create unique index if not exists ${name("accounts", "primary_key")} on ${q.accounts} (${a("tenant")}, ${a("currency")}) where ${a("isPrimary")} and ${a("archivedAt")} is null;
+create unique index if not exists ${name("accounts", "primary_key")} on ${q.accounts} (${a("tenant")}${perOrganization ? "" : `, ${a("currency")}`})${noCurrency && !perOrganization ? " nulls not distinct" : ""} where ${a("isPrimary")} and ${a("archivedAt")} is null;
 create index if not exists ${name("accounts", "tenant_idx")} on ${q.accounts} (${a("tenant")}, ${a("name")});
 create index if not exists ${name("accounts", "journal_idx")} on ${q.accounts} (${a("journal")}) where ${a("journal")} is not null;
 ${lockTable(q.accounts, { read: true })}

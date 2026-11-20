@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:b139e12d024dd6f848e195413ee537647bca97c86ac6d1276e9cfb872841d7e6
+-- @bsb-hash sha256:b71f932e10a5685cb6eba052b91085f803bb8794546c1c165d2afd9255614770
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -394,7 +394,10 @@ $$;
 
 -- The organizations whose last owner the member is: removing their
 -- memberships (leaving, or deleting the account) would fail the owner check.
--- A member reads their own; the service role passes any member.
+-- A member reads their own and the service role any member's; for another
+-- member, the caller gets the organizations where they may remove members
+-- (blocks.organizations.permissions.removeMember), so an offboarding run by
+-- HR can ask first. It never raises for another member.
 create or replace function "better_supabase"."sole_owned_workspaces"(member uuid default null)
 returns uuid[]
 language plpgsql
@@ -405,14 +408,16 @@ as $$
 #variable_conflict use_variable
 declare
   v_member uuid := coalesce(member, auth.uid());
+  v_all boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_member = auth.uid();
 begin
-  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+  if v_member is null then
     raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
   return coalesce((
     select array_agg(m."workspace_id" order by m."workspace_id")
     from "better_supabase"."memberships" m
     where m."user_id" = v_member and m."role" = 'owner'
+      and (v_all or coalesce(better_supabase.member_can(auth.uid(), m."workspace_id", 'members.remove'), false))
       and exists (select 1 from "better_supabase"."workspaces" o where o."id" = m."workspace_id")
       and not exists (
         select 1 from "better_supabase"."memberships" y

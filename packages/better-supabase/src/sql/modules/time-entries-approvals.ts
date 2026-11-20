@@ -13,10 +13,12 @@ import {
   conflict,
 } from "../shared.ts";
 import { deciderCall } from "./direct-approver.ts";
+import {
+  atOnceSql,
+  TIMESHEET_SUBJECT,
+  timesheetAtOnce,
+} from "./time-entries-options.ts";
 import { byEmployee, entryLive } from "./time-entries-owner.ts";
-
-/** Timesheets this block submits to approvals. */
-export const TIMESHEET_SUBJECT = "timesheet";
 
 /** What the approvals-mode timesheet functions read from the module. */
 export interface ApprovalTimesheetNames {
@@ -62,6 +64,14 @@ export function approvalTimesheetFunctions(
 
   const { timesheetNotFound, weekOf, ended, running, policy } = names;
   const fn = (name: string): string => ctx.fn(name);
+
+  const atOnce = atOnceSql(
+    timesheetAtOnce(ctx, {
+      tenant: "submit_timesheet.tenant",
+      sheet: `v_sheet.${t("id")}`,
+      requester: "v_me",
+    }),
+  );
 
   return `-- One member's week: the timesheet (status open when there is none yet),
 -- the entries that start in it and their totals.
@@ -133,7 +143,7 @@ declare
   v_sheet ${timesheets}%rowtype;
   v_approval ${ar}%rowtype;
   v_request jsonb;
-  v_seconds bigint;
+  v_seconds bigint;${atOnce.declare}
 begin
   if v_me is null or not ${ctx.can("tenant", "submit_timesheet.tenant", track)} then
     ${forbidden("not allowed to submit a timesheet here")}
@@ -167,18 +177,19 @@ begin
   select coalesce(sum(extract(epoch from ${ended("x")} - x.${e("startedAt")})), 0)::bigint into v_seconds
     from ${entries} x
     where x.${e("tenant")} = submit_timesheet.tenant and x.${e("user")} = v_me
-      and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week and ${entryLive(ctx, "x")};
-  v_request := ${names.openApproval}(
+      and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week and ${entryLive(ctx, "x")};${atOnce.decide}
+  ${atOnce.open(`v_request := ${names.openApproval}(
     submit_timesheet.tenant, ${sqlString(names.subject)}, v_sheet.${t("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb, submit_timesheet.note,
     jsonb_build_object('userId', v_me, 'week', v_week, 'seconds', v_seconds)
-  );
+  );`)}
   update ${timesheets} s
   set ${t("approval")} = (v_request ->> 'id')::uuid, ${t("note")} = submit_timesheet.note, ${t("submittedAt")} = now()
   where s.${t("id")} = v_sheet.${t("id")}
   returning * into v_sheet;
   select * into v_approval from ${ar} x where x.${a("id")} = v_sheet.${t("approval")};
-  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}
+  ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}${atOnce.approve(`perform ${fn("approve_timesheet")}(v_sheet.${t("id")});
+    select * into v_sheet from ${timesheets} s where s.${t("id")} = v_sheet.${t("id")};`)}
   ${ctx.hook("after_timesheet_submit", [["uuid", `v_sheet.${t("id")}`]])}
   return ${timesheetJson("v_sheet", "v_approval")};
 end;

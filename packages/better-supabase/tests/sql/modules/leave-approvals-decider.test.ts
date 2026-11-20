@@ -195,6 +195,61 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("stamps the approval's decision on the request under its own subject type", async () => {
+    await expect(
+      run(
+        { leave: { options: { approvalSubject: "time_off_request" } } },
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_approval uuid;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  if (select a.subject_type from better_supabase.approval_requests a where a.id = v_approval) <> 'time_off_request' then
+    raise exception 'the approval is not filed under the configured subject type';
+  end if;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_approval, 'rejected', 'Too busy');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.rejected_at is null or v_row.decided_by is distinct from '${CAROL}'::uuid or v_row.decision_note is distinct from 'Too busy' then
+    raise exception 'the rejection is not stamped on the request: %', to_jsonb(v_row);
+  end if;
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-04-06', '2099-04-07') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  ${as(CAROL)}
+  perform better_supabase.decide_approval(v_approval, 'approved', 'Enjoy');
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.approved_at is null or v_row.decided_by is distinct from '${CAROL}'::uuid or v_row.decision_note is distinct from 'Enjoy' or v_row.rejected_at is not null then
+    raise exception 'the approval is not stamped on the request: %', to_jsonb(v_row);
+  end if;
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-05-04', '2099-05-05') ->> 'id')::uuid;
+  select r.approval_id into v_approval from better_supabase.leave_requests r where r.id = v_id;
+  perform better_supabase.cancel_approval(v_approval);
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.cancelled_at is null or v_row.cancelled_by is distinct from '${ALICE}'::uuid then
+    raise exception 'the withdrawn approval did not cancel the request: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses an approval subject type that isn't snake case", () => {
+    expect(() =>
+      renderBlocks(["employees", "leave"], {
+        modules: { leave: { options: { approvalSubject: "Time Off" } } },
+      }),
+    ).toThrow(/approvalSubject/u);
+  });
+
   it("refuses self-decide with approvers it can't count", () => {
     for (const approvers of [
       { role: "admin" },

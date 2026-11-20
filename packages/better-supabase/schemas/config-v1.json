@@ -5058,7 +5058,8 @@
               "notifications": {
                 "type": "boolean",
                 "default": true
-              }
+              },
+              "requestColumns": {}
             }
           }
         }
@@ -5285,7 +5286,16 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "primary": {
+                "type": "string",
+                "default": "currency"
+              },
+              "optionalCurrency": {
+                "type": "boolean",
+                "default": false
+              }
+            }
           }
         }
       },
@@ -6159,6 +6169,10 @@
               },
               "decider": {
                 "type": "string"
+              },
+              "selfDecideWhenTopOfChain": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -6804,6 +6818,10 @@
               "selfDecideWhenTopOfChain": {
                 "type": "boolean",
                 "default": false
+              },
+              "approvalSubject": {
+                "type": "string",
+                "default": "leave_request"
               }
             }
           }
@@ -8412,6 +8430,13 @@
               },
               "decider": {
                 "type": "string"
+              },
+              "approvalRequired": {
+                "type": "string"
+              },
+              "selfApproveWhenTopOfChain": {
+                "type": "boolean",
+                "default": false
               },
               "on": {
                 "type": "array",

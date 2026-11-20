@@ -50,6 +50,22 @@ export type TimeEntriesSqlOptions = {
    * `decider: true`, which the default policy does when this is set.
    */
   readonly decider?: string;
+  /**
+   * An app function `schema.function(tenant, timesheet_id uuid) returns
+   * boolean`, such as an organization setting. When it answers false,
+   * `submit_timesheet` approves the week at once instead of filing it with the
+   * approvals block; true or null files it.
+   */
+  readonly approvalRequired?: string;
+  /**
+   * `submit_timesheet` approves the week at once when its owner submits it,
+   * holds the approve permission and nobody else could decide it: no other
+   * active member holds the permission, and no active manager with a login
+   * could (a manager step, or anyone up the chain with a `decider`). The
+   * policy's approvers must be the approve permission, the manager or the
+   * decider. Default `false`.
+   */
+  readonly selfApproveWhenTopOfChain?: boolean;
 };
 
 export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
@@ -66,5 +82,7 @@ export const timeEntriesSqlOptions: BlockOptionsSchema<TimeEntriesSqlOptions> =
     timers: option.string<"one" | "many">({ default: "one" }),
     lockedColumns: option.strings(),
     decider: option.string(),
+    approvalRequired: option.string(),
+    selfApproveWhenTopOfChain: option.boolean({ default: false }),
     on: option.strings(),
   });

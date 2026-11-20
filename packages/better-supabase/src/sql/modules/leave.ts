@@ -29,8 +29,8 @@ import { deciderCall, managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
   LEAVE_CONTRIBUTES,
-  LEAVE_REQUEST_SUBJECT,
   RESERVED,
+  leaveApprovalSubject,
   leaveContract,
   leavePolicy,
   leavePolicyOf,
@@ -300,6 +300,66 @@ function build(ctx: BlockSqlContext): string {
   const decision = (column: string, value: string): string =>
     ctx.has("requests", column) ? `, ${q(column)} = ${value}` : "";
 
+  // The decision columns, in both modes: approvals mode stamps them from the
+  // approval's final decision (leave_approval_decided).
+  const decisionColumns: readonly (readonly [
+    string,
+    (name: string) => string,
+  ])[] = [
+    ["rejectedAt", (name) => `${name} timestamptz`],
+    ["decidedBy", (name) => `${name} uuid`],
+    [
+      "decisionNote",
+      (name) =>
+        `${name} text check (${name} is null or length(${name}) <= 2000)`,
+    ],
+  ];
+
+  const decidedFunction =
+    approvals === undefined
+      ? ""
+      : `
+-- Stamps the final decision of a request's approval on the request, as
+-- decide_leave_request does without approvals: approved books the leave,
+-- rejected and cancelled close it. Approvals calls it from its own definer
+-- functions, so it runs as their owner; it isn't granted to anyone.
+create or replace function ${fn("leave_approval_decided")}(request_id uuid, decision text, note text, decided_by uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row ${requests}%rowtype;
+begin
+  if leave_approval_decided.decision = 'approved' then
+    perform ${fn("approve_leave_request")}(leave_approval_decided.request_id);${
+      ctx.has("requests", "decidedBy") || ctx.has("requests", "decisionNote")
+        ? `
+    update ${requests} x set ${q("updatedAt")} = now()${decision("decidedBy", "leave_approval_decided.decided_by")}${decision("decisionNote", "nullif(trim(leave_approval_decided.note), '')")}
+      where x.${q("id")} = leave_approval_decided.request_id and x.${q("approvedAt")} is not null and x.${q("cancelledAt")} is null;`
+        : ""
+    }
+  elsif leave_approval_decided.decision = 'rejected' then
+    update ${requests} x set ${q("updatedAt")} = now()${decision("rejectedAt", "now()")}${decision("decidedBy", "leave_approval_decided.decided_by")}${decision("decisionNote", "nullif(trim(leave_approval_decided.note), '')")}
+      where x.${q("id")} = leave_approval_decided.request_id and x.${q("approvedAt")} is null and x.${q("cancelledAt")} is null
+      returning * into v_row;
+    if found then
+      ${requestRecord("leave_request.rejected", "v_row", "rejected leave")}
+    end if;
+  elsif leave_approval_decided.decision = 'cancelled' then
+    update ${requests} x set ${q("cancelledAt")} = now()${decision("cancelledBy", "leave_approval_decided.decided_by")}, ${q("updatedAt")} = now()
+      where x.${q("id")} = leave_approval_decided.request_id and x.${q("approvedAt")} is null and x.${q("cancelledAt")} is null
+      returning * into v_row;
+    if found then
+      ${requestRecord("leave_request.cancelled", "v_row", "cancelled leave")}
+    end if;
+  end if;
+end;
+$$;
+revoke execute on function ${fn("leave_approval_decided")}(uuid, text, text, uuid) from public, anon, authenticated;
+`;
+
   const manager = managerDecides(ctx, "blocks.leave.options", {
     requester: owner.requester("v_row"),
     tenant: `v_row.${q("tenant")}`,
@@ -495,7 +555,7 @@ create table if not exists ${requests} (
 ${column("requests", "partial", (name) => `${name} text not null default 'full' check (${name} in ('full', 'morning', 'afternoon', 'hours'))`).slice(1)}
   -- Working days, or hours for an hours type, that the request books.
   ${q("amount")} numeric(8, 2) not null check (${q("amount")} > 0),${column("requests", "note", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
-${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a("id")}) on delete set null,\n`}  ${q("approvedAt")} timestamptz,${statusMode ? `${column("requests", "rejectedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedBy", (name) => `${name} uuid`)}${column("requests", "decisionNote", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}` : ""}
+${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a("id")}) on delete set null,\n`}  ${q("approvedAt")} timestamptz,${decisionColumns.map(([logical, definition]) => column("requests", logical, definition)).join("")}
   ${q("cancelledAt")} timestamptz,${column("requests", "cancelledBy", (name) => `${name} uuid`)}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
@@ -657,7 +717,7 @@ ${
 
     const open = `
   v_request := ${approvals.fn("open_approval")}(
-    ${tenant}, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
+    ${tenant}, ${sqlString(leaveApprovalSubject(ctx))}, v_row.${q("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb${byEmployee ? " || jsonb_build_object('managerOf', v_owner::text)" : ""}, ${or("requests", "v_row", "note")},
     jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})${byEmployee ? ",\n    v_user" : ""}
   );
@@ -1173,7 +1233,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn("approve_leave_request")}(uuid) from public, anon, authenticated;
-
+${decidedFunction}
 -- Cancels a request: the requester before it starts, or a manager any
 -- time. A pending approval is cancelled with it; approved leave goes back
 -- to the balance.

@@ -78,7 +78,7 @@ const NAMES: BlockSqlNames = {
     "before_bank_transaction_match",
     "after_bank_transaction_match",
   ],
-  options: [],
+  options: ["primary", "optionalCurrency"],
   tables: {
     accounts: {
       name: "bank_accounts",

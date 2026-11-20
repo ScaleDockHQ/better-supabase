@@ -366,6 +366,34 @@ export function approvalPolicies(
  * The snapshot a request stores, so later config changes leave it alone. It
  * names the mode only for `confirm`; SQL reads a missing mode as `authorize`.
  */
+/**
+ * Throws when a self-decide rule meets a policy whose approvers it can't count:
+ * it knows holders of `permission`, the manager and, with a decider, the
+ * managers up the chain, so a role, team, user list or other permission could
+ * let the requester decide while someone else could.
+ */
+export function assertCountedApprovers(
+  policy: ApprovalPolicy,
+  permission: string,
+  where: string,
+): void {
+  const counted = policy.steps.every((step) =>
+    [step.approvers, ...(step.escalateTo ? [step.escalateTo] : [])].every(
+      (who) =>
+        who.role === undefined &&
+        who.team === undefined &&
+        who.users === undefined &&
+        (who.permission === undefined || who.permission === permission),
+    ),
+  );
+
+  if (!counted) {
+    throw new TypeError(
+      `${where} counts only ${permission}, manager and decider approvers, so the policy can't name a role, team, users or another permission`,
+    );
+  }
+}
+
 export function policySnapshot(policy: ApprovalPolicy): string {
   return JSON.stringify({
     steps: policy.steps,

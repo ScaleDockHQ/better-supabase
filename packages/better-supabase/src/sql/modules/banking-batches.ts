@@ -13,7 +13,7 @@ import {
 } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, pageSize, userGrant } from "../shared.ts";
-import { bankingSql, linked } from "./banking-sql.ts";
+import { bankingSql, linked, optionalCurrency } from "./banking-sql.ts";
 
 /** Where a payment batch stands. */
 export const BATCH_STATUSES = [
@@ -381,7 +381,14 @@ begin
   end if;
   if v_account.${a("iban")} is null then
     ${invalid("the bank account needs an IBAN to pay from")}
-  end if;
+  end if;${
+    optionalCurrency(ctx)
+      ? `
+  if v_account.${a("currency")} is null then
+    ${invalid("the bank account needs a currency to pay from")}
+  end if;`
+      : ""
+  }
   v_due := (create_payment_batch.input ->> 'dueBy')::date;
   v_exec := coalesce((create_payment_batch.input ->> 'executionOn')::date, current_date);
   v_reference := coalesce(nullif(trim(create_payment_batch.input ->> 'reference'), ''), 'Batch ' || to_char(v_exec, 'YYYY-MM-DD') || ' ' || left(gen_random_uuid()::text, 8));

@@ -58,7 +58,9 @@ An account can name its `holder`, as the bank prints it on a statement, and can
 be `primary`. Each organization has at most one active primary account per
 currency: setting `primary: true` clears the flag on its other accounts in the
 same currency, and archiving a primary account clears its own. Read the flag
-from `BankAccount.primary`.
+from `BankAccount.primary`. With `options.primary: "organization"`, an
+organization has one primary account in all, so the flag clears on every other
+account.
 
 `position` keeps the organization's own order of its accounts, lowest first,
 for a list a user arranges. `saveAccount` sets it (0 or more, default 0) and
@@ -257,6 +259,15 @@ another `apiVersion`.
 | `cancelPaymentBatch(batchId)`           | the cancelled batch                                         |
 | `exportSepaCreditTransfer(batchId)`     | the pain.001.001.09 XML as a string                         |
 | `syncFeed(accountId, feed, sync)`       | the imported statement and how many transactions were added |
+
+## Block options
+
+`blocks.banking.options` in `better-supabase.config.ts`:
+
+| Option             | Default      | Does                                                                                                                                          |
+| ------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `primary`          | `"currency"` | `"organization"` keeps one primary account per organization instead of one per currency                                                       |
+| `optionalCurrency` | `false`      | Lets an account have no currency. Each transaction imported into it names its own, and a payment batch still needs an account with a currency |
 
 ## Options
 

@@ -139,6 +139,7 @@ const NAMES: BlockSqlNames = {
     "standaloneApprovals",
     "policy",
     "approver",
+    "selfDecideWhenTopOfChain",
   ],
   tables: {
     categories: {
@@ -453,6 +454,12 @@ const CONTRIBUTES: BlockContributes = {
               `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
             reject: ({ subjectId, comment, approver }) =>
               `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+            ...(own.flag("selfDecideWhenTopOfChain", false)
+              ? {
+                  selfDecides: ({ subjectId }) =>
+                    `${own.fn("expense_self_decides")}(${subjectId}::uuid)`,
+                }
+              : {}),
             ...(deciderCall(own, "blocks.expenses.options", "null") === ""
               ? {}
               : {

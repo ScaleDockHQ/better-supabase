@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:8f215c828a61fa92ad045f4589612efa83617864a7a93a267d4c943517e33205
+-- @bsb-hash sha256:e49e2d8a407734734cdce5b96cc086b9a1dcbb8d98862db4af869df0d98b05e1
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -468,7 +468,7 @@ begin
     perform "better_supabase"."approve_timesheet"(v_req."subject_id"::uuid);
   end if;
   if v_req."subject_type" = 'leave_request' then
-    perform "better_supabase"."approve_leave_request"(v_req."subject_id"::uuid);
+    perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'approved', (select x."comment" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" order by x."created_at" desc, x."id" desc limit 1), (select x."approver" from "better_supabase"."approval_decisions" x where x."request_id" = v_req."id" and x."decision" = 'approved' order by x."created_at" desc, x."id" desc limit 1));
   end if;
   if v_req."subject_type" = 'expense_report' then
     perform "better_supabase"."approve_expense_report"(v_req."subject_id"::uuid);
@@ -1332,6 +1332,9 @@ begin
     if v_req."subject_type" = 'drive_node' then
       perform "better_supabase"."drive_document_decided"(v_req."id", false);
     end if;
+    if v_req."subject_type" = 'leave_request' then
+      perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'rejected', decide_approval.comment, v_actor);
+    end if;
     if v_req."subject_type" = 'warranty_claim' then
       perform "better_supabase"."decide_warranty_claim"(v_req."subject_id"::uuid, 'denied', decide_approval.comment);
     end if;
@@ -1814,6 +1817,9 @@ begin
     tenant => (v_req."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
+  if v_req."subject_type" = 'leave_request' then
+    perform "better_supabase"."leave_approval_decided"(v_req."subject_id"::uuid, 'cancelled', null, auth.uid());
+  end if;
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;

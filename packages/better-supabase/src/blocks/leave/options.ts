@@ -79,6 +79,12 @@ export type LeaveSqlOptions = {
    * with a `decider`). Needs the employees block. Default `false`.
    */
   readonly selfDecideWhenTopOfChain?: boolean;
+  /**
+   * In approvals mode, the subject type the requests' approvals are filed
+   * under, such as `"time_off_request"`; approval policies match it. Default
+   * `"leave_request"`.
+   */
+  readonly approvalSubject?: string;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -98,4 +104,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     }),
     decider: option.string(),
     selfDecideWhenTopOfChain: option.boolean({ default: false }),
+    approvalSubject: option.string({ default: "leave_request" }),
   });

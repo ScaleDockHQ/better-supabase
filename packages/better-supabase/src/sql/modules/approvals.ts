@@ -87,6 +87,87 @@ export function linkedPolicy(expiresIn = "null"): string {
   return `jsonb_build_object('steps', '[{"approvers": {}, "required": 1}]'::jsonb, 'selfApproval', false, 'expiresIn', ${expiresIn}, 'run', null)`;
 }
 
+const SUBJECT_TYPE = /^[a-z][a-z0-9_]{0,62}$/u;
+
+/**
+ * `options.requestColumns`: per subject type, the statements in `open_approval`
+ * that fill the app's own columns of the request it just inserted, `v_req`.
+ */
+function requestColumnsSql(
+  ctx: BlockSqlContext,
+  extras: readonly { readonly name: string; readonly ident: string }[],
+): string {
+  const where = "blocks.approvals.options.requestColumns";
+  const raw: unknown = ctx.option("requestColumns");
+
+  if (raw === undefined) {
+    return "";
+  }
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new TypeError(
+      `${where} must map a subject type to { column: "SQL expression" }`,
+    );
+  }
+
+  const types: Readonly<Record<string, unknown>> = { ...raw };
+
+  const c = (column: string): string => ctx.col("requests", column);
+
+  return Object.entries(types)
+    .map(([type, columns]: [string, unknown]) => {
+      if (!SUBJECT_TYPE.test(type)) {
+        throw new TypeError(
+          `${where}: "${type}" is not a snake_case subject type`,
+        );
+      }
+
+      if (
+        typeof columns !== "object" ||
+        columns === null ||
+        Array.isArray(columns) ||
+        Object.keys(columns).length === 0
+      ) {
+        throw new TypeError(
+          `${where}.${type} must map at least one column to a SQL expression`,
+        );
+      }
+
+      const named: Readonly<Record<string, unknown>> = { ...columns };
+
+      const sets = Object.entries(named).map(([name, value]) => {
+        const extra = extras.find((each) => each.name === name);
+
+        if (extra === undefined) {
+          throw new TypeError(
+            `${where}.${type}.${name}: not a column the app adds to ${ctx.table("requests")}`,
+          );
+        }
+
+        if (
+          typeof value !== "string" ||
+          value.trim() === "" ||
+          value.includes(";")
+        ) {
+          throw new TypeError(
+            `${where}.${type}.${name} must be one SQL expression`,
+          );
+        }
+
+        return `${extra.ident} = (${value})`;
+      });
+
+      return `
+  if open_approval.subject_type = ${sqlString(type)} then
+    update ${ctx.table("requests")} x set ${sets.join(", ")}
+      from (select open_approval.tenant, open_approval.subject_id, open_approval.action, coalesce(open_approval.payload, '{}'::jsonb), v_requester) as subject (tenant, subject_id, action, payload, requested_by)
+      where x.${c("id")} = v_req.${c("id")}
+      returning x.* into v_req;
+  end if;`;
+    })
+    .join("");
+}
+
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
@@ -345,6 +426,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : `(not ${linkedRow(`${row}.${c("subjectType")}`)} and ${declared(row)})`;
 
   const extras = ctx.extraColumns("requests", REQUEST_KEYS);
+  const filled = requestColumnsSql(ctx, extras);
 
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)}, 'steps', ${policyOf(row)} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${or("requests", row, "reason")}, 'payload', ${or("requests", row, "payload")}, 'expiresAt', ${or("requests", row, "expiresAt")}, 'decidedAt', ${or("requests", row, "decidedAt")}, 'mode', coalesce(${policyOf(row)} ->> 'mode', 'authorize'), 'fingerprint', ${or("requests", row, "fingerprint")}, 'consumedAt', ${or("requests", row, "consumedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
@@ -604,6 +686,25 @@ ${indent}end if;`;
                 approver: "v_actor",
               }),
               "    ",
+            ),
+          ],
+    )
+    .join("");
+
+  const contributedCancel = contributed
+    .flatMap((each) =>
+      each.cancel === undefined
+        ? []
+        : [
+            when(
+              each.subject,
+              each.cancel({
+                id: `v_req.${c("id")}`,
+                subjectId: subjectId(""),
+                comment: "null",
+                approver: "auth.uid()",
+              }),
+              "  ",
             ),
           ],
     )
@@ -1119,7 +1220,7 @@ begin
   returning * into v_req;
   if not found then
     ${fail("APPROVAL_PENDING", "this record already has a pending request for that action", "23505")}
-  end if;
+  end if;${filled}
   ${record("approval.requested", "v_req", true)}
   perform ${fn("approval_notify")}(v_req.${c("id")}, 'requested');
   ${ctx.hook("after_approval_request", [["uuid", `v_req.${c("id")}`]])}
@@ -1217,7 +1318,7 @@ begin
   end if;
   update ${requests} r set ${c("status")} = 'cancelled'${decided}
     where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-  ${record("approval.cancelled", "v_req", true)}
+  ${record("approval.cancelled", "v_req", true)}${contributedCancel}
   return ${json("v_req")};
 end;
 $$;
