@@ -23,21 +23,14 @@ the rule.
 that names the removal date, and the entries below in `trustPolicyExclude`
 with their trust dates.
 
-Release age exclusions, published 2026-11-19, removable after 2026-11-20
-20:41 UTC:
+The release age exclusions for the Workflow 5.7 packages, `@vercel/connect@2.9.5`
+and `@vercel/drives@1.0.0` (published 2026-11-19, the newest at 20:40 UTC) were
+removed on 2026-11-20 after 20:41 UTC, when each passed `minimumReleaseAge`.
+`pnpm view <package>@<version> time` showed each release between 20:34 and
+20:41 UTC on 2026-11-19.
 
-`workflow@5.7.0`, `@workflow/core@5.7.0`, `@workflow/world@5.3.0`,
-`@workflow/world-postgres@5.4.0`, `@workflow/world-local@5.5.0`,
-`@workflow/world-vercel@5.7.0`, `@workflow/world-testing@5.1.3`,
-`@workflow/vitest@5.0.12`, `@workflow/cli@5.3.0`, `@workflow/web@5.3.0`,
-`@workflow/builders@5.1.3`, `@workflow/errors@5.1.4`,
-`@workflow/astro@5.0.12`, `@workflow/nest@5.1.10`, `@workflow/next@5.1.3`,
-`@workflow/nitro@5.0.12`, `@workflow/nuxt@5.0.12`, `@workflow/rollup@5.0.12`,
-`@workflow/sveltekit@5.0.12`, `@workflow/vite@5.0.12`,
-`@vercel/connect@2.9.5` and `@vercel/drives@1.0.0`.
-
-Release age exclusions, published 2026-11-20, removable after 2026-11-21
-16:53 UTC (`eve@1.2.0` after 15:55 UTC):
+Release age exclusions that remain, published 2026-11-20, removable after
+2026-11-21 16:53 UTC (`eve@1.2.0` after 15:55 UTC):
 
 `eve@1.2.0`, `ai@7.0.178`, `@ai-sdk/anthropic@4.0.107`,
 `@ai-sdk/gateway@4.0.151`, `@ai-sdk/harness@1.0.189`, `@ai-sdk/mcp@2.0.102`,
@@ -106,8 +99,8 @@ No structural type in `better-supabase/eve` changes from eve 1.0.0-rc.13 to
 
 Follow-up (delete the exclusions after their dates):
 
-- After 2026-11-20 20:41 UTC delete the first `minimumReleaseAgeExclude`
-  block, and after 2026-11-21 16:53 UTC the second. `minimumReleaseAgeExcludePrune`
+- After 2026-11-21 16:53 UTC delete the remaining `minimumReleaseAgeExclude`
+  block (`eve@1.2.0` passes at 15:55 UTC). `minimumReleaseAgeExcludePrune`
   removes an entry once its release passes the window, so the file may already
   have lost entries; delete what is left and the `minimumReleaseAgeExclude`
   key itself.
@@ -119,5 +112,5 @@ Follow-up (delete the exclusions after their dates):
 
 Until then the lockfile holds releases that are younger than the policy
 allows. Every one is exact, so any other too-young release still fails the
-install. Apps apply the `workflow-sdk` version 6 migration before they deploy
-`workflow` 5.7.
+install. Apps apply the `workflow-sdk` migrations (versions 6 to 8, ADR 1100) before they
+deploy `workflow` 5.7.

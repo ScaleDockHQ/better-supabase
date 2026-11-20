@@ -1,6 +1,7 @@
-# 1099. Run the inbox on eve from stored events
+# 1099: Run the inbox on eve from stored events
 
-Status: accepted
+- Status: accepted
+- Date: 2026-11-20
 
 ## Context
 
