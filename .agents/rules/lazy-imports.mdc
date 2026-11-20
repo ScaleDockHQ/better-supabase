@@ -37,7 +37,9 @@ Imports stay at the top of the module. The exceptions are optional
     `@vercel/connect/mcp` through `importOptionalPeer` in
     `src/ai-sdk/mcp/mcp.ts` (an install message, or pass the module), `@supabase/mcp-server-supabase` through variable
     specifiers in `src/core/supabase-mcp.ts` (an install message),
-    `@next/playwright` through `importOptionalPeer` in
+    `@vercel/queue` through `importOptionalPeer` in
+    `src/workflow-sdk/world/vercel-queue.ts` (an install message, or pass
+    `vercelQueue`), `@next/playwright` through `importOptionalPeer` in
     `src/testing/instant.ts` (an install message), `eve/tools` through a
     variable specifier in `src/eve/eve.ts` (the memory provider builds no
     tools without it), `yjs` through a variable specifier in `src/yjs/yjs.ts`

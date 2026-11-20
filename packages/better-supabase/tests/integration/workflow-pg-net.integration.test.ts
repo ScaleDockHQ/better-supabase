@@ -48,6 +48,7 @@ function field(value: unknown, key: string): unknown {
 }
 
 const statuses: number[] = [];
+const seenHeaders: Record<string, string>[] = [];
 
 async function setSecret(name: string, value: string): Promise<void> {
   const existing = await pool.query<{ id: string }>(
@@ -117,13 +118,16 @@ beforeAll(async () => {
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
     req.on("end", () => {
       const headers = new Headers();
+      const seen: Record<string, string> = {};
 
       for (const [key, value] of Object.entries(req.headers)) {
         if (typeof value === "string") {
           headers.set(key, value);
+          seen[key] = value;
         }
       }
 
+      seenHeaders.push(seen);
       void handler(
         new Request(`http://localhost${req.url ?? "/"}`, {
           method: "POST",
@@ -158,7 +162,11 @@ afterAll(async () => {
   }
 
   await pool.query("delete from vault.secrets where name = any($1)", [
-    [WORKFLOW_VAULT_SECRETS.flowUrl, WORKFLOW_VAULT_SECRETS.deliverySecret],
+    [
+      WORKFLOW_VAULT_SECRETS.flowUrl,
+      WORKFLOW_VAULT_SECRETS.deliverySecret,
+      WORKFLOW_VAULT_SECRETS.deliveryHeaders,
+    ],
   ]);
   await new Promise((resolve) => {
     server.close(resolve);
@@ -187,11 +195,9 @@ describe.skipIf(!live)("pg_net delivery", () => {
     const id = job.rows[0]?.id;
     expect(id).toBeDefined();
 
-    const dispatched = await pool.query<{ count: number }>(
-      "select better_supabase.dispatch_workflow_deliveries() as count",
-    );
-
-    expect(dispatched.rows[0]?.count).toBeGreaterThanOrEqual(1);
+    // The World already asked the database to dispatch when it enqueued, so this
+    // call may find nothing left to claim.
+    await pool.query("select better_supabase.dispatch_workflow_deliveries()");
 
     const delivery = await until(async () =>
       received.find(
@@ -211,6 +217,40 @@ describe.skipIf(!live)("pg_net delivery", () => {
     });
 
     expect(field(archived.message, "dead")).toBeUndefined();
+  });
+
+  it("forwards the headers in the Vault secret and refuses one that is not a JSON object", async () => {
+    await setSecret(
+      WORKFLOW_VAULT_SECRETS.deliveryHeaders,
+      JSON.stringify({ "x-vercel-protection-bypass": "bypass-token" }),
+    );
+
+    await world.queue("__wkf_workflow_pg_net_headers", {
+      runId: "wrun_pg_net_headers",
+    });
+    await pool.query("select better_supabase.dispatch_workflow_deliveries()");
+
+    await until(async () =>
+      received.find(
+        (entry) => field(entry.message, "runId") === "wrun_pg_net_headers",
+      ),
+    );
+
+    expect(
+      seenHeaders.some(
+        (headers) =>
+          headers["x-vercel-protection-bypass"] === "bypass-token" &&
+          headers["x-bsb-signature"] !== undefined,
+      ),
+    ).toBe(true);
+
+    await setSecret(WORKFLOW_VAULT_SECRETS.deliveryHeaders, '"not an object"');
+    await expect(
+      pool.query("select better_supabase.dispatch_workflow_deliveries()"),
+    ).rejects.toMatchObject({ hint: "WORKFLOW_DELIVERY_UNCONFIGURED" });
+    await pool.query("delete from vault.secrets where name = $1", [
+      WORKFLOW_VAULT_SECRETS.deliveryHeaders,
+    ]);
   });
 
   it("refuses a delivery whose signature does not match", async () => {

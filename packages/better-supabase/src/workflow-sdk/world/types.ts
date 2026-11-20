@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { EventHub } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
+import type { VercelQueueSdk } from "./vercel-queue.ts";
 
 /**
  * The `@workflow/world` protocol this World speaks: the package version its
@@ -78,7 +79,9 @@ export interface SupabaseWorldOptions {
    * How messages reach the flow route. `poll` (default) claims them in this
    * process and posts to the route; `pg_net` leaves delivery to
    * `dispatch_workflow_deliveries()` on a pg_cron schedule, for serverless
-   * hosts with no long-running process.
+   * hosts with no long-running process; `vercel-queue` sends each message
+   * through Vercel Queues (an optional peer, `@vercel/queue`) and Vercel calls
+   * the flow route, which suits a function deployed on Vercel.
    */
   readonly delivery?: WorkflowDeliveryMode;
   /**
@@ -87,6 +90,25 @@ export interface SupabaseWorldOptions {
    * `/.well-known/workflow/v1/flow`.
    */
   readonly flowUrl?: string;
+  /**
+   * Headers the poller adds to every post to the flow route (a deployment
+   * protection bypass, for one). `WORKFLOW_DELIVERY_HEADERS` (a JSON object)
+   * and, for `pg_net`, the Vault secret `workflow_delivery_headers` set the
+   * same. The World's own headers win over these.
+   */
+  readonly deliveryHeaders?: Readonly<Record<string, string>>;
+  /**
+   * The `@vercel/queue` client `delivery: "vercel-queue"` sends and receives
+   * with (`new QueueClient({ ... })`); default `new QueueClient()` from the
+   * installed package.
+   */
+  readonly vercelQueue?: VercelQueueSdk;
+  /**
+   * Seconds a run's wake-up may stay owed before `deliverOnce()` and `start()`
+   * send it again (default 300). A wake-up is owed from the event that wakes
+   * the run until a delivery of it completes.
+   */
+  readonly recoverAfter?: number;
   /**
    * The secret deliveries are signed with. Required to accept `pg_net`
    * deliveries; read from the Vault secret `workflow_delivery_secret` when
@@ -202,6 +224,11 @@ export interface StoredMessage {
   readonly body: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
+  /**
+   * Seconds still to wait when the message was delayed past what Vercel Queues
+   * allows (23 hours): each hop sends the message on until none remain.
+   */
+  readonly remainingDelay?: number;
 }
 
 export interface ClaimedJob {

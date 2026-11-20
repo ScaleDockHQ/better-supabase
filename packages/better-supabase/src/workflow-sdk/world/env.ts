@@ -1,5 +1,6 @@
 import type { SupabaseWorldOptions } from "./types.ts";
 
+import { WORKFLOW_DELIVERY_MODES } from "../../sql/modules/workflow-sdk.ts";
 import { FLOW_PATH } from "./types.ts";
 
 export function env(name: string): string | undefined {
@@ -43,6 +44,52 @@ export function resolveFlowUrl(flowUrl?: string): string {
   return url.toString();
 }
 
+/**
+ * `route` (an absolute path such as the flow path) on the host of `flowUrl`,
+ * keeping the path prefix `flowUrl` has before the flow path, so an app served
+ * under a base path (`/app/.well-known/workflow/v1/flow`) keeps it.
+ */
+export function routeUrl(route: string, flowUrl: string): string {
+  const url = new URL(flowUrl);
+  const at = url.pathname.indexOf(FLOW_PATH);
+  const prefix = at > 0 ? url.pathname.slice(0, at).replace(/\/+$/, "") : "";
+
+  return new URL(`${prefix}${route}`, url).toString();
+}
+
+/** A JSON object of string values, or `undefined` when `text` is not one. */
+export function parseHeaders(
+  text: string | undefined,
+): Record<string, string> | undefined {
+  if (text === undefined) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return undefined;
+  }
+
+  const headers: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(parsed)) {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+
+    headers[name] = value;
+  }
+
+  return headers;
+}
+
 /** The options `createWorld()` reads from the environment. */
 export function worldOptionsFromEnv(
   source: Readonly<Record<string, string | undefined>> = process.env,
@@ -55,11 +102,24 @@ export function worldOptionsFromEnv(
 
   const delivery = read("WORKFLOW_DELIVERY");
 
-  if (delivery !== undefined && delivery !== "poll" && delivery !== "pg_net") {
+  const mode = WORKFLOW_DELIVERY_MODES.find((known) => known === delivery);
+
+  if (delivery !== undefined && mode === undefined) {
     throw new TypeError(
-      `better-supabase: WORKFLOW_DELIVERY must be "poll" or "pg_net", got "${delivery}"`,
+      `better-supabase: WORKFLOW_DELIVERY must be "poll", "pg_net" or "vercel-queue", got "${delivery}"`,
     );
   }
+
+  const headersText = read("WORKFLOW_DELIVERY_HEADERS");
+  const deliveryHeaders = parseHeaders(headersText);
+
+  if (headersText !== undefined && deliveryHeaders === undefined) {
+    throw new TypeError(
+      "better-supabase: WORKFLOW_DELIVERY_HEADERS must be a JSON object of header names and string values",
+    );
+  }
+
+  const recoverAfter = positiveInt(read("WORKFLOW_RECOVER_AFTER_SECONDS"));
 
   const connectionString =
     read("WORKFLOW_POSTGRES_URL") ??
@@ -126,7 +186,9 @@ export function worldOptionsFromEnv(
     ...(connection === undefined ? {} : { connection }),
     ...(encryptionKeys === undefined ? {} : { encryptionKeys }),
     ...(connectionString === undefined ? {} : { connectionString }),
-    ...(delivery === undefined ? {} : { delivery }),
+    ...(mode === undefined ? {} : { delivery: mode }),
+    ...(deliveryHeaders === undefined ? {} : { deliveryHeaders }),
+    ...(recoverAfter === undefined ? {} : { recoverAfter }),
     ...(flowUrl === undefined ? {} : { flowUrl }),
     ...(deliverySecret === undefined ? {} : { deliverySecret }),
     ...(encryptionKey === undefined ? {} : { encryptionKey }),

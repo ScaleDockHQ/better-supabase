@@ -16,7 +16,11 @@ import {
   WORLD_POSTGRES_VERSION,
 } from "./workflow-sdk-world-ddl.generated.ts";
 
-export const WORKFLOW_DELIVERY_MODES = ["poll", "pg_net"] as const;
+export const WORKFLOW_DELIVERY_MODES = [
+  "poll",
+  "pg_net",
+  "vercel-queue",
+] as const;
 
 export type WorkflowDeliveryMode = (typeof WORKFLOW_DELIVERY_MODES)[number];
 
@@ -24,6 +28,7 @@ export type WorkflowDeliveryMode = (typeof WORKFLOW_DELIVERY_MODES)[number];
 export const WORKFLOW_VAULT_SECRETS = {
   flowUrl: "workflow_flow_url",
   deliverySecret: "workflow_delivery_secret",
+  deliveryHeaders: "workflow_delivery_headers",
   encryptionKey: "workflow_encryption_key",
   encryptionKeys: "workflow_encryption_keys",
 } as const;
@@ -33,13 +38,15 @@ export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
 function deliveryModeOf(ctx: BlockSqlContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
 
-  if (mode !== "poll" && mode !== "pg_net") {
+  const found = WORKFLOW_DELIVERY_MODES.find((known) => known === mode);
+
+  if (found === undefined) {
     throw new TypeError(
-      `blocks["workflow-sdk"].options.delivery must be "poll" or "pg_net", got "${mode}"`,
+      `blocks["workflow-sdk"].options.delivery must be "poll", "pg_net" or "vercel-queue", got "${mode}"`,
     );
   }
 
-  return mode;
+  return found;
 }
 
 const IDENT = /^[a-z_][a-z0-9_]{0,40}$/;
@@ -241,6 +248,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -258,12 +266,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets ${WORKFLOW_VAULT_SECRETS.flowUrl} and ${WORKFLOW_VAULT_SECRETS.deliverySecret} before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = ${sqlString(WORKFLOW_VAULT_SECRETS.deliveryHeaders)};
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret ${WORKFLOW_VAULT_SECRETS.deliveryHeaders} must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from ${claimJobs}(${queue}, ${String(lease)}, greatest(coalesce(batch, ${String(batch)}), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := ${queue} || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -550,7 +563,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -590,6 +603,12 @@ alter table workflow.workflow_runs alter column "wake_pending" set default false
       from: 6,
       description:
         "The eve projection: workflow.eve_sessions and workflow.eve_session_runs, triggers that wake a debounced eve_session_sync job when an eve run or one of its events changes, the eve_session_* functions syncSession uses, and workflow_purge_runs takes skip_unprojected.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        'dispatch_workflow_deliveries adds the headers in the Vault secret workflow_delivery_headers (a JSON object) to each delivery, and the delivery option accepts "vercel-queue", which sends messages through Vercel Queues and creates no cron job.',
       sql: () => "",
     },
   ],

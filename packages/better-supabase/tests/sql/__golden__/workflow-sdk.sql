@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@7 managed
--- @bsb-hash sha256:8420add0a909ec9c60a73e28a0ebd05c007fb272fad2f840eae32507a25eaf2a
+-- @bsb-block workflow-sdk@8 managed
+-- @bsb-hash sha256:c4ed04dc646181c9a1af66c877f46005421af8a4940f587d4ad7a5fa42f0a5d4
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -385,6 +385,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -402,12 +403,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -820,7 +826,7 @@ grant execute on function "better_supabase"."eve_session_mark"(text, text) to se
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
+-- @bsb-hash sha256:a0b66b2c0be42d0d1d86a0122e2b625179ca1bfacd4fd341cf220f381bb4f757
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -839,14 +845,14 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 7, 'managed')
+values ('workflow-sdk', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@7 managed
--- @bsb-hash sha256:8420add0a909ec9c60a73e28a0ebd05c007fb272fad2f840eae32507a25eaf2a
+-- @bsb-block workflow-sdk@8 managed
+-- @bsb-hash sha256:c4ed04dc646181c9a1af66c877f46005421af8a4940f587d4ad7a5fa42f0a5d4
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1230,6 +1236,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -1247,12 +1254,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -1665,7 +1677,7 @@ grant execute on function "better_supabase"."eve_session_mark"(text, text) to se
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
+-- @bsb-hash sha256:a0b66b2c0be42d0d1d86a0122e2b625179ca1bfacd4fd341cf220f381bb4f757
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1684,14 +1696,14 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 7, 'managed')
+values ('workflow-sdk', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@7 managed
--- @bsb-hash sha256:f8adafbcd1a938a8e4e5f072ce33577087a52ad25b836e1fb0ca2ebfe8ddef5c
+-- @bsb-block workflow-sdk@8 managed
+-- @bsb-hash sha256:283582b5e45deaca74f10b785e87ab7098158b231e97931a87c01d7f2230a2ef
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2080,6 +2092,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -2097,12 +2110,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -2515,7 +2533,7 @@ grant execute on function "app_private"."eve_session_mark"(text, text) to servic
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
+-- @bsb-hash sha256:a0b66b2c0be42d0d1d86a0122e2b625179ca1bfacd4fd341cf220f381bb4f757
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2534,14 +2552,14 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 7, 'managed')
+values ('workflow-sdk', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@7 managed
--- @bsb-hash sha256:8645c62e6f4ec7858fdb6e3ffb0e24499bb9361849d849c60e620f208ba830d1
+-- @bsb-block workflow-sdk@8 managed
+-- @bsb-hash sha256:b30f964e59c5335db1df5b86114fc398d3f8434335088bb1a5642991eb4ba926
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2925,6 +2943,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -2942,12 +2961,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -3514,7 +3538,7 @@ grant execute on function "api"."eve_session_mark"(text, text) to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
+-- @bsb-hash sha256:a0b66b2c0be42d0d1d86a0122e2b625179ca1bfacd4fd341cf220f381bb4f757
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3533,6 +3557,6 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 7, 'managed')
+values ('workflow-sdk', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

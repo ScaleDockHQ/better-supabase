@@ -32825,6 +32825,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
+          "name": "ImportMemoriesOptions"
+        },
+        {
+          "name": "ImportMemoriesResult"
+        },
+        {
+          "name": "ImportMemoriesSource"
+        },
+        {
           "name": "Memory"
         },
         {

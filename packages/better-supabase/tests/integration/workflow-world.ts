@@ -10,7 +10,9 @@ import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
  */
 export async function installWorld(pool: Pool): Promise<void> {
   const present = await pool.query<{ ok: boolean }>(
-    "select to_regprocedure('better_supabase.dispatch_workflow_deliveries(integer)') is not null as ok",
+    `select coalesce(
+       pg_get_functiondef(to_regprocedure('better_supabase.dispatch_workflow_deliveries(integer)'))
+         like '%workflow_delivery_headers%', false) as ok`,
   );
 
   if (present.rows[0]?.ok === true) {

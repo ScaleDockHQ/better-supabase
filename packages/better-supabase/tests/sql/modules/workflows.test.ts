@@ -145,12 +145,22 @@ describe("workflow-sdk module", () => {
     expect(body).not.toContain("perform net.http_post");
   });
 
+  it("keeps the dispatcher but schedules no cron job in vercel-queue mode", () => {
+    const body = moduleBody("workflow-sdk", {
+      modules: { "workflow-sdk": { options: { delivery: "vercel-queue" } } },
+    })!;
+
+    expect(body).toContain("workflow_delivery_headers");
+    expect(body).toContain("WORKFLOW_DELIVERY_UNCONFIGURED");
+    expect(body).not.toContain("cron.schedule('better-supabase-workflow");
+  });
+
   it("rejects an unknown delivery mode or queue name", () => {
     expect(() =>
       dataOf("workflow-sdk", {
         "workflow-sdk": { options: { delivery: "http" } },
       }),
-    ).toThrow('must be "poll" or "pg_net", got "http"');
+    ).toThrow('must be "poll", "pg_net" or "vercel-queue", got "http"');
     expect(() =>
       moduleBody("workflow-sdk", {
         modules: { "workflow-sdk": { options: { queue: "Bad-Name" } } },

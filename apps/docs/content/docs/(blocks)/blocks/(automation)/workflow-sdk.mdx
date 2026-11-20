@@ -56,6 +56,8 @@ export const world = createSupabaseWorld({
 | `WORKFLOW_ENCRYPTION_KEYS`                                             | `encryptionKeys`           | the Vault secret `workflow_encryption_keys` (see Encryption)                                |
 | `WORKFLOW_POSTGRES_CONNECTION`                                         | `connection`               | `transaction` on port 6543, else `session`                                                  |
 | `WORKFLOW_ENCRYPTION_KEY`                                              | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
+| `WORKFLOW_DELIVERY_HEADERS`                                            | `deliveryHeaders`          | the Vault secret `workflow_delivery_headers`, else none                                     |
+| `WORKFLOW_RECOVER_AFTER_SECONDS`                                       | `recoverAfter`             | 300                                                                                         |
 | `WORKFLOW_DELIVERY_QUEUE`                                              | `queue`                    | `workflow_deliveries`                                                                       |
 | `WORKFLOW_QUEUE_NAMESPACE`                                             | `namespace`                | none                                                                                        |
 | `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                                 | `concurrency`              | 50                                                                                          |
@@ -176,10 +178,11 @@ capabilities of `@workflow/world-postgres`, including `inBandFence`, so
 The SDK hands each step and each workflow turn to the queue, and the queue
 posts it to the flow route that `withWorkflow` adds.
 
-| Mode             | Who posts                                                              | Use it on                                     |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------- |
-| `poll` (default) | the World, in the process that queues: it claims jobs and posts them   | a server, a container, `next dev`             |
-| `pg_net`         | `dispatch_workflow_deliveries()` on a pg_cron schedule, through pg_net | serverless hosts with no long-running process |
+| Mode             | Who posts                                                              | Use it on                                              |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| `poll` (default) | the World, in the process that queues: it claims jobs and posts them   | a server, a container, `next dev`                      |
+| `pg_net`         | `dispatch_workflow_deliveries()` on a pg_cron schedule, through pg_net | serverless hosts with no long-running process          |
+| `vercel-queue`   | Vercel Queues, which call the flow route on Vercel                     | an app on Vercel, where `pg_net` can't reach the route |
 
 For `pg_net`, set `blocks["workflow-sdk"].options.delivery` to
 `pg_net` (the data file then schedules the dispatcher every
@@ -197,6 +200,57 @@ process stopped. Call it once at startup, for example from
 `instrumentation.ts`, and only where a process stays up: on a serverless
 host every instance would start a poller, so use `pg_net` there and call
 `start()` in `next dev` only.
+
+### Extra headers
+
+A host in front of the flow route may need a header on every delivery, for
+example Vercel's `x-vercel-protection-bypass`. Pass `deliveryHeaders` (or a
+JSON object in `WORKFLOW_DELIVERY_HEADERS`), or store the JSON object in the
+Vault secret `workflow_delivery_headers`. Poll mode and the `pg_net`
+dispatcher both add these headers and never replace `x-bsb-signature` or the
+other headers the World sets. A secret that is not a JSON object makes the
+dispatcher fail with the hint `WORKFLOW_DELIVERY_UNCONFIGURED`.
+
+A route may sit below a path prefix: `registerRoute` and the default routes
+keep the part of `flowUrl` that comes before `/.well-known/workflow/v1/flow`.
+
+### Delivery on Vercel
+
+`pg_net` posts from the database, which can't reach a Vercel deployment that
+sits behind protection or has no stable URL. Set `delivery: "vercel-queue"`
+(or `WORKFLOW_DELIVERY=vercel-queue`) to send each message with
+`@vercel/queue` instead, and install it as an optional peer. The World then
+claims no jobs and starts no poller, and the cron job is not scheduled.
+
+```ts title="lib/world.ts"
+export const world = createSupabaseWorld({ delivery: "vercel-queue" });
+```
+
+- A message goes to the topic that matches its queue name, with every
+  character outside `A-Za-z0-9_-` replaced by `-`. The Workflow SDK builders
+  write the consumer trigger for the topics `__wkf_workflow_*` and
+  `__wkf_step_*`, so no extra configuration is needed.
+- The message id is the idempotency key, so a retried send doesn't queue a
+  second copy. A delay over 23 hours is split into hops: each hop is
+  delivered, sees the delay that remains, and sends the message on without
+  running the flow.
+- The flow route answers Vercel's callback. A non-2xx response retries after
+  the backoff, clamped to 5 to 900 seconds. The 73rd delivery is
+  acknowledged and the message is dead-lettered through `onDeadLetter`, as in
+  the other modes. A flow response that asks to wait sends the message again
+  with that delay and a higher attempt.
+- Vercel authenticates the callback, so there is no `x-bsb-signature` check
+  in this mode.
+- A run whose wake-up is still owed after `recoverAfter` seconds (300 by
+  default) gets a new wake-up. In every mode the World clears
+  `workflow_runs.wake_pending` when an orchestrator delivery completes, and
+  `start()` and the poller sweep for runs that stay flagged.
+- `queue` fails when the send fails, so the Workflow SDK sees the error
+  instead of losing the message.
+
+The Vercel side of this mode, that is `handleCallback` authentication, the
+wildcard topic trigger, deployment pinning and the function timeout, is
+covered by unit tests with a fake client and has not been run on Vercel yet.
 
 ### Routing a queue prefix
 
