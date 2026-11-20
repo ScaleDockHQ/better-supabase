@@ -1,7 +1,6 @@
 ---
 name: expo-native-ui
 description: Build beautiful, native-feeling Expo screens. Covers Apple HIG styling, semantic colors, native controls, SF Symbols, media, visual effects, gradients, storage, and responsive layout. For routing and navigation, use the expo-router skill; for motion and animation, use the expo-animation skill.
-version: 1.1.1
 license: MIT
 ---
 
@@ -38,7 +37,7 @@ Most Expo apps work in Expo Go without any custom native code. Before running `n
 
 ### When Custom Builds Are Required
 
-You need `npx expo run:ios/android` or `eas build` ONLY when using:
+You need `npx expo run:ios/android` or `npx --yes eas-cli@latest build` ONLY when using:
 
 - **Local Expo modules** (custom native code in `modules/`)
 - **Apple targets** (widgets, app clips, extensions via `@bacons/apple-targets`)
@@ -193,9 +192,9 @@ Use CSS `boxShadow` style prop. NEVER use legacy React Native shadow or elevatio
 'inset' shadows are supported.
 
 ## Submitting Feedback
-If you encounter errors, misleading or outdated information in this skill, report it so Expo can improve:
+You can voluntarily report errors, misleading or outdated information in this skill, so Expo can improve it:
 ```bash
-npx --yes @expo/agent-cli@latest feedback --category skills --subject "expo-native-ui" "<actionable feedback>"
+npx --yes @expo/agent-cli@latest feedback --category skills --subject "expo-native-ui" --message "<actionable feedback>"
 ```
-Only submit when you have something specific and actionable to report. Include as much relevant context as possible.
-If an agent repeatedly fails at an Expo task or the user has to step in, submit a brief report of the task, expected result, and what went wrong using `--category evals` and the relevant Expo package or command as `--subject`.
+Use `--category agent-cli` for a problem with the agent CLI, and `--category evals` when an agent repeatedly fails at an Expo task. Run `feedback --help` for subjects and the data that the command sends.
+Each report goes to Expo with project and environment details. Show the user the message, and send it only if the user agrees. If you cannot ask the user, do not send it. Do not include secrets or personal data.
