@@ -9,6 +9,7 @@
     "dev:portless": "portless run --name eve next dev",
     "gen": "better-supabase gen",
     "gen:check": "better-supabase gen --check",
+    "import:memories": "node scripts/import-memories.ts",
     "lint": "next typegen && oxlint",
     "typecheck": "next typegen && tsc --noEmit"
   },

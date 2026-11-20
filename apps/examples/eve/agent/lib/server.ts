@@ -4,12 +4,14 @@ import {
   eveAgentJob,
   eveScheduleRun,
   queueScheduleProvider,
+  validateExpression,
 } from "better-supabase/eve";
 import { createPostgres } from "better-supabase/postgres";
 import { createServer } from "better-supabase/server";
 import * as v from "valibot";
 
 import { schema } from "../../lib/supabase/generated-schema";
+import { aiSchedules } from "./blocks";
 
 export const postgres = createPostgres();
 
@@ -34,6 +36,14 @@ export const memberSchedules = queueScheduleProvider({
   scheduler,
   // agent/schedules/requests.ts scopes each schedule to [tenant, member].
   tenantOf: (scope) => v.parse(MemberScope, scope)[0],
+  // Members' schedules also show up in the ai-schedules tables with each
+  // occurrence's status, under the source `eve`. The dispatcher in
+  // agent/schedules/tasks.ts skips them: eve fires them.
+  mirror: { schedules: aiSchedules },
+  // No more often than every five minutes, and no time that has passed.
+  validateExpression: (expression) => {
+    validateExpression(expression, { minIntervalMs: 5 * 60_000 });
+  },
 });
 
 export const scheduleRuns = createQueue({

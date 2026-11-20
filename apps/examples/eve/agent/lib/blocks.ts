@@ -1,8 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { createBlocks, rpcTransport } from "better-supabase/blocks";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
+import { aiSchedulesBlock } from "better-supabase/blocks/ai-schedules";
 import { inboxBlock } from "better-supabase/blocks/inbox";
-import { knowledgeBlock } from "better-supabase/blocks/knowledge";
+import {
+  DOCX_TYPE,
+  PDF_TYPE,
+  createUrlSource,
+  docxExtractor,
+  extractors,
+  knowledgeBlock,
+  pdfExtractor,
+} from "better-supabase/blocks/knowledge";
 import { memoryBlock } from "better-supabase/blocks/memory";
 import { vaultCredentials } from "better-supabase/credentials";
 import { loadEnv } from "better-supabase/env";
@@ -24,12 +33,25 @@ export const transport = rpcTransport(
 
 export const credentials = vaultCredentials({ transport });
 
-export const { chats, memory, knowledge, inbox } = createBlocks(
+export const { chats, memory, knowledge, inbox, aiSchedules } = createBlocks(
   { transport, service: transport, credentials },
   {
+    aiSchedules: aiSchedulesBlock,
     chats: aiChatBlock,
     memory: memoryBlock,
     knowledge: knowledgeBlock,
     inbox: inboxBlock,
   },
 );
+
+// Pages the agent ingests from a URL. HTML is read by the source itself; PDF
+// and Word files use the optional peers `unpdf` and `mammoth` on first use.
+// Only the hosts below are fetched.
+export const urlSource = createUrlSource({
+  knowledge,
+  allowedHosts: ["docs.example.com"],
+  extract: extractors({
+    [PDF_TYPE]: pdfExtractor(),
+    [DOCX_TYPE]: docxExtractor(),
+  }),
+});
