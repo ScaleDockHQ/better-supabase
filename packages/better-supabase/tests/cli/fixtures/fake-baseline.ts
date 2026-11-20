@@ -68,7 +68,7 @@ export const MIGRATED: DbState = {
   migrations: 2,
 };
 
-export const SEEDED: DbState = {
+const SEEDED: DbState = {
   ...MIGRATED,
   catalog: "seeded",
   signatures: {
