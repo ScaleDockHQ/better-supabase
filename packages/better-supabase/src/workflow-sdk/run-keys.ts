@@ -30,6 +30,12 @@ export interface PurgeRunsOptions {
   readonly statuses?: readonly WorkflowTerminalStatus[];
   /** Runs per statement; `purgeRuns` repeats until none are left. Defaults to 500. */
   readonly batch?: number;
+  /**
+   * Keeps the runs of an eve session whose copy in the blocks is not current:
+   * the session is open, was never synced, or changed after its last sync. The
+   * runs go once `syncSession` has caught up.
+   */
+  readonly skipUnprojected?: boolean;
 }
 
 export interface OpenHooksOptions {

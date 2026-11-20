@@ -165,6 +165,9 @@ const SPECLESS: Readonly<Record<string, readonly string[]>> = {
   search: ["import_search_dirty"],
   // ADR 0098: the Workflow SDK owns the shape of its world's tables.
   "workflow-sdk": [
+    // The eve projection (ADR 0098): its tables copy eve sessions into the blocks.
+    "eve_session_runs",
+    "eve_sessions",
     "workflow_event_slots",
     "workflow_events",
     "workflow_hooks",

@@ -2659,7 +2659,7 @@ export interface BlockNameRegistry {
   };
   readonly "workflow-sdk": {
     readonly tables: {};
-    readonly functions: "dispatch_workflow_deliveries" | "workflow_claim_run_key" | "workflow_open_hooks" | "workflow_purge_runs" | "workflow_release_run_key" | "workflow_sdk_mirror_run" | "workflow_set_run_key";
+    readonly functions: "dispatch_workflow_deliveries" | "eve_open_sessions" | "eve_session_commit" | "eve_session_lease" | "eve_session_mark" | "eve_session_release" | "eve_session_wake" | "eve_sessions_behind" | "workflow_claim_run_key" | "workflow_open_hooks" | "workflow_purge_runs" | "workflow_release_run_key" | "workflow_sdk_mirror_run" | "workflow_sdk_track_eve_run" | "workflow_sdk_wake_eve_session" | "workflow_set_run_key";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

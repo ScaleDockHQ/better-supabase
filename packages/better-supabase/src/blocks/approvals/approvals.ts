@@ -420,8 +420,14 @@ export interface Approvals<F extends object = Record<never, never>> {
     intervalMs?: number | undefined;
     signal?: AbortSignal | undefined;
   }): AsyncResult<ApprovalRequestDetail & F>;
-  /** The requester or a manager closes a pending request. */
-  cancel(id: string): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Cancels a pending request (the requester, a manager or the service role).
+   * `reason` goes into the audit entry.
+   */
+  cancel(
+    id: string,
+    options?: { readonly reason?: string },
+  ): AsyncResult<ApprovalRequest & F>;
   get(id: string): AsyncResult<ApprovalRequestDetail & F>;
   /**
    * Many requests with their decisions and items in one read, in the order
@@ -1072,7 +1078,8 @@ export function createApprovals<
           comment: comment ?? null,
         }),
       ),
-    cancel: (id) => one("cancel_approval", { request_id: id }),
+    cancel: (id, options) =>
+      one("cancel_approval", { request_id: id, reason: options?.reason ?? null }),
     get: getRequest,
     getMany: (ids) =>
       call("get_approvals", { request_ids: ids }, (value) =>

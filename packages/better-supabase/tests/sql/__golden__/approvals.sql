@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:4a4a443958aaa263cd508ba5ca9d6e799c7fcde149dc3cd76f6d4c2585612a91
+-- @bsb-hash sha256:d39001b7ac4960c8cea3f60a4b0c8a8874758ab42992948db8a1a3bf4b67a27a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1093,7 +1093,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1121,8 +1125,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb
@@ -1710,7 +1714,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:3734736b637efacbd427a78739ebbfed8fce08f77d16f35e3eabf798e37c1807
+-- @bsb-hash sha256:4aece29ad41d97ea6a4a8cd6cc9f4b476081702bc3ec9b30b0c1cd91efc7992a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3111,7 +3115,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3141,7 +3149,7 @@ begin
     category => 'data',
     target_type => 'approval_request',
     record_id => v_req."id"::text,
-    summary => 'cancelled' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    summary => 'cancelled' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id" || coalesce(': ' || left(nullif(btrim(cancel_approval.reason), ''), 500), ''),
     tenant => (v_req."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
@@ -3152,8 +3160,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb
@@ -3753,7 +3761,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:a307bb06ac29516764dedf7ad6de2126eff229f939596578a164cf712821c801
+-- @bsb-hash sha256:4e010dc457c56040a175437f4d44d175933845463506b93f5822dbac7f136c5d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4850,7 +4858,11 @@ $$;
 revoke execute on function "app_private"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "app_private"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "app_private"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "app_private"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4878,8 +4890,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "app_private"."cancel_approval"(uuid) from public, anon;
-grant execute on function "app_private"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "app_private"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "app_private"."get_approval"(request_id uuid)
 returns jsonb
@@ -5467,7 +5479,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:791808ff04f47bb1b7e857176ab1cb48667dba40548db97547efb32132244202
+-- @bsb-hash sha256:74b2a4ce57c355d29452242b98674227a72fbf0ff39a38aa218c4f52479f1b37
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6559,7 +6571,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6587,8 +6603,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb
@@ -7244,14 +7260,14 @@ as $$ select "better_supabase"."delegate_approval"($1, $2, $3) $$;
 revoke execute on function "api"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."cancel_approval"(request_id uuid)
+create or replace function "api"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."cancel_approval"($1) $$;
-revoke execute on function "api"."cancel_approval"(uuid) from public, anon;
-grant execute on function "api"."cancel_approval"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."cancel_approval"($1, $2) $$;
+revoke execute on function "api"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "api"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."get_approval"(request_id uuid)
 returns jsonb
@@ -7388,7 +7404,7 @@ rollback;
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:dec732c40ad3a4515a9525a460d664cb465dea472f062268410c59db9138a1f0
+-- @bsb-hash sha256:3f7dd47feee2484ae891092c8209da79d42c4c98bffb51583bd72f7480849c76
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8472,7 +8488,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -8500,8 +8520,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb
@@ -9089,7 +9109,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:7247b22b84f5bfce636ff3489985f1daccf647952e02fb4781abaa1bc14ea4a6
+-- @bsb-hash sha256:28149b2c341b830774047a63c8e57b7df6a584950acc7cbbe8bb88e6c94aed8a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10181,7 +10201,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -10209,8 +10233,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."org_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb

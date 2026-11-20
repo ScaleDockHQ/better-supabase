@@ -172,6 +172,13 @@ describe("workflow-sdk module", () => {
       "workflow_release_run_key",
       "workflow_purge_runs",
       "workflow_open_hooks",
+      "eve_session_wake",
+      "eve_session_lease",
+      "eve_session_commit",
+      "eve_session_release",
+      "eve_sessions_behind",
+      "eve_open_sessions",
+      "eve_session_mark",
     ]);
     expect(contract!.functions[0]).toEqual({
       name: "dispatch_workflow_deliveries",
