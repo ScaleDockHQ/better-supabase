@@ -12,11 +12,14 @@ const SUPABASE = join(ROOT, "../../node_modules/.bin/supabase");
 const exec = promisify(execFile);
 
 // The CLI plans against a shadow database from the migrations, so no running
-// stack is needed. A machine without the Supabase CLI skips the file.
-const available = await exec(SUPABASE, ["--version"]).then(
-  () => true,
-  () => false,
-);
+// stack is needed. A machine without the Supabase CLI skips the file, and so does a run
+// without SHADOW_SYNC=1: the nightly workflow sets it, because each case takes minutes.
+const available =
+  process.env["SHADOW_SYNC"] === "1" &&
+  (await exec(SUPABASE, ["--version"]).then(
+    () => true,
+    () => false,
+  ));
 
 const dirs: string[] = [];
 

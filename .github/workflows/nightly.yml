@@ -1,0 +1,73 @@
+name: Nightly
+
+# Checks that are slow or timing-based. Pull requests run the exact-count and fast versions of them
+# in ci.yml. A red nightly run opens no gate on a pull request: read it the next morning.
+on:
+  schedule:
+    - cron: "43 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  TURBO_UI: stream
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  type-matrix:
+    name: ts-7.1 type matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - run: pnpm exec turbo run typecheck:matrix --filter=@better-supabase/types-ts71 --log-file
+
+  type-performance:
+    name: type performance (time limits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      # A benchmark: it gets a machine to itself so its timings stay comparable.
+      - run: pnpm exec turbo run typecheck:perf --log-file
+
+  shadow-sync:
+    name: Declarative sync on a shadow database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Sync after upgrade
+        env:
+          SHADOW_SYNC: "1"
+        run: >-
+          pnpm exec turbo run test
+          --filter=@better-supabase/validation-declarative
+          --filter=@better-supabase/validation-lienlink
+          --log-file

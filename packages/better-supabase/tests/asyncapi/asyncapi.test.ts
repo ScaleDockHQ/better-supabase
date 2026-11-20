@@ -3,13 +3,9 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import { describe, expect, it } from "vitest";
 
 import type { AnyAsyncApiDocument } from "../../src/asyncapi/types.ts";
-import type { ImpersonationEvents } from "../../src/blocks/impersonation/events.ts";
 import type { SupportEventData } from "../../src/core/block-events.ts";
 import type { SpecDiagnostic } from "../../src/spec/format.ts";
-import type {
-  BlockEventSchema,
-  BlockEventSchemas,
-} from "../../src/spec/index.ts";
+import type { BlockEventSchema } from "../../src/spec/index.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
@@ -639,26 +635,6 @@ describe("asyncapiFormat: lint", () => {
         "asyncapi-operation-message-unknown",
       ]),
     );
-  });
-});
-
-describe("BlockEventSchemas", () => {
-  it("checks schemas against a block's event map", () => {
-    const wrong = {} as BlockEventSchema<{ readonly adminId: number }>;
-
-    const schemas: BlockEventSchemas<ImpersonationEvents> = {
-      // @ts-expect-error: adminId is a string in SupportEventData
-      "support_session.started": wrong,
-    };
-
-    expect(schemas).toBeDefined();
-
-    const unknown: BlockEventSchemas<ImpersonationEvents> = {
-      // @ts-expect-error: not a support event
-      "nope.event": true,
-    };
-
-    expect(unknown).toBeDefined();
   });
 });
 

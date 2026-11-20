@@ -9,7 +9,8 @@ alwaysApply: true
   new changes and fixes to its branch; open a new PR only after it merges.
   Dependabot and the Changesets version PR are the only exceptions. Many
   open PRs make it impossible to keep an overview. Branch from `main`,
-  commit as you go, and push once `pnpm check` passes. CI runs the full `pnpm verify`; watch it
+  commit as you go, and push once `pnpm check` passes. Pull request CI runs the static lanes and the
+  tests selected for the diff, and `main` runs the full `pnpm verify`; watch it
   with `pnpm ci:wait` and fix what it reports in a follow-up commit.
 - Commit messages follow Conventional Commits (`commitlint.config.ts`) with
   body lines of at most 100; the header has no length limit. Group

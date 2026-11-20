@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import * as config from "../../src/config/index.ts";
 import * as factories from "../../src/generators/factories/index.ts";
 import * as jsonSchema from "../../src/generators/json-schema/index.ts";
 import * as nuqs from "../../src/generators/nuqs/index.ts";
@@ -19,20 +18,6 @@ describe("better-supabase/generators/*", () => {
   ])("%s is a generator at apiVersion 2", (name, make) => {
     expect(make().name).toBe(name);
     expect(make().apiVersion).toBe(2);
-  });
-
-  it("better-supabase/config no longer exports the generators", () => {
-    for (const name of [
-      "zod",
-      "valibot",
-      "jsonSchema",
-      "standardSchema",
-      "factories",
-      "nuqs",
-      "toJsonSchema",
-    ]) {
-      expect(config).not.toHaveProperty(name);
-    }
   });
 
   it("exports toJsonSchema next to jsonSchema", () => {

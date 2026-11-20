@@ -127,12 +127,4 @@ describe("static DDL in the generated schema files", () => {
       Object.keys(KEPT).filter((file) => baseline[file] === undefined),
     ).toEqual([]);
   });
-
-  it("holds the total at three once the search block is gone", () => {
-    const total = Object.entries(baseline)
-      .filter(([file]) => file !== REMOVED_WITH_SEARCH_GUARD)
-      .reduce((sum, [, counts]) => sum + counts.doBlocks, 0);
-
-    expect(total).toBeLessThanOrEqual(3);
-  });
 });

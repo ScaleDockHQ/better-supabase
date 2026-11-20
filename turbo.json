@@ -212,6 +212,14 @@
         ".agents/skills/**"
       ]
     },
+    "//#check:test-budget": {
+      "inputs": [
+        "scripts/check-test-budget.ts",
+        "scripts/test-budget.json",
+        "packages/better-supabase/tests/**/*.test.ts",
+        "packages/better-supabase/tests/**/*.test-d.ts"
+      ]
+    },
     "//#check:agent-docs": {
       "inputs": [
         "scripts/check-agent-docs.ts",
@@ -247,13 +255,6 @@
         "apps/examples/nextjs/src/app/**/page.tsx",
         "packages/better-supabase/src/preset/catalog.generated.ts",
         "packages/better-supabase/src/preset/presets.ts"
-      ]
-    },
-    "//#check:example-findings": {
-      "inputs": [
-        "scripts/check-example-findings.ts",
-        "docs/agents/example-findings.md",
-        "docs/agents/block-consistency-audit.md"
       ]
     },
     "//#check:naming": {
