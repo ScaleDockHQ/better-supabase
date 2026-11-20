@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@6 managed
--- @bsb-hash sha256:755b3b1edc2e39e6550251e0f8dd6635d13380c8eb9ed7ee7c1aa3953ad33a63
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@7 managed
+-- @bsb-hash sha256:8420add0a909ec9c60a73e28a0ebd05c007fb272fad2f840eae32507a25eaf2a
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -91,6 +91,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -116,6 +126,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -202,6 +213,41 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 alter table workflow.eve_session_runs enable row level security;
@@ -225,6 +271,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -510,42 +559,6 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
--- The eve projection (eve sessions copied into the blocks by syncSession).
--- session_id is the id of the session's first run. read_cursor is the next
--- line of the session stream to read. A session is behind while dirty_at is
--- later than synced_at; the lease keeps two sync jobs off one session.
-create table workflow.eve_sessions (
-  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
-  tenant_id text,
-  principal_kind text,
-  principal_id text,
-  eve_version text,
-  chat_id text,
-  record_type text,
-  record_id text,
-  run_id text,
-  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
-  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
-  dirty_at timestamptz,
-  synced_at timestamptz,
-  lease_id text,
-  leased_at timestamptz,
-  lease_until timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
-create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
-create table workflow.eve_session_runs (
-  run_id text primary key,
-  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
-  eve_version text,
-  status text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
-
 -- Marks a session as behind and queues its sync job. The job is debounced: a
 -- job that has not started yet absorbs later wake-ups of the same session.
 create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
@@ -807,7 +820,7 @@ grant execute on function "better_supabase"."eve_session_mark"(text, text) to se
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:52d353601b99cf56f37b7c5faf6bf40f5063135c1c4850e6d92797c03bcd3e32
+-- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -826,19 +839,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 6, 'managed')
+values ('workflow-sdk', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@6 managed
--- @bsb-hash sha256:755b3b1edc2e39e6550251e0f8dd6635d13380c8eb9ed7ee7c1aa3953ad33a63
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@7 managed
+-- @bsb-hash sha256:8420add0a909ec9c60a73e28a0ebd05c007fb272fad2f840eae32507a25eaf2a
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -923,6 +936,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -948,6 +971,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -1034,6 +1058,41 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 alter table workflow.eve_session_runs enable row level security;
@@ -1057,6 +1116,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -1342,42 +1404,6 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
--- The eve projection (eve sessions copied into the blocks by syncSession).
--- session_id is the id of the session's first run. read_cursor is the next
--- line of the session stream to read. A session is behind while dirty_at is
--- later than synced_at; the lease keeps two sync jobs off one session.
-create table workflow.eve_sessions (
-  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
-  tenant_id text,
-  principal_kind text,
-  principal_id text,
-  eve_version text,
-  chat_id text,
-  record_type text,
-  record_id text,
-  run_id text,
-  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
-  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
-  dirty_at timestamptz,
-  synced_at timestamptz,
-  lease_id text,
-  leased_at timestamptz,
-  lease_until timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
-create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
-create table workflow.eve_session_runs (
-  run_id text primary key,
-  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
-  eve_version text,
-  status text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
-
 -- Marks a session as behind and queues its sync job. The job is debounced: a
 -- job that has not started yet absorbs later wake-ups of the same session.
 create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
@@ -1639,7 +1665,7 @@ grant execute on function "better_supabase"."eve_session_mark"(text, text) to se
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:52d353601b99cf56f37b7c5faf6bf40f5063135c1c4850e6d92797c03bcd3e32
+-- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1658,15 +1684,15 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 6, 'managed')
+values ('workflow-sdk', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@6 managed
--- @bsb-hash sha256:7bdbdf412dfc1c13fe88c6816cba5ff509f643b1f9c24229c1fb2f5672d58fb4
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@7 managed
+-- @bsb-hash sha256:f8adafbcd1a938a8e4e5f072ce33577087a52ad25b836e1fb0ca2ebfe8ddef5c
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1675,7 +1701,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1760,6 +1786,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -1785,6 +1821,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -1871,6 +1908,41 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 alter table workflow.eve_session_runs enable row level security;
@@ -1894,6 +1966,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -2179,42 +2254,6 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
--- The eve projection (eve sessions copied into the blocks by syncSession).
--- session_id is the id of the session's first run. read_cursor is the next
--- line of the session stream to read. A session is behind while dirty_at is
--- later than synced_at; the lease keeps two sync jobs off one session.
-create table workflow.eve_sessions (
-  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
-  tenant_id text,
-  principal_kind text,
-  principal_id text,
-  eve_version text,
-  chat_id text,
-  record_type text,
-  record_id text,
-  run_id text,
-  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
-  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
-  dirty_at timestamptz,
-  synced_at timestamptz,
-  lease_id text,
-  leased_at timestamptz,
-  lease_until timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
-create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
-create table workflow.eve_session_runs (
-  run_id text primary key,
-  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
-  eve_version text,
-  status text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
-
 -- Marks a session as behind and queues its sync job. The job is debounced: a
 -- job that has not started yet absorbs later wake-ups of the same session.
 create or replace function "app_private"."eve_session_wake"(sid text, delay_seconds integer default 2)
@@ -2476,7 +2515,7 @@ grant execute on function "app_private"."eve_session_mark"(text, text) to servic
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:52d353601b99cf56f37b7c5faf6bf40f5063135c1c4850e6d92797c03bcd3e32
+-- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2495,19 +2534,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 6, 'managed')
+values ('workflow-sdk', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@6 managed
--- @bsb-hash sha256:240cbbd38985ee738b3a0ba9e4e43842e705db65797f7b617dae1aff32696142
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@7 managed
+-- @bsb-hash sha256:8645c62e6f4ec7858fdb6e3ffb0e24499bb9361849d849c60e620f208ba830d1
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -2592,6 +2631,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -2617,6 +2666,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -2703,6 +2753,41 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 alter table workflow.eve_session_runs enable row level security;
@@ -2726,6 +2811,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -3011,42 +3099,6 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
--- The eve projection (eve sessions copied into the blocks by syncSession).
--- session_id is the id of the session's first run. read_cursor is the next
--- line of the session stream to read. A session is behind while dirty_at is
--- later than synced_at; the lease keeps two sync jobs off one session.
-create table workflow.eve_sessions (
-  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
-  tenant_id text,
-  principal_kind text,
-  principal_id text,
-  eve_version text,
-  chat_id text,
-  record_type text,
-  record_id text,
-  run_id text,
-  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
-  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
-  dirty_at timestamptz,
-  synced_at timestamptz,
-  lease_id text,
-  leased_at timestamptz,
-  lease_until timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
-create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
-create table workflow.eve_session_runs (
-  run_id text primary key,
-  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
-  eve_version text,
-  status text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
-
 -- Marks a session as behind and queues its sync job. The job is debounced: a
 -- job that has not started yet absorbs later wake-ups of the same session.
 create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
@@ -3462,7 +3514,7 @@ grant execute on function "api"."eve_session_mark"(text, text) to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:52d353601b99cf56f37b7c5faf6bf40f5063135c1c4850e6d92797c03bcd3e32
+-- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3481,6 +3533,6 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 6, 'managed')
+values ('workflow-sdk', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

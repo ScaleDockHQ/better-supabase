@@ -593,8 +593,8 @@
   },
   "workflow-sdk": {
     "serial-column": 4,
-    "security-definer-functions": 28,
-    "row-triggers": 4
+    "security-definer-functions": 64,
+    "row-triggers": 12
   },
   "workflows": {
     "security-definer-functions": 30,
