@@ -71,6 +71,7 @@ import { clearOwedWake, sweepOwedWakes } from "./recovery.ts";
 import {
   DEFAULT_STREAM_FLUSH_MS,
   JOB_HEADER,
+  KEY_ID_ATTRIBUTE,
   MAX_DELIVERIES,
   SIGNATURE_HEADER,
 } from "./types.ts";
@@ -903,13 +904,120 @@ export function createSupabaseWorld(
     }
 
     const runId = typeof run === "string" ? run : run.runId;
+    const stored = ring.length > 1 ? await storedKeyId(runId) : undefined;
+    const entry = ring.find((candidate) => candidate.id === stored);
 
-    return deriveRunKey(ringKeyFor(ring, runId).key, runId);
+    return deriveRunKey((entry ?? ringKeyFor(ring, runId)).key, runId);
   }
+
+  /**
+   * Run ids to the id of the ring key stamped on them; a run keeps its key
+   * through a rotation.
+   */
+  const stampedKeys = new Map<string, string | undefined>();
+
+  async function storedKeyId(runId: string): Promise<string | undefined> {
+    if (stampedKeys.has(runId)) {
+      return stampedKeys.get(runId);
+    }
+
+    const result = await pool.query<{ id: string | null }>(
+      `select attributes->>$2 as id from workflow.workflow_runs where id = $1`,
+      [runId, KEY_ID_ATTRIBUTE],
+    );
+
+    const id = result.rows[0]?.id ?? undefined;
+
+    if (id !== undefined) {
+      if (stampedKeys.size >= 1000) {
+        stampedKeys.clear();
+      }
+
+      stampedKeys.set(runId, id);
+    }
+
+    return id;
+  }
+
+  /**
+   * Writes the id of the ring key a new run uses into its attributes. The key
+   * is derived from the run's creation time, so without the stamp, editing the
+   * ring's `from` dates would change the key of runs that already exist.
+   */
+  async function stampKeyId(runId: string): Promise<void> {
+    const ring = await keyRing();
+
+    if (ring === undefined) {
+      return;
+    }
+
+    const id = ringKeyFor(ring, runId).id;
+    stampedKeys.set(runId, id);
+    await pool.query(
+      `update workflow.workflow_runs
+       set attributes = coalesce(attributes, '{}'::jsonb) || jsonb_build_object($2::text, $3::text)
+       where id = $1 and not coalesce(attributes ? $2::text, false)`,
+      [runId, KEY_ID_ATTRIBUTE, id],
+    );
+  }
+
+  // SAFETY: `create` is overloaded over its event types; this view keeps one loose signature,
+  // and the call below forwards every argument unchanged.
+  const looseEvents = base.events as {
+    readonly create: (...rest: unknown[]) => Promise<unknown>;
+  };
+
+  const forwardCreate = (...args: unknown[]): Promise<unknown> =>
+    looseEvents.create(...args);
+
+  const wrapped = async (...args: unknown[]): Promise<unknown> => {
+    const result = await forwardCreate(...args);
+    const data = args[1];
+
+    const created =
+      typeof data === "object" &&
+      data !== null &&
+      "eventType" in data &&
+      data.eventType === "run_created";
+
+    if (
+      created &&
+      typeof result === "object" &&
+      result !== null &&
+      "run" in result
+    ) {
+      const run: unknown = result.run;
+
+      if (
+        typeof run === "object" &&
+        run !== null &&
+        "runId" in run &&
+        typeof run.runId === "string"
+      ) {
+        await stampKeyId(run.runId).catch((cause: unknown) => {
+          logger.error("The run's encryption key id could not be stored", {
+            error: cause,
+          });
+        });
+      }
+    }
+
+    return result;
+  };
+
+  // SAFETY: `create` is overloaded over its event types; the wrapper forwards every argument and
+  // returns the base World's result unchanged.
+  const createEvent = wrapped as typeof base.events.create;
 
   return {
     ...base,
     ...(poller === undefined ? {} : transactionStorage(base, poller)),
+    events: {
+      ...(poller === undefined
+        ? base.events
+        : transactionStorage(base, poller).events),
+      create: createEvent,
+    },
     analytics: createAnalytics(pool),
     // Every delivery carries the HMAC that createQueueHandler checks before the
     // runtime sees it, so the runtime's loopback key check has nothing to add.

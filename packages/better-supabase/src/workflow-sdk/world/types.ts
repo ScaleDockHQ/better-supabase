@@ -27,6 +27,12 @@ export type WorldConnection = "session" | "transaction";
 /** Milliseconds core waits to batch stream writes when no option sets it. */
 export const DEFAULT_STREAM_FLUSH_MS = 20;
 
+/**
+ * The run attribute that names the key ring entry a run's data is encrypted
+ * with.
+ */
+export const KEY_ID_ATTRIBUTE = "$bsb.key_id";
+
 /** A message the queue gave up on after `MAX_DELIVERIES` failed deliveries. */
 export interface DeadLetter {
   readonly queueName: string;

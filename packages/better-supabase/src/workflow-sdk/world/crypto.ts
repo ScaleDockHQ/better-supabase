@@ -23,7 +23,10 @@ export function parseMasterKey(value: string): Uint8Array {
 
 /** One master key of a key ring. */
 export interface RingKey {
-  /** Names the key in logs and docs; never stored with run data. */
+  /**
+   * Names the key. The World stamps it on the run as the `$bsb.key_id`
+   * attribute, so a run keeps its key when the ring's dates change.
+   */
   readonly id: string;
   readonly key: Uint8Array;
   /** Runs created at or after this time use the key; the first entry's is 0. */
