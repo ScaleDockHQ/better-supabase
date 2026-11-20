@@ -66,7 +66,7 @@ create policy notes_write on public.notes for update to authenticated
 
 const ACCESS = `
 create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
-returns boolean language sql stable as $$ select true $$;
+returns boolean language sql stable as $$ select permission not like '%.manage' $$;
 create or replace function better_supabase.tenant_ids_with(permission text)
 returns setof uuid language sql stable as $$ select '${TENANT}'::uuid where permission not like '%.manage' $$;
 insert into auth.users (id) values ('${ALICE}'), ('${BOB}') on conflict do nothing;
@@ -157,6 +157,62 @@ begin
   ${as(ALICE)}
   if not better_supabase.delete_attachment(v_id) then
     raise exception 'the owner could not delete the file';
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps the definer paths and the uploader's storage delete behind the subject", async () => {
+    await expect(
+      run(
+        modules("subject"),
+        `do $$
+declare
+  v_path text := (select object_path from better_supabase.attachments where id = '${FILE}');
+begin
+  set local role authenticated;
+  ${as(BOB)}
+  begin
+    perform better_supabase.replace_attachment('${FILE}', 'c.pdf', 'application/pdf', 1);
+    raise exception 'allowed';
+  exception when sqlstate 'P0002' then
+    null;
+  end;
+  begin
+    perform better_supabase.restore_attachment_version('${FILE}', 1);
+    raise exception 'allowed';
+  exception when sqlstate 'P0002' then
+    null;
+  end;
+  if better_supabase.attachment_object_allowed('attachments', v_path, 'delete')
+    or better_supabase.attachment_object_subject_writable('attachments', v_path) then
+    raise exception 'the uploader deletes the bytes of a note they can''t change';
+  end if;
+  reset role;
+  update public.notes set owner_id = '${BOB}' where id = '${NOTE}';
+  set local role authenticated;
+  if not better_supabase.attachment_object_subject_writable('attachments', v_path) then
+    raise exception 'the uploader can''t delete the bytes of their own note';
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("answers false for a subject table without an update grant", async () => {
+    await expect(
+      run(
+        modules("subject"),
+        `do $$
+begin
+  revoke update on public.notes from authenticated;
+  set local role authenticated;
+  ${as(ALICE)}
+  if better_supabase.attachment_subject_writable('note', '${NOTE}') then
+    raise exception 'writable without an update grant';
   end if;
 end;
 $$;`,

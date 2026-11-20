@@ -154,4 +154,66 @@ $$;`,
       ),
     ).resolves.toBeUndefined();
   });
+
+  it("lets the requester decide each step of a two-step policy", async () => {
+    await expect(
+      run(
+        {
+          leave: {
+            options: {
+              selfDecideWhenTopOfChain: true,
+              policy: {
+                steps: [
+                  { approvers: { permission: "leave.approve" } },
+                  { approvers: { permission: "leave.approve", manager: true } },
+                ],
+              },
+            },
+          },
+        },
+        `do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_approval uuid;
+begin
+  ${TYPE}
+  ${as(CAROL)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  v_approval := (select r.approval_id from better_supabase.leave_requests r where r.id = v_id);
+  perform better_supabase.decide_approval(v_approval, 'approved');
+  if ${approved("v_id")} then
+    raise exception 'one step booked a two-step leave';
+  end if;
+  perform better_supabase.decide_approval(v_approval, 'approved');
+  if not ${approved("v_id")} then
+    raise exception 'the second step did not book the leave';
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("refuses self-decide with approvers it can't count", () => {
+    for (const approvers of [
+      { role: "admin" },
+      { team: "11111111-1111-4111-8111-111111111111" },
+      { users: [CAROL] },
+      { permission: "leave.manage" },
+    ]) {
+      expect(() =>
+        renderBlocks(["employees", "leave"], {
+          modules: {
+            leave: {
+              options: {
+                selfDecideWhenTopOfChain: true,
+                policy: { steps: [{ approvers }] },
+              },
+            },
+          },
+        }),
+      ).toThrow(/counts only/u);
+    }
+  });
 });

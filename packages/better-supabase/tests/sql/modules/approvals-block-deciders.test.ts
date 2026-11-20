@@ -147,4 +147,40 @@ $$;`),
       }),
     ).toThrow(/decider decides approvals policy steps/u);
   });
+
+  it("refuses a decider step no block decides, and with required all", () => {
+    const policies = (step: Record<string, unknown>) => ({
+      approvals: {
+        options: { policies: { contract: { approve: { steps: [step] } } } },
+      },
+    });
+
+    expect(() =>
+      renderBlocks(["approvals"], {
+        modules: policies({ approvers: { decider: true } }),
+      }),
+    ).toThrow(/approvers.decider needs a block that decides/u);
+    expect(() =>
+      renderBlocks(["approvals"], {
+        modules: policies({
+          approvers: { permission: "contracts.approve", decider: true },
+          required: "all",
+        }),
+      }),
+    ).toThrow(/required "all"/u);
+  });
+
+  it("keeps tenant policies from naming a decider no block has", () => {
+    const sql = renderBlocks(["time-entries"], {
+      modules: {
+        approvals: { options: { tenantPolicies: true } },
+        "time-entries": { options: { decider: "public.app_decides" } },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("-> 'approvers' -> 'decider' = 'true'::jsonb");
+    expect(sql).toContain("and v_type not in ('timesheet')");
+  });
 });

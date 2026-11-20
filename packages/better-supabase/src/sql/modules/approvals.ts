@@ -241,6 +241,25 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const linked = contributed.filter((each) => each.access === "linked");
 
+  for (const policy of policies) {
+    const decides = contributed.some(
+      (each) =>
+        each.subject === policy.subjectType && each.decides !== undefined,
+    );
+
+    if (
+      !decides &&
+      policy.steps.some(
+        (step) =>
+          step.approvers.decider === true || step.escalateTo?.decider === true,
+      )
+    ) {
+      throw new TypeError(
+        `blocks.approvals.options.policies.${policy.subjectType}: approvers.decider needs a block that decides this subject type`,
+      );
+    }
+  }
+
   // A contributing block's `decides` or `selfDecides` for the request in
   // `row`, by its subject type; undefined when no block contributes one.
   const byBlock = (
@@ -256,7 +275,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       return check === undefined
         ? []
         : [
-            `when ${sqlString(each.subject)} then coalesce(${check({ id: `${row}.${c("id")}`, subjectId: `${row}.${c("subjectId")}`, comment: "null", approver: me })}, false)`,
+            `when ${sqlString(each.subject)} then coalesce(${check({ id: `${row}.${c("id")}`, subjectId: `(case when ${row}.${c("subjectId")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${row}.${c("subjectId")} end)`, comment: "null", approver: me })}, false)`,
           ];
     });
 

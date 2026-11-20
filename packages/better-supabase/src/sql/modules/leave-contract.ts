@@ -86,6 +86,37 @@ export function leavePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
   return policy;
 }
 
+/**
+ * Throws when `selfDecideWhenTopOfChain` meets an approvals policy whose
+ * approvers it can't count: it knows holders of the approve permission, the
+ * manager and, with a decider, the managers up the chain, so a role, team, user
+ * list or other permission could let the requester decide while someone else
+ * could.
+ */
+export function leaveSelfDecideSteps(ctx: BlockSqlContext): void {
+  if (leaveStatusMode(ctx) || !ctx.flag("selfDecideWhenTopOfChain", false)) {
+    return;
+  }
+
+  const approve = ctx.permissionKey("approve", OPERATIONS["leave.approve"]);
+
+  const counted = leavePolicyOf(ctx).steps.every((step) =>
+    [step.approvers, ...(step.escalateTo ? [step.escalateTo] : [])].every(
+      (who) =>
+        who.role === undefined &&
+        who.team === undefined &&
+        who.users === undefined &&
+        (who.permission === undefined || who.permission === approve),
+    ),
+  );
+
+  if (!counted) {
+    throw new TypeError(
+      `${WHERE}.selfDecideWhenTopOfChain counts only ${approve}, manager and decider approvers, so the policy can't name a role, team, users or another permission`,
+    );
+  }
+}
+
 /** `leavePolicyOf` as the snapshot `open_approval` takes. */
 export function leavePolicy(ctx: BlockSqlContext): string {
   return policySnapshot(leavePolicyOf(ctx));

@@ -34,6 +34,7 @@ import {
   leaveContract,
   leavePolicy,
   leavePolicyOf,
+  leaveSelfDecideSteps,
   leaveApprovalOwner,
   leaveStatusMode,
   workingDaysOf,
@@ -321,6 +322,8 @@ function build(ctx: BlockSqlContext): string {
         (step) =>
           step.approvers.manager === true || step.escalateTo?.manager === true,
       ));
+
+  leaveSelfDecideSteps(ctx);
 
   const top = ctx.flag("selfDecideWhenTopOfChain", false)
     ? otherDecider(ctx, {

@@ -202,12 +202,15 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     );
 
   // on.<type>.upload "subject" also asks the subject table's own policies.
-  const upload = subjectUpload(
-    fn("attachment_subject_writable"),
+  const upload = subjectUpload({
+    fn,
     subjects,
+    t,
     c,
-    (row) => inTenant(row, "upload"),
-  );
+    versions,
+    vc,
+    mayUpload: (row) => inTenant(row, "upload"),
+  });
 
   const canManage = (row: string): string =>
     access.canOn(
@@ -429,7 +432,7 @@ end;`;
     id,
     tenantless: tenantless.length > 0,
     json,
-    mayVersion: `(coalesce(v_row.${c("uploadedBy")} = auth.uid(), false) and ${inTenant("v_row", "upload")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
+    mayVersion: `(coalesce(v_row.${c("uploadedBy")} = auth.uid(), false) and ${upload.claimable("v_row")}) or ${canManage("v_row")} or (${SERVICE_CALLER})`,
   });
 
   const policy = (name: string): string => sqlIdent(`bsb_attachments_${name}`);
@@ -616,7 +619,7 @@ as $$
         when 'insert' then a.${c("status")} = 'pending' and a.${c("uploadedAt")} is null and a.${c("uploadedBy")} = auth.uid()
         when 'select' then (${readable("a", c)} and ${inTenant("a", "read")})
           or a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
-        when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
+        when 'delete' then ${upload.ownDelete("a")} or ${canManage("a")}
         else false
       end
   ) or exists (
@@ -626,7 +629,7 @@ as $$
       and case attachment_object_allowed.action
         when 'select' then (${readable("v", vc)} and ${inTenant("a", "read")})
           or v.${vc("uploadedBy")} = auth.uid() or ${canManage("a")}
-        when 'delete' then a.${c("uploadedBy")} = auth.uid() or ${canManage("a")}
+        when 'delete' then ${upload.ownDelete("a")} or ${canManage("a")}
         else false
       end
   )
@@ -672,7 +675,7 @@ ${renderPolicy(
   }),
   { target: "storage.objects" },
 )}
-${renderPolicy(makePolicy({ table: "storage.objects", name: policy("delete"), command: "delete", roles: ["authenticated"], using: `bucket_id in (${bucketList}) and ${offlineSql === undefined ? `${fn("attachment_object_allowed")}(bucket_id, name, 'delete')` : offlineSql.deleteCheck}` }), { target: "storage.objects" })}
+${renderPolicy(makePolicy({ table: "storage.objects", name: policy("delete"), command: "delete", roles: ["authenticated"], using: `bucket_id in (${bucketList}) and ${offlineSql === undefined ? (upload.objectDelete === "" ? `${fn("attachment_object_allowed")}(bucket_id, name, 'delete')` : `(${fn("attachment_object_allowed")}(bucket_id, name, 'delete')${upload.objectDelete})`) : offlineSql.deleteCheck}` }), { target: "storage.objects" })}
 
 -- The caller's new record, for a signed upload URL to its object_path.
 drop function if exists ${fn("create_attachment")}(${id}, text, text, bigint, text, text);
