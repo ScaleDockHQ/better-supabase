@@ -1,5 +1,9 @@
 import { toStandardJsonSchema } from "@valibot/to-json-schema";
-import { approvalPolicy, supabaseTool } from "better-supabase/eve";
+import {
+  approvalPolicy,
+  strictestApproval,
+  supabaseTool,
+} from "better-supabase/eve";
 import { defineTool } from "eve/tools";
 import * as v from "valibot";
 
@@ -9,7 +13,9 @@ import { bsb } from "../lib/server";
 // on `public.notes` decides where it may go. The token carries the agent's
 // `act` claim and no permission keys. Each call waits for a member to approve
 // it in the approvals block, under
-// `blocks.approvals.options.policies.eve_tool_call.add_note`.
+// `blocks.approvals.options.policies.eve_tool_call.add_note`. A note that
+// mentions a password is refused before anyone is asked: `strictestApproval`
+// keeps the stricter of the two policies.
 export default defineTool(
   supabaseTool({
     server: bsb,
@@ -22,7 +28,14 @@ export default defineTool(
         body: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
       }),
     ),
-    approval: approvalPolicy({ server: bsb, agent: "assistant" }),
+    permission: "notes.write",
+    approval: strictestApproval(
+      approvalPolicy({ server: bsb, agent: "assistant" }),
+      ({ toolInput }) =>
+        JSON.stringify(toolInput).includes("password")
+          ? { type: "denied", reason: "Notes must not hold passwords." }
+          : "not-applicable",
+    ),
     async execute({ customerId, body }, { db, context }) {
       const note = await db.notes
         .create({ customerId, body, organizationId: context.tenant ?? "" })

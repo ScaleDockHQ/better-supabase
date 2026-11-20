@@ -163,7 +163,12 @@ export type {
   EveSessionStore,
 } from "./store.ts";
 
-export { eveContext, supabaseTool, tenantToolApproval } from "./tools.ts";
+export {
+  eveContext,
+  strictestApproval,
+  supabaseTool,
+  tenantToolApproval,
+} from "./tools.ts";
 
 export type {
   EveContextOptions,

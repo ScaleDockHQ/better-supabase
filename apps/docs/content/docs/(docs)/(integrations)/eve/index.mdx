@@ -32,6 +32,7 @@ entry is Node-only, like the World. The inbox channel also needs `chat`
 | `eveContext`              | `server.forContext()`                           | builds the user's request context with the agent's `act` claim               |
 | `approvalPolicy`          | a tool's `approval`                             | files each call as an approvals block request and settles it per decision    |
 | `tenantToolApproval`      | a tool's `approval`                             | applies the tenants' `auto`, `ask` and `deny` tool policies                  |
+| `strictestApproval`       | a tool's `approval`                             | combines approval policies: the strictest request wins, all responses allow  |
 | `queueSchedules`          | `defineSchedule({ run })`                       | enqueues the queue block's due schedules and starts a session for each job   |
 | `scheduleAgent`           | the queue block                                 | writes a schedule that sends a prompt to a channel target, per tenant        |
 | `agentJobHandler`         | `drain()` or a queue route                      | starts a session for one `eve` queue job, as the job's user                  |
@@ -226,6 +227,25 @@ The requester can always withdraw the call. A multi-step policy keeps the
 prompt open until the last step, and a call whose request is already
 approved or rejected settles without asking. `action` and `subjectType`
 file requests under other names.
+
+### Combining policies
+
+`strictestApproval(...policies)` merges several approvals into one for a
+tool, such as the approvals block next to a rule of your own. Each argument
+is an approval policy function or an object with `request`, and optionally
+`response` and `prompt`. The strictest request result wins: `denied`, then
+`user-approval`, then `approved`, then `not-applicable`. A denial stops the
+check, and on a tie the earlier policy's answer and reason stay. Every
+`response` must allow the answer, and the first rejection is the result. The
+prompt is the first one a policy defines.
+
+```ts title="agent/tools/add_note.ts"
+approval: strictestApproval(
+  approvalPolicy({ server: bsb, agent: "assistant" }),
+  ({ toolInput }) =>
+    JSON.stringify(toolInput).includes("password") ? "denied" : "not-applicable",
+),
+```
 
 ## Schedules
 

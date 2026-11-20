@@ -35,6 +35,7 @@ export {
   sweepSessions,
   syncSession,
   tenantArgument,
+  strictestApproval,
   tenantToolApproval,
   validateExpression,
   type AgentJobOptions,
