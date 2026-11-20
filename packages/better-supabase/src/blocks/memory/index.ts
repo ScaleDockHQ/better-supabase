@@ -15,6 +15,13 @@ export {
   type RecalledMessage,
 } from "./memory.ts";
 
+export {
+  importMemories,
+  type ImportMemoriesOptions,
+  type ImportMemoriesResult,
+  type ImportMemoriesSource,
+} from "./import.ts";
+
 export type { Embedder } from "../knowledge/knowledge.ts";
 
 export {

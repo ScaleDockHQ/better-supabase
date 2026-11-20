@@ -51,6 +51,15 @@ export interface MemorySaveOptions {
   readonly confidence?: number;
   /** When the fact stops showing up in lists and searches. */
   readonly expiresAt?: Temporal.Instant;
+  /**
+   * A vector you already have, as numbers or a pgvector literal such as
+   * `[0.1,0.2]`. The memory is stored with it and the embedder is not called,
+   * which is how `importMemories` keeps the embeddings of an old table. Its
+   * length has to match the embedding column.
+   */
+  readonly embedding?: readonly number[] | string;
+  /** The model that made `embedding`. Defaults to the embedder's model. */
+  readonly embeddingModel?: string;
 }
 
 /** What the archival `page`, `facets` and `count` add: the namespace to read. */

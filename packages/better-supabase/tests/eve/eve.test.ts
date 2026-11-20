@@ -745,6 +745,98 @@ describe("supabaseMemory", () => {
     const tools = await provider.tools?.(memoryCtx(user, "op10"));
     expect(Object.keys(tools ?? {})).toEqual(["remember", "forget"]);
   });
+
+  describe("scopes", () => {
+    const CONTACT = { type: "contact", id: "c1" };
+
+    it("recalls each scope and keeps the first scope's message id", async () => {
+      const { memory } = fakeMemory();
+
+      const provider = supabaseMemory({
+        memory: memory as unknown as Memory,
+        tools: false,
+        scopes: [
+          "user",
+          "organization",
+          { scope: "record", subject: () => CONTACT },
+        ],
+      });
+
+      const recalled = await provider.recall["turn.started"](
+        memoryCtx(user, "scopes1"),
+      );
+
+      expect(
+        recalled?.messages
+          .filter((m) => m.id?.startsWith("core"))
+          .map((m) => m.id),
+      ).toEqual(["core", "core:organization", "core:record:contact"]);
+      expect(memory.archival.search).toHaveBeenCalledTimes(3);
+      expect(memory.archival.search).toHaveBeenCalledWith(
+        expect.objectContaining({ ns: { scope: "organization" } }),
+      );
+      expect(memory.archival.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ns: expect.objectContaining({ scope: "record" }),
+        }),
+      );
+    });
+
+    it("leaves out a record scope without a subject", async () => {
+      const { memory } = fakeMemory();
+
+      const provider = supabaseMemory({
+        memory: memory as unknown as Memory,
+        tools: false,
+        scopes: ["user", { scope: "record", subject: () => undefined }],
+      });
+
+      await provider.recall["turn.started"](memoryCtx(user, "scopes2"));
+      expect(memory.archival.search).toHaveBeenCalledOnce();
+    });
+
+    it("writes shared scopes only when the entry opts in", async () => {
+      const { memory, saved } = fakeMemory();
+
+      const defineTool = vi.fn(
+        (definition: Record<string, unknown>) => definition,
+      );
+
+      type Tool = {
+        inputSchema?: unknown;
+        execute(input: Record<string, unknown>): Promise<unknown>;
+      };
+
+      const readOnly = supabaseMemory({
+        memory: memory as unknown as Memory,
+        load: () => Promise.resolve({ defineTool }),
+        scopes: ["user", "organization"],
+      });
+
+      await readOnly.tools?.(memoryCtx(user, "scopes3"));
+      await readOnly.tools?.(memoryCtx(user, "scopes3"));
+      expect(memory.archival.upsert).not.toHaveBeenCalled();
+
+      const writable = supabaseMemory({
+        memory: memory as unknown as Memory,
+        load: () => Promise.resolve({ defineTool }),
+        scopes: ["user", { scope: "organization", write: true }],
+      });
+
+      const tools = (await writable.tools?.(
+        memoryCtx(user, "scopes4"),
+      )) as unknown as Record<string, Tool>;
+
+      await tools["remember"]?.execute({
+        fact: "office closes at six",
+        scope: "organization",
+      });
+      expect(saved).toEqual(["office closes at six"]);
+      expect(memory.archival.upsert).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ns: { scope: "organization" } }),
+      );
+    });
+  });
 });
 
 function fakeChats(leaf: string | null = "m0") {
