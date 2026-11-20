@@ -526,7 +526,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -551,6 +551,16 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
       description:
         "The World tables follow @workflow/world-postgres 5.2: workflow_job_lock_holders is new (migration 0030), closed to the API roles like the other World tables.",
       sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "The World tables follow @workflow/world-postgres 5.4: workflow_run_delivery_leases is new (migration 0031) and workflow_runs gains wake_pending (migration 0032). Runs that exist before the upgrade start with wake_pending set, so startup recovery lets their next completed delivery decide, and new runs start clear.",
+      // Upstream adds the column with a default of true so existing rows are
+      // set, then changes the default; the module's file adds it with the
+      // final default, which would clear existing rows.
+      sql: () => `alter table workflow.workflow_runs add column if not exists "wake_pending" boolean not null default true;
+alter table workflow.workflow_runs alter column "wake_pending" set default false;`,
     },
   ],
   names: {

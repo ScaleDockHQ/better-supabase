@@ -33,6 +33,7 @@
   },
   "files": [
     "api/naming.json",
+    "api/workflow-sdk-world.json",
     "bin",
     "dist",
     "schemas",
@@ -1188,6 +1189,7 @@
       "default": "./dist/testing/index.js"
     },
     "./api/naming.json": "./api/naming.json",
+    "./workflow-sdk/world/package.json": "./api/workflow-sdk-world.json",
     "./schemas/*.json": "./schemas/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
@@ -2470,6 +2472,7 @@
         "default": "./dist/testing/index.js"
       },
       "./api/naming.json": "./api/naming.json",
+      "./workflow-sdk/world/package.json": "./api/workflow-sdk-world.json",
       "./schemas/*.json": "./schemas/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {

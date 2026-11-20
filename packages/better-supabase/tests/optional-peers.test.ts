@@ -37,6 +37,8 @@ const INTEGRATIONS = [
   "@vercel/sandbox",
   "@vercel/schedules",
   "@vercel/sdk",
+  "@workflow/world",
+  "@workflow/world-postgres",
   "botid",
   "eve",
   "flags",

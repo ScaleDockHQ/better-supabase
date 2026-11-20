@@ -1,11 +1,11 @@
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@5 managed
--- @bsb-hash sha256:309f92e9d2d216b6400f1b38ac5e2a606b560aadf987647b827901705ae9724a
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@6 managed
+-- @bsb-hash sha256:549306a1943042cefba004d0fd1716c2babf3d0b72421f14e4ef6a71043ec331
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -90,6 +90,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -115,6 +125,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -218,6 +229,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;

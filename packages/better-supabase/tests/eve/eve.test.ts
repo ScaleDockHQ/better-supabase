@@ -1078,17 +1078,18 @@ describe("eve on the Supabase World", () => {
   it("runs a Workflow spec version the World supports", async () => {
     const require = createRequire(import.meta.url);
     const root = dirname(require.resolve("eve/package.json"));
-    const chunks = join(root, "dist/src/compiled/_chunks/workflow");
+    const chunks = join(root, "dist/src/compiled/_chunks");
     const versions = new Set<number>();
 
-    for (const file of await readdir(chunks)) {
+    // eve 1.2 splits the compiled chunks into node and client folders.
+    for (const file of await readdir(chunks, { recursive: true })) {
       if (!file.endsWith(".js")) {
         continue;
       }
 
       const source = await readFile(join(chunks, file), "utf-8");
 
-      // Workflow 5.5's bundle inlines the constant; its range warning for
+      // The bundle inlines the constant; its range warning for
       // WORKFLOW_SPEC_VERSION still names the highest version it runs.
       for (const match of source.matchAll(
         /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)|expected an integer from \d+ to (\d+)/g,

@@ -1,0 +1,8 @@
+{
+  "name": "better-supabase/workflow-sdk/world",
+  "private": true,
+  "description": "The Workflow world better-supabase/workflow-sdk/world implements. eve reads the @workflow/world range below at startup to check it against its own line.",
+  "peerDependencies": {
+    "@workflow/world": ">=5.3.0 <5.4"
+  }
+}

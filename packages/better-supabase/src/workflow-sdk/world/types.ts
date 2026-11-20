@@ -10,7 +10,7 @@ import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
  * one. Its tables come from `@workflow/world-postgres` at
  * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.2.0";
+export const WORKFLOW_WORLD_PROTOCOL = "5.3.0";
 
 export type { WorkflowDeliveryMode };
 
@@ -39,8 +39,9 @@ export interface SupabaseWorldOptions {
    */
   readonly enableInvoke?: boolean;
   /**
-   * Milliseconds between flushes of buffered stream writes (world-postgres
-   * default 10; 0 flushes at once).
+   * Milliseconds core waits before it flushes buffered stream writes into the
+   * World. Core's default is 0, which writes each chunk as it arrives;
+   * `WORKFLOW_STREAM_FLUSH_INTERVAL_MS` overrides this option.
    */
   readonly streamFlushIntervalMs?: number;
   /**

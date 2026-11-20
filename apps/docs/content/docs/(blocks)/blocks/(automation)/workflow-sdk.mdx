@@ -82,7 +82,7 @@ deliveries before the World gives up on it, the same budget as
 write).
 
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` (5.2.0 for `workflow` 5.5) and stores its tables
+`WORKFLOW_WORLD_PROTOCOL` (5.3.0 for `workflow` 5.7) and stores its tables
 in the shape of the `@workflow/world-postgres` version in
 `WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
 The `conformance` job in `.github/workflows/verify.yml` runs that suite
@@ -119,6 +119,22 @@ timestamps to `timestamptz`), then deploy the app. Runs started on
 `workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8,
 and `capabilities.inBandFence` is on for them. Don't run old and new app
 versions against the same database for longer than one deploy.
+
+### Rolling out 5.7
+
+`workflow` 5.7 and eve 1.2 need `@workflow/world` 5.3 and
+`@workflow/world-postgres` 5.4. Upgrade the SQL module first
+(`better-supabase upgrade`), then deploy the app. `workflow-sdk` version 6 adds
+`workflow.workflow_run_delivery_leases` (world-postgres migration 0031) and
+`workflow_runs.wake_pending` (migration 0032). Runs that exist before the
+upgrade start with `wake_pending` set, so startup recovery lets their next
+completed delivery decide; new runs start clear. `assertWorldMigrations`
+throws on a `@workflow/world-postgres` older than 5.4.0.
+
+`better-supabase/workflow-sdk/world/package.json` is a stub manifest that
+carries the `@workflow/world` range. eve's startup check reads it to compare
+the Workflow line it bundles with the World's, so a mismatch fails at startup
+instead of at the first run.
 
 ### Rolling out 5.2
 
