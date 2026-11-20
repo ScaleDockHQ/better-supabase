@@ -13,7 +13,12 @@ import { buildBaseline } from "../../../src/cli/baseline/build.ts";
 import { verifyBaseline } from "../../../src/cli/baseline/verify.ts";
 import { connect } from "../../../src/cli/db.ts";
 import { loadPgDelta, openPgPool } from "../../../src/cli/in-stack-diff.ts";
-import { MIGRATED, fakeProject, fakeWorld } from "../fixtures/fake-baseline.ts";
+import {
+  EMPTY,
+  MIGRATED,
+  fakeProject,
+  fakeWorld,
+} from "../fixtures/fake-baseline.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 vi.mock(import("../../../src/cli/db.ts"), async (importOriginal) => ({
@@ -218,6 +223,38 @@ describe("baseline build", () => {
 });
 
 describe("baseline apply", () => {
+  it("needs no Storage API for a seed without bucket objects", async () => {
+    await writeFile(
+      join(world.root, "supabase/config.toml"),
+      '[db.seed]\nsql_paths = ["./seed.sql"]\n',
+    );
+    await build(true);
+
+    const target = {
+      dbUrl: world.localUrl,
+      migrate: () => {
+        world.dbs.set("54322", MIGRATED);
+
+        return Promise.resolve({ code: 0, stdout: "", stderr: "" });
+      },
+    };
+
+    await expect(
+      applyBaseline(world.ctx, { withSeed: true, target }),
+    ).resolves.toMatchObject({ mode: "baseline", seed: "snapshot" });
+
+    world.dbs.set("54322", EMPTY);
+    await writeFile(join(world.root, "supabase/seed.sql"), "select 2;\n");
+
+    await expect(
+      applyBaseline(world.ctx, { withSeed: true, target }),
+    ).resolves.toMatchObject({ mode: "baseline", seed: "files" });
+    expect(world.log).toContain(
+      "Running the seed files: the seed files or bucket objects changed",
+    );
+    expect(uploads.calls).toEqual([]);
+  });
+
   it("runs every migration and the seed files when there is no baseline", async () => {
     const migrate = vi.fn(() =>
       Promise.resolve({ code: 0, stdout: "", stderr: "" }),
