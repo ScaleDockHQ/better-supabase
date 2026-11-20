@@ -63,7 +63,7 @@ jobs:
               pnpm exec turbo run
               lint lint:root typecheck:tooling check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations
               check:example-coverage check:example-findings check:migration-order check:naming
-              check:no-permdock recipes:check skill-references:check test:scripts catalog:check docs:drift knip gen:check doctor typecheck:matrix
+              check:no-permdock recipes:check skill-references:check test:scripts catalog:check docs:drift knip gen:check doctor:sarif typecheck:matrix
               $AFFECTED --log-file
           - name: Format
             run: pnpm run format:check
@@ -72,12 +72,7 @@ jobs:
           - name: Audit
             run: pnpm run audit:high
 
-      # The SARIF task is cached with the same inputs as `doctor`, so a hit restores the file.
-      - name: Doctor SARIF
-        run: >-
-          pnpm exec turbo run doctor:sarif
-          --filter=@better-supabase/example-nextjs --log-file
-
+      # `doctor:sarif` is the only doctor run in CI: it prints the findings and restores `doctor.sarif` on a cache hit.
       - name: Upload doctor findings
         if: always() && hashFiles('apps/examples/nextjs/doctor.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
