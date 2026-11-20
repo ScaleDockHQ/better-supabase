@@ -9,7 +9,8 @@ import type { AiMessage, AiMessageRole } from "./message.ts";
  */
 export type AiChatVisibility = "private" | "organization" | "shared";
 
-export interface AiChatRecord {
+/** `M` is `blocks.ai-chat.options.modes`; any text when unset. */
+export interface AiChatRecord<M extends string = string> {
   readonly id: string;
   /** `undefined` for a chat outside a tenant (`options.tenant: false`). */
   readonly organizationId: string | undefined;
@@ -20,7 +21,7 @@ export interface AiChatRecord {
   readonly model: string | undefined;
   readonly visibility: AiChatVisibility;
   /** The app's own label for the kind of chat; `undefined` when none is set. */
-  readonly mode?: string | undefined;
+  readonly mode?: M | undefined;
   readonly pinned: boolean;
   readonly archivedAt: Temporal.Instant | undefined;
   /** A temporary chat expires at `expiresAt` and never reaches the chat list. */
@@ -36,7 +37,7 @@ export interface AiChatRecord {
   readonly updatedAt: Temporal.Instant;
 }
 
-export interface AiChatInput {
+export interface AiChatInput<M extends string = string> {
   /** A client-made id, so a retried create returns the same chat. */
   readonly id?: string;
   readonly title?: string;
@@ -45,19 +46,19 @@ export interface AiChatInput {
   readonly agentId?: string | null;
   /** `organization` needs `ai_chat.share`. */
   readonly visibility?: AiChatVisibility;
-  readonly mode?: string | null;
+  readonly mode?: M | null;
   readonly pinned?: boolean;
   readonly temporary?: boolean;
   /** The service role only: the user the chat belongs to. */
   readonly ownerId?: string;
 }
 
-export interface AiChatPatch {
+export interface AiChatPatch<M extends string = string> {
   readonly title?: string;
   readonly model?: string | null;
   readonly projectId?: string | null;
   readonly visibility?: AiChatVisibility;
-  readonly mode?: string | null;
+  readonly mode?: M | null;
   readonly pinned?: boolean;
   readonly archived?: boolean;
 }

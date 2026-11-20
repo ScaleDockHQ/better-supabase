@@ -43,3 +43,19 @@ describe("ai-chat sharing types", () => {
     expectTypeOf<AiChatLink["token"]>().toEqualTypeOf<string>();
   });
 });
+
+describe("ai-chat modes", () => {
+  it("types a chat's mode as the union of options.modes", () => {
+    type Typed = AiChat<Record<never, never>, "support" | "research">;
+
+    expectTypeOf<
+      Awaited<ReturnType<Typed["chats"]["get"]>> extends infer R
+        ? R extends { ok: true; data: infer D }
+          ? D extends { mode?: infer M }
+            ? M
+            : never
+          : never
+        : never
+    >().toEqualTypeOf<"support" | "research" | undefined>();
+  });
+});

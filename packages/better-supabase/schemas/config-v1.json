@@ -4840,6 +4840,12 @@
                 "type": "string",
                 "default": "ai-chats"
               },
+              "modes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "temporaryTtl": {},
               "staleAfter": {},
               "sandboxIdleAfter": {

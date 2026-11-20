@@ -299,6 +299,7 @@ const NAMES: BlockSqlNames = {
   options: [
     "topic",
     "listTopic",
+    "modes",
     "temporaryTtl",
     "staleAfter",
     "sandboxIdleAfter",
