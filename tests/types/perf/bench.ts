@@ -117,9 +117,10 @@ const CHECK_RUNS = 3;
 /**
  * Check time fails only past twice the baseline and at least half a second
  * more, after scaling the baseline by how much slower this machine checks the
- * calibration program.
+ * calibration program. `BENCH_TIME_GATES=0` turns the time limits off and keeps
+ * the exact counts, which pull requests run; the nightly workflow runs both.
  */
-const TIME_FACTOR = 2;
+const TIME_FACTOR = process.env["BENCH_TIME_GATES"] === "0" ? Infinity : 2;
 const TIME_SLACK = 0.5;
 
 /**

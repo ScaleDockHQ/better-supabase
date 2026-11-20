@@ -65,8 +65,48 @@ jobs:
     with:
       affected: ${{ needs.base.outputs.affected == 'true' }}
       base: ${{ needs.base.outputs.base }}
+      full: true
     secrets:
       TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+  # The whole unit suite runs only here, so a regression that a pull request's selected tests missed
+  # shows up as one open `main-red` issue with the run and the commit, closed by the next green run.
+  # The fix adds the owner rule or import that selected the wrong tests (scripts/select-tests.ts).
+  main-red:
+    name: Report main status
+    needs: verify
+    if: ${{ always() && needs.verify.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.verify.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --label main-red --state open \
+            --json number --jq '.[0].number // empty')
+          if [ "$RESULT" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --repo "$GITHUB_REPOSITORY" \
+                --comment "Green again at $SHA: $RUN_URL"
+            fi
+            exit 0
+          fi
+          body="Release verify finished with \`$RESULT\` at $SHA: $RUN_URL"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh label create main-red --repo "$GITHUB_REPOSITORY" --color B60205 \
+              --description "The full verify on main failed" 2>/dev/null || true
+            gh issue create --repo "$GITHUB_REPOSITORY" --label main-red \
+              --title "main is red: Release verify failed" --body "$body"
+          fi
 
   select-mode:
     name: Select mode

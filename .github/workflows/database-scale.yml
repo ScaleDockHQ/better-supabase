@@ -1,0 +1,66 @@
+name: Database scale
+
+# The scale pgTAP files run against generated rows and take about four minutes. They run every night,
+# on demand, and on a pull request that changes them.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/tests/scale/**"
+      - ".github/workflows/database-scale.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-scale-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI: true
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+
+jobs:
+  scale:
+    name: Scale
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup
+
+      - name: Create the local signing key
+        run: |
+          pnpm exec turbo run build --filter=better-supabase...
+          pnpm better-supabase dev keys --cwd .
+
+      - name: Seed the library rows only
+        run: sed -i 's|^sql_paths = .*|sql_paths = ["./seed.sql"]|' supabase/config.toml
+
+      - name: Start Supabase
+        uses: $/.github/actions/supabase-stack
+
+      - name: pgTAP scale files
+        # pg_prove runs against the database because supabase test db drops the request when a
+        # scale test prints nothing for about five and a half minutes.
+        run: |
+          pg_prove=$(find "$HOME/.supabase/cache/stack/slim-services/postgres" -path '*/linux-*/bin/pg_prove' -print -quit)
+          test -n "$pg_prove"
+          bin_dir=$(dirname "$pg_prove")
+          mapfile -t files < <(find supabase/tests/scale -name '*.sql' | sort)
+          test "${#files[@]}" -gt 0
+          echo "Running ${#files[@]} files."
+          # SUPABASE_DB_URL comes from the dotenv file, so the inner shell expands it.
+          # shellcheck disable=SC2016
+          BIN_DIR="$bin_dir" pnpm exec dotenv -e .env.development.local -- sh -c '
+            "$BIN_DIR/psql" "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pgtap with schema extensions" &&
+            "$BIN_DIR/pg_prove" --timer --dbname "$SUPABASE_DB_URL" "$@"' sh "${files[@]}"

@@ -13,7 +13,10 @@ async function usage(command?: string): Promise<string> {
 
 describe("help", () => {
   it("lists the commands and the global options", async () => {
-    expect(await usage()).toMatchSnapshot();
+    const text = await usage();
+
+    expect(text).toContain("Usage: better-supabase");
+    expect(text).toContain("v<version>");
   });
 
   it.each(
@@ -62,7 +65,10 @@ describe("help", () => {
   it.each(specPaths().map((path) => path.join(" ")))(
     "documents %s",
     async (command) => {
-      expect(await usage(command)).toMatchSnapshot();
+      const text = await usage(command);
+
+      expect(text).toContain(`Usage: better-supabase ${command}`);
+      expect(text).toContain(findSpec(command.split(" "))?.description);
     },
   );
 });

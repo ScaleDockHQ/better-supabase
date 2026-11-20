@@ -77,6 +77,12 @@
       "computedHash": "62537a921aed9568d3cd287928ac935a50bc14caa6017a2b33bc8491d72d6906",
       "commit": "7ea89338504c469d984097995e51e1e25d881e0e"
     },
+    "ci-speedup": {
+      "source": "starslingdev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ci-speedup/SKILL.md",
+      "computedHash": "f5b1f131ae37b36e0e963cf8a7c53d8d57c11b741df776e7c0ffad1d7671e298"
+    },
     "chat-sdk": {
       "source": "vercel/chat",
       "sourceType": "github",

@@ -17,7 +17,9 @@ a rule.
   typecheck and the mirrored tests of the changed workspaces only (about 7 s
   on one library file). It is also what the hooks run.
 - `pnpm verify` is the full gate (format, lint, prose, typecheck, Knip,
-  boundaries, tests, doctor, audit). CI runs it; run it locally only to
+  boundaries, tests, doctor, audit). A pull request's CI runs the static
+  lanes and only the library tests `scripts/select-tests.ts` picks for the
+  diff; `main` runs the whole suite (ADR 1095). Run `verify` locally only to
   reproduce a CI failure. `pnpm ci:wait` watches the PR's checks.
 - `pnpm fix` (`ultracite fix`), `pnpm lint`, `pnpm typecheck`, `pnpm test`
   (no coverage; `pnpm --filter better-supabase test:coverage` is for thresholds).
@@ -82,7 +84,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 ## Agent workflow
 
 At most one open agent PR per repo, new fixes added to it, Conventional Commits, and
-`pnpm check` before every push, CI for the full `pnpm verify`
+`pnpm check` before every push, PR CI for the selected gate and `main` for the full `pnpm verify`
 (`.agents/rules/git-workflow.mdc`, ADR 0686). Read the
 `docs/agents` page for the area first, and add a correction there when an
 agent needs it twice.
