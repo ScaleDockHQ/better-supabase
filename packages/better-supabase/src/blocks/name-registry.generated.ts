@@ -339,7 +339,7 @@ export interface BlockNameRegistry {
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
-    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachment_subject_writable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
