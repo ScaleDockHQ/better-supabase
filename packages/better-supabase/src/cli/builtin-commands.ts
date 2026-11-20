@@ -53,6 +53,18 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     () => import("./commands/squash.ts").then((m) => m.dbSquashCommand),
   ],
   [
+    "baseline build",
+    () => import("./commands/baseline.ts").then((m) => m.baselineBuildCommand),
+  ],
+  [
+    "baseline apply",
+    () => import("./commands/baseline.ts").then((m) => m.baselineApplyCommand),
+  ],
+  [
+    "baseline verify",
+    () => import("./commands/baseline.ts").then((m) => m.baselineVerifyCommand),
+  ],
+  [
     "workflows prune",
     () =>
       import("./commands/prune-workflows.ts").then(

@@ -38,9 +38,10 @@ export interface CliEnv {
    */
   readonly BETTER_SUPABASE_STACK?: string | undefined;
   /**
-   * The directory with `pg_dump` and `psql` for `db diff --in-stack`; found
-   * from the stack's postmaster otherwise.
+   * The directory with `pg_dump` and `psql` for `baseline`; the native stack
+   * engine's downloaded copies, then the PATH, otherwise.
    */
+  readonly BETTER_SUPABASE_PG_BIN?: string | undefined;
   /**
    * The cloud app `login`, `whoami` and `db seed --sample` call; defaults to
    * https://app.bettersupabase.com.
@@ -109,6 +110,7 @@ export function parseEnv(
       BETTER_SUPABASE_ENV: optionalString,
       BETTER_SUPABASE_AGENT: optionalString,
       BETTER_SUPABASE_STACK: optionalString,
+      BETTER_SUPABASE_PG_BIN: optionalString,
       BETTER_SUPABASE_CLOUD_URL: optionalUrl,
       XDG_CONFIG_HOME: optionalString,
     },
