@@ -18,6 +18,7 @@ export const WORKFLOW_VAULT_SECRETS = {
   flowUrl: "workflow_flow_url",
   deliverySecret: "workflow_delivery_secret",
   encryptionKey: "workflow_encryption_key",
+  encryptionKeys: "workflow_encryption_keys",
 } as const;
 
 export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";

@@ -14,6 +14,18 @@ export const WORKFLOW_WORLD_PROTOCOL = "5.3.0";
 
 export type { WorkflowDeliveryMode };
 
+/**
+ * How the World's connection behaves. `session` supports `LISTEN`, which stream
+ * readers, run status waits and live run event feeds use. `transaction` is a
+ * transaction pooler (Supabase port 6543), which has none: the World then polls
+ * the stream rows and leaves `events.subscribe` and
+ * `runs.waitForTerminalStatus` out, so the runtime polls instead.
+ */
+export type WorldConnection = "session" | "transaction";
+
+/** Milliseconds core waits to batch stream writes when no option sets it. */
+export const DEFAULT_STREAM_FLUSH_MS = 20;
+
 /** A message the queue gave up on after `MAX_DELIVERIES` failed deliveries. */
 export interface DeadLetter {
   readonly queueName: string;
@@ -40,10 +52,21 @@ export interface SupabaseWorldOptions {
   readonly enableInvoke?: boolean;
   /**
    * Milliseconds core waits before it flushes buffered stream writes into the
-   * World. Core's default is 0, which writes each chunk as it arrives;
+   * World (default 20; core's own default is 0, one insert per chunk).
    * `WORKFLOW_STREAM_FLUSH_INTERVAL_MS` overrides this option.
    */
   readonly streamFlushIntervalMs?: number;
+  /**
+   * `session` or `transaction`; detected from the connection string (port 6543
+   * is a transaction pooler) when unset, and read from
+   * `WORKFLOW_POSTGRES_CONNECTION`.
+   */
+  readonly connection?: WorldConnection;
+  /**
+   * Milliseconds between reads of an open stream in `transaction` mode (default
+   * 100).
+   */
+  readonly streamPollInterval?: number;
   /**
    * A Postgres connection string with access to the `workflow` schema and the
    * jobs functions.
@@ -78,6 +101,13 @@ export interface SupabaseWorldOptions {
    */
   readonly encryptionKey?: string;
   /**
+   * A key ring as JSON (`[{ "id", "key", "from" }]`), read from the Vault
+   * secret `workflow_encryption_keys` when unset. A run uses the latest key
+   * that started before it was created, so appending a key rotates without
+   * changing any run's key. It replaces `encryptionKey`.
+   */
+  readonly encryptionKeys?: string;
+  /**
    * The jobs queue the messages wait in
    * (`blocks["workflow-sdk"].options.queue`).
    */
@@ -105,8 +135,9 @@ export interface SupabaseWorldOptions {
   /** The queue namespace, as `WORKFLOW_QUEUE_NAMESPACE`. */
   readonly namespace?: string;
   /**
-   * Connections the World's own pool opens (default 10). Each delivery holds
-   * one only for its short claim, settle and heartbeat statements, so more
+   * Connections the World's own pool opens (default 10, or 2 on serverless
+   * hosts, where every instance holds its own pool). Each delivery holds one
+   * only for its short claim, settle and heartbeat statements, so more
    * deliveries than connections wait for one instead of failing.
    */
   readonly maxConnections?: number;

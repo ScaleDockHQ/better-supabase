@@ -18,6 +18,7 @@ import type {
   DeadLetter,
   StoredMessage,
   SupabaseWorldOptions,
+  WorldConnection,
 } from "./types.ts";
 
 import { dbError } from "../../core/errors.ts";
@@ -34,15 +35,28 @@ import {
 import { createAnalytics } from "./analytics.ts";
 import {
   deriveRunKey,
+  parseKeyRing,
   parseMasterKey,
+  ringKeyFor,
   signDelivery,
   unsignedAllowed,
   verifyDelivery,
 } from "./crypto.ts";
 import { assertWorldMigrations } from "./drift.ts";
-import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
+import {
+  env,
+  isServerless,
+  resolveFlowUrl,
+  worldOptionsFromEnv,
+} from "./env.ts";
 import { createMaintenance } from "./maintenance.ts";
-import { JOB_HEADER, MAX_DELIVERIES, SIGNATURE_HEADER } from "./types.ts";
+import { pollingStreamReader } from "./polling.ts";
+import {
+  DEFAULT_STREAM_FLUSH_MS,
+  JOB_HEADER,
+  MAX_DELIVERIES,
+  SIGNATURE_HEADER,
+} from "./types.ts";
 
 /**
  * JSON with Uint8Array values as `{ __type: "Uint8Array", data: <base64> }`, as
@@ -107,6 +121,31 @@ function deliveryProblem(
 const backoffSeconds = (attempt: number): number =>
   Math.ceil(Math.exp(Math.min(attempt, 10)));
 
+/**
+ * The storage a transaction pooler can serve: stream reads poll the rows, and
+ * the optional listeners (`events.subscribe`, `runs.waitForTerminalStatus`) are
+ * left out, so the runtime polls for them as the World contract allows.
+ */
+function transactionStorage(
+  base: World,
+  poller: ReturnType<typeof pollingStreamReader>,
+): Pick<World, "streams" | "events" | "runs"> {
+  // The two members are dropped, never called, so the unbound reference is safe.
+  // oxlint-disable-next-line typescript/unbound-method
+  const { subscribe: _subscribe, ...events } = base.events;
+  const { waitForTerminalStatus: _wait, ...runs } = base.runs;
+
+  return {
+    events,
+    runs,
+    streams: {
+      ...base.streams,
+      get: (_runId, name, startIndex) =>
+        Promise.resolve(poller.get(name, startIndex)),
+    },
+  };
+}
+
 const REGISTRY: unique symbol = Symbol.for("better-supabase.workflow.worlds");
 
 /**
@@ -155,15 +194,22 @@ export function createSupabaseWorld(
   const lease = Math.max(5, options.lease ?? 60);
   const deliveryTimeout = Math.max(lease, options.deliveryTimeout ?? 300);
 
+  const connectionString =
+    options.connectionString ??
+    env("WORKFLOW_POSTGRES_URL") ??
+    env("SUPABASE_DB_URL") ??
+    env("DATABASE_URL");
+
+  const pooled = usesTransactionPooler(connectionString);
+
+  const connection: WorldConnection =
+    options.connection ?? (pooled ? "transaction" : "session");
+
   const pool =
     options.pool ??
     new Pool({
-      connectionString:
-        options.connectionString ??
-        env("WORKFLOW_POSTGRES_URL") ??
-        env("SUPABASE_DB_URL") ??
-        env("DATABASE_URL"),
-      max: Math.max(1, options.maxConnections ?? 10),
+      connectionString,
+      max: Math.max(1, options.maxConnections ?? (isServerless() ? 2 : 10)),
       connectionTimeoutMillis: options.connectionTimeout ?? 30_000,
       idleTimeoutMillis: options.idleTimeout ?? 10_000,
       statement_timeout: options.statementTimeout ?? 30_000,
@@ -173,17 +219,9 @@ export function createSupabaseWorld(
 
   const logger = options.logger ?? consoleLogger;
 
-  if (
-    options.pool === undefined &&
-    usesTransactionPooler(
-      options.connectionString ??
-        env("WORKFLOW_POSTGRES_URL") ??
-        env("SUPABASE_DB_URL") ??
-        env("DATABASE_URL"),
-    )
-  ) {
+  if (options.pool === undefined && pooled && connection === "session") {
     logger.warn(
-      "The workflow World connects through the transaction pooler (port 6543). world-postgres needs LISTEN/NOTIFY, which only a session connection (port 5432 or the session pooler) supports.",
+      'The workflow World connects through the transaction pooler (port 6543) with connection: "session". Streams, run status waits and run event feeds need LISTEN, which only a session connection (port 5432 or the session pooler) supports; use connection: "transaction" or a session URL.',
     );
   }
 
@@ -200,10 +238,14 @@ export function createSupabaseWorld(
     ...(options.enableInvoke === undefined
       ? {}
       : { enableInvoke: options.enableInvoke }),
-    ...(options.streamFlushIntervalMs === undefined
-      ? {}
-      : { streamFlushIntervalMs: options.streamFlushIntervalMs }),
+    streamFlushIntervalMs:
+      options.streamFlushIntervalMs ?? DEFAULT_STREAM_FLUSH_MS,
   });
+
+  const poller =
+    connection === "transaction"
+      ? pollingStreamReader(pool, options.streamPollInterval)
+      : undefined;
 
   /**
    * The Vault secret, `undefined` when no row has the name; a failed read
@@ -223,12 +265,24 @@ export function createSupabaseWorld(
       options.deliverySecret ?? vault(WORKFLOW_VAULT_SECRETS.deliverySecret),
   );
 
-  const masterKey = memoized(async () => {
+  const keyRing = memoized(async () => {
+    const ring =
+      options.encryptionKeys ??
+      (options.encryptionKey === undefined
+        ? await vault(WORKFLOW_VAULT_SECRETS.encryptionKeys)
+        : undefined);
+
+    if (ring !== undefined) {
+      return parseKeyRing(ring);
+    }
+
     const text =
       options.encryptionKey ??
       (await vault(WORKFLOW_VAULT_SECRETS.encryptionKey));
 
-    return text === undefined ? undefined : parseMasterKey(text);
+    return text === undefined
+      ? undefined
+      : [{ id: "default", key: parseMasterKey(text), from: 0 }];
   });
 
   const allowUnsigned = unsignedAllowed();
@@ -801,20 +855,47 @@ export function createSupabaseWorld(
     };
   };
 
+  /**
+   * Run data is plain text without a key; say so once at startup unless the
+   * process runs in development or test.
+   */
+  async function warnWithoutKey(): Promise<void> {
+    const mode = env("NODE_ENV");
+
+    if (mode === "development" || mode === "test") {
+      return;
+    }
+
+    try {
+      if ((await keyRing()) === undefined) {
+        logger.warn(
+          "The workflow World has no encryption key, so run inputs, outputs and stream data are stored unencrypted. Set WORKFLOW_ENCRYPTION_KEYS (or the Vault secret workflow_encryption_keys).",
+        );
+      }
+    } catch (cause) {
+      logger.error("The workflow encryption key could not be read", {
+        error: cause,
+      });
+    }
+  }
+
   async function getEncryptionKeyForRun(
     run: string | { readonly runId: string },
   ): Promise<Uint8Array | undefined> {
-    const master = await masterKey();
+    const ring = await keyRing();
 
-    if (master === undefined) {
+    if (ring === undefined) {
       return undefined;
     }
 
-    return deriveRunKey(master, typeof run === "string" ? run : run.runId);
+    const runId = typeof run === "string" ? run : run.runId;
+
+    return deriveRunKey(ringKeyFor(ring, runId).key, runId);
   }
 
   return {
     ...base,
+    ...(poller === undefined ? {} : transactionStorage(base, poller)),
     analytics: createAnalytics(pool),
     // Every delivery carries the HMAC that createQueueHandler checks before the
     // runtime sees it, so the runtime's loopback key check has nothing to add.
@@ -836,6 +917,7 @@ export function createSupabaseWorld(
     ...createMaintenance(call, (runId) => getEncryptionKeyForRun(runId)),
     async start() {
       await assertWorldMigrations();
+      await warnWithoutKey();
       startPolling();
       await reenqueueActiveRuns(
         base.runs,
@@ -847,6 +929,7 @@ export function createSupabaseWorld(
     async close() {
       closed = true;
       running = false;
+      poller?.close();
       wake?.();
       await loop;
       await Promise.all(inflight);

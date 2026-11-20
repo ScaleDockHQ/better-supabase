@@ -14,6 +14,15 @@ function positiveInt(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+/** Whether the process runs on a serverless host (Vercel, Lambda, Netlify). */
+export function isServerless(
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return ["VERCEL", "AWS_LAMBDA_FUNCTION_NAME", "NETLIFY"].some(
+    (name) => source[name] !== undefined && source[name] !== "",
+  );
+}
+
 /** The flow route: `flowUrl`, `WORKFLOW_FLOW_URL`, or the local server. */
 export function resolveFlowUrl(flowUrl?: string): string {
   const explicit = flowUrl ?? env("WORKFLOW_FLOW_URL");
@@ -85,6 +94,20 @@ export function worldOptionsFromEnv(
     read("WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS"),
   );
 
+  const connection = read("WORKFLOW_POSTGRES_CONNECTION");
+
+  if (
+    connection !== undefined &&
+    connection !== "session" &&
+    connection !== "transaction"
+  ) {
+    throw new TypeError(
+      `better-supabase: WORKFLOW_POSTGRES_CONNECTION must be "session" or "transaction", got "${connection}"`,
+    );
+  }
+
+  const encryptionKeys = read("WORKFLOW_ENCRYPTION_KEYS");
+
   const enableInvoke = read("WORKFLOW_POSTGRES_ENABLE_INVOKE");
 
   const streamFlushIntervalMs = Number(
@@ -100,6 +123,8 @@ export function worldOptionsFromEnv(
     read("WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS") !== undefined
       ? { streamFlushIntervalMs: Math.trunc(streamFlushIntervalMs) }
       : {}),
+    ...(connection === undefined ? {} : { connection }),
+    ...(encryptionKeys === undefined ? {} : { encryptionKeys }),
     ...(connectionString === undefined ? {} : { connectionString }),
     ...(delivery === undefined ? {} : { delivery }),
     ...(flowUrl === undefined ? {} : { flowUrl }),

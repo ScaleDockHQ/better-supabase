@@ -5002,8 +5002,12 @@
       "createWorld",
       "default",
       "deriveRunKey",
+      "isServerless",
+      "parseKeyRing",
       "parseMasterKey",
       "resolveFlowUrl",
+      "ringKeyFor",
+      "runCreatedAt",
       "signDelivery",
       "usesTransactionPooler",
       "verifyDelivery",
@@ -5014,9 +5018,11 @@
     "types": [
       "DeadLetter",
       "MigrationDrift",
+      "RingKey",
       "SupabaseWorld",
       "SupabaseWorldOptions",
-      "WorkflowDeliveryMode"
+      "WorkflowDeliveryMode",
+      "WorldConnection"
     ]
   },
   "./eve": {

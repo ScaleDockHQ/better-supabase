@@ -18,7 +18,9 @@ const reenqueue = vi.fn(async () => undefined);
 vi.mock("@workflow/world-postgres", () => ({
   createWorld: (config: Record<string, unknown>) => ({
     ...(created.push(config), {}),
-    runs: {},
+    runs: { waitForTerminalStatus: async () => undefined },
+    events: { subscribe: () => () => undefined },
+    streams: { get: async () => new ReadableStream(), list: async () => [] },
     createQueueHandler: () => inner,
     close: baseClose,
   }),
@@ -34,6 +36,7 @@ const {
   createWorld,
   usesTransactionPooler,
   deriveRunKey,
+  isServerless,
   parseMasterKey,
   resolveFlowUrl,
   signDelivery,
@@ -718,17 +721,122 @@ describe("createSupabaseWorld", () => {
       streamFlushIntervalMs: 0,
     });
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("LISTEN/NOTIFY");
+    expect(warnings).toHaveLength(0);
     expect(created.at(-1)).toMatchObject({
       enableInvoke: true,
       streamFlushIntervalMs: 0,
     });
     await world.close();
 
+    const session = createSupabaseWorld({
+      connectionString: "postgres://u:p@aws.pooler.supabase.com:6543/db",
+      connection: "session",
+      logger,
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("LISTEN");
+    expect(created.at(-1)).toMatchObject({ streamFlushIntervalMs: 20 });
+    await session.close();
+
     const { pool } = fakePool({});
     createSupabaseWorld({ pool, logger });
     expect(warnings).toHaveLength(1);
+  });
+
+  it("serves streams by polling and leaves the LISTEN-only hooks out in transaction mode", async () => {
+    const { pool } = fakePool({});
+    const session = createSupabaseWorld({ pool });
+
+    const transaction = createSupabaseWorld({
+      pool,
+      connection: "transaction",
+    });
+
+    expect(session.events).toHaveProperty("subscribe");
+    expect(session.runs).toHaveProperty("waitForTerminalStatus");
+    expect(transaction.events).not.toHaveProperty("subscribe");
+    expect(transaction.runs).not.toHaveProperty("waitForTerminalStatus");
+    expect(transaction.streams).toHaveProperty("list");
+
+    await session.close();
+    await transaction.close();
+  });
+
+  it("detects the connection kind and the serverless pool size", () => {
+    vi.stubEnv("WORKFLOW_POSTGRES_CONNECTION", "transaction");
+    expect(
+      worldOptionsFromEnv({ WORKFLOW_POSTGRES_CONNECTION: "session" }),
+    ).toMatchObject({ connection: "session" });
+    expect(() =>
+      worldOptionsFromEnv({ WORKFLOW_POSTGRES_CONNECTION: "pooled" }),
+    ).toThrow("session");
+    expect(isServerless({ VERCEL: "1" })).toBe(true);
+    expect(isServerless({ AWS_LAMBDA_FUNCTION_NAME: "f" })).toBe(true);
+    expect(isServerless({})).toBe(false);
+  });
+
+  it("warns once at startup when production has no encryption key", async () => {
+    const warnings: string[] = [];
+
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (message: string) => warnings.push(message),
+      error: () => undefined,
+    };
+
+    vi.stubEnv("NODE_ENV", "production");
+    const { pool } = fakePool({ list_applied: () => [] });
+    const bare = createSupabaseWorld({ pool, logger });
+    await bare.start().catch(() => undefined);
+
+    expect(warnings.some((message) => message.includes("unencrypted"))).toBe(
+      true,
+    );
+    warnings.length = 0;
+
+    const keyed = createSupabaseWorld({
+      pool,
+      logger,
+      encryptionKey: Buffer.alloc(32, 7).toString("base64"),
+    });
+
+    await keyed.start().catch(() => undefined);
+
+    expect(warnings.some((message) => message.includes("unencrypted"))).toBe(
+      false,
+    );
+    vi.stubEnv("NODE_ENV", "test");
+    const quiet = createSupabaseWorld({ pool, logger });
+    await quiet.start().catch(() => undefined);
+
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("derives each run's key from the ring entry that was active at its creation", async () => {
+    const { pool } = fakePool({});
+
+    const ring = JSON.stringify([
+      { id: "a", key: Buffer.alloc(32, 1).toString("base64") },
+      {
+        id: "b",
+        key: Buffer.alloc(32, 2).toString("base64"),
+        from: "2026-06-01T00:00:00Z",
+      },
+    ]);
+
+    const world = createSupabaseWorld({ pool, encryptionKeys: ring });
+    const old = "wrun_01K0000000000000000000000";
+    const fresh = "wrun_01KZZZZZZZZZZZZZZZZZZZZZZZ";
+
+    expect(await world.getEncryptionKeyForRun!(old)).toEqual(
+      await deriveRunKey(Buffer.alloc(32, 1), old),
+    );
+    expect(await world.getEncryptionKeyForRun!(fresh)).toEqual(
+      await deriveRunKey(Buffer.alloc(32, 2), fresh),
+    );
+    await world.close();
   });
 
   it("shares one World per connection and namespace, and forgets it on close", async () => {
@@ -896,6 +1004,10 @@ describe("createSupabaseWorld", () => {
       vault: (params) => {
         if (broken) {
           throw new Error("permission denied for schema vault");
+        }
+
+        if (params[0] === "workflow_encryption_keys") {
+          return [];
         }
 
         return params[0] === "workflow_encryption_key"

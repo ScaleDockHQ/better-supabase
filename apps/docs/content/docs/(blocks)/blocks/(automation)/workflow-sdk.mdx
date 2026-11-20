@@ -53,6 +53,8 @@ export const world = createSupabaseWorld({
 | `WORKFLOW_DELIVERY`                                                    | `delivery`                 | `poll`                                                                                      |
 | `WORKFLOW_FLOW_URL`                                                    | `flowUrl`                  | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
 | `WORKFLOW_DELIVERY_SECRET`                                             | `deliverySecret`           | the Vault secret `workflow_delivery_secret`                                                 |
+| `WORKFLOW_ENCRYPTION_KEYS`                                             | `encryptionKeys`           | the Vault secret `workflow_encryption_keys` (see Encryption)                                |
+| `WORKFLOW_POSTGRES_CONNECTION`                                         | `connection`               | `transaction` on port 6543, else `session`                                                  |
 | `WORKFLOW_ENCRYPTION_KEY`                                              | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
 | `WORKFLOW_DELIVERY_QUEUE`                                              | `queue`                    | `workflow_deliveries`                                                                       |
 | `WORKFLOW_QUEUE_NAMESPACE`                                             | `namespace`                | none                                                                                        |
@@ -95,12 +97,33 @@ report as an artifact.
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `onDeadLetter(letter)`                                                 | Runs once when a message used up its 73 deliveries and moved to the dead-letter state.              |
 | `enableInvoke` / `WORKFLOW_POSTGRES_ENABLE_INVOKE`                     | Turns on the experimental `invoke()` delivery of `@workflow/world-postgres`. Off by default.        |
-| `streamFlushIntervalMs` / `WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS` | Sets the milliseconds between flushes of buffered stream writes (10 by default, 0 flushes at once). |
+| `streamFlushIntervalMs` / `WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS` | Sets the milliseconds between flushes of buffered stream writes (20 by default, 0 flushes at once). |
 
 `createWorld()` returns one World per process, so two calls share a pool and
-a poller. The World warns when `DATABASE_URL` points at a transaction pooler
-(`usesTransactionPooler`), because `LISTEN` and session settings don't
-survive one; use the direct or session-mode connection. Messages carry the
+a poller. On a serverless platform (Vercel, AWS Lambda, Netlify) the pool
+holds 2 connections by default instead of 10.
+
+### Connection modes
+
+The World runs in one of two modes, set with `connection` or
+`WORKFLOW_POSTGRES_CONNECTION`. A connection string on port 6543 (the
+Supabase transaction pooler) selects `transaction`, anything else selects
+`session`.
+
+| Mode          | Streams                                                                                        | Run status and run event feeds     |
+| ------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `session`     | `LISTEN` and `NOTIFY` wake readers at once                                                     | `LISTEN`, with a 1 second backstop |
+| `transaction` | readers poll `workflow_stream_chunks` every `streamPollInterval` milliseconds (100 by default) | the runtime polls                  |
+
+The transaction pooler accepts `LISTEN` without delivering a notification, so
+`transaction` mode never relies on it. Stream readers keep the same offsets
+in both modes: a positive start index skips chunks, a negative one counts
+back from the chunks present at the first read. Setting `connection:
+"session"` on a pooled URL logs a warning, because streams would hang. In
+`transaction` mode the underlying World still holds one idle `LISTEN`
+connection that nothing waits on.
+
+Messages carry the Messages carry the
 `x-vqs-message-delivery-count` and `x-vqs-message-created-at` headers that
 `@workflow/world-postgres` sends, and `queueBatch` writes a batch in one
 statement. `world.start()` calls `assertWorldMigrations()`, which compares
@@ -218,8 +241,30 @@ With a 32-byte master key (base64 or hex) in `encryptionKey` or the Vault
 secret `workflow_encryption_key`, the World derives an AES-256 key per run
 with HKDF-SHA256, and the SDK stores the run's inputs, outputs and step
 data encrypted. Without one, they are stored as JSON in the `workflow`
-schema. When Vault can't be read, the World doesn't fall back to
-unencrypted data: the read fails, and the next one tries Vault again.
+schema, and `world.start()` logs a warning outside development and test.
+When Vault can't be read, the World doesn't fall back to unencrypted data:
+the read fails, and the next one tries Vault again. Run attributes such as
+`$eve.title` stay plain text.
+
+### Rotating the master key
+
+`encryptionKeys` (or `WORKFLOW_ENCRYPTION_KEYS`, or the Vault secret
+`workflow_encryption_keys`) takes a JSON ring of master keys:
+
+```json
+[
+  { "id": "2026-01", "key": "<base64>", "from": 0 },
+  { "id": "2026-11", "key": "<base64>", "from": "2026-11-20T00:00:00Z" }
+]
+```
+
+A run uses the last entry whose `from` is at or before the run's creation
+time, which the World reads from the run id (`wrun_<ULID>`). To rotate,
+append a key with a `from` in the future. Existing runs keep opening with
+their old key, and new runs after that moment use the new one. The first
+entry must have `from` set to `0`, and entries are in ascending order.
+The ring doesn't record a key id per run: removing an entry makes the runs
+created in its window unreadable.
 
 ## Starting runs as the user
 
