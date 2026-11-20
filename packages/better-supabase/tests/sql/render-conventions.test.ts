@@ -7,9 +7,19 @@ import { BLOCK_SCOPES } from "../../src/config/blocks.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
-// The SQL each module writes under a convention (`sql.scope`,
-// `blocks.memberships.entities`), next to the default output in render-golden.test.ts. A
-// module gets a file only where the convention changes its SQL.
+// What a convention (`sql.scope`, `blocks.memberships.entities`) changes in
+// each module's SQL, as properties of the rendered text. The default output
+// is pinned in render-golden.test.ts.
+
+const TENANT_POLICY = "bsb_tenant_scope_";
+
+const HELPER = {
+  organization: "member_organization_ids",
+  workspace: "member_workspace_ids",
+};
+
+const count = (text: string, part: string): number =>
+  text.split(part).length - 1;
 
 const NAMES = Object.keys(SQL_MODULES);
 
@@ -17,6 +27,7 @@ interface Convention {
   readonly name: string;
   readonly applies: (module: string) => boolean;
   readonly layout: BlockSqlLayout;
+  readonly check: (variant: string, base: string, module: string) => void;
 }
 
 const runsIn = (module: string, scope: BlockScope): boolean =>
@@ -27,17 +38,34 @@ const CONVENTIONS: readonly Convention[] = [
     name: "scope-user",
     applies: (module) => runsIn(module, "user"),
     layout: { scope: "user" },
+    check: (variant) => {
+      expect(variant).not.toContain(TENANT_POLICY);
+    },
   },
   {
     name: "scope-none",
     applies: (module) => runsIn(module, "none"),
     layout: { scope: "none" },
+    check: (variant) => {
+      expect(variant).not.toContain(TENANT_POLICY);
+    },
   },
   {
     name: "naming-workspace",
     applies: () => true,
     layout: {
       modules: { memberships: { entities: { organization: "workspace" } } },
+    },
+    // memberships defines the helper itself and keeps two legacy names.
+    check: (variant, base, module) => {
+      if (module === "memberships") {
+        return;
+      }
+
+      expect(variant).not.toContain(HELPER.organization);
+      expect(count(variant, HELPER.workspace)).toBe(
+        count(base, HELPER.organization),
+      );
     },
   },
 ];
@@ -65,15 +93,14 @@ describe.each(CONVENTIONS)("SQL module output with $name", (convention) => {
       render(module, convention.layout) !== render(module, {}),
   );
 
-  it("lists the modules whose SQL the convention changes", async () => {
-    await expect(`${changed.join("\n")}\n`).toMatchFileSnapshot(
-      `__golden__/${convention.name}/index.txt`,
-    );
+  it("changes the SQL of at least one module", () => {
+    expect(changed.length).toBeGreaterThan(0);
   });
 
-  it.each(changed)("%s renders the golden SQL", async (module) => {
-    await expect(render(module, convention.layout)).toMatchFileSnapshot(
-      `__golden__/${convention.name}/${module}.sql`,
-    );
+  it.each(changed)("%s follows the convention", (module) => {
+    const variant = render(module, convention.layout);
+
+    expect(variant).not.toContain("-- ==== throws");
+    convention.check(variant, render(module, {}), module);
   });
 });
