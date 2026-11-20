@@ -39,3 +39,27 @@ export async function installWorld(pool: Pool): Promise<void> {
     client.release();
   }
 }
+
+/**
+ * Starts a World suite from an empty Workflow state. The suites share one
+ * database, and a World that finds the runs and queued deliveries of an earlier
+ * suite re-delivers them to workflows it does not know. The queue exists once a
+ * World has started, which a fresh database has not seen yet.
+ */
+export async function resetWorld(pool: Pool): Promise<void> {
+  const tables = await pool.query<{ table_name: string }>(
+    "select table_name from information_schema.tables where table_schema = 'workflow' and table_type = 'BASE TABLE'",
+  );
+
+  if (tables.rows.length > 0) {
+    const list = tables.rows
+      .map((row) => `workflow."${row.table_name}"`)
+      .join(", ");
+
+    await pool.query(`truncate ${list} restart identity cascade`);
+  }
+
+  await pool.query(
+    "select pgmq.purge_queue(queue_name) from pgmq.list_queues() where queue_name = 'workflow_deliveries'",
+  );
+}

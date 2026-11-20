@@ -29,12 +29,12 @@ first with eve's own [upgrade guide](https://eve.dev/docs/guides/upgrade), then:
 pnpm add workflow@5.7.0 @workflow/world@5.3.0 @workflow/world-postgres@5.4.0 eve@1.2.0
 ```
 
-The ranges are `eve >=1.2.0 <2`, `workflow >=5.7.0 <6`, `@workflow/world
-
-> =5.3.0 <5.4`and`@workflow/world-postgres >=5.4.0 <5.5`. eve 1.0 release
-candidates are not supported, and `assertWorldMigrations`throws on a`@workflow/world-postgres`older than 5.4.0. The`@workflow`packages of this
-line are released within`minimumReleaseAge`, so a project that sets the policy
-> may have to wait or pin the previous release (ADR 1097).
+The ranges are `eve >=1.2.0 <2`, `workflow >=5.7.0 <6`,
+`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.0 <5.5`. eve 1.0 release
+candidates are not supported, and `assertWorldMigrations` throws on a
+`@workflow/world-postgres` older than 5.4.0. The `@workflow` packages of this
+line are released within `minimumReleaseAge`, so a project that sets the policy
+may have to wait or pin the previous release (ADR 1097).
 
 ## SQL modules
 

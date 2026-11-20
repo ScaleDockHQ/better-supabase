@@ -30,7 +30,11 @@ export default async function setup(): Promise<() => Promise<void>> {
       await pool.query(`truncate ${list} restart identity cascade`);
     }
 
-    await pool.query("select pgmq.purge_queue('workflow_deliveries')");
+    // The queue exists once a World has started against the database, which a
+    // fresh stack has not seen yet.
+    await pool.query(
+      "select pgmq.purge_queue(queue_name) from pgmq.list_queues() where queue_name = 'workflow_deliveries'",
+    );
   } catch (error) {
     await pool.end();
     throw error;

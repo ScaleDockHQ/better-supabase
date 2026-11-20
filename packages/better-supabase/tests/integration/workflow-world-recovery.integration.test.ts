@@ -10,7 +10,7 @@ import type { SupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 
 import { createSupabaseWorld } from "../../src/workflow-sdk/world/index.ts";
 import { dbUrl, reachable } from "./block-session.ts";
-import { installWorld } from "./workflow-world.ts";
+import { installWorld, resetWorld } from "./workflow-world.ts";
 
 const live = await reachable();
 
@@ -50,7 +50,7 @@ beforeAll(async () => {
   await pool.query("delete from workflow.workflow_runs where id = $1", [
     RUN_ID,
   ]);
-  await pool.query("select pgmq.purge_queue('workflow_deliveries')");
+  await resetWorld(pool);
 
   let flowUrl = "";
 

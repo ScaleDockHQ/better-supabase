@@ -43,3 +43,6 @@ World options, the projection calls and delivery over Vercel Queues.
 
 - A later growth of these entries is a decision with numbers, not a tolerance.
 - The size baselines are repo tooling, so they carry no changeset.
+- The Next.js example's First Load JS and server baselines (`tests/next-build`) move with them: the
+  shared chunks grew about 540 bytes raw on every route and the server chunks by up to 30 kB, which
+  CI measured with the same numbers as a local build. They are raised to the measured values once.
