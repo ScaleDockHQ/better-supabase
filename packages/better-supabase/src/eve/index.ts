@@ -119,6 +119,7 @@ export {
   type EveScheduleAuthContext,
   type EveScheduleExpression,
   type EveScheduleFailureNotice,
+  type EveScheduleMirror,
   type EveScheduleHandle,
   type EveScheduleJob,
   type EveScheduleOccurrence,

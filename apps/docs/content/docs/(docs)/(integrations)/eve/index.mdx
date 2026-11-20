@@ -488,9 +488,28 @@ export default defineSchedule({
 ```
 
 Each prompt goes to the channel's target as the task's user, with the run id as
-the idempotency key. Schedules that eve creates through
-`queueScheduleProvider` are not written to `ai_scheduled_tasks`: they live in
-the queue block's scheduler.
+the idempotency key.
+
+By default, schedules that eve creates through `queueScheduleProvider` live only
+in the queue block's scheduler. Pass `mirror` to also write each schedule and
+each occurrence to `ai_scheduled_tasks` and `ai_task_runs`, so one task list and
+run history covers both:
+
+```ts title="agent/lib/server.ts"
+export const memberSchedules = queueScheduleProvider({
+  scheduler,
+  tenantOf,
+  mirror: { schedules: aiSchedules },
+});
+```
+
+`aiSchedules` is the block's client with a service transport. Mirrored tasks
+have the `source` `eve` and the schedule's key as their `externalId`, and
+`aiScheduleDispatch` never claims them, because eve fires them. The task's user
+is the creator when the principal id is a uuid (`mirror.userOf` changes that),
+and the prompt is the schedule's display name (`mirror.promptOf`). A schedule
+without a user is not mirrored. Writing an occurrence never fails the run. The
+module needs version 3: run `better-supabase upgrade`.
 
 ## Connections
 

@@ -223,14 +223,14 @@ export interface BlockNameRegistry {
   };
   readonly "ai-schedules": {
     readonly tables: {
-      readonly "tasks": "id" | "tenant" | "user" | "chat" | "agent" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "nextRunAt" | "lastRunAt" | "createdAt" | "updatedAt";
+      readonly "tasks": "id" | "tenant" | "user" | "chat" | "agent" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "nextRunAt" | "lastRunAt" | "source" | "externalId" | "createdAt" | "updatedAt";
       readonly "runs": "id" | "task" | "tenant" | "user" | "status" | "scheduledFor" | "chat" | "error" | "startedAt" | "finishedAt" | "createdAt";
     };
-    readonly functions: "claim_due_ai_tasks" | "delete_ai_task" | "finish_ai_task_run" | "get_ai_task" | "list_ai_task_runs" | "list_ai_tasks" | "page_ai_tasks" | "save_ai_task" | "schedule_ai_tasks" | "start_ai_task_run";
+    readonly functions: "claim_due_ai_tasks" | "delete_ai_task" | "delete_mirrored_ai_task" | "finish_ai_task_run" | "get_ai_task" | "list_ai_task_runs" | "list_ai_tasks" | "mirror_ai_task" | "page_ai_tasks" | "record_ai_task_run" | "save_ai_task" | "schedule_ai_tasks" | "start_ai_task_run";
     readonly actions: "create" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "ai_scheduled_task": "id" | "tenant_id" | "user_id" | "chat_id" | "agent_id" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "next_run_at" | "last_run_at" | "created_at" | "updated_at";
+      readonly "ai_scheduled_task": "id" | "tenant_id" | "user_id" | "chat_id" | "agent_id" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "next_run_at" | "last_run_at" | "source" | "external_id" | "created_at" | "updated_at";
     };
     readonly primary: "ai_scheduled_task";
   };

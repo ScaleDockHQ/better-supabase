@@ -1676,6 +1676,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "enabled": "enabled",
               "nextRunAt": "next_run_at",
               "lastRunAt": "last_run_at",
+              "source": "source",
+              "externalId": "external_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }

@@ -1178,3 +1178,120 @@ describe("queueDynamicSchedules failure notice", () => {
     ]);
   });
 });
+
+describe("queueScheduleProvider mirror", () => {
+  const fake = () => {
+    const calls: { fn: string; input: Record<string, unknown> }[] = [];
+
+    const record =
+      (fn: string, data: unknown) => (input: Record<string, unknown>) => {
+        calls.push({ fn, input });
+
+        return AsyncResult.from(() => Promise.resolve(ok(data)));
+      };
+
+    const schedules = {
+      mirror: vi.fn(record("mirror", {})),
+      unmirror: vi.fn(record("unmirror", true)),
+      recordRun: vi.fn(record("recordRun", {})),
+    };
+
+    // SAFETY: the test fake implements the three methods the mirror reads.
+    return { calls, mocks: schedules, schedules: schedules as never };
+  };
+
+  const options = (mirror: ReturnType<typeof fake>) => ({
+    tenantOf: () => ORG,
+    mirror: { schedules: mirror.schedules },
+  });
+
+  it("writes a task with source eve when a schedule is created", async () => {
+    const mirror = fake();
+
+    const t = await tick({ providerOptions: options(mirror) });
+
+    expect(mirror.calls[0]).toMatchObject({
+      fn: "mirror",
+      input: {
+        organizationId: ORG,
+        userId: USER,
+        source: "eve",
+        externalId: "eve:requests:eve-ns-user:job",
+        task: { enabled: true, cron: "* * * * *" },
+      },
+    });
+    expect(t.created.name).toBe("job");
+  });
+
+  it("records running and completed for an occurrence", async () => {
+    const mirror = fake();
+
+    const t = await tick({
+      providerOptions: options(mirror),
+      queueOptions: {},
+    });
+
+    t.due();
+    await t.fire();
+
+    const runs = mirror.calls.filter((call) => call.fn === "recordRun");
+
+    expect(runs.map((call) => call.input["status"])).toEqual([
+      "running",
+      "completed",
+    ]);
+  });
+
+  it("records a failed occurrence with its reason", async () => {
+    const mirror = fake();
+
+    const t = await tick({
+      collection: definition({ auth: () => null }),
+      providerOptions: options(mirror),
+    });
+
+    t.due();
+    await t.fire();
+    expect(mirror.calls.at(-1)).toMatchObject({
+      fn: "recordRun",
+      input: { status: "failed", error: expect.any(String) },
+    });
+  });
+
+  it("ignores a mirror that fails to record", async () => {
+    const mirror = fake();
+
+    mirror.mocks.recordRun.mockImplementation(() => {
+      throw new Error("db down");
+    });
+
+    const t = await tick({
+      collection: definition({ auth: () => null }),
+      providerOptions: options(mirror),
+    });
+
+    t.due();
+    await expect(t.fire()).resolves.toBeDefined();
+  });
+
+  it("removes the task when the schedule is deleted", async () => {
+    const mirror = fake();
+
+    const t = await tick({ providerOptions: options(mirror) });
+
+    await t.provider.delete(context(), "job");
+    expect(mirror.calls.at(-1)).toMatchObject({
+      fn: "unmirror",
+      input: { source: "eve", externalId: "eve:requests:eve-ns-user:job" },
+    });
+  });
+
+  it("does not mirror a schedule without a tenant", async () => {
+    const mirror = fake();
+
+    await tick({
+      providerOptions: { mirror: { schedules: mirror.schedules } },
+    });
+    expect(mirror.calls).toEqual([]);
+  });
+});

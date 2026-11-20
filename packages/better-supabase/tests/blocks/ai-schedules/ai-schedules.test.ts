@@ -378,3 +378,70 @@ describe("createAiSchedules", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("mirrored tasks", () => {
+  const ref = { organizationId: "o1", source: "eve", externalId: "eve:a" };
+
+  it("sends the task, its source and the next run to mirror_ai_task", async () => {
+    const service = fakeTransport({
+      mirror_ai_task: () => taskRow({ source: "eve", external_id: "eve:a" }),
+    });
+
+    const task = await createAiSchedules({ transport: service.transport })
+      .mirror({
+        ...ref,
+        userId: "u1",
+        task: { title: "Digest", prompt: "Run", cron: "0 9 * * *" },
+        nextRunAt: NOW,
+      })
+      .orThrow();
+
+    expect(task).toMatchObject({ source: "eve", externalId: "eve:a" });
+    expect(service.calls[0]).toEqual({
+      fn: "mirror_ai_task",
+      args: {
+        tenant: "o1",
+        user_id: "u1",
+        source: "eve",
+        external_id: "eve:a",
+        fields: {
+          title: "Digest",
+          prompt: "Run",
+          cron: "0 9 * * *",
+          enabled: true,
+        },
+        next_run_at: NOW.toString(),
+      },
+    });
+  });
+
+  it("records a run and maps a missing task to not_found", async () => {
+    const found = fakeTransport({
+      record_ai_task_run: () => runRow({ status: "completed" }),
+    });
+
+    const schedules = createAiSchedules({ transport: found.transport });
+
+    const run = await schedules
+      .recordRun({ ...ref, scheduledFor: NOW, status: "completed" })
+      .orThrow();
+
+    expect(run.status).toBe("completed");
+
+    const missing = await createAiSchedules({
+      transport: fakeTransport({ record_ai_task_run: () => null }).transport,
+    }).recordRun({ ...ref, scheduledFor: NOW, status: "running" });
+
+    expect(missing.ok ? undefined : missing.error.kind).toBe("not_found");
+  });
+
+  it("removes a mirror", async () => {
+    const service = fakeTransport({ delete_mirrored_ai_task: () => true });
+
+    expect(
+      await createAiSchedules({ transport: service.transport })
+        .unmirror(ref)
+        .orThrow(),
+    ).toBe(true);
+  });
+});

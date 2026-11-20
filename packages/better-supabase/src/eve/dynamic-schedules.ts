@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { Notifier } from "../blocks/ports.ts";
 import type { ScheduleProvider } from "../blocks/queue/backends.ts";
+import type { EveScheduleMirror } from "./schedule-mirror.ts";
 import type {
   EveQueueDrainer,
   EveQueueJob,
@@ -16,6 +17,9 @@ import { DbException, dbError } from "../core/errors.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { stableUuid } from "./ids.ts";
+import { scheduleMirror } from "./schedule-mirror.ts";
+
+export type { EveScheduleMirror } from "./schedule-mirror.ts";
 
 /** Eve's `ScheduleExpression`: a recurring cron or one local date and time. */
 export type EveScheduleExpression =
@@ -217,6 +221,7 @@ export interface QueueScheduleProviderOptions {
    * ones. Throw to reject it; a thrown `DbException` passes through and any
    * other error becomes a `validation` error.
    */
+  readonly mirror?: EveScheduleMirror;
   readonly validateExpression?: (
     expression: EveScheduleExpression,
     context: {
@@ -247,6 +252,13 @@ interface RunStore {
   save(run: EveScheduleRun): Promise<void>;
   /** Deletes a run's schedule. */
   remove(run: EveScheduleRun): Promise<boolean>;
+  /** Records an occurrence in the mirror. Never throws. */
+  record(
+    run: EveScheduleRun,
+    scheduledAt: Temporal.Instant,
+    status: "completed" | "failed" | "running",
+    error?: string,
+  ): Promise<void>;
 }
 
 /**
@@ -507,6 +519,17 @@ export function queueScheduleProvider(
     return run;
   };
 
+  const mirror = scheduleMirror(options.mirror, {
+    name: storedName,
+    principalOf: (run) => {
+      try {
+        return envelopeOf(run.payload).principal.principalId;
+      } catch {
+        return;
+      }
+    },
+  });
+
   const save = async (run: EveScheduleRun): Promise<void> => {
     const timing = timingOf(run.expression, now());
 
@@ -519,7 +542,20 @@ export function queueScheduleProvider(
       timing.nextRun,
       run.tenant,
     );
+
+    await mirror.save(run, timing);
   };
+
+  const unschedule = async (run: EveScheduleRun): Promise<boolean> => {
+    const removed = await scheduler.unschedule(storedName(run), run.tenant);
+
+    await mirror.remove(run);
+
+    return removed;
+  };
+
+  const record: RunStore["record"] = (run, scheduledAt, status, error) =>
+    mirror.record(run, scheduledAt, status, error);
 
   const write = async (run: EveScheduleRun): Promise<EveScheduleRecord> => {
     await save(run);
@@ -738,9 +774,7 @@ export function queueScheduleProvider(
     delete: async (context, name) => {
       const run = await read(context, name);
 
-      return run === null
-        ? false
-        : scheduler.unschedule(storedName(run), run.tenant);
+      return run === null ? false : unschedule(run);
     },
   };
 
@@ -748,7 +782,8 @@ export function queueScheduleProvider(
     queue,
     current: find,
     save,
-    remove: (run) => scheduler.unschedule(storedName(run), run.tenant),
+    remove: unschedule,
+    record,
   });
 
   return provider;
@@ -1169,6 +1204,8 @@ export function queueDynamicSchedules(
 
     const sessions: string[] = [];
 
+    await provider.record(run, scheduledAt, "running");
+
     try {
       const envelope = envelopeOf(run.payload);
 
@@ -1250,6 +1287,7 @@ export function queueDynamicSchedules(
         });
 
         await tell(run, failed);
+        await provider.record(run, scheduledAt, "failed", failed.reason);
         // SAFETY: eve types the event by the payload; this one carries none.
         await definition.events?.["occurrence.failed"]?.(failed as never);
       }
@@ -1260,6 +1298,8 @@ export function queueDynamicSchedules(
 
       throw cause;
     }
+
+    await provider.record(run, scheduledAt, "completed");
 
     if (run.expression.type === "single") {
       await provider.save({

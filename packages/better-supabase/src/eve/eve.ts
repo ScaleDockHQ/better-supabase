@@ -58,6 +58,7 @@ export type {
   EveScheduleAuthContext,
   EveScheduleExpression,
   EveScheduleFailureNotice,
+  EveScheduleMirror,
   EveScheduleHandle,
   EveScheduleJob,
   EveScheduleOccurrence,

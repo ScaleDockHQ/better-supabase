@@ -5125,6 +5125,7 @@
       "EveScheduleFailureNotice",
       "EveScheduleHandle",
       "EveScheduleJob",
+      "EveScheduleMirror",
       "EveScheduleOccurrence",
       "EveScheduleOccurrenceEvent",
       "EveScheduleOccurrenceIdentity",
@@ -6537,7 +6538,10 @@
       "AiTaskRunner",
       "AiTaskRunStatus",
       "BlockTransport",
-      "NewAiTask"
+      "MirrorAiTask",
+      "MirroredAiTask",
+      "NewAiTask",
+      "RecordAiTaskRun"
     ]
   },
   "./blocks/ai-cache": {

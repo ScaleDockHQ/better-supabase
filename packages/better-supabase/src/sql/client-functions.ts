@@ -29,7 +29,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "ai-keys":
     "ai_provider_keys_for delete_ai_provider_key delete_ai_provider_keys due_ai_batches get_ai_batch get_ai_provider_key list_ai_batch_items list_ai_batches list_ai_provider_keys page_ai_batches page_ai_provider_keys record_ai_batch save_ai_batch_items save_ai_provider_key update_ai_batch",
   "ai-schedules":
-    "claim_due_ai_tasks delete_ai_task finish_ai_task_run get_ai_task list_ai_task_runs list_ai_tasks page_ai_tasks save_ai_task schedule_ai_tasks start_ai_task_run",
+    "claim_due_ai_tasks delete_ai_task delete_mirrored_ai_task finish_ai_task_run get_ai_task list_ai_task_runs list_ai_tasks mirror_ai_task page_ai_tasks record_ai_task_run save_ai_task schedule_ai_tasks start_ai_task_run",
   announcements:
     "active_announcements archive_announcement dismiss_announcement get_announcement list_announcements page_announcements purge_announcement restore_announcement save_announcement",
   "api-keys":
