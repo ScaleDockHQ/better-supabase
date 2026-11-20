@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:5ee85439dd6e5d81bb3d6bcbacb813803d86095a133c7ee23a0555481ceadd9c
+-- @bsb-hash sha256:a0b66b2c0be42d0d1d86a0122e2b625179ca1bfacd4fd341cf220f381bb4f757
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -19,6 +19,6 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 7, 'managed')
+values ('workflow-sdk', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
