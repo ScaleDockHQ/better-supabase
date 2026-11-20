@@ -7,8 +7,9 @@ import type { Result } from "./result.ts";
 
 import { fromPgError } from "../postgres/pg-error.ts";
 import { rawError } from "./block-transport.ts";
+import { errorText } from "./error-text.ts";
 import { dbError, dbErrorOf, mapDbError } from "./errors.ts";
-import { errorText, isRecord } from "./guards.ts";
+import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok, toDbError } from "./result.ts";
 import { temporal } from "./temporal-required.ts";
 import { provideTemporal } from "./temporal.ts";

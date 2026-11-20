@@ -12,8 +12,8 @@ import type { EveSessionReply } from "./sync.ts";
 import type { EveSessionAuth } from "./types.ts";
 
 import { webhook } from "../chat-sdk/channels.ts";
+import { errorText } from "../core/error-text.ts";
 import { DbException } from "../core/errors.ts";
-import { errorText } from "../core/guards.ts";
 
 /** One inbox channel connection, as its webhook route resolves it. */
 export interface EveInboxConnection {
