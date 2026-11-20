@@ -458,8 +458,9 @@ const stepsCheck = (
     end if;
     for v_who in select a.w from (values (v_step -> 'approvers', true), (v_step -> 'escalateTo', v_step ? 'escalateTo')) a(w, checked) where a.checked loop
       if jsonb_typeof(v_who) is distinct from 'object'
-        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager'])
+        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager', 'decider'])
         or (v_who ? 'manager' and ${manager ? "v_who -> 'manager' <> 'true'::jsonb" : "true"})
+        or (v_who ? 'decider' and v_who -> 'decider' <> 'true'::jsonb)
         or (v_who ? 'users' and (jsonb_typeof(v_who -> 'users') <> 'array'
           or exists (select 1 from jsonb_array_elements(v_who -> 'users') u
             where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))) then
@@ -496,6 +497,20 @@ function tenantPoliciesSql(
 
   const platformManage =
     platformKey === undefined ? manage : sqlString(platformKey);
+
+  // A decider step needs a block that decides the subject type.
+  const deciding = ctx
+    .contributions("approvals")
+    .filter((each) => each.decides !== undefined)
+    .map((each) => sqlString(each.subject));
+
+  const deciderCheck = `
+  if exists (
+    select 1 from jsonb_array_elements(v_steps) d(s)
+    where d.s -> 'approvers' -> 'decider' = 'true'::jsonb or d.s -> 'escalateTo' -> 'decider' = 'true'::jsonb
+  )${deciding.length === 0 ? "" : ` and v_type not in (${deciding.join(", ")})`} then
+    ${fail("APPROVAL_POLICY_DECIDER_UNAVAILABLE", "decider is only valid for subject types a block decides", "22023")}
+  end if;`;
 
   const platformRead =
     platformKey === undefined ? read : sqlString(platformKey);
@@ -602,7 +617,7 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
 
   const stepsInvalid = fail(
     "APPROVAL_POLICY_INVALID",
-    `steps must be a list of { approvers: { permission, role, team, users${manager ? ", manager" : ""} }, required, escalateAfter, escalateTo } objects`,
+    `steps must be a list of { approvers: { permission, role, team, users${manager ? ", manager" : ""}, decider }, required, escalateAfter, escalateTo } objects`,
     "22023",
   );
 
@@ -663,7 +678,7 @@ begin
   if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
     ${stepsInvalid}
   end if;
-${stepsCheck("v_steps", stepsInvalid, manager)}
+${stepsCheck("v_steps", stepsInvalid, manager)}${deciderCheck}
   v_steps := ${allUsersCounted("v_steps")};
   if coalesce(save_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
     ${fail("APPROVAL_POLICY_INVALID", "mode must be confirm or authorize", "22023")}
@@ -793,7 +808,7 @@ function requestSql(
 
   const ownInvalid = fail(
     "APPROVAL_POLICY_INVALID",
-    `policy must be { steps: [{ approvers: { permission, role, team, users${manager ? ", manager" : ""} }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn${manager ? ", managerOf" : ""} }`,
+    `policy must be { steps: [{ approvers: { permission, role, team, users${manager ? ", manager" : ""}, decider }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn${manager ? ", managerOf" : ""} }`,
     "22023",
   );
 

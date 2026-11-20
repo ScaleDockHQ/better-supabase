@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:8f44414ab12dfca8990ebd76d73c86709f1832c52663f923fbc1f20803883546
+-- @bsb-hash sha256:356dcb198cb05dd5d47cdc0b6294ecc4256d36fd706fbd8bc97c047efa02435e
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -420,6 +420,36 @@ begin
     metadata => jsonb_build_object('organizationId', organization::text, 'userId', me)
   );
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "public"."memberships" m
+    where m."user_id" = v_member and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = 'owner'
+      and exists (select 1 from "public"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "public"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and (select r."key" from "better_supabase"."roles" r where r."id" = y."role") = 'owner'
+      )
+  ), '{}');
 end;
 $$;
 
@@ -1127,6 +1157,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
@@ -1357,6 +1389,16 @@ set search_path = ''
 as $$ select "better_supabase"."leave_organization"($1) $$;
 revoke execute on function "api"."leave_organization"(uuid) from public, anon;
 grant execute on function "api"."leave_organization"(uuid) to authenticated, service_role;
+
+create or replace function "api"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."sole_owned_organizations"($1) $$;
+revoke execute on function "api"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "api"."sole_owned_organizations"(uuid) to authenticated, service_role;
 
 create or replace function "api"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean

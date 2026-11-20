@@ -93,6 +93,7 @@ const NAMES: BlockSqlNames = {
         currency: "currency",
         holder: "holder",
         isPrimary: "is_primary",
+        position: "position",
         journal: "journal_id",
         archivedAt: "archived_at",
         createdAt: "created_at",

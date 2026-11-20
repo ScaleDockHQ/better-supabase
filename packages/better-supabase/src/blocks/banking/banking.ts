@@ -83,6 +83,8 @@ export interface BankAccount<F extends object = Record<never, never>> {
   readonly holder?: string;
   /** The organization's first-choice account in this currency. */
   readonly primary: boolean;
+  /** Where the account sits in the organization's own order, lowest first. */
+  readonly position: number;
   /** The accounting journal (`bank` or `cash`) the account books to. */
   readonly journalId?: string;
   readonly archivedAt?: Temporal.Instant;
@@ -104,6 +106,8 @@ export interface BankAccountInput<F extends object = Record<never, never>> {
    * currency.
    */
   readonly primary?: boolean;
+  /** The account's place in the organization's order, 0 or more. Default: 0. */
+  readonly position?: number;
   readonly journalId?: string | null;
   readonly archived?: boolean;
   /** Values for the extra columns, checked by the `fields` schema. */
@@ -565,6 +569,7 @@ function accountOf(value: unknown, fn: string): BankAccount {
     currency: textOf(row["currency"]),
     ...(holder ? { holder } : {}),
     primary: row["primary"] === true,
+    position: typeof row["position"] === "number" ? row["position"] : 0,
     ...(journalId ? { journalId } : {}),
     ...(archivedAt ? { archivedAt } : {}),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),

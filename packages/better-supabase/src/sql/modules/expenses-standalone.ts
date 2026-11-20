@@ -111,7 +111,10 @@ export function standaloneApprovals(ctx: BlockSqlContext): boolean {
   return on;
 }
 
-/** `options.policy`, or one step for holders of the approve permission. */
+/**
+ * `options.policy`, or one step for holders of the approve permission and, with
+ * `options.decider`, whoever the app's decider accepts.
+ */
 function standalonePolicy(ctx: BlockSqlContext): string {
   const policy = policyOf(
     EXPENSE_SUBJECT,
@@ -124,6 +127,7 @@ function standalonePolicy(ctx: BlockSqlContext): string {
               "approve",
               OPERATIONS["expenses.approve"],
             ),
+            ...(ctx.text("decider", "") === "" ? {} : { decider: true }),
           },
         },
       ],
@@ -390,12 +394,6 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     `(${ctx.can("tenant", `${row}.${e("tenant")}`, approve)}${managerDecides(ctx, "blocks.expenses.options", managerArgs(row))}${deciderCall(ctx, "blocks.expenses.options", `${row}.${e("id")}`)})`;
 
   const deciderOn = deciderCall(ctx, "blocks.expenses.options", "null") !== "";
-
-  if (deciderOn && linked !== undefined) {
-    throw new TypeError(
-      "blocks.expenses.options.decider needs standaloneApprovals off; with the approvals block its policy picks the approvers",
-    );
-  }
 
   // Another active member who holds the approve key, or, with the manager as
   // approver, an active manager up the owner's chain. The owner or creator

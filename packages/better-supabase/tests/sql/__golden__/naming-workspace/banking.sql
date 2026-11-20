@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:d3cb2c9fbbfce4fab20048bfb5eca699cbaba34172c2c7d59c58e1fcea30b8ee
+-- @bsb-hash sha256:25514fc37a1e4c5f7be403268766bd02303e199f7097b9288182e84a4e963e89
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,6 +22,8 @@ create table "better_supabase"."bank_accounts" (
   "holder" text constraint bsb_bank_accounts_holder_check check ("holder" is null or length("holder") >= 1 and length("holder") <= 200),
   -- The account an organization pays from and reconciles first, once per currency.
   "is_primary" boolean not null default false,
+  -- Where the account sits in the organization's own order, lowest first.
+  "position" integer not null default 0 constraint bsb_bank_accounts_position_check check ("position" >= 0),
   -- The accounting journal the account's money moves through.
   "journal_id" uuid,
   "archived_at" timestamptz,
@@ -243,7 +245,7 @@ $$;
 revoke execute on function "better_supabase"."bank_reference"(text) from public, anon, authenticated;
 
 -- Creates or updates a bank account: name, holder, iban, bic, currency, the
--- primary flag and the accounting journal its money moves through. Making an
+-- primary flag, the position in the organization's order and the accounting journal its money moves through. Making an
 -- account primary clears the flag on the organization's other accounts in
 -- the same currency; archiving an account clears its own. The IBAN is stored upper case
 -- without spaces and must pass its ISO 13616 check digits.
@@ -263,6 +265,7 @@ declare
   v_holder text;
   v_primary boolean;
   v_archived boolean;
+  v_position integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -317,18 +320,22 @@ begin
     where x."tenant_id" = save_bank_account.tenant and x."currency" = v_currency
       and x."is_primary" and x."id" is distinct from v_account."id";
   end if;
+  v_position := case when save_bank_account.input ? 'position'
+    then coalesce((save_bank_account.input ->> 'position')::integer, 0)
+    else coalesce(v_account."position", 0) end;
   v_journal := case when save_bank_account.input ? 'journalId'
     then nullif(save_bank_account.input ->> 'journalId', '')::uuid
     else v_account."journal_id" end;
   if v_account."id" is null then
-    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "iban", "bic", "currency", "journal_id")
-    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_iban, v_bic, v_currency, v_journal)
+    insert into "better_supabase"."bank_accounts" ("tenant_id", "name", "holder", "is_primary", "position", "iban", "bic", "currency", "journal_id")
+    values (save_bank_account.tenant, trim(save_bank_account.input ->> 'name'), v_holder, v_primary, v_position, v_iban, v_bic, v_currency, v_journal)
     returning * into v_account;
   else
     update "better_supabase"."bank_accounts" x set
       "name" = coalesce(trim(save_bank_account.input ->> 'name'), x."name"),
       "holder" = v_holder,
       "is_primary" = v_primary,
+      "position" = v_position,
       "iban" = v_iban,
       "bic" = v_bic,
       "currency" = v_currency,
@@ -340,14 +347,14 @@ begin
     where x."id" = v_account."id"
     returning * into v_account;
   end if;
-  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
+  return jsonb_build_object('id', v_account."id", 'organizationId', v_account."tenant_id", 'name', v_account."name", 'iban', v_account."iban", 'bic', v_account."bic", 'currency', v_account."currency", 'holder', v_account."holder", 'primary', v_account."is_primary", 'position', v_account."position", 'journalId', v_account."journal_id", 'archivedAt', v_account."archived_at", 'createdAt', v_account."created_at", 'updatedAt', v_account."updated_at");
 exception
   when check_violation or not_null_violation then
-    raise exception 'a bank account has a name of 1 to 200 characters' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
+    raise exception 'a bank account has a name of 1 to 200 characters and a position of 0 or more' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   when unique_violation then
     raise exception 'the organization already has a bank account with this IBAN' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   when invalid_text_representation then
-    raise exception 'journalId must be a uuid' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
+    raise exception 'journalId must be a uuid and position an integer' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
 end;
 $$;
 revoke execute on function "better_supabase"."save_bank_account"(uuid, jsonb, uuid) from public, anon;
@@ -365,7 +372,7 @@ begin
     raise exception 'not allowed to read bank accounts' using errcode = '42501', hint = 'BANKING_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."position", x."name", x."id")
     from "better_supabase"."bank_accounts" x
     where x."tenant_id" = list_bank_accounts.tenant
       and (list_bank_accounts.include_archived or x."archived_at" is null)
@@ -443,8 +450,8 @@ begin
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
-  if v_sort is not null and v_sort not in ('name', 'createdAt') then
-    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'position') then
+    raise exception 'sort is one of name, createdAt, position' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
     raise exception 'direction is asc or desc' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
@@ -458,7 +465,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -479,7 +486,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -500,7 +507,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -521,7 +528,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -542,7 +549,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -563,7 +570,7 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
     from (
       select * from "better_supabase"."bank_accounts" x
       where x."tenant_id" = page_bank_accounts.tenant
@@ -572,6 +579,48 @@ begin
         and (v_search is null or x."name" ilike v_search or x."iban" ilike v_search or x."holder" ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'position' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."position")::text, (lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."bank_accounts" x
+      where x."tenant_id" = page_bank_accounts.tenant
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."name" ilike v_search or x."iban" ilike v_search or x."holder" ilike v_search)
+        and (v_after is null or (x."position", lower(x."name"), x."id") > ((v_after ->> 0)::integer, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."position" asc, lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'position' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'iban', x."iban", 'bic', x."bic", 'currency', x."currency", 'holder', x."holder", 'primary', x."is_primary", 'position', x."position", 'journalId', x."journal_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."position")::text, (lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."bank_accounts" x
+      where x."tenant_id" = page_bank_accounts.tenant
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or (x."currency")::text = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else x."archived_at" is null end)
+        and (v_search is null or x."name" ilike v_search or x."iban" ilike v_search or x."holder" ilike v_search)
+        and (v_after is null or (x."position" <= (v_after ->> 0)::integer and ((x."position" < (v_after ->> 0)::integer) or (x."position" = (v_after ->> 0)::integer and lower(x."name") > (v_after ->> 1)::text) or (x."position" = (v_after ->> 0)::integer and lower(x."name") = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."position" desc, lower(x."name") asc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:950a167f03abcd3e048f0f35e99cf473d141391677f99c6c2b154ef42fc001ec
+-- @bsb-hash sha256:b139e12d024dd6f848e195413ee537647bca97c86ac6d1276e9cfb872841d7e6
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -389,6 +389,36 @@ begin
   end;
   null;
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_workspaces"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."workspace_id" order by m."workspace_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."workspaces" o where o."id" = m."workspace_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."workspace_id" = m."workspace_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -934,6 +964,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_workspace"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_workspace"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_workspaces"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_workspaces"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;

@@ -866,7 +866,7 @@ on conflict (name) do update
 -- ==== organizations
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:f41153c8de30eefa8ec419d926bf4e91310976dad115721016c322a881bc49c4
+-- @bsb-hash sha256:64edbc1b533ddac195ba4d55378d32c0d94d36a1794f62d82ac1cf82d7a88d27
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1256,6 +1256,36 @@ begin
   end;
   null;
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and exists (select 1 from "better_supabase"."membership_roles" mr where mr."organization_id" = m."organization_id" and mr."user_id" = m."user_id" and mr."role" = 'owner')
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and exists (select 1 from "better_supabase"."membership_roles" mr where mr."organization_id" = y."organization_id" and mr."user_id" = y."user_id" and mr."role" = 'owner') and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -2158,6 +2188,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;

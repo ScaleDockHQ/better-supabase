@@ -1,5 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
+import type {
+  ApprovalContribution,
+  BlockContributes,
+} from "../contributions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -9,6 +12,7 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
+import { deciderCall } from "./direct-approver.ts";
 import { byEmployee, entryLive } from "./time-entries-owner.ts";
 
 /** Timesheets this block submits to approvals. */
@@ -271,6 +275,20 @@ ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`
 `;
 }
 
+/** `options.decider`, for policy steps with `decider: true`. */
+function timesheetDecider(
+  own: BlockSqlContext,
+): Pick<ApprovalContribution, "decides"> {
+  const where = "blocks.time-entries.options";
+
+  return deciderCall(own, where, "null") === ""
+    ? {}
+    : {
+        decides: ({ subjectId }) =>
+          deciderCall(own, where, `${subjectId}::uuid`).replace(/^ or /u, ""),
+      };
+}
+
 /** Approvals decides weeks; per employee, the status column follows. */
 export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
   approvals: (own) => {
@@ -287,6 +305,7 @@ export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
             `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
           reject: ({ subjectId, comment, approver }) =>
             `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+          ...timesheetDecider(own),
         },
       ];
     }
@@ -297,6 +316,7 @@ export const TIME_ENTRIES_CONTRIBUTES: BlockContributes = {
         access: "declared",
         approve: ({ subjectId }) =>
           `perform ${own.fn("approve_timesheet")}(${subjectId}::uuid);`,
+        ...timesheetDecider(own),
       },
     ];
   },

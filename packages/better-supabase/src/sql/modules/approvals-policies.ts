@@ -14,6 +14,11 @@ export interface ApprovalApprovers {
   readonly users?: readonly string[];
   /** The requester's manager (the `employees` module). */
   readonly manager?: boolean;
+  /**
+   * Whoever the block that files the request accepts as a decider, such as the
+   * app function in `blocks.leave.options.decider`.
+   */
+  readonly decider?: boolean;
 }
 
 /**
@@ -85,7 +90,7 @@ const isFields = (value: unknown): value is Fields =>
 function approversOf(value: unknown, where: string): ApprovalApprovers {
   if (!isFields(value)) {
     throw new TypeError(
-      `${where}.approvers must be an object with permission, role, team, users or manager`,
+      `${where}.approvers must be an object with permission, role, team, users, manager or decider`,
     );
   }
 
@@ -120,6 +125,12 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
     throw new TypeError(`${where}.approvers.manager must be true`);
   }
 
+  const decider = value["decider"];
+
+  if (decider !== undefined && decider !== true) {
+    throw new TypeError(`${where}.approvers.decider must be true`);
+  }
+
   const permission = text("permission");
   const role = text("role");
   const team = text("team");
@@ -130,6 +141,7 @@ function approversOf(value: unknown, where: string): ApprovalApprovers {
     ...(team === undefined ? {} : { team }),
     ...(Array.isArray(users) ? { users: users.map(String) } : {}),
     ...(manager === true ? { manager } : {}),
+    ...(decider === true ? { decider } : {}),
   };
 
   if (Object.keys(approvers).length === 0) {

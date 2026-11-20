@@ -2512,6 +2512,19 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     ]);
   });
 
+  it("passes a subject whose uploads follow the table's own update policies", async () => {
+    expect(
+      await run(
+        "BS345",
+        context(
+          withPolicies(tenantOnly, strict),
+          {},
+          config({ note: { table: "notes", upload: "subject" } }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
   it("leaves reads to the block's policy, which checks the subject row", async () => {
     expect(
       await run(

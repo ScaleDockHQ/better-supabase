@@ -8410,6 +8410,9 @@
                   "type": "string"
                 }
               },
+              "decider": {
+                "type": "string"
+              },
               "on": {
                 "type": "array",
                 "items": {

@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:9a64bcfd1af7152c05338cd6523d9d740819d91c3d813c84ebcef42c554a5a44
+-- @bsb-hash sha256:6e119f3e28883a578872e3c0fd2892027e393a1d0b57ef234fda55370efabcfd
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -419,6 +419,36 @@ begin
     metadata => jsonb_build_object('organizationId', organization::text, 'userId', me)
   );
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "centrakit"."organization_users" m
+    where m."user_id" = v_member and (select r."key"::text from "centrakit"."roles" r where r."id"::text = (m."role_id")::text) = 'owner'
+      and exists (select 1 from "centrakit"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "centrakit"."organization_users" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and (select r."key"::text from "centrakit"."roles" r where r."id"::text = (y."role_id")::text) = 'owner'
+      )
+  ), '{}');
 end;
 $$;
 
@@ -1121,6 +1151,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;

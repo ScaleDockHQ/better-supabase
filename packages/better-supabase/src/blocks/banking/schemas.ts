@@ -36,6 +36,12 @@ export const bankAccountInputSchema: EntitySchema<BankAccountInput> =
         description:
           "Clears the flag on the organization's other accounts in the same currency.",
       },
+      position: {
+        kind: "integer",
+        optional: true,
+        minimum: 0,
+        description: "The account's place in the organization's order.",
+      },
       journalId: {
         kind: "uuid",
         optional: true,

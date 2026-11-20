@@ -126,6 +126,7 @@ const NAMES: BlockSqlNames = {
     "timers",
     "lockedColumns",
     "on",
+    "decider",
   ],
   tables: {
     entries: {

@@ -1,5 +1,9 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
+import type {
+  ApprovalContribution,
+  ApprovalRequestSql,
+  BlockContributes,
+} from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
@@ -237,6 +241,67 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const linked = contributed.filter((each) => each.access === "linked");
 
+  for (const policy of policies) {
+    const decides = contributed.some(
+      (each) =>
+        each.subject === policy.subjectType && each.decides !== undefined,
+    );
+
+    if (
+      !decides &&
+      policy.steps.some(
+        (step) =>
+          step.approvers.decider === true || step.escalateTo?.decider === true,
+      )
+    ) {
+      throw new TypeError(
+        `blocks.approvals.options.policies.${policy.subjectType}: approvers.decider needs a block that decides this subject type`,
+      );
+    }
+  }
+
+  // A contributing block's `decides` or `selfDecides` for the request in
+  // `row`, by its subject type; undefined when no block contributes one.
+  const byBlock = (
+    pick: (
+      each: ApprovalContribution,
+    ) => ((request: ApprovalRequestSql) => string) | undefined,
+    row: string,
+    me: string,
+  ): string | undefined => {
+    const whens = contributed.flatMap((each) => {
+      const check = pick(each);
+
+      return check === undefined
+        ? []
+        : [
+            `when ${sqlString(each.subject)} then coalesce(${check({ id: `${row}.${c("id")}`, subjectId: `(case when ${row}.${c("subjectId")} ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then ${row}.${c("subjectId")} end)`, comment: "null", approver: me })}, false)`,
+          ];
+    });
+
+    return whens.length === 0
+      ? undefined
+      : `(case ${row}.${c("subjectType")} ${whens.join(" ")} else false end)`;
+  };
+
+  const decidesBy = (row: string, me: string): string | undefined =>
+    byBlock((each) => each.decides, row, me);
+
+  const selfDecidesBy = (row: string, me: string): string | undefined =>
+    byBlock((each) => each.selfDecides, row, me);
+
+  const deciderClause = (
+    approvers: string,
+    row: string,
+    me: string,
+  ): string => {
+    const decides = decidesBy(row, me);
+
+    return decides === undefined
+      ? ""
+      : `\n    or (coalesce((${approvers} ->> 'decider')::boolean, false) and ${decides})`;
+  };
+
   const ownSubjects = own.map((each) => sqlString(each.subject)).join(", ");
 
   const linkedRow = (column: string): string =>
@@ -430,7 +495,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
         ? ""
         : `
     or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${fact("manager", managerEmployee ?? "null", `v_req.${c("requestedBy")}`)})`
-    })`;
+    }${deciderClause("v_approvers", "v_req", "v_me")})`;
 
   const through = roleThrough(members);
 
@@ -583,7 +648,7 @@ ${indent}end if;`;
       select 1 from ${members.table("memberships")} mm
       where mm.${mt} = ${tenantOf} and mm.${mu} = q.bsb_me and mm.${mr} = ${roleValue(ctx, `${ap} ->> 'role'`, tenantOf)}
     ))
-    or (${ap} ->> 'team' is not null and ${teamMatch("q.bsb_me", `${ap} ->> 'team'`)})${managerClause})`;
+    or (${ap} ->> 'team' is not null and ${teamMatch("q.bsb_me", `${ap} ->> 'team'`)})${managerClause}${deciderClause(ap, "q", "q.bsb_me")})`;
   };
 
   const escalatedSet = `coalesce((q.bsb_step ->> 'escalated')::boolean, false)`;
@@ -647,7 +712,7 @@ ${indent}end if;`;
       : ""
   }
     and ((q.bsb_me = q.${c("requestedBy")} and ${policyOf("q")} ->> 'mode' = 'confirm')
-      or ((q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false))
+      or ((q.bsb_me is distinct from q.${c("requestedBy")} or coalesce((${policyOf("q")} ->> 'selfApproval')::boolean, false)${selfDecidesBy("q", "q.bsb_me") === undefined ? "" : ` or ${selfDecidesBy("q", "q.bsb_me")}`})
         and ${linkedSet.length === 0 ? setCore : `(case ${linkedSet.join("\n          ")}\n          else ${setCore} end)`}))`;
 
   const kit: ApprovalSqlKit = {
@@ -906,7 +971,7 @@ begin
     if ${policyOf("v_req")} ->> 'mode' = 'confirm' then
       return true;
     end if;
-    if not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false) then
+    if not coalesce((${policyOf("v_req")} ->> 'selfApproval')::boolean, false)${selfDecidesBy("v_req", "v_me") === undefined ? "" : ` and not ${selfDecidesBy("v_req", "v_me")}`} then
       return false;
     end if;
   end if;${linkedEligible}

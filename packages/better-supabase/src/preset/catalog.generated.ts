@@ -9837,6 +9837,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "currency": "currency",
               "holder": "holder",
               "isPrimary": "is_primary",
+              "position": "position",
               "journal": "journal_id",
               "archivedAt": "archived_at",
               "createdAt": "created_at",
@@ -28174,6 +28175,12 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "description": "Clears the flag on the organization's other accounts in the same currency."
               },
+              "position": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 0,
+                "description": "The account's place in the organization's order."
+              },
               "journalId": {
                 "kind": "uuid",
                 "optional": true,
@@ -28230,6 +28237,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "primary": {
                   "type": "boolean",
                   "description": "Clears the flag on the organization's other accounts in the same currency."
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "The account's place in the organization's order."
                 },
                 "journalId": {
                   "type": [
@@ -28411,7 +28423,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bank_account": {
           "sorts": [
             "name",
-            "createdAt"
+            "createdAt",
+            "position"
           ],
           "facets": [
             "currency"

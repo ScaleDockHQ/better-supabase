@@ -70,16 +70,16 @@ blocks: {
 },
 ```
 
-| Option                                        | Default       | What it does                                                                                                                                       |
-| --------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `steps[].approvers`                           | none          | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id), `users` or `manager: true`; any match may decide                |
-| `steps[].required`                            | `1`           | Approvals the step needs; `"all"` with `users` means every listed user, and with only `permission` every holder of it when the request is filed    |
-| `steps[].escalateAfter`, `steps[].escalateTo` | none          | After the step waited this ISO 8601 duration, `escalate_approvals()` lets the `escalateTo` approvers decide it too                                 |
-| `effects`                                     | none          | Tags such as `money-movement` that tenant and platform policies match on                                                                           |
-| `expiresIn`                                   | none          | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
-| `selfApproval`                                | `false`       | Whether the requester may decide a step                                                                                                            |
-| `mode`                                        | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                       |
-| `run`                                         | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
+| Option                                        | Default       | What it does                                                                                                                                         |
+| --------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps[].approvers`                           | none          | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id), `users`, `manager: true` or `decider: true`; any match may decide |
+| `steps[].required`                            | `1`           | Approvals the step needs; `"all"` with `users` means every listed user, and with only `permission` every holder of it when the request is filed      |
+| `steps[].escalateAfter`, `steps[].escalateTo` | none          | After the step waited this ISO 8601 duration, `escalate_approvals()` lets the `escalateTo` approvers decide it too                                   |
+| `effects`                                     | none          | Tags such as `money-movement` that tenant and platform policies match on                                                                             |
+| `expiresIn`                                   | none          | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                                 |
+| `selfApproval`                                | `false`       | Whether the requester may decide a step                                                                                                              |
+| `mode`                                        | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                         |
+| `run`                                         | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue)   |
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
@@ -104,6 +104,8 @@ Policies are fixed per subject type and action. To pick one by the record's valu
 A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.
 
 `steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-entries) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. The offboarded check reads the employees block's `values.employees.status` mapping, so a manager whose row holds the app's mapped value (for example `ended`) decides nothing. A policy that names a manager needs the employees block in managed mode.
+
+`steps[].approvers.decider: true` lets the block that files the request decide who else may approve the step, such as the app function in `options.decider` of the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-entries) and [expenses](/docs/blocks/expenses) blocks. The function takes the request's subject id and answers for the caller. A subject type whose block names no decider matches nobody, so a tenant policy can only turn a configured decider on or off, never name a function. The leave block's `selfDecideWhenTopOfChain` also lets a requester whom nobody else can decide for approve their own leave request without `selfApproval`.
 
 A module that files a request through `open_approval` may add `excludedUserIds`, a list of user ids, to the policy snapshot. Those users are left out of deciding the request like the requester: `approval_eligible` and the queue (`approval_eligible_ids`, `page_approvals`) skip them, a step with `required: "all"` doesn't ask them, the request notifications leave them out, and their decision, also one the service role makes for them, fails with `APPROVAL_FORBIDDEN`. [Expenses](/docs/blocks/expenses#decision-rules) list an expense's creator there. It needs the policy column on the requests table.
 
@@ -180,7 +182,7 @@ const needed = await db.approvals
   .orThrow();
 ```
 
-Each step of a tenant policy has its own quorum, checked the same way as the config: `required` is a whole number of at least 1 or `"all"`. On a step that only lists `users`, a number above the number of users fails with `APPROVAL_POLICY_INVALID`, and `"all"` is saved as that number with `all: true`, so `listPolicies` returns `required: 2, all: true` for two users. A tenant can't set `all` itself; the save strips it from every other step.
+Each step of a tenant policy has its own quorum, checked the same way as the config: `required` is a whole number of at least 1 or `"all"`. On a step that only lists `users`, a number above the number of users fails with `APPROVAL_POLICY_INVALID`, and `"all"` is saved as that number with `all: true`, so `listPolicies` returns `required: 2, all: true` for two users. A tenant can't set `all` itself; the save strips it from every other step. A step with `decider: true` on a subject type no block decides fails with `APPROVAL_POLICY_DECIDER_UNAVAILABLE`.
 
 Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
 

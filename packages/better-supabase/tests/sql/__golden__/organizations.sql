@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:4a3a1938e8c1c7228324a12fb8cbc07f29ac8a4838596c8eb45392662f301647
+-- @bsb-hash sha256:6d98c3d25ccc3dc4b4788fa0b683768606c44e602d321588b9846d2c3407a65d
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -389,6 +389,36 @@ begin
   end;
   null;
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -934,6 +964,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
@@ -1102,7 +1134,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:813a3c0e6ce50cbdeb6340a74559a65bb8ea26736bf9a17ab14ac64034301646
+-- @bsb-hash sha256:cef4e98c9b594017283aee89ba0546408d9fe1f0e7b480d6cf90a873bc4147b9
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1540,6 +1572,36 @@ begin
     metadata => jsonb_build_object('organizationId', organization::text, 'userId', me)
   );
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -2371,6 +2433,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
@@ -2543,7 +2607,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:bb48304c4857f5cf3c3975422245abd2827f3cda584366e717e440aa0c5c43f4
+-- @bsb-hash sha256:960e1715d65c7767be173e0c6d6b8e8b001a58f5810f23867b7fc96a47fecef4
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2937,6 +3001,36 @@ begin
   end;
   null;
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "app_private"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "app_private"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -3482,6 +3576,8 @@ revoke execute on function "app_private"."remove_member"(uuid, uuid) from public
 grant execute on function "app_private"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "app_private"."leave_organization"(uuid) from public, anon;
 grant execute on function "app_private"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "app_private"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "app_private"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "app_private"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "app_private"."mark_used"(uuid) from public, anon;
@@ -3650,7 +3746,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:867cdf5cb34e2d62fcdfa711d99e8178876b54569f7a4569b36e6160e23bc846
+-- @bsb-hash sha256:73d2ed370bd7b698089f725529c7ffe731495f0cc1d0bd756c825fe21e5ee801
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4041,6 +4137,36 @@ begin
 end;
 $$;
 
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
+end;
+$$;
+
 -- Makes new_owner an owner in one transaction; a calling owner becomes
 -- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
@@ -4583,6 +4709,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
@@ -4814,6 +4942,16 @@ as $$ select "better_supabase"."leave_organization"($1) $$;
 revoke execute on function "api"."leave_organization"(uuid) from public, anon;
 grant execute on function "api"."leave_organization"(uuid) to authenticated, service_role;
 
+create or replace function "api"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."sole_owned_organizations"($1) $$;
+revoke execute on function "api"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "api"."sole_owned_organizations"(uuid) to authenticated, service_role;
+
 create or replace function "api"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
 returns boolean
 language sql
@@ -4941,7 +5079,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:cb68eee3c7f4ff9c370c30064294093b1870286663ba9ad339bbf90f25187af1
+-- @bsb-hash sha256:ded4bae22d8aaeacf0605d979c170573f3390d239070819043835cf17d1f1bbb
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5327,6 +5465,36 @@ begin
 end;
 $$;
 
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."organization_id" order by m."organization_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."organization_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."organization_id" = m."organization_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
+end;
+$$;
+
 -- Makes new_owner an owner in one transaction; a calling owner becomes
 -- former_role (blocks.organizations.options.formerOwnerRole).
 create or replace function "better_supabase"."transfer_ownership"(organization uuid, new_owner uuid, former_role text default 'admin')
@@ -5869,6 +6037,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
@@ -6032,7 +6202,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:0f1d407ef3bd0bd5a6815bb954815a133fb9329f7f5ff7745a2a935fe1c00126
+-- @bsb-hash sha256:d041b0b419cefa33e20220d0dcb444100dfb54f19bb3780c2850c41893259cb8
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6420,6 +6590,36 @@ begin
   end;
   null;
   return true;
+end;
+$$;
+
+-- The organizations whose last owner the member is: removing their
+-- memberships (leaving, or deleting the account) would fail the owner check.
+-- A member reads their own; the service role passes any member.
+create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_member uuid := coalesce(member, auth.uid());
+begin
+  if v_member is null or (not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and v_member is distinct from auth.uid()) then
+    raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return coalesce((
+    select array_agg(m."org_id" order by m."org_id")
+    from "better_supabase"."memberships" m
+    where m."user_id" = v_member and m."role" = 'owner'
+      and exists (select 1 from "better_supabase"."organizations" o where o."id" = m."org_id")
+      and not exists (
+        select 1 from "better_supabase"."memberships" y
+        where y."org_id" = m."org_id" and y."user_id" <> v_member and y."role" = 'owner' and y."disabled_at" is null
+      )
+  ), '{}');
 end;
 $$;
 
@@ -6965,6 +7165,8 @@ revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from pu
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
 grant execute on function "better_supabase"."leave_organization"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."sole_owned_organizations"(uuid) from public, anon;
+grant execute on function "better_supabase"."sole_owned_organizations"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."transfer_ownership"(uuid, uuid, text) to authenticated, service_role;
 revoke execute on function "better_supabase"."mark_used"(uuid) from public, anon;
