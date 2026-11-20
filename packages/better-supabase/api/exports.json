@@ -5055,6 +5055,7 @@
       "sessionChatId",
       "sessionHistory",
       "stableUuid",
+      "strictestApproval",
       "supabaseAuth",
       "supabaseDocumentBackend",
       "supabaseJwtAuth",
