@@ -67,17 +67,17 @@ server process.
 
 ## Part C: blocks and SDKs
 
-| Item            | Status                                                                                                                                               | Notes                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| C1 Types        | done: no structural type breaks; dynamic schedule `scopes` and `validateExpression` are unsupported                                                  | `src/eve/types.ts`                                 |
-| C2 Chat sharing | partly: organization visibility, participants with roles and a revocable live link exist; the live link has no Postgres test and `mode` is free text | `ai-chat`                                          |
-| C3 Inbox on eve | missing: no `runAs`, no draft mode, no per-connection webhook path; `routeInbox` needs the static `chatSdkChannel` bridge                            | `src/eve/inbox.ts`                                 |
-| C4 TTL          | done: every `ttl_ms` is `bigint`; tests "sends a 30-day TTL as a plain number" and "stores thread state under a 30 day TTL"                          | chat-sdk state                                     |
-| C5 Memory       | partly: organization and record scopes with admin-only writes exist; `supabaseMemory` uses only the per-user agent scope; no import                  | `src/eve` memory                                   |
-| C6 Knowledge    | partly: PDF and Office parsing, a URL source and typed chunk positions are missing                                                                   | knowledge block                                    |
-| C7 Schedules    | partly: `ai-schedules` exists but eve schedules do not write to it; a stale run failed in SQL notifies nobody                                        | `src/eve/schedules.ts`, `dynamic-schedules.ts`     |
-| C8 Approvals    | partly: `tenantToolApproval` keeps the stricter of two results; there is no general combinator and `scopes` is a static list                         | `src/eve/tools.ts`                                 |
-| C9 Guide        | missing                                                                                                                                              | `apps/docs/content/docs/(docs)/(integrations)/eve` |
+| Item            | Status                                                                                                                                 | Notes                                              |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| C1 Types        | done: no structural type breaks; dynamic schedule `scopes` and `validateExpression` are unsupported                                    | `src/eve/types.ts`                                 |
+| C2 Chat sharing | done: organization visibility, participants, a revocable live link (integration test) and a `modes` option with a check constraint     | `ai-chat`                                          |
+| C3 Inbox on eve | missing: no `runAs`, no draft mode, no per-connection webhook path; `routeInbox` needs the static `chatSdkChannel` bridge              | `src/eve/inbox.ts`                                 |
+| C4 TTL          | done: every `ttl_ms` is `bigint`; tests "sends a 30-day TTL as a plain number" and "stores thread state under a 30 day TTL"            | chat-sdk state                                     |
+| C5 Memory       | done: `supabaseMemory({ scopes })` and `importMemories`; named scopes are untested against eve 1.2, which is not installed             | `src/eve` memory                                   |
+| C6 Knowledge    | done: `pdfExtractor` and `docxExtractor` take their library through `load` (no pin), `createUrlSource` with `resync`, chunk `position` | knowledge block                                    |
+| C7 Schedules    | partly: `validateExpression`, scopes, failure notices and `aiScheduleDispatch` exist; eve schedules do not write `ai_scheduled_tasks`  | `src/eve/schedules.ts`, `dynamic-schedules.ts`     |
+| C8 Approvals    | partly: `tenantToolApproval` keeps the stricter of two results; there is no general combinator and `scopes` is a static list           | `src/eve/tools.ts`                                 |
+| C9 Guide        | missing                                                                                                                                | `apps/docs/content/docs/(docs)/(integrations)/eve` |
 
 ## Verification on Vercel
 

@@ -1,5 +1,9 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type {
+  AiSchedules,
+  AiTaskRunner,
+} from "../blocks/ai-schedules/ai-schedules.ts";
 import type { ScheduleOptions } from "../blocks/queue/types.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { AsyncResult } from "../core/result.ts";
@@ -241,4 +245,116 @@ export function scheduleAgent(
     payload: job,
     ...rest,
   });
+}
+
+/** Options for `aiScheduleDispatch`. */
+export interface AiScheduleDispatchOptions {
+  /** Eve channel definitions by key. */
+  readonly channels: Readonly<Record<string, object>>;
+  /** The key of the channel that receives each task's prompt. */
+  readonly channel: string;
+  /**
+   * The channel's proactive target for a task, such as `{ channelId }` for
+   * Slack. Defaults to the task's chat id.
+   */
+  readonly target?: (task: {
+    readonly id: string;
+    readonly organizationId: string;
+    readonly userId: string;
+    readonly chatId: string | undefined;
+  }) => unknown;
+}
+
+/** What `aiScheduleDispatch` returns. */
+export interface AiScheduleDispatch {
+  /** Pass it as `createAiSchedules({ run })`. */
+  readonly run: AiTaskRunner;
+  /**
+   * The `run` handler for an eve schedule that fires every minute: it drains
+   * `schedules`, which sends each due task's prompt to eve as the task's user.
+   */
+  handler(
+    schedules: Pick<AiSchedules, "drain">,
+  ): (args: EveScheduleOptions) => void;
+}
+
+/**
+ * Runs `ai-schedules` tasks as eve sessions. The block keeps the tasks, claims
+ * the due ones and records every occurrence in `ai_task_runs` with its status
+ * and error; its `notifier` tells the task's user when a run fails. This sends
+ * the prompt to the channel's target as that user, with the run id as the
+ * idempotency key so a retried run reaches the session the first try started.
+ *
+ * ```ts
+ * const dispatch = aiScheduleDispatch({
+ *   channels: { slack },
+ *   channel: "slack",
+ * });
+ * const schedules = createAiSchedules({
+ *   transport,
+ *   service,
+ *   run: dispatch.run,
+ * });
+ * export default defineSchedule({
+ *   cron: "* * * * *",
+ *   run: dispatch.handler(schedules),
+ * });
+ * ```
+ */
+export function aiScheduleDispatch(
+  options: AiScheduleDispatchOptions,
+): AiScheduleDispatch {
+  let current: EveScheduleOptions | undefined;
+
+  const run: AiTaskRunner = async (task, taskRun, signal) => {
+    const args = current;
+    const channel = options.channels[options.channel];
+
+    if (args === undefined) {
+      throw new TypeError(
+        "aiScheduleDispatch: run the tasks from handler(), which gives it eve's schedule arguments",
+      );
+    }
+
+    if (channel === undefined) {
+      throw new TypeError(
+        `eve: no channel "${options.channel}" in aiScheduleDispatch's channels`,
+      );
+    }
+
+    signal.throwIfAborted();
+
+    await sendTo(
+      args,
+      channel,
+      options.target?.(task) ?? task.chatId ?? null,
+    ).send(task.prompt, {
+      auth: {
+        authenticator: "supabase",
+        principalType: "user",
+        principalId: task.userId,
+        subject: task.userId,
+        attributes: { tenantId: task.organizationId },
+      },
+      idempotencyKey: `ai-task-run:${taskRun.id}`,
+      title: task.title,
+    });
+  };
+
+  return {
+    run,
+    handler: (schedules) => (args) => {
+      args.waitUntil(
+        (async () => {
+          current = args;
+
+          try {
+            await schedules.drain().orThrow();
+          } finally {
+            current = undefined;
+          }
+        })(),
+      );
+    },
+  };
 }

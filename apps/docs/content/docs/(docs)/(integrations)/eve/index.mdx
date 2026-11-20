@@ -402,6 +402,72 @@ schedule: `ctx.session.schedule` names that schedule, not the dynamic one, and
 the session could ask for input that nobody answers, so give scheduled work
 tools that don't wait for a person.
 
+### Checks, scopes and failure notices
+
+`queueScheduleProvider` checks every expression it stores with
+`validateExpression`, which you can also call yourself. It throws a
+`validation` error for a cron that does not parse, an unknown time zone, a
+malformed or past `single` time, a negative jitter and, with `minIntervalMs`, a
+cron that runs more often than that. Pass your own check as
+`validateExpression(expression, { collection, scope })`; whatever it throws is
+returned as a `validation` error.
+
+`scopes` names the scopes eve resolves for a creator, by the first part of the
+scope (`"user"` for `["user", id]`). A schedule in a scope that is not listed is
+rejected, and each rule can read the tenant from the rest of the scope
+(`tenantOf`), limit how many schedules one scope holds (`maxSchedules`, error
+hint `EVE_SCHEDULE_LIMIT`) and set its own `minIntervalMs`. eve 1.2 was not
+installed when these options were written, so they follow eve's scope
+resolution as the provider stores it and have not been run against eve's own
+`scopes` option.
+
+```ts
+queueScheduleProvider({
+  scheduler,
+  minIntervalMs: 5 * 60_000,
+  scopes: {
+    user: { tenantOf: ([org]) => org, maxSchedules: 20 },
+    team: { tenantOf: ([org]) => org, minIntervalMs: 3_600_000 },
+  },
+});
+```
+
+`queueDynamicSchedules({ notify })` tells the creator when an occurrence fails
+for good (`auth` returned null, the payload is invalid, the retries ran out or
+the occurrence was stale) by sending `notify.type` through the notifications
+block, with the schedule, occurrence and reason as data and the occurrence id as
+the dedup key. `staleAfterMs` fails a cron occurrence that starts that long after
+its time instead of firing it, so a backlog after an outage does not send old
+prompts. A notifier that throws changes nothing, like an event handler.
+
+### Tasks from the ai-schedules block
+
+If users manage their schedules as `ai-schedules` tasks, `aiScheduleDispatch`
+runs those tasks as eve sessions. The block keeps the tasks, claims the due ones
+and records each occurrence in `ai_task_runs` with its status and error, and its
+`notifier` tells the task's user when a run fails.
+
+```ts title="agent/schedules/tasks.ts"
+import { defineSchedule } from "eve/experimental/schedules";
+import { aiScheduleDispatch } from "better-supabase/eve";
+
+import { createAiSchedules } from "better-supabase/blocks/ai-schedules";
+
+const dispatch = aiScheduleDispatch({ channels: { slack }, channel: "slack" });
+
+const schedules = createAiSchedules({ transport, service, run: dispatch.run });
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: dispatch.handler(schedules),
+});
+```
+
+Each prompt goes to the channel's target as the task's user, with the run id as
+the idempotency key. Schedules that eve creates through
+`queueScheduleProvider` are not written to `ai_scheduled_tasks`: they live in
+the queue block's scheduler.
+
 ## Connections
 
 `credentialAuth` gives an MCP connection its token from a
@@ -499,6 +565,27 @@ wider scope.
 The model gets `remember` and `forget` tools (eve shows them as
 `<slot>__remember`). Pass `extract(messages, ctx)`, an LLM call of yours, to
 also keep facts from every finished turn; `tools: false` drops the tools.
+
+Pass `scopes` to recall from and write to more than the user's own memory:
+`"user"` (the default), `"organization"` (shared by the tenant) and
+`{ scope: "record", subject }`, which names one record such as the inbox
+contact the conversation is about. Each scope recalls its own core memory (the
+message ids are `core`, `core:organization` and `core:record:<type>`), and
+`remember` and `forget` take a `scope` argument when more than one scope is
+writable. Shared scopes are read-only unless the entry sets `write: true`: the
+provider runs as the service role, so a writable shared scope lets the model
+change what every user of the tenant recalls.
+
+```ts
+supabaseMemory({
+  memory,
+  scopes: [
+    "user",
+    { scope: "organization", write: false },
+    { scope: "record", write: true, subject: (ctx) => recordFor(ctx.session) },
+  ],
+});
+```
 
 To keep eve's own file memory instead, store it in Postgres with
 `supabaseDocumentBackend`. A write with a stale version throws

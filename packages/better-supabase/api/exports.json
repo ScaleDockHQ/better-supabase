@@ -5022,6 +5022,7 @@
   "./eve": {
     "values": [
       "agentJobHandler",
+      "aiScheduleDispatch",
       "approvalPolicy",
       "chatIdOf",
       "ConnectionAuthorizationFailedError",
@@ -5048,10 +5049,13 @@
       "supabaseMemory",
       "supabaseTool",
       "tenantArgument",
-      "tenantToolApproval"
+      "tenantToolApproval",
+      "validateExpression"
     ],
     "types": [
       "AgentJobOptions",
+      "AiScheduleDispatch",
+      "AiScheduleDispatchOptions",
       "ApprovalPolicyOptions",
       "CredentialAuthOptions",
       "EveAgentJob",
@@ -5090,6 +5094,7 @@
       "EveRunAs",
       "EveScheduleAuthContext",
       "EveScheduleExpression",
+      "EveScheduleFailureNotice",
       "EveScheduleHandle",
       "EveScheduleJob",
       "EveScheduleOccurrence",
@@ -5101,6 +5106,7 @@
       "EveScheduleProviderContext",
       "EveScheduleRecord",
       "EveScheduleRun",
+      "EveScheduleScopeRule",
       "EveScheduleState",
       "EveSendOptions",
       "EveSessionAuth",
@@ -5124,7 +5130,8 @@
       "SupabaseMemoryOptions",
       "SupabaseToolCall",
       "SupabaseToolDefinition",
-      "SupabaseToolOptions"
+      "SupabaseToolOptions",
+      "ValidateExpressionOptions"
     ]
   },
   "./flags-sdk": {
@@ -6013,25 +6020,37 @@
     "values": [
       "chunk",
       "createKnowledge",
+      "createUrlSource",
       "dbTransport",
+      "DOCX_TYPE",
+      "docxExtractor",
       "embedVectors",
+      "extractors",
+      "htmlToText",
       "knowledgeBlock",
+      "PDF_TYPE",
+      "pdfExtractor",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "textExtract"
     ],
     "types": [
       "BlockTransport",
       "ChunkOptions",
+      "ChunkPosition",
+      "DocxModule",
       "Embedder",
       "EmbedderV1",
       "EmbedderV2",
       "EmbedResult",
+      "ExtractorFile",
       "Knowledge",
       "KnowledgeChunk",
       "KnowledgeCollection",
       "KnowledgeCollectionGrant",
       "KnowledgeCollections",
       "KnowledgeDocument",
+      "KnowledgeExtractor",
       "KnowledgeGrantee",
       "KnowledgeHit",
       "KnowledgeHooks",
@@ -6043,13 +6062,19 @@
       "KnowledgeSubject",
       "KnowledgeVisibility",
       "NewKnowledgeCollection",
-      "NewKnowledgeDocument"
+      "NewKnowledgeDocument",
+      "PdfModule",
+      "UrlIngestInput",
+      "UrlResyncResult",
+      "UrlSource",
+      "UrlSourceOptions"
     ]
   },
   "./blocks/memory": {
     "values": [
       "createMemory",
       "dbTransport",
+      "importMemories",
       "memoryBlock",
       "rpcTransport",
       "sqlTransport"
@@ -6057,6 +6082,9 @@
     "types": [
       "BlockTransport",
       "Embedder",
+      "ImportMemoriesOptions",
+      "ImportMemoriesResult",
+      "ImportMemoriesSource",
       "Memory",
       "MemoryCommand",
       "MemoryDocument",

@@ -48,6 +48,7 @@ export {
   eveScheduleRun,
   queueDynamicSchedules,
   queueScheduleProvider,
+  validateExpression,
 } from "./dynamic-schedules.ts";
 
 export type {
@@ -56,6 +57,7 @@ export type {
   EveDynamicTargetHandle,
   EveScheduleAuthContext,
   EveScheduleExpression,
+  EveScheduleFailureNotice,
   EveScheduleHandle,
   EveScheduleJob,
   EveScheduleOccurrence,
@@ -66,9 +68,11 @@ export type {
   EveScheduleProviderContext,
   EveScheduleRecord,
   EveScheduleRun,
+  EveScheduleScopeRule,
   EveScheduleState,
   QueueDynamicSchedulesOptions,
   QueueScheduleProviderOptions,
+  ValidateExpressionOptions,
 } from "./dynamic-schedules.ts";
 
 export { stableUuid } from "./ids.ts";
@@ -84,6 +88,7 @@ export type {
 
 export {
   agentJobHandler,
+  aiScheduleDispatch,
   eveAgentJob,
   jobAuth,
   queueSchedules,
@@ -92,6 +97,8 @@ export {
 
 export type {
   AgentJobOptions,
+  AiScheduleDispatch,
+  AiScheduleDispatchOptions,
   EveAgentJob,
   EveDispatchOptions,
   EveQueueDrainer,
