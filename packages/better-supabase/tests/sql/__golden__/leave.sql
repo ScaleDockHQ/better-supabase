@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:39768a5d627a51ac681aaaeb4ebd287ba0bddc9cde3bc25a1e3754d45dcb4321
+-- @bsb-hash sha256:db7a00025729cc714fd1ae57cfb6378b4d66fec325e2d1c4cb86dd60677449b3
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -584,7 +584,7 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -832,7 +832,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -1431,7 +1431,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:2bf5acdc4850d19216e1eaac4e1840d760e15c4aa37922ff3cdc77f03d9e5118
+-- @bsb-hash sha256:be11723fb441366cb5bd9987b4ca8ddd901395ffd95819354c9b33eb7374037a
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2089,7 +2089,7 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -2396,7 +2396,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -3246,7 +3246,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:7a7b984be7f8f6e87eb9af69414fe6100959685d1553faa85094e72de6e69c65
+-- @bsb-hash sha256:464706dc0f8aca6ab1f9d481b37e06586199d44fd182b7afd36f1e469accfa7e
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3834,7 +3834,7 @@ begin
   insert into "app_private"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -4082,7 +4082,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -4681,7 +4681,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c04c6c8b7c2f35b289861c1532d05ba45d030c9f43069a341590b9c32d5f5063
+-- @bsb-hash sha256:905a6c5245719bd2caf34d8c73711668570e686ea7370f7398906d30a4340646
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5264,7 +5264,7 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -5512,7 +5512,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -7697,7 +7697,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:43648950d38fc61e282ed3960f01ecced3cb3209f157d383a7c978e7e55307ac
+-- @bsb-hash sha256:7239c5c90d7bb2542a220718921dc53a6e297e4d446d7d2c0569b1bbc4aead42
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8280,7 +8280,7 @@ begin
   insert into "better_supabase"."leave_requests" ("org_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -8528,7 +8528,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."org_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",

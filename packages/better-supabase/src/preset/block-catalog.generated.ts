@@ -2375,7 +2375,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "time_entry.updated",
         "timesheet.approved",
         "timesheet.reopened",
-        "timesheet.submitted"
+        "timesheet.submitted",
+        "timesheet.withdrawn"
       ],
       "subpath": "better-supabase/blocks/time-entries",
       "react": null,

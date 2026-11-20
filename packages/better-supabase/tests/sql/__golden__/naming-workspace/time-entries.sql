@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_entries.sql
 -- better-supabase module: time-entries
 -- @bsb-block time-entries@4 managed
--- @bsb-hash sha256:58aaae548da3dcdc560a477d2634aab95abf46281b5045db362bab5be374f062
+-- @bsb-hash sha256:c9002a78f82cbbdfb8856f1795dcbf4a2b4d1ae29b8d05c3b89935c5a7bc8979
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1245,6 +1245,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."reopen_timesheet"(uuid) from public, anon;
 grant execute on function "better_supabase"."reopen_timesheet"(uuid) to authenticated, service_role;
+
+-- Takes back a submitted week before it is decided: the owner or a member with
+-- the manage permission. Its pending approval request is cancelled.
+create or replace function "better_supabase"."withdraw_timesheet"(timesheet_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet "better_supabase"."timesheets"%rowtype;
+  v_approval "better_supabase"."approval_requests"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_sheet from "better_supabase"."timesheets" s where s."id" = withdraw_timesheet.timesheet_id for update;
+  if not found then
+    raise exception 'timesheet not found' using errcode = 'P0002', hint = 'TIME_ENTRIES_TIMESHEET_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_sheet."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_sheet."tenant_id", 'time_entries.manage'), false)) then
+    raise exception 'not allowed to withdraw this timesheet' using errcode = '42501', hint = 'TIME_FORBIDDEN';
+  end if;
+  update "better_supabase"."approval_requests" x set "status" = 'cancelled'
+    where x."id" = v_sheet."approval_id" and x."status" = 'pending'
+    returning * into v_approval;
+  if not found then
+    raise exception 'only a submitted week can be withdrawn' using errcode = '55000', hint = 'TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED';
+  end if;
+  update "better_supabase"."timesheets" s set "submitted_at" = null
+    where s."id" = v_sheet."id"
+    returning * into v_sheet;
+  null;
+  return jsonb_build_object('id', v_sheet."id", 'organizationId', v_sheet."tenant_id", 'userId', v_sheet."user_id", 'week', v_sheet."week", 'status', case when v_sheet."approved_at" is not null then 'approved' when v_approval."status" = 'pending' then 'submitted' when v_approval."status" = 'rejected' then 'rejected' else 'open' end, 'approvalId', v_sheet."approval_id", 'note', v_sheet."note", 'submittedAt', v_sheet."submitted_at", 'approvedAt', v_sheet."approved_at", 'createdAt', v_sheet."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."withdraw_timesheet"(uuid) from public, anon;
+grant execute on function "better_supabase"."withdraw_timesheet"(uuid) to authenticated, service_role;
 
 -- Newest week first: the caller's timesheets, or everyone's with the read permission.
 create or replace function "better_supabase"."list_timesheets"(tenant uuid, user_id uuid default null, status text default null, page_size integer default 50, before date default null)

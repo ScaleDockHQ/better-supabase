@@ -25,6 +25,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
+import { appUniqueIndex } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
   approvalTimesheetFunctions,
@@ -99,6 +100,7 @@ const EVENTS: BlockSqlEvents<TimeEntriesEvents> = {
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.approved": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.reopened": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
+  "timesheet.withdrawn": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.rejected": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
 };
 
@@ -377,7 +379,9 @@ function build(ctx: BlockSqlContext): string {
   const approvalOf = (row: string): string =>
     !statusMode && ctx.has("timesheets", "approval")
       ? `${row}.${t("approval")}`
-      : "null::uuid";
+      : linked === undefined
+        ? "null::uuid"
+        : `(select x.${linked.col("requests", "id")} from ${linked.table("requests")} x where x.${linked.col("requests", "subjectType")} = ${sqlString(TIMESHEET_SUBJECT)} and x.${linked.col("requests", "subjectId")} = ${row}.${t("id")}::text order by x.${linked.col("requests", "createdAt")} desc limit 1)`;
 
   const timesheetJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${sheetUserJson(row)}, 'week', ${row}.${t("week")}, 'status', ${status(row, approval)}, 'approvalId', ${approvalOf(row)}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${decision(row)})`;
@@ -549,7 +553,7 @@ ${renderPolicy(makePolicy({ table: timesheets, name: ctx.naming.rename("timeshee
     ].join("\n");
 
   return `${schemaPreamble(ctx)}${owner.helper}
-${tables}
+${tables}${appUniqueIndex(ctx, "timesheets", ["tenant", employeeMode ? "employee" : "user", "week"])}
 -- The Monday of the week an instant falls in, in options.timeZone.
 create or replace function ${fn("time_week")}(at timestamptz)
 returns date

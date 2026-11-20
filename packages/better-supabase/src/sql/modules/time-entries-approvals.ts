@@ -250,6 +250,40 @@ end;
 $$;
 ${userGrant(`${fn("reopen_timesheet")}(uuid)`)}
 
+-- Takes back a submitted week before it is decided: the owner or a member with
+-- the manage permission. Its pending approval request is cancelled.
+create or replace function ${fn("withdraw_timesheet")}(timesheet_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet ${timesheets}%rowtype;
+  v_approval ${ar}%rowtype;
+begin
+  select * into v_sheet from ${timesheets} s where s.${t("id")} = withdraw_timesheet.timesheet_id for update;
+  if not found then
+    ${timesheetNotFound}
+  end if;
+  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}) then
+    ${forbidden("not allowed to withdraw this timesheet")}
+  end if;
+  update ${ar} x set ${a("status")} = 'cancelled'
+    where x.${a("id")} = v_sheet.${t("approval")} and x.${a("status")} = 'pending'
+    returning * into v_approval;
+  if not found then
+    ${fail("TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED", "only a submitted week can be withdrawn", "55000")}
+  end if;
+  update ${timesheets} s set ${t("submittedAt")} = null
+    where s.${t("id")} = v_sheet.${t("id")}
+    returning * into v_sheet;
+  ${timesheetRecord("timesheet.withdrawn", "v_sheet", "withdrew a timesheet")}
+  return ${timesheetJson("v_sheet", "v_approval")};
+end;
+$$;
+${userGrant(`${fn("withdraw_timesheet")}(uuid)`)}
+
 -- Newest week first: the caller's timesheets, or everyone's with the read permission.
 create or replace function ${fn("list_timesheets")}(tenant ${ctx.idType}, user_id uuid default null, status text default null, page_size integer default 50, before date default null)
 returns jsonb

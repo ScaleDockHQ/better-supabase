@@ -17,7 +17,7 @@ Time entries with one running timer per member and no overlaps, on any record, b
 - Entities: `time_entry`, `timesheet`
 - Tables: `time_entries`, `timesheets`
 - Permission keys: `time_entries.read`, `time_entries.track`, `time_entries.approve`, `time_entries.manage`
-- Events (`TimeEntriesEvents`): `time_entry.archived`, `time_entry.purged`, `time_entry.recorded`, `time_entry.restored`, `time_entry.started`, `time_entry.updated`, `timesheet.approved`, `timesheet.reopened`, `timesheet.submitted`
+- Events (`TimeEntriesEvents`): `time_entry.archived`, `time_entry.purged`, `time_entry.recorded`, `time_entry.restored`, `time_entry.started`, `time_entry.updated`, `timesheet.approved`, `timesheet.reopened`, `timesheet.submitted`, `timesheet.withdrawn`
 
 ## hiring
 

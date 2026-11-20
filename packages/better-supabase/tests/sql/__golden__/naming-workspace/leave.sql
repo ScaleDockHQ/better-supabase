@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:37201be9d25d314edf47f351d77d0fe13b251904d9b6d72ab0f7725163f5dbe8
+-- @bsb-hash sha256:522883eb59773a1cbe9baa637439d622f8921173f46703979ac4d7c5e7fbb485
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -584,7 +584,7 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''))
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -832,7 +832,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",

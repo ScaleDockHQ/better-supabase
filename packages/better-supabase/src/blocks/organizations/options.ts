@@ -16,6 +16,12 @@ export type OrganizationsSqlOptions = {
   readonly slugMaxLength?: number;
   readonly slugMinLength?: number;
   readonly slugPattern?: string;
+  /**
+   * The permission key that lets a caller ask `sole_owned_organizations` about
+   * another member, such as `person.update` for offboarding run by HR. Default:
+   * the remove-members key (`permissions.removeMember`).
+   */
+  readonly soleOwnedPermission?: string;
 };
 
 export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions> =
@@ -32,6 +38,7 @@ export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions
     slugMaxLength: option.number({ default: 48 }),
     slugMinLength: option.number({ default: 2 }),
     slugPattern: option.string(),
+    soleOwnedPermission: option.string(),
   });
 
 /**

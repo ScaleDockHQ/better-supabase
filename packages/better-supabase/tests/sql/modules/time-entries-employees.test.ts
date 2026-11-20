@@ -79,6 +79,14 @@ insert into public.tasks (id, tenant_id) values ('${TASK}', '${TENANT}');
 insert into public.customers (id, tenant_id) values ('${CUSTOMER}', '${TENANT}');
 `;
 
+// The week of 2026-03-09 needs no approval.
+const WEEK_NEEDS = `
+create or replace function public.week_needs_approval(tenant uuid, timesheet_id uuid)
+returns boolean language sql stable as $$
+  select (select week from public.week_sheets where id = timesheet_id) <> '2026-03-09'::date
+$$;
+`;
+
 const as = (
   user: string,
 ) => `perform set_config('request.jwt.claims', '{"sub":"${user}","role":"authenticated"}', true);
@@ -114,6 +122,16 @@ const BLOCKS: AnyBlocksConfig = {
   },
 };
 
+const LINKED: AnyBlocksConfig = {
+  "time-entries": {
+    ...BLOCKS["time-entries"],
+    options: {
+      owner: "employee",
+      approvalRequired: "public.week_needs_approval",
+    },
+  },
+};
+
 const OWN_TABLES = {
   "public.work_entries": "app.sql",
   "public.week_sheets": "app.sql",
@@ -127,8 +145,11 @@ const render = (modules: AnyBlocksConfig = BLOCKS) =>
 
 const BOOT = { timeout: 60_000 };
 
-async function run(check: string): Promise<void> {
-  const files = render().map((file) => ({
+async function run(
+  check: string,
+  modules: AnyBlocksConfig = BLOCKS,
+): Promise<void> {
+  const files = render(modules).map((file) => ({
     ...file,
     contents: file.contents
       .replace(
@@ -154,6 +175,7 @@ async function run(check: string): Promise<void> {
         .filter((file) => file.kind === "data")
         .map((file) => file.contents),
       ALLOW,
+      WEEK_NEEDS,
       check,
     ],
   });
@@ -371,4 +393,61 @@ $$;`),
       ).resolves.toBeUndefined();
     },
   );
+
+  it(
+    "keeps an enum status through approvals, withdrawal and approval at once",
+    BOOT,
+    async () => {
+      await expect(
+        run(
+          `do $$
+declare
+  v_sheet jsonb;
+  v_approval uuid;
+begin
+  ${as(ALICE)}
+  perform better_supabase.log_time('${TENANT}', '2026-03-02T09:00:00Z', '2026-03-02T10:00:00Z', 'task', '${TASK}');
+  v_sheet := better_supabase.submit_timesheet('${TENANT}', '2026-03-02');
+  select id into v_approval from better_supabase.approval_requests where subject_id = v_sheet ->> 'id' and status = 'pending';
+  ${as(BOB)}
+  perform better_supabase.decide_approval(v_approval, 'approved');
+  if (select state::text from public.week_sheets where id = (v_sheet ->> 'id')::uuid) <> 'approved' then
+    raise exception 'the approval did not reach the enum status';
+  end if;
+  ${as(ALICE)}
+  perform better_supabase.log_time('${TENANT}', '2026-03-16T09:00:00Z', '2026-03-16T10:00:00Z', 'task', '${TASK}');
+  v_sheet := better_supabase.submit_timesheet('${TENANT}', '2026-03-16');
+  v_sheet := better_supabase.withdraw_timesheet((v_sheet ->> 'id')::uuid);
+  if v_sheet ->> 'status' <> 'open' or (select state::text from public.week_sheets where id = (v_sheet ->> 'id')::uuid) <> 'draft'
+    or exists (select 1 from better_supabase.approval_requests where subject_id = v_sheet ->> 'id' and status = 'pending') then
+    raise exception 'withdrawn week %', v_sheet;
+  end if;
+  perform better_supabase.log_time('${TENANT}', '2026-03-09T09:00:00Z', '2026-03-09T10:00:00Z', 'task', '${TASK}');
+  v_sheet := better_supabase.submit_timesheet('${TENANT}', '2026-03-09');
+  if v_sheet ->> 'status' <> 'approved' or exists (select 1 from better_supabase.approval_requests where subject_id = v_sheet ->> 'id') then
+    raise exception 'week without approval %', v_sheet;
+  end if;
+end;
+$$;`,
+          LINKED,
+        ),
+      ).resolves.toBeUndefined();
+    },
+  );
+
+  it("keys app timesheets for its upsert and puts the approval id on week events", () => {
+    const sql = renderBlocks(["time-entries", "employees", "outbox"], {
+      modules: LINKED,
+      ownTables: OWN_TABLES,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      'create unique index if not exists "week_sheets_tenant_id_employee_id_week_key" on "public"."week_sheets"',
+    );
+    expect(sql).toMatch(
+      /emit_event\('timesheet\.submitted', jsonb_build_object\([^;]*'approvalId', \(select x\."id" from "better_supabase"\."approval_requests" x/u,
+    );
+  });
 });

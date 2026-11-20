@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:791251ad3cda62f08faaadcce80102a498262f57b71542d7ac0f4584e68d1f1f
+-- @bsb-hash sha256:be5156cd157fef2e15b241c896d498d99aa8f0d0cd80f9758d7416e97f07fdae
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -584,7 +584,7 @@ begin
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note", "app_note")
   values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''), case when coalesce(request_leave.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."leave_requests", jsonb_build_object('app_note', coalesce(request_leave.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."leave_requests"', 'app_note', (null::"better_supabase"."leave_requests")."app_note") end)
   returning * into v_row;
-  if not v_type."auto_approve" then
+  if not (v_type."auto_approve") then
     v_request := "better_supabase"."open_approval"(
       request_leave.tenant, 'leave_request', v_row."id"::text, 'approve',
       '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",
@@ -832,7 +832,7 @@ begin
   if v_status = 'pending' then
     update "better_supabase"."approval_requests" p set "status" = 'cancelled', "decided_at" = now()
       where p."id" = v_row."approval_id" and p."status" = 'pending';
-    if not v_type."auto_approve" then
+    if not (v_type."auto_approve") then
       v_request := "better_supabase"."open_approval"(
         v_row."tenant_id", 'leave_request', v_row."id"::text, 'approve',
         '{"steps":[{"approvers":{"permission":"leave.approve"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb, v_row."note",

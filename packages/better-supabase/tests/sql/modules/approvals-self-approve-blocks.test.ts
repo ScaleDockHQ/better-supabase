@@ -25,6 +25,12 @@ create or replace function auth.uid() returns uuid language sql stable as $$
 $$;
 create function public.week_needs_approval(tenant uuid, timesheet_id uuid) returns boolean
 language sql stable as $$ select false $$;
+create function public.claim_needs_approval(tenant uuid, expense_id uuid) returns boolean
+language plpgsql stable as $$
+begin
+  return (select e.amount from better_supabase.expenses e where e.id = expense_id) >= 1000;
+end;
+$$;
 `;
 
 // Only Carol holds the approve keys.
@@ -135,6 +141,42 @@ begin
   select id into v_approval from better_supabase.approval_requests where subject_type = 'expense' and subject_id = v_expense::text;
   if better_supabase.approval_eligible(v_approval) then
     raise exception 'an owner without the approve key decides their own claim';
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("approves a claim at once when the app says it needs no approval", async () => {
+    await expect(
+      run(
+        ["expenses"],
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: {
+              standaloneApprovals: true,
+              approvalRequired: "public.claim_needs_approval",
+            },
+          },
+        },
+        `do $$
+declare
+  v_expense uuid;
+begin
+  ${as(ALICE)}
+  v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 500, 'EUR') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_expense);
+  if better_supabase.get_expense(v_expense) ->> 'status' <> 'approved'
+    or exists (select 1 from better_supabase.approval_requests where subject_id = v_expense::text) then
+    raise exception 'a small claim is %', better_supabase.get_expense(v_expense) ->> 'status';
+  end if;
+  v_expense := (better_supabase.create_expense('${TENANT}', '2099-03-02', 5000, 'EUR') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_expense);
+  if better_supabase.get_expense(v_expense) ->> 'status' <> 'submitted'
+    or not exists (select 1 from better_supabase.approval_requests where subject_id = v_expense::text and status = 'pending') then
+    raise exception 'a large claim is %', better_supabase.get_expense(v_expense) ->> 'status';
   end if;
 end;
 $$;`,

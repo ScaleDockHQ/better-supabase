@@ -25,7 +25,7 @@ import {
   conflict,
 } from "../shared.ts";
 import { managerMatch, otherDecider } from "./approvals-tenant.ts";
-import { deciderCall, managerDecides } from "./direct-approver.ts";
+import { appFunction, deciderCall, managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
   LEAVE_CONTRIBUTES,
@@ -709,6 +709,19 @@ ${
   // requester, and a manager step asks their manager.
   const byEmployee = leaveApprovalOwner(ctx, owner.employee) === "employee";
 
+  // Whether v_row is approved at once: its type needs no approval
+  // (autoApprove), or the app's options.approvalRequired answers false.
+  const required = appFunction(ctx, "blocks.leave.options", "approvalRequired");
+
+  const atOnce = [
+    ...(auto ? [`v_type.${ty("autoApprove")}`] : []),
+    ...(required === undefined
+      ? []
+      : [
+          `not coalesce(${required}(v_row.${q("tenant")}, v_row.${q("id")}), true)`,
+        ]),
+  ].join(" or ");
+
   // Opens the approval of v_row for v_type, unless the type needs none.
   const openApproval = (tenant: string): string => {
     if (approvals === undefined) {
@@ -725,21 +738,22 @@ ${
     where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;${loadApproval}`;
 
-    return auto
-      ? `
-  if not v_type.${ty("autoApprove")} then${open.replaceAll("\n  ", "\n    ")}
-  end if;`
-      : open;
+    return atOnce === ""
+      ? open
+      : `
+  if not (${atOnce}) then${open.replaceAll("\n  ", "\n    ")}
+  end if;`;
   };
 
-  // Books v_row at once when its type needs no approval.
-  const autoApproved = auto
-    ? `
-  if v_type.${ty("autoApprove")} then
+  // Books v_row at once when it needs no approval.
+  const autoApproved =
+    atOnce === ""
+      ? ""
+      : `
+  if ${atOnce} then
     perform ${fn("approve_leave_request")}(v_row.${q("id")});
     select * into v_row from ${requests} x where x.${q("id")} = v_row.${q("id")};
-  end if;`
-    : "";
+  end if;`;
 
   // Takes back (sign 1) or books (sign -1) the taken leave of request row.
   const taken = (row: string, sign: 1 | -1, note?: string): string =>

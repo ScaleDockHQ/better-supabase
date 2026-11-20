@@ -202,7 +202,7 @@ export function statusTimesheetFunctions(
       : "";
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${owner.json(row)}, 'week', ${row}.${t("week")}, 'status', ${label(row)}, 'approvalId', null, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${optional("decidedBy", row)}${optional("decidedAt", row)}${optional("decisionNote", row)})`;
+    `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${owner.json(row)}, 'week', ${row}.${t("week")}, 'status', ${label(row)}, 'approvalId', ${linked === undefined ? "null" : `(select x.${linked.a("id")} from ${linked.requests} x where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = ${row}.${t("id")}::text order by x.${linked.a("createdAt")} desc limit 1)`}, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${optional("decidedBy", row)}${optional("decidedAt", row)}${optional("decisionNote", row)})`;
 
   const decide = (note: string, decider: string): string =>
     [
@@ -421,7 +421,7 @@ as $$
 declare
   v_sheet ${timesheets}%rowtype;
 begin
-  update ${timesheets} s set ${t("status")} = case when timesheet_approval_decided.approved then ${value("approved")} else ${value("rejected")} end,
+  update ${timesheets} s set ${t("status")} = ${ctx.cast("timesheets", "status", "case when timesheet_approval_decided.approved then 'approved' else 'rejected' end")},
     ${t("approvedAt")} = case when timesheet_approval_decided.approved then now() end${[
       ...(ctx.has("timesheets", "decidedBy")
         ? [`${t("decidedBy")} = timesheet_approval_decided.decided_by`]
@@ -479,6 +479,43 @@ begin
 end;
 $$;
 ${userGrant(`${fn("reopen_timesheet")}(uuid)`)}
+
+-- Takes back a submitted week before it is decided: the owner or a member with
+-- the manage permission. A pending approval request is cancelled with it, and
+-- the week is open again.
+create or replace function ${fn("withdraw_timesheet")}(timesheet_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet ${timesheets}%rowtype;
+begin
+  select * into v_sheet from ${timesheets} s where s.${t("id")} = withdraw_timesheet.timesheet_id for update;
+  if not found then
+    ${timesheetNotFound}
+  end if;
+  if not (${SERVICE_CALLER} or ${sheetMine("v_sheet")} or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}) then
+    ${forbidden("not allowed to withdraw this timesheet")}
+  end if;
+  if not ${is("v_sheet", ["submitted"])} then
+    ${fail("TIME_ENTRIES_TIMESHEET_NOT_SUBMITTED", "only a submitted week can be withdrawn", "55000")}
+  end if;${
+    linked === undefined
+      ? ""
+      : `
+  update ${linked.requests} x set ${linked.a("status")} = 'cancelled'
+    where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = v_sheet.${t("id")}::text and x.${linked.a("status")} = 'pending';`
+  }
+  update ${timesheets} s set ${t("status")} = ${value("open")}, ${t("submittedAt")} = null${clearDecision}
+    where s.${t("id")} = v_sheet.${t("id")}
+    returning * into v_sheet;
+  ${timesheetRecord("timesheet.withdrawn", "v_sheet", "withdrew a timesheet")}
+  return ${json("v_sheet")};
+end;
+$$;
+${userGrant(`${fn("withdraw_timesheet")}(uuid)`)}
 
 -- Newest week first: the caller's timesheets, or everyone's with the read permission.
 ${by ? `drop function if exists ${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date);\n` : ""}create or replace function ${fn("list_timesheets")}(tenant ${ctx.idType}, user_id uuid default null, status text default null, page_size integer default 50, before date default null${ownerParam})

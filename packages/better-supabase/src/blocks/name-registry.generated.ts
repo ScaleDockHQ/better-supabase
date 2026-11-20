@@ -2471,7 +2471,7 @@ export interface BlockNameRegistry {
       readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "archivedAt" | "seconds" | "runningSince" | "employee";
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
-    readonly functions: "approve_timesheet" | "archive_time_entry" | "get_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "page_time_entries" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
+    readonly functions: "approve_timesheet" | "archive_time_entry" | "get_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "page_time_entries" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry" | "withdraw_timesheet";
     readonly actions: "read" | "track" | "approve" | "manage" | "purge";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {

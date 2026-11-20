@@ -85,6 +85,13 @@ export type LeaveSqlOptions = {
    * `"leave_request"`.
    */
   readonly approvalSubject?: string;
+  /**
+   * An app function `"schema.function"`, `(tenant, request_id uuid) returns
+   * boolean`. When it answers false, the request is approved at once and no
+   * approval request is filed, so its type never reaches an approval payload;
+   * true or null files one as usual.
+   */
+  readonly approvalRequired?: string;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -105,4 +112,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     decider: option.string(),
     selfDecideWhenTopOfChain: option.boolean({ default: false }),
     approvalSubject: option.string({ default: "leave_request" }),
+    approvalRequired: option.string(),
   });

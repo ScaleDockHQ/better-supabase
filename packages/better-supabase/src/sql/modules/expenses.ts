@@ -141,6 +141,7 @@ const NAMES: BlockSqlNames = {
     "policy",
     "approver",
     "selfDecideWhenTopOfChain",
+    "approvalRequired",
   ],
   tables: {
     categories: {

@@ -312,6 +312,8 @@ expenses: {
 
 `options.selfDecideWhenTopOfChain: true` lets an owner whom nobody else can decide for approve their own expense's approval request through `decide_approval`, as the [leave block](/docs/blocks/leave) does. The rule is the one `decideExpense` applies: the owner holds `expenses.approve` (or the decider or the manager mode lets them decide), no other active member holds it, and no active manager with a login can decide it. The policy's approvers must be `expenses.approve`, the manager or the decider, or rendering fails. It needs `standaloneApprovals`; the default is `false`.
 
+`options.approvalRequired` names an app function `(tenant, expense_id uuid) returns boolean`, such as a check for company expenses or claims under a threshold. When it answers false, `submitExpense` approves the expense at once with no approval request, so `decideExpense` never meets `EXPENSE_IN_APPROVAL` for it; true or null files one. It needs `standaloneApprovals`.
+
 ### A key per action
 
 `expenses.manage` covers everything done for someone else. Name a key per action in `permissions` to split it; an action without its own key checks `manage`.

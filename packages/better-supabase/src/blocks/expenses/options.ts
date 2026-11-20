@@ -65,6 +65,13 @@ export type ExpensesSqlOptions = {
    * be the approve permission, the manager or the decider. Default `false`.
    */
   readonly selfDecideWhenTopOfChain?: boolean;
+  /**
+   * With `standaloneApprovals`, an app function `"schema.function"`, `(tenant,
+   * expense_id uuid) returns boolean`. When it answers false, `submitExpense`
+   * approves the expense at once without an approval request; true or null
+   * files one.
+   */
+  readonly approvalRequired?: string;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -81,4 +88,5 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     }),
     decider: option.string(),
     selfDecideWhenTopOfChain: option.boolean({ default: false }),
+    approvalRequired: option.string(),
   });

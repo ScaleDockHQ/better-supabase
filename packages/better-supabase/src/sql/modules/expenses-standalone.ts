@@ -28,7 +28,7 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
-import { deciderCall, managerDecides } from "./direct-approver.ts";
+import { appFunction, deciderCall, managerDecides } from "./direct-approver.ts";
 import {
   EXPENSE_RESERVED,
   invoicedCheck,
@@ -456,11 +456,43 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   // Without a policy column the snapshot can't carry the list; the creator
   // still can't decide (expense_approval_decided).
-  const openApproval = openApprovalWith(
+  const filing = openApprovalWith(
     has("createdBy") && linked?.has("requests", "policy") === true
       ? ` || case when ${cb} is not null and ${cb} is distinct from ${owner.requester("v_row")} and not ${nobodyElse("v_row", cb)} then jsonb_build_object('excludedUserIds', jsonb_build_array(${cb}::text)) else '{}'::jsonb end`
       : "",
   );
+
+  // options.approvalRequired: an app function whose false approves the
+  // submitted expense at once, without an approval request.
+  const required =
+    linked === undefined
+      ? undefined
+      : appFunction(ctx, "blocks.expenses.options", "approvalRequired");
+
+  if (linked === undefined && ctx.text("approvalRequired", "") !== "") {
+    throw new TypeError(
+      "blocks.expenses.options.approvalRequired needs standaloneApprovals",
+    );
+  }
+
+  const needed = `coalesce(${required ?? ""}(v_row.${e("tenant")}, v_row.${e("id")}), true)`;
+
+  const openApproval =
+    required === undefined
+      ? filing
+      : `
+  if ${needed} then${filing.replaceAll("\n  ", "\n    ")}
+  end if;`;
+
+  // Approves the expense at once when options.approvalRequired answers false.
+  const approvedAtOnce =
+    required === undefined
+      ? ""
+      : `
+  if not ${needed} then
+    perform ${fn("expense_approval_decided")}(v_row.${e("id")}, true, null, null);
+    select * into v_row from ${table} x where x.${e("id")} = v_row.${e("id")};
+  end if;`;
 
   const ownerOrManager = (key: string): string => `
   if not (${mine("v_row")} or ${managed("v_row", key)}) then
@@ -679,7 +711,7 @@ begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;${openApproval}
-  ${record("expense.submitted", "submitted an expense")}
+  ${record("expense.submitted", "submitted an expense")}${approvedAtOnce}
   return ${json("v_row")};
 end;
 $$;

@@ -301,6 +301,36 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("approves at once and files nothing when the app says no approval is needed", async () => {
+    await expect(
+      run(
+        {
+          leave: {
+            options: { approvalRequired: "public.leave_needs_approval" },
+          },
+        },
+        `create function public.leave_needs_approval(tenant uuid, request_id uuid) returns boolean
+language sql stable as $f$ select false $f$;
+do $$
+declare
+  v_type uuid;
+  v_id uuid;
+  v_row better_supabase.leave_requests%rowtype;
+begin
+  ${TYPE}
+  ${as(ALICE)}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  select * into v_row from better_supabase.leave_requests r where r.id = v_id;
+  if v_row.approved_at is null or v_row.approval_id is not null
+    or exists (select 1 from better_supabase.approval_requests a where a.subject_id = v_id::text) then
+    raise exception 'leave that needs no approval filed one: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses an approval subject type that isn't snake case", () => {
     expect(() =>
       renderBlocks(["employees", "leave"], {

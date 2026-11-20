@@ -36826,6 +36826,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "timesheet.submitted",
           "timesheet.approved",
           "timesheet.reopened",
+          "timesheet.withdrawn",
           "timesheet.rejected"
         ]
       },
