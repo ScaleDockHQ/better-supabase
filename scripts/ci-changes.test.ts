@@ -38,6 +38,13 @@ describe("classify", () => {
     });
   });
 
+  it("runs the eve World suite on the stack", () => {
+    expect(classify(["tests/eve-world/src/scenarios.ts"])).toEqual({
+      ...NONE,
+      stack: true,
+    });
+  });
+
   it("keeps a workflow edit from turning anything on, except ci.yml", () => {
     expect(classify([".github/workflows/database.yml"])).toEqual(NONE);
     expect(classify([".github/workflows/ci.yml"])).toEqual({
