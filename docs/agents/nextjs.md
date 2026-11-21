@@ -110,10 +110,17 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
 
 ## The example app
 
-- Library code imports `next/navigation` by its bare specifier. Next aliases
-  it to the react-server build only without the `.js` suffix; with it, every
-  route handler that imports `better-supabase/next` fails the build with
-  `MODULE_UNPARSABLE` on the app router context.
+- Server-side library code does not import `next/navigation`. Under Turbopack
+  (Next 16.4.6) the `.js` form fails every route handler that imports
+  `better-supabase/next` with `MODULE_UNPARSABLE` on the app router context,
+  and the bare form breaks `next build` with `typedRoutes`, because `redirect()`
+  rejects a runtime string. `src/next/control-flow.ts`, `create.ts` and
+  `auth-gate/index.ts` import `redirect`, `notFound`, `forbidden` and
+  `unauthorized` from `next/dist/client/components/*.js`, and
+  `rethrowNextControlFlow` checks the digests itself instead of calling
+  `unstable_rethrow`. Only the client entry (`src/next/client/index.ts`) imports
+  `next/navigation.js`, for `useRouter`. Re-check this on a Next bump by running
+  `next build` in the example app.
 - `useAction` callbacks written as expression arrows
   (`onSuccess: () => toast(...)`) return the toast id and fail Oxlint's
   `strict-void-return`; give them a block body.
@@ -309,9 +316,12 @@ per route (`budgets.spec.ts`) and the cold, warm and client timings
 
 ## Library specs
 
-The example app cannot do these without a change in `packages/better-supabase`
-(and `packages/next-config` where named). Each entry says what to build, where,
-and how to prove it; none is implemented yet. ADR 0316 records the decision.
+These changes lived in `packages/better-supabase` (and `packages/next-config`
+where named), not in the example app. Each entry says what was built, where,
+and how it is proved. All of them ship now: `AuthGate` (ADR 0342), the
+`stage` and `life` options of `bsb.cached`, the `next/proxy` subpath, taint,
+the offline files and the `init` fixture. Read an entry as the contract to keep
+when you change that code. ADR 0316 records the decision.
 
 ### `AuthGate`
 
