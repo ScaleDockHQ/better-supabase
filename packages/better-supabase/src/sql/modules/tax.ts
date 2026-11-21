@@ -12,7 +12,7 @@ import { taxCompute } from "./tax-compute.ts";
 import { taxFunctions, taxImportTargets } from "./tax-functions.ts";
 import { taxReturns } from "./tax-returns.ts";
 import { taxSeeds } from "./tax-seeds.ts";
-import { taxTables } from "./tax-tables.ts";
+import { taxRateKeyUpgrade, taxTables } from "./tax-tables.ts";
 
 const CODE = ["organizationId", "id", "code", "type", "legalEntityId"] as const;
 
@@ -208,6 +208,15 @@ function contract(): readonly BlockSqlContractFunction[] {
 
 export const TAX: BlockSqlDefinition = {
   name: "tax",
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Adds a unique index on tax codes by id and tenant and a composite foreign key from tax rates, so a rate cannot point at another tenant's code. Run `select` over tax_rates and tax_codes first: a rate whose code has another tenant blocks the key.",
+      sql: taxRateKeyUpgrade,
+    },
+  ],
   scopes: ["tenant"],
   title: "Tax",
   description:

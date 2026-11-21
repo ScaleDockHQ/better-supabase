@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:6eca2f564b5d505244499ca29c5b962dceac288d613d51a612b320b6438e475a
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:b9edcb90e75bc6046c4fc26bf6a2a3af63e800ce41d3cf444dee4a69e20bb149
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,6 +30,7 @@ create table "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "tenant_id");
 create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -45,13 +46,14 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "better_supabase"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
@@ -968,21 +970,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines"
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:2deb1adc81aa4a36b1d1233efc38596fa49f8be3930439ced8dc03c65f9f692b
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:b2dc73c1ec1559c3bb5e7c1c4089bc07f0e4d4e4da0969fc34978b7236fa92b4
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1011,6 +1013,7 @@ create table "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "tenant_id");
 create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -1026,13 +1029,14 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "better_supabase"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
@@ -2053,21 +2057,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:e8fb8b836799d1a6159106f48b815a6de6507e7b98a057851505975a9eb3d38c
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:0d85fe5bf0efaf3e3fc323407715f4ecda8f774af071edb60db698747cc0103d
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2101,6 +2105,7 @@ create table "app_private"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "app_private"."tax_codes" ("id", "tenant_id");
 create unique index "tax_codes_code_key" on "app_private"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "app_private"."tax_codes" ("tenant_id", "code");
 alter table "app_private"."tax_codes" enable row level security;
@@ -2116,13 +2121,14 @@ create policy bsb_tax_codes_read on "app_private"."tax_codes"
 create table "app_private"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "tax_code_id" uuid not null references "app_private"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "app_private"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "app_private"."tax_rates" ("tax_code_id", "valid_from");
 alter table "app_private"."tax_rates" enable row level security;
@@ -3039,21 +3045,21 @@ create policy bsb_tenant_scope_delete on "app_private"."eu_sales_list_lines" as 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:e99ac4cc56aa03b5301e97cf2ae9d91e97d24758011f383819ee30dbd17427cc
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:114e402b2a4818e41d3dfb47e9ef5f730f3da172ebe702960fa51c1db84f2dda
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3082,6 +3088,7 @@ create table "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "tenant_id");
 create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -3097,13 +3104,14 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "tenant_id") references "better_supabase"."tax_codes" ("id", "tenant_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
@@ -4167,21 +4175,21 @@ grant execute on function "api"."seed_tax_defaults"(uuid, text, text) to service
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:e8d0357f8cd229592555a131a4ea30397aa5f50a4bf43abe1caa8c30e5515b02
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:c7b9bb59c382a47d34d691fdbf5bbc7ca9e830ef486ed74a58c4536d1f2ec296
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4208,6 +4216,7 @@ alter table "better_supabase"."tax_codes" add column if not exists "return_boxes
 alter table "better_supabase"."tax_codes" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."tax_codes" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."tax_codes" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "bsb_tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "tenant_id");
 create unique index if not exists "bsb_tax_codes_code_key" on "better_supabase"."tax_codes" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index if not exists "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("tenant_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -4222,7 +4231,7 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 -- better_supabase.tax_rates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."tax_rates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."tax_rates" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."tax_rates" add column if not exists "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete cascade;
+alter table "better_supabase"."tax_rates" add column if not exists "tax_code_id" uuid;
 alter table "better_supabase"."tax_rates" add column if not exists "rate_bps" integer constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000);
 alter table "better_supabase"."tax_rates" add column if not exists "valid_from" date not null default date '1970-01-01';
 alter table "better_supabase"."tax_rates" add column if not exists "valid_to" date;
@@ -5133,21 +5142,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines"
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
--- @bsb-block tax@1 managed
--- @bsb-hash sha256:5e99d587668d3a0b3d115e29b9749acf757186c875af4ee65befe5ea0d1f49ee
+-- @bsb-block tax@2 managed
+-- @bsb-hash sha256:2b57cc5456e9fa0b08189466a368370f0b601e438cd1cbafdb0403b643ae466f
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5176,6 +5185,7 @@ create table "better_supabase"."tax_codes" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
+create unique index "tax_codes_id_tenant_key" on "better_supabase"."tax_codes" ("id", "org_id");
 create unique index "tax_codes_code_key" on "better_supabase"."tax_codes" ("org_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "code");
 create index "tax_codes_tenant_idx" on "better_supabase"."tax_codes" ("org_id", "code");
 alter table "better_supabase"."tax_codes" enable row level security;
@@ -5191,13 +5201,14 @@ create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
 create table "better_supabase"."tax_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
+  "tax_code_id" uuid not null,
   -- Basis points: 2100 is 21%.
   "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from"),
+  constraint "tax_rates_tenant_code_fkey" foreign key ("tax_code_id", "org_id") references "better_supabase"."tax_codes" ("id", "org_id") on delete cascade
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
@@ -6114,13 +6125,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."eu_sales_list_lines"
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block-data tax
--- @bsb-hash sha256:6b65bf14c132fc5ca83f50d742147a433c5580278f63e96348f94a3b922071d7
+-- @bsb-hash sha256:964dc91ff9b4cb3a44a02cfdcc621a89538513543ee37d90397bed998e8d6ae2
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tax', 1, 'managed')
+values ('tax', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
