@@ -53,7 +53,7 @@ import type {
   Identify,
   ProviderData,
 } from "flags";
-import type { Instrumentation } from "next";
+import type { InstrumentationOnRequestError } from "next/dist/server/instrumentation/types";
 import type { Publisher, Subscriber } from "resumable-stream/generic";
 import type { registerLifecycleHooks } from "workflow/api";
 
@@ -198,8 +198,8 @@ describe("structurally typed optional peers", () => {
   });
 
   it("Next.js's onRequestError and the bridge take each other's arguments", () => {
-    expectTypeOf<OnRequestError>().toExtend<Instrumentation.onRequestError>();
-    expectTypeOf<Instrumentation.onRequestError>().toExtend<
+    expectTypeOf<OnRequestError>().toExtend<InstrumentationOnRequestError>();
+    expectTypeOf<InstrumentationOnRequestError>().toExtend<
       (...args: Parameters<OnRequestError>) => void | Promise<void>
     >();
   });

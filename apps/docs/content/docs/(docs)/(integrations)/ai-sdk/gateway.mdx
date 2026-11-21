@@ -87,7 +87,10 @@ export async function run(organizationId: string) {
   const settled = (await budget.settle({ organizationId, cost })).orThrow();
 
   if (settled.pending && cost.generationId) {
-    await queue.enqueue("gateway-cost", { generationId: cost.generationId, organizationId });
+    await queue.enqueue("gateway-cost", {
+      generationId: cost.generationId,
+      organizationId,
+    });
   }
 
   return result;
@@ -107,12 +110,12 @@ served is not counted, because the tenant pays that provider; pass
 `gatewayCostOf` reads a finished `generateText` or `streamText` result. It keeps
 what `usageOf` leaves out:
 
-| Field                                                | Source                                                              |
-| ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `costMicroUsd`, `marketCostMicroUsd`, `generationId` | `providerMetadata.gateway`                                          |
-| `cacheReadTokens`, `cacheWriteTokens`                | `usage.inputTokenDetails`                                           |
-| `reasoningTokens`                                    | `usage.outputTokenDetails`                                          |
-| `byok`, `provider`                                   | the successful attempt in `providerMetadata.gateway.routing`        |
+| Field                                                | Source                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------ |
+| `costMicroUsd`, `marketCostMicroUsd`, `generationId` | `providerMetadata.gateway`                                   |
+| `cacheReadTokens`, `cacheWriteTokens`                | `usage.inputTokenDetails`                                    |
+| `reasoningTokens`                                    | `usage.outputTokenDetails`                                   |
+| `byok`, `provider`                                   | the successful attempt in `providerMetadata.gateway.routing` |
 
 `gatewayRunRelease` gives the argument for `runs.release` of the
 [chat block](/docs/blocks/ai-chat), with the extra token kinds in the run's
@@ -153,7 +156,8 @@ import { checkGatewayCredits, creditsMonitor } from "better-supabase/ai-sdk";
 export const monitor = creditsMonitor({
   gateway,
   minimumMicroUsd: 5_000_000,
-  onLow: (credits) => notify(`AI Gateway balance is ${credits.balanceMicroUsd} micro-USD`),
+  onLow: (credits) =>
+    notify(`AI Gateway balance is ${credits.balanceMicroUsd} micro-USD`),
 });
 ```
 

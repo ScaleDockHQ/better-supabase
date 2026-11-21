@@ -626,6 +626,8 @@ add one, and link it from the code or config it explains.
 ||||||| parent of f6a125681c (feat(durable): start options, tenant cancel, schedule controls and maintenanceRoute)
 ||||||| parent of 69a1f42b40 (feat(durable): start options, tenant cancel, schedule controls and maintenanceRoute)
 ||||||| parent of caa7821729 (feat(vercel): run a Supabase project on Vercel with env, doctor and deploy helpers)
+||||||| parent of 5641807fc1 (docs(adr): record the Vercel audit in ADR 1130 and fix the shared typecheck)
+| [1130](1130-record-the-vercel-audit-and-what-it-builds.md)                           | Record the Vercel audit and what it builds                                                                                                                                                 | accepted | 2026-11-21 |
 | [1131](1131-expire-cache-tags-for-writes-outside-the-process.md)                     | Expire cache tags for writes that leave the process                                                                                                                                        | accepted | 2026-11-21 |
 | [1132](1132-ai-gateway-policy-and-budget-per-organization.md)                        | Govern the AI Gateway per organization with settings and usage meters                                                                                                                      | accepted | 2026-11-21 |
 | [1133](1133-durable-execution-parity-on-vercel.md)                                   | Add durable execution parity with additive hooks                                                                                                                                           | accepted | 2026-11-21 |
