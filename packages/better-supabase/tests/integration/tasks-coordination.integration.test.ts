@@ -412,4 +412,64 @@ describe.skipIf(!live)("task coordination", () => {
       await env.s.close();
     }
   });
+
+  it("refuses every new write to a read-only agent and a writable one meets the permission check", async () => {
+    const env = await setup();
+
+    try {
+      const { s, tasks, org, team, alice } = env;
+      await stages(env);
+      await s.as(alice);
+
+      const task = await tasks
+        .create({
+          organizationId: org,
+          input: { title: "Guarded", teamId: team },
+        })
+        .orThrow();
+
+      await s.as(alice, {
+        act: { kind: "agent", sub: "scout", read_only: true },
+      });
+
+      expect(hint(await tasks.claim({ taskId: task.id }))).toBe(
+        "ACTOR_READ_ONLY",
+      );
+      expect(hint(await tasks.claimNext({ organizationId: org }))).toBe(
+        "ACTOR_READ_ONLY",
+      );
+      expect(
+        hint(
+          await tasks.hold({ taskId: task.id, kind: "question", note: "Why?" }),
+        ),
+      ).toBe("ACTOR_READ_ONLY");
+      expect(
+        hint(
+          await tasks.createPlan({
+            organizationId: org,
+            plan: [{ key: "a", title: "A", teamId: team }],
+          }),
+        ),
+      ).toBe("ACTOR_READ_ONLY");
+      expect(
+        hint(
+          await tasks.moveMany({
+            moves: [{ taskId: task.id, afterId: task.id }],
+          }),
+        ),
+      ).toBe("ACTOR_READ_ONLY");
+
+      await s.as(alice, {
+        act: { kind: "agent", sub: "scout", read_only: false },
+      });
+
+      // The act claim carries no permissions of the subject, so a writable
+      // agent passes the read-only guard and meets the permission check.
+      expect(hint(await tasks.claim({ taskId: task.id }))).not.toBe(
+        "ACTOR_READ_ONLY",
+      );
+    } finally {
+      await env.s.close();
+    }
+  });
 });

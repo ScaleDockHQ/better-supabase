@@ -2,7 +2,9 @@ export {
   type Permissions,
   type AccessCallOptions,
   type CatalogRole,
+  type PermissionExplanation,
   type PermissionOverride,
+  type PermissionReason,
   type PermissionsOptions,
   createPermissions,
 } from "./permissions.ts";
@@ -41,3 +43,8 @@ export type {
   PermissionSource,
   PermissionsSnapshot,
 } from "./client.ts";
+
+export {
+  explainPermissionTool,
+  type ExplainPermissionToolOptions,
+} from "./mcp.ts";

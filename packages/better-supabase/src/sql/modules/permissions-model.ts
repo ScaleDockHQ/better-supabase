@@ -395,6 +395,7 @@ export const OPERATIONS = {
   "subjects.manage": "subjects.manage",
   "permissions.listRoles": "members.read",
   "permissions.setOverride": "roles.manage",
+  "permissions.explain": "members.read",
   "tags.manage": "tags.manage",
   "tags.read": "tags.read",
   "tags.apply": "tags.apply",

@@ -321,7 +321,7 @@
     "row-triggers": 1
   },
   "memberships-many-roles": {
-    "security-definer-functions": 61,
+    "security-definer-functions": 62,
     "row-triggers": 6
   },
   "memberships-summary-many": {
@@ -393,7 +393,7 @@
     "security-definer-functions": 42
   },
   "permissions": {
-    "security-definer-functions": 96
+    "security-definer-functions": 102
   },
   "pgtap": {
     "security-definer-functions": 9

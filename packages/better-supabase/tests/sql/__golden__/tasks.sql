@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:5099d141173f41e18784a5ce0304ba0d0e1b86b3d2a8c58a455555c519bac010
+-- @bsb-hash sha256:4bf20f9581bca791b5dbd9c028507fb8c6e11788bfa82118e53c573102836994
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2060,6 +2060,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
@@ -2595,7 +2598,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:b2e0a143b169c407e375822647e773b0fd2c107aa54c8b435c98f5d209cee9d6
+-- @bsb-hash sha256:a8e68f611624d3f829349beca5de11182de5f10921b561380893c0164babfb6a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4955,6 +4958,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
@@ -5361,6 +5367,9 @@ declare
   v_hint text;
   v_reason text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if jsonb_typeof(coalesce(move_tasks.moves, '[]')) <> 'array' then
     raise exception 'moves must be a list' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
@@ -5617,7 +5626,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:c857d4d51b3e9134b1d7faa85df67c9294a151bf679b0d1116d07b2d3a36a1b5
+-- @bsb-hash sha256:bf234f5bed9608faac77e4bfce1214b8db7a9ea7b178a8ce6c941d62aad5be0c
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7681,6 +7690,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
@@ -8216,7 +8228,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:a9a1b218d08aebca7739ffae7c9c171653d58e83dd0a6c71d06109d10a15fc5d
+-- @bsb-hash sha256:fa4df97826cc2769d0302e279f7e0aff8ce9427c30a5cb862a03b38574272202
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10275,6 +10287,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
@@ -11150,7 +11165,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:2b6694ebaeb16e5ae4690a044d881d2f5f2248c76d33a3be1dc10e9360d0a3ac
+-- @bsb-hash sha256:b3746cb2076e89cd3d6e93ba4be08b1d22ee8d1b2c0103aa4d3541142ca07683
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13190,6 +13205,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
@@ -13725,7 +13743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:8e5c039a39e1cb24102ef976e4ee33b1b2d02560f6384733be020637600176b3
+-- @bsb-hash sha256:3c82e7db0f61a201f86056f8a24ec8f877351e6aa7ca58f949309fd23803a8a4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15784,6 +15802,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', claim_next_task.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to claim work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;

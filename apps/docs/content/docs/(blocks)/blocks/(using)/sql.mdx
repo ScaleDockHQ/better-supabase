@@ -1004,7 +1004,7 @@ Every entry also records what an audit page shows, as it was at the time:
 
 | Column           | What it holds                                                                                       |
 | ---------------- | --------------------------------------------------------------------------------------------------- |
-| `actor_kind`     | `user`, `service`, `support`, `impersonation`, `oauth-client` or `system`, from the claims          |
+| `actor_kind`     | `user`, `service`, `support`, `agent`, `impersonation`, `oauth-client` or `system`, from the claims |
 | `actor_label`    | the actor's `full_name` metadata or email                                                           |
 | `tenant_label`   | the organization's name, with the `organizations` module or `options.tenantLabel`                   |
 | `target_label`   | the value of the table's `label_column` (`audit(..., label_column => 'title')`), or `audit_event`'s |

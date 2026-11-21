@@ -105,6 +105,9 @@ declare
   v_hint text;
   v_reason text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    ${fail("ACTOR_READ_ONLY", "This session is read-only")}
+  end if;
   if jsonb_typeof(coalesce(move_tasks.moves, '[]')) <> 'array' then
     ${fail("TASK_CHANGES_INVALID", "moves must be a list", "22023")}
   end if;

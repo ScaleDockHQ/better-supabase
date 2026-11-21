@@ -131,6 +131,9 @@ as $$
 declare
   v_id uuid;
 begin
+  if not (better_supabase.actor_may_write()) then
+    ${fail("ACTOR_READ_ONLY", "This session is read-only")}
+  end if;
   if not (${n.service} or ${ctx.scope.can("claim_next_task.tenant", co.claim)}) then
     ${fail("TASK_FORBIDDEN", "not allowed to claim work items")}
   end if;

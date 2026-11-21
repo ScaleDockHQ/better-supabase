@@ -1816,7 +1816,7 @@ export interface BlockNameRegistry {
       readonly "platformAssignments": "user" | "role";
     };
     readonly functions: "can" | "can_assign" | "can_assign_as" | "can_user" | "is_platform" | "list_roles" | "member_can" | "permission_claims" | "set_permission_override" | "tenant_ids_with";
-    readonly actions: "listRoles" | "setOverride";
+    readonly actions: "listRoles" | "setOverride" | "explain";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;

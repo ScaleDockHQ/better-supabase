@@ -224,7 +224,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "archive_option_set_item ensure_option_set get_option_set list_option_sets page_option_sets rank_option_set_item restore_option_set_item save_option_set save_option_set_item",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
-  permissions: "can list_roles my_permissions set_permission_override",
+  permissions:
+    "can explain_permission list_roles my_permissions set_permission_override",
   pipelines:
     "archive_pipeline archive_pipeline_stage get_pipeline list_pipelines page_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:
