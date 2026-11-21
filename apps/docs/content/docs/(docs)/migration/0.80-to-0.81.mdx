@@ -1,0 +1,104 @@
+---
+title: From 0.80 to 0.81
+description: What to change when upgrading from better-supabase 0.80 to 0.81. eve 1.3, Workflow 5.7.1 and the ai 7.0.179 line, the workflow-sdk SQL module at version 9 with purge backstops, a new WorkflowMaintenance member, skipWorkers and custom skills on Supabase.
+---
+
+0.81 moves `better-supabase/eve` and the Supabase World to eve 1.3 and
+Workflow 5.7.1, and raises the AI SDK floors to the releases that ship with
+them (ADR 1105). It is a minor release, and below 1.0 a minor version may carry
+breaking changes. Each change is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+0.81 is also the first release with the eve 1.2 and Workflow 5.7 work: the
+session projection, the wake-only `persistSessions`, the key ring and Vercel
+Queues delivery. If you run eve or the Supabase World, apply
+[From 0.79 to 0.80](/docs/migration/0.79-to-0.80) first, then this page.
+
+| Section                                               | Needs code                                                           |
+| ----------------------------------------------------- | -------------------------------------------------------------------- |
+| [Peer versions](#peer-versions)                       | Upgrade eve, Workflow, world-postgres and the AI SDK                 |
+| [SQL module](#sql-module)                             | Run `better-supabase upgrade` before you deploy world-postgres 5.4.1 |
+| [Purge backstops](#purge-backstops)                   | Only if you implement `WorkflowMaintenance` yourself                 |
+| [Graphile Worker schema](#graphile-worker-schema)     | Only if you set `GRAPHILE_WORKER_SCHEMA`                             |
+| [Web tier without workers](#web-tier-without-workers) | None; new option                                                     |
+| [Custom skills](#custom-skills)                       | None; new export                                                     |
+
+## Peer versions
+
+Upgrade eve first with eve's own
+[upgrade guide](https://eve.dev/docs/guides/upgrade), then:
+
+```bash
+pnpm add eve@1.3.0 workflow@5.7.1 @workflow/world-postgres@5.4.1 ai@7.0.179
+```
+
+If you use them, also move `@ai-sdk/react` to 4.0.183 and `@ai-sdk/workflow` to
+2.0.111. The new ranges are:
+
+| Peer                       | 0.80           | 0.81           |
+| -------------------------- | -------------- | -------------- |
+| `eve`                      | `>=1.2.0 <2`   | `>=1.3.0 <2`   |
+| `workflow`                 | `>=5.7.0 <6`   | `>=5.7.1 <6`   |
+| `@workflow/world-postgres` | `>=5.4.0 <5.5` | `>=5.4.1 <5.5` |
+| `ai`                       | `>=7.0.178 <8` | `>=7.0.179 <8` |
+| `@ai-sdk/react`            | `>=4.0.182 <5` | `>=4.0.183 <5` |
+| `@ai-sdk/workflow`         | `>=2.0.110 <3` | `>=2.0.111 <3` |
+
+`@workflow/world` stays at 5.3.0, so the World still speaks protocol 5.3.0.
+These releases are newer than a one-day `minimumReleaseAge`, so a project that
+sets the policy may have to wait a day or pin the previous release.
+
+## SQL module
+
+The `workflow-sdk` module is at version 9. Run `better-supabase upgrade`, apply
+the migration, then deploy world-postgres 5.4.1:
+
+```bash
+npx better-supabase upgrade
+```
+
+world-postgres 5.4.1 ends a run with zero retention by calling `add_job` in the
+same transaction that writes its final state. Version 9 adds `workflow.add_job`
+to take that call, the `workflow_purge_backstops()` function that runs what it
+recorded, and a pg_cron job that calls it every minute in the `pg_net` and
+`vercel-queue` delivery modes. Without version 9, the final write of a
+zero-retention run fails.
+
+## Purge backstops
+
+`WorkflowMaintenance` has a new member, `purgeBackstops({ batch? })`. It
+deletes the data of zero-retention runs whose purge did not complete when they
+finished, and resolves with how many runs it purged. The World implements it
+and runs it while it polls; code that calls `createSupabaseWorld()` needs no
+change. A hand-written `WorkflowMaintenance` (a test double, for example) must
+add the member:
+
+```ts
+const maintenance: WorkflowMaintenance = {
+  // ...
+  purgeBackstops: async () => 0,
+};
+```
+
+## Graphile Worker schema
+
+world-postgres sends the backstop to `<GRAPHILE_WORKER_SCHEMA>.add_job`. The
+World now sets `GRAPHILE_WORKER_SCHEMA` to `workflow` when it is unset, and
+logs a warning when it is set to anything else, because no runner of the World
+reads another schema. Unset it unless you run Graphile Worker yourself next to
+the World.
+
+## Web tier without workers
+
+`createSupabaseWorld({ skipWorkers: true })`, or
+`WORKFLOW_POSTGRES_SKIP_WORKERS=1`, starts, resumes, cancels and reads runs
+without delivering any message. Use it for a web tier that runs next to
+separate worker processes. See [eve on the Supabase World](/docs/eve/world).
+
+## Custom skills
+
+`supabaseSkillScopes()` from `better-supabase/eve` keeps eve's experimental
+custom skills inside the caller's tenant, with personal, persona, channel and
+organization scopes. Store the skills with
+`supabaseDocumentBackend({ memory, scope: "skills" })`. See
+[Memory on eve](/docs/eve/memory#custom-skills).
