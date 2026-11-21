@@ -4345,6 +4345,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "pipelines"
       ],
       "integrates": [
+        "approvals",
         "outbox",
         "notifications",
         "numbering",
@@ -4367,6 +4368,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "approvals",
         "housekeeping",
         "option-sets",
         "templates",
@@ -7254,6 +7256,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "parent": "parent_id",
               "thread": "thread_id",
               "author": "author_id",
+              "authorKind": "author_kind",
+              "authorName": "author_name",
               "kind": "kind",
               "body": "body",
               "document": "document",
@@ -33030,6 +33034,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "instant",
                 "optional": true
               },
+              "actor": {
+                "kind": "json",
+                "optional": true,
+                "description": "Who acts: { kind, name }, stored as the author's kind and name."
+              },
               "attachmentIds": {
                 "kind": "uuid",
                 "optional": true,
@@ -33072,6 +33081,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "scheduledFor": {
                   "type": "string",
                   "format": "date-time"
+                },
+                "actor": {
+                  "description": "Who acts: { kind, name }, stored as the author's kind and name."
                 },
                 "attachmentIds": {
                   "type": "array",

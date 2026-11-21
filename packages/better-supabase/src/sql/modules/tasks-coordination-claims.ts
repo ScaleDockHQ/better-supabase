@@ -9,6 +9,7 @@ import {
   stageByKey,
   taskRecord,
 } from "./tasks-coordination-shared.ts";
+import { HOLD_SUBJECT } from "./tasks-hold-approvals.ts";
 
 /** Claims: claim, claim next, renew, release, delegate and the expiry job. */
 export function claimsSql(
@@ -312,6 +313,15 @@ ${userGrant(`${fn("release_task_hold")}(uuid)`)}
 `;
   }
 
+  const approval = co.holdApproval;
+
+  const open =
+    approval === null
+      ? ""
+      : `
+  v_request := ${ctx.of("approvals").fn("open_approval")}(v_row.${w("tenant")}, ${sqlString(HOLD_SUBJECT)}, v_row.${w("id")}::text, 'approve',
+    ${sqlString(approval.policy)}::jsonb, v_note, jsonb_build_object('kind', hold_task.kind), auth.uid());`;
+
   const messaging = ctx.installed("messaging")
     ? (() => {
         const m = ctx.of("messaging");
@@ -375,7 +385,7 @@ declare
   v_stage uuid;
   v_note text := nullif(trim(hold_task.note), '');
   v_ask uuid[] := array(select distinct x from unnest(coalesce(hold_task.ask_user_ids, '{}')) x where x is not null);
-  v_conversation text;
+  v_conversation text;${approval === null ? "" : "\n  v_request jsonb;"}
 begin
   if hold_task.kind is null or hold_task.kind !~ '^[a-z][a-z_]{0,31}$' then
     ${fail("TASK_HOLD_INVALID", "kind must be a short lowercase word such as review or input", "22023")}
@@ -394,9 +404,9 @@ begin
   if exists (select 1 from unnest(v_ask) x where not ${ctx.scope.canUser("x", `v_row.${w("tenant")}`, n.read)}) then
     ${fail("TASK_HOLD_INVALID", "an asked user can't read tasks in this organization", "22023")}
   end if;${moveIn}${claimDrop}
-  update ${t("items")} x set ${sets.join(", ")} where x.${w("id")} = v_row.${w("id")};${messaging}
+  update ${t("items")} x set ${sets.join(", ")} where x.${w("id")} = v_row.${w("id")};${open}${messaging}
   select * into v_row from ${t("items")} x where x.${w("id")} = v_row.${w("id")};
-  ${taskRecord(ctx, n, "task.held", "v_row", ", 'kind', hold_task.kind, 'note', v_note, 'askUserIds', to_jsonb(v_ask)")}
+  ${taskRecord(ctx, n, "task.held", "v_row", `, 'kind', hold_task.kind, 'note', v_note, 'askUserIds', to_jsonb(v_ask)${approval === null ? "" : ", 'approvalId', v_request ->> 'id'"}`)}
   return (select ${h.row("x")} from ${t("items")} x where x.${w("id")} = v_row.${w("id")});
 end;
 $$;

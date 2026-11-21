@@ -84,6 +84,8 @@ export function emptyMessage(
     threadId: undefined,
     authorId: undefined,
     author: undefined,
+    authorKind: undefined,
+    authorName: undefined,
     kind: "message",
     body: "",
     document: undefined,

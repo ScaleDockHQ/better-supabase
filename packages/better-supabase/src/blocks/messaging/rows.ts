@@ -72,6 +72,8 @@ export function messageOf(value: unknown): Message {
     threadId: optionalText(row["thread_id"]),
     authorId: optionalText(row["author_id"]),
     author: authorOf(row["author"]),
+    authorKind: optionalText(row["author_kind"]),
+    authorName: optionalText(row["author_name"]),
     kind: row["kind"] === "note" ? "note" : "message",
     body: textOf(row["body"] ?? ""),
     document: row["document"] ?? undefined,
