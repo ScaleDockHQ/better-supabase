@@ -2115,7 +2115,7 @@
       "FrameworkOptions",
       "RefusalRedirects",
       "ResourceLoaderContext",
-      "TanStackStartFunctionMiddlewareArgs",
+      "TanStackStartFunctionMiddlewareOptions",
       "TanStackStartHandlerOptions",
       "TanStackStartOptions",
       "TanStackStartServerOptions",

@@ -40,7 +40,7 @@ export interface TanStackStartHandlerOptions<Data, Context> {
 }
 
 /** What the `.server()` callback of a function middleware receives. */
-export interface TanStackStartFunctionMiddlewareArgs<Context, Next> {
+export interface TanStackStartFunctionMiddlewareOptions<Context, Next> {
   readonly context: Context;
   readonly next: (options: { readonly context: object }) => Promise<Next>;
 }
@@ -108,7 +108,7 @@ export interface BetterTanStackStart<
       LocalsResource<M, F, E, C, P, B>
     >,
   ): <Next>(
-    args: TanStackStartFunctionMiddlewareArgs<
+    args: TanStackStartFunctionMiddlewareOptions<
       FrameworkLocals<M, F, E, C, P, B>,
       Next
     >,

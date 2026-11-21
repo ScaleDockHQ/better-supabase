@@ -9,7 +9,7 @@ export { createTanStackStart } from "./create.ts";
 
 export type {
   BetterTanStackStart,
-  TanStackStartFunctionMiddlewareArgs,
+  TanStackStartFunctionMiddlewareOptions,
   TanStackStartHandlerOptions,
   TanStackStartOptions,
 } from "./create.ts";
