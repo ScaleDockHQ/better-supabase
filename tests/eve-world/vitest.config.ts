@@ -9,9 +9,15 @@ const conditions = [
   "development|production",
 ];
 
+// Without a stack (the unit lanes) there is nothing to run: the suites need the database and
+// spawn eve servers, so no file is collected and the task passes.
+const live = (process.env.SUPABASE_DB_URL ?? "") !== "";
+
 export default defineConfig({
   test: {
-    globalSetup: ["./src/global-setup.ts"],
+    include: live ? ["**/*.{test,spec}.?(c|m)[jt]s?(x)"] : [],
+    passWithNoTests: true,
+    globalSetup: live ? ["./src/global-setup.ts"] : [],
     // Each file starts an eve server on its own port, but all share one database.
     fileParallelism: false,
     testTimeout: 60_000,

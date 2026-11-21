@@ -48,12 +48,19 @@ describe.skipIf(!live).each(MODES)(
       // The suites leave runs of workflows no deployment registers. The next
       // World to start re-enqueues active runs, so another suite's poller
       // would log errors for them: the queued messages and the runs go.
-      await pool.query(
-        `delete from pgmq.q_workflow_deliveries m
-          using workflow.workflow_runs r
-          where r.name in ('startHookConformance', 'fenceConformance')
-            and m.message::text like '%' || r.id || '%'`,
+      const queued = await pool.query<{ present: boolean }>(
+        "select to_regclass('pgmq.q_workflow_deliveries') is not null as present",
       );
+
+      if (queued.rows[0]?.present === true) {
+        await pool.query(
+          `delete from pgmq.q_workflow_deliveries m
+            using workflow.workflow_runs r
+            where r.name in ('startHookConformance', 'fenceConformance')
+              and m.message::text like '%' || r.id || '%'`,
+        );
+      }
+
       await pool.query(
         `do $$
          declare t record;
