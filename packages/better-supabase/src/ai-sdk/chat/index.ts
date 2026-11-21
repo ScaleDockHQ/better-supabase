@@ -25,3 +25,17 @@ export {
   createCompletionRoute,
   createObjectRoute,
 } from "./generations.ts";
+
+export {
+  type MediaAuthorize,
+  type MediaContext,
+  type MediaRoute,
+  type MediaRouteOptions,
+  type VideoJob,
+  type VideoJobStore,
+  type VideoRoutes,
+  type VideoRoutesOptions,
+  type VideoStatus,
+  createMediaRoute,
+  createVideoRoutes,
+} from "./media.ts";

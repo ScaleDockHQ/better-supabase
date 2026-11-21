@@ -1,4 +1,4 @@
-import type { LanguageModelMiddleware } from "ai";
+import type { LanguageModelMiddleware, ToolSet } from "ai";
 
 import type {
   AiGuardrails,
@@ -281,4 +281,136 @@ export function guardrailsMiddleware(
       return { ...result, stream };
     },
   };
+}
+
+/** What `guardTools` takes: the options of `guardText`. */
+export type GuardToolsOptions = GuardTextOptions;
+
+const isIterable = (value: unknown): value is AsyncIterable<unknown> =>
+  typeof value === "object" && value !== null && Symbol.asyncIterator in value;
+
+const jsonOf = (value: unknown): string =>
+  typeof value === "string" ? value : JSON.stringify(value);
+
+/** The redacted text as the value it replaces: a string stays one. */
+function valueOf(original: unknown, redacted: string): unknown {
+  if (typeof original === "string") {
+    return redacted;
+  }
+
+  try {
+    return JSON.parse(redacted);
+  } catch {
+    return redacted;
+  }
+}
+
+/**
+ * Wraps each tool's `execute` so the ai-guardrails policy runs on what the
+ * model sends and on what the tool returns. The input is checked as JSON at the
+ * `input` stage, with the number of tool calls so far as `toolDepth`. A `block`
+ * skips the tool and returns the refusal as its output, a `redact` runs it on
+ * the rewritten input. The output is checked at the `output` stage the same
+ * way, so injected instructions in a web page or a document the tool fetched
+ * never reach the model as they came. A tool without `execute` is left alone.
+ *
+ * A check that cannot run blocks the stage unless `failOpen` is set.
+ */
+export function guardTools<TOOLS extends ToolSet>(
+  tools: TOOLS,
+  guardrails: Pick<AiGuardrails, "check">,
+  options: GuardToolsOptions,
+): TOOLS {
+  const refusal = options.refusal ?? DEFAULT_REFUSAL;
+  let depth = 0;
+
+  const run = async (
+    stage: GuardrailStage,
+    text: string,
+    toolDepth: number,
+  ): Promise<GuardrailVerdict> => {
+    const checked = await guardrails.check({
+      agent: options.agent,
+      stage,
+      text,
+      toolDepth,
+      ...(options.organizationId
+        ? { organizationId: options.organizationId }
+        : {}),
+      ...(options.chatId ? { chatId: options.chatId } : {}),
+    });
+
+    if (checked.ok) {
+      return checked.data;
+    }
+
+    return {
+      decision: options.failOpen ? "allow" : "block",
+      text,
+      reasons: [],
+      logged: undefined,
+    };
+  };
+
+  const guardOutput = async (value: unknown, toolDepth: number) => {
+    const text = jsonOf(value);
+
+    if (text === "") {
+      return value;
+    }
+
+    const verdict = await run("output", text, toolDepth);
+
+    if (verdict.decision === "block") {
+      return refusal;
+    }
+
+    return verdict.decision === "redact" ? valueOf(value, verdict.text) : value;
+  };
+
+  const entries = Object.entries(tools).map(([name, tool]) => {
+    const { execute } = tool;
+
+    if (execute === undefined) {
+      return [name, tool] as const;
+    }
+
+    const guarded = {
+      ...tool,
+      execute: async (input: unknown, context: unknown) => {
+        depth += 1;
+        const toolDepth = depth;
+        const checked = await run("input", jsonOf(input), toolDepth);
+
+        if (checked.decision === "block") {
+          return refusal;
+        }
+
+        const next =
+          checked.decision === "redact" ? valueOf(input, checked.text) : input;
+
+        // SAFETY: `execute` is the tool's own function; the SDK calls the
+        // wrapper with the arguments it would pass to it.
+        const result: unknown = await (
+          execute as (input: unknown, context: unknown) => unknown
+        )(next, context);
+
+        if (!isIterable(result)) {
+          return guardOutput(result, toolDepth);
+        }
+
+        return (async function* guardedStream() {
+          for await (const chunk of result) {
+            yield await guardOutput(chunk, toolDepth);
+          }
+        })();
+      },
+    };
+
+    return [name, guarded] as const;
+  });
+
+  // SAFETY: each entry keeps its tool's name and shape; only `execute` is
+  // wrapped, and its input and output types are the tool's own.
+  return Object.fromEntries(entries) as TOOLS;
 }

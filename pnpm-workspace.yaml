@@ -10,6 +10,7 @@ catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
   # sandbox-vercel and workflow move together.
   "@ai-sdk/anthropic": 4.0.107
+  "@ai-sdk/harness": 1.0.190
   "@ai-sdk/mcp": 2.0.102
   "@ai-sdk/react": 4.0.183
   "@ai-sdk/sandbox-vercel": 1.0.190
@@ -279,6 +280,7 @@ catalogs:
   peers:
     # The AI SDK set moves together: @ai-sdk/react and @ai-sdk/workflow pin ai
     # exactly, and all of them share one @ai-sdk/provider-utils.
+    "@ai-sdk/harness": ">=1.0.190 <2"
     "@ai-sdk/mcp": ">=2.0.102 <3"
     "@ai-sdk/react": ">=4.0.183 <5"
     "@ai-sdk/workflow": ">=2.0.111 <3"
