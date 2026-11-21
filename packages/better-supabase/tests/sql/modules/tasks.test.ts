@@ -32,7 +32,7 @@ describe("tasks module", () => {
     );
 
     expect(sql).toContain(
-      `'title', v_row."title") || jsonb_build_object('customerId', v_row."customer_id"))`,
+      `|| jsonb_build_object('customerId', v_row."customer_id"))`,
     );
     expect(sql).toContain(
       `|| jsonb_build_object('parentTaskId', new."parent_id"))`,

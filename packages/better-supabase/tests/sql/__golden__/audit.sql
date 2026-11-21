@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@15 managed
--- @bsb-hash sha256:116a90c16e40fce896fba3140290237f164fc036a6108ae2481a012198066b82
+-- @bsb-hash sha256:ee0dd73db6b10fac615bba64bbf4f6281042655104a069fb2036771d59e24878
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -238,6 +238,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -356,6 +357,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -418,6 +420,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -482,6 +485,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -913,6 +917,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -1096,6 +1101,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -1870,7 +1876,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@15 managed
--- @bsb-hash sha256:bd92a8f544047642eb2062406ec8dd4287c376b4eebf10a57d21a90ac57aaeba
+-- @bsb-hash sha256:368b82e2e9d46b6a89548151aa146258d88f194c4a02adb283b8f0bd2965c191
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2114,6 +2120,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -2235,6 +2242,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -2301,6 +2309,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -2369,6 +2378,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -2801,6 +2811,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -2984,6 +2995,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -3923,7 +3935,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@15 managed
--- @bsb-hash sha256:664125ddc65537452eae7cf22fa4b65ace092623c710453612384e0770675b62
+-- @bsb-hash sha256:20c4a5390411f1de590696f071ff1c33cea2944971461d8bf22982b36e5ad796
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4160,6 +4172,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -4278,6 +4291,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -4340,6 +4354,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -4404,6 +4419,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -4835,6 +4851,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -5018,6 +5035,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -5792,7 +5810,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@15 managed
--- @bsb-hash sha256:fa8360bf0c370453330e3bef70cad73bfa92541edb15fdc9a3654ea0287abc62
+-- @bsb-hash sha256:da7f7dd09bd03d6548dd917db72582ba6272e4f250302b35558d1ea79790db10
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6029,6 +6047,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -6147,6 +6166,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -6209,6 +6229,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -6273,6 +6294,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -6704,6 +6726,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -6887,6 +6910,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -9509,7 +9533,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@15 managed
--- @bsb-hash sha256:b5b38713f0ce039c438577fb5df31e0fa55425ab1eb4b8bf7bbd779b0aed0b3f
+-- @bsb-hash sha256:063adf426a9402bcf262e54483c8a8aa4dc81048ae52404820bd1bbaaffe757c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9746,6 +9770,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -9864,6 +9889,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -9926,6 +9952,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -9990,6 +10017,7 @@ begin
       when v_integration then 'integration'
       when coalesce(v_jwt ->> 'role', '') = 'service_role' then 'service'
       when v_jwt -> 'act' ->> 'kind' = 'support' then 'support'
+      when v_jwt -> 'act' ->> 'kind' = 'agent' then 'agent'
       when v_jwt -> 'act' is not null then 'impersonation'
       when v_jwt ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -10421,6 +10449,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'
@@ -10604,6 +10633,7 @@ begin
       when v_integration then 'integration'
       when coalesce(auth.jwt() ->> 'role', '') = 'service_role' then 'service'
       when auth.jwt() -> 'act' ->> 'kind' = 'support' then 'support'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
       when auth.jwt() -> 'act' is not null then 'impersonation'
       when auth.jwt() ->> 'client_id' is not null then 'oauth-client'
       when auth.uid() is not null then 'user'

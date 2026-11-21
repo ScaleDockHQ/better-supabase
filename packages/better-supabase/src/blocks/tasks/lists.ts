@@ -17,6 +17,7 @@ export const taskListSurface: EntityListSurface = {
     "parentId",
     "assigneeId",
     "open",
+    "ready",
   ],
   search: ["title", "identifier"],
 };

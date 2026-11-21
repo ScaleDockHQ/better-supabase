@@ -1507,6 +1507,9 @@ export const permissions = {
     write: "periods.write",
     manage: "periods.manage",
   },
+  permissions: {
+    explain: "members.read",
+  },
   person: {
     read: "contacts.read",
     write: "contacts.write",

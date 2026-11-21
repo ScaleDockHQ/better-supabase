@@ -308,6 +308,9 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  permissions: {
+    explain: "members.read",
+  },
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",

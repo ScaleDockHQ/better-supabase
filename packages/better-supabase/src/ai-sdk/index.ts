@@ -88,7 +88,15 @@ export {
 export {
   guardrailsMiddleware,
   type GuardrailsMiddlewareOptions,
+  guardTools,
+  type GuardToolsOptions,
 } from "./guardrails.ts";
+
+export {
+  type TenantToolContext,
+  tenantContextSchema,
+  tenantToolsContext,
+} from "./tool-context.ts";
 
 export {
   type RateLimitCall,

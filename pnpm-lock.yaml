@@ -167,6 +167,9 @@ catalogs:
     '@ai-sdk/anthropic':
       specifier: 4.0.107
       version: 4.0.107
+    '@ai-sdk/harness':
+      specifier: 1.0.190
+      version: 1.0.190
     '@ai-sdk/mcp':
       specifier: 2.0.102
       version: 2.0.102
@@ -1912,6 +1915,9 @@ importers:
       '@ai-sdk/anthropic':
         specifier: 'catalog:'
         version: 4.0.107(zod@4.6.7)
+      '@ai-sdk/harness':
+        specifier: 'catalog:'
+        version: 1.0.190(ws@8.23.0)(zod@4.6.7)
       '@ai-sdk/mcp':
         specifier: 'catalog:'
         version: 2.0.102(zod@4.6.7)

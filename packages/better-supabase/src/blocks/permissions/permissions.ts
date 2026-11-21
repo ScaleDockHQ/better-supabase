@@ -50,6 +50,35 @@ export interface CatalogRole {
   readonly overrides: readonly PermissionOverride[];
 }
 
+/** Why a member does or doesn't hold one key, as `explain()` reports it. */
+export type PermissionReason =
+  | "granted_by_role"
+  | "granted_by_override"
+  | "denied_by_override"
+  | "role_lacks_key"
+  | "not_a_member"
+  | "not_in_scope"
+  | "member_disabled"
+  | "organization_disabled";
+
+export interface PermissionExplanation {
+  readonly permission: string;
+  readonly userId: string;
+  readonly organizationId: string;
+  /** What `can()` answers for this member. */
+  readonly allowed: boolean;
+  readonly reason: PermissionReason;
+  /** The roles the member holds in the tenant, as the membership stores them. */
+  readonly roles: readonly string[];
+  /** The granted keys, wildcards included, that match `permission`. */
+  readonly matchedBy: readonly string[];
+  /**
+   * The tenant override for the member's roles: `true` grants, `false` denies,
+   * `null` when none applies (always `null` outside the catalog model).
+   */
+  readonly override: boolean | null;
+}
+
 /**
  * The caller's permissions in the block's tenant, through the access contract:
  * the roles or catalog model, the app's own functions, or the
@@ -74,6 +103,15 @@ export interface Permissions<K extends string = string> {
   flags<const M extends Readonly<Record<string, K>>>(
     input: { flags: M } & AccessCallOptions,
   ): AsyncResult<PermissionFlags<M>>;
+  /**
+   * Why `userId` does or doesn't hold `key` in the tenant: the answer `can()`
+   * gives, the member's roles, the granted keys that match and a reason.
+   * Callers explain themselves; members with `members.read` explain anyone in
+   * the tenant. A `forContext({ permissions })` cap shows as `not_in_scope`.
+   */
+  explain(
+    input: { userId: string; key: K } & AccessCallOptions,
+  ): AsyncResult<PermissionExplanation>;
   /**
    * The catalog's tenant roles with their keys in the tenant. Catalog model
    * only; needs `members.read`.
@@ -115,6 +153,42 @@ function catalogRoleOf(value: unknown): CatalogRole {
   };
 }
 
+const REASONS: readonly PermissionReason[] = [
+  "granted_by_role",
+  "granted_by_override",
+  "denied_by_override",
+  "role_lacks_key",
+  "not_a_member",
+  "not_in_scope",
+  "member_disabled",
+  "organization_disabled",
+];
+
+function reasonOf(value: unknown): PermissionReason {
+  const found = REASONS.find((reason) => reason === value);
+
+  if (found === undefined) {
+    throw new TypeError("explain_permission returned an unknown reason");
+  }
+
+  return found;
+}
+
+function explanationOf(value: unknown): PermissionExplanation {
+  const row = recordOf(value, "explain_permission");
+
+  return {
+    permission: textOf(row["permission"]),
+    userId: textOf(row["userId"]),
+    organizationId: textOf(row["organizationId"]),
+    allowed: row["allowed"] === true,
+    reason: reasonOf(row["reason"]),
+    roles: stringsOf(row["roles"]),
+    matchedBy: stringsOf(row["matchedBy"]),
+    override: typeof row["override"] === "boolean" ? row["override"] : null,
+  };
+}
+
 /**
  * The `access` module's `my_permissions` as typed calls. It acts in the block's
  * `tenant`; `createBlocks` and `createBlockClient` pass the request's.
@@ -145,6 +219,14 @@ export function createPermissions<K extends string = string>(
     flags: ({ flags, ...perCall }) =>
       load(Object.values(flags), perCall).map((set) =>
         permissionFlags(set, flags),
+      ),
+    explain: ({ userId, key, ...perCall }) =>
+      requireTenant(perCall.tenant ?? options.tenant).andThen((tenant) =>
+        call(
+          "explain_permission",
+          { tenant, member: userId, permission: key },
+          explanationOf,
+        ),
       ),
     roles: (perCall) =>
       requireTenant(perCall?.tenant ?? options.tenant).andThen((tenant) =>

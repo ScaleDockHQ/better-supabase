@@ -35,6 +35,8 @@ const NOT_CREDENTIALS: Readonly<Record<string, readonly string[]>> = {
     "?.token",
     "?.token_retention_until",
   ],
+  // A claim token proves who holds a task's lease when it is renewed or released.
+  tasks: ['"better_supabase"."task_claims".token'],
   // A lock token proves who holds a Chat SDK thread lock when it is released.
   "chat-sdk-state": ['"better_supabase"."chat_state_locks".token'],
   // A push token addresses a device; sending to it needs the provider's own credential.

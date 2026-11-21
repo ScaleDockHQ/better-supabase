@@ -141,6 +141,14 @@ describe("renameBlock", () => {
         "task.archived",
         "task.restored",
         "task.deleted",
+        "task.unblocked",
+        "task.claimed",
+        "task.released",
+        "task.claim_expired",
+        "task.failed",
+        "task.delegated",
+        "task.held",
+        "task.hold_released",
       ],
     });
   });

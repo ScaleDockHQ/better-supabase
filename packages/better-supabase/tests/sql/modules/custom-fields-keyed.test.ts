@@ -459,9 +459,9 @@ $$;`,
 
   it("reports no sensitive key in keyed layout and no read key with readAccess record", () => {
     const actions = (options: Record<string, unknown>) =>
-      modulePermissionKeys({ "custom-fields": { options } }, [
-        "custom-fields",
-      ]).map((entry) => entry.action);
+      modulePermissionKeys({ "custom-fields": { options } }, ["custom-fields"])
+        .filter((entry) => entry.module === "custom-fields")
+        .map((entry) => entry.action);
 
     expect(actions({})).toContain("sensitive");
     expect(actions({ layout: "keyed" })).toEqual(["manage", "read"]);

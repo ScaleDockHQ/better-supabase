@@ -2829,6 +2829,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/harness": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/sandbox-vercel": "catalog:",
@@ -2950,6 +2951,7 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "catalog:peers",
+    "@ai-sdk/harness": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/sandbox-vercel": "catalog:peers",
@@ -3028,6 +3030,9 @@
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/harness": {
       "optional": true
     },
     "@ai-sdk/mcp": {

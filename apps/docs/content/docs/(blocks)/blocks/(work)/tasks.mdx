@@ -183,6 +183,46 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 Columns you add to `tasks` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a `customer_id`. Every item a read returns carries them in `fields`.
 
+## Coordinate work between people and agents
+
+These methods are for a queue that several workers, human or agent, pull from. Each is a SQL function with the same permission checks as the rest of the block, and a read-only actor (a support, impersonation or read-only agent session) is refused on every write.
+
+### Prerequisites
+
+With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relations) block, `setNeeds({ taskId, needs })` replaces the tasks that block one. The `waiting_on` column counts the open prerequisites, the `ready` list filter returns tasks nothing blocks, and `task.unblocked` is sent when the count reaches zero. A cycle or a prerequisite from another organization is refused with `TASK_NEEDS_INVALID`. A prerequisite that is canceled or failed keeps its dependents blocked, and deleting one unblocks them. `refuse` sets what an unready task refuses: `claims` (default), `started` or `none`; the refusal is `TASK_NOT_READY`. Setting needs takes the relations manage permission.
+
+### Create a plan
+
+`createPlan({ organizationId, plan, idempotencyKey })` creates up to 100 tasks in one transaction. Entries name each other with `key`, in `parentId` and `needs`. The plan is checked before the first write, so a bad one creates nothing (`TASK_PLAN_INVALID`, `TASK_PLAN_TOO_LARGE`). A replay with the same `idempotencyKey` returns the first result. The method is `createPlan` because `createMany` is a retired data-contract verb.
+
+### Claims
+
+`claim({ taskId, lease, profile })` takes a lease (`options.claims.lease` and `maxLease`, in seconds) and returns a token. A live claim of someone else is `TASK_CLAIMED`, a held task is `TASK_HELD`. `claimNext({ organizationId, filter })` takes the oldest ready task, assigned ones first, and concurrent callers get different tasks. `renew` and `release` need the token and raise `TASK_CLAIM_LOST` after the lease ran out or someone else took over. Every new claim bumps `epoch`. `startStage` and `expiredStage` move the task when a claim starts or expires. `delegate({ taskId, toUserId })` assigns the task and ends the claim.
+
+### Who acts
+
+`profile: { kind, name }` labels who acted, such as `{ kind: "agent", name: "scout" }`. It is a label on claims and events and never grants access. A session with an `act` claim of kind `agent` also shows as `agent` in audit rows and timeline entries (`actorKind`, `actorName`); before this it showed as an impersonation.
+
+### Hold
+
+`hold({ taskId, kind, note, askUserIds })` puts a task on hold to ask a person. The note goes through [messaging](/docs/blocks/messaging) and mentions `askUserIds`, who must be able to read the task. With `options.hold.stage` the task moves to that stage until `releaseHold`. A manual move into that stage is not a hold, and a manual move out of it clears one.
+
+### Outcomes
+
+`complete`, `cancel` and `fail` take a `note`, kept in `closeNote` and sent with the event. `fail` closes the task in a canceled stage with the close reason `failed` and sends `task.closed` and `task.failed`. When the pipeline has no canceled stage it raises `TASK_OUTCOME_UNAVAILABLE`.
+
+### Ordering
+
+`move({ taskId, stageId, beforeId, afterId })` places a task in a lane, and `moveMany({ moves })` applies several moves in one call: the refused ones come back in `rejected` with a hint, and the others apply. A rank clash is `TASK_RANK_CONFLICT`.
+
+### Stage times and live changes
+
+`stageTimes(taskId)` lists the stages a task has been in with the seconds spent in each, and the open stage counts up to now. Changes to tasks broadcast `{ id, change, table }` on the realtime topic `tasks:{organizationId}`; subscribe with the topic and refetch.
+
+### Events and errors
+
+New events: `task.unblocked`, `task.claimed`, `task.released`, `task.claim_expired`, `task.failed`, `task.delegated`, `task.held` and `task.hold_released`. New hints: `TASK_NOT_READY`, `TASK_CLAIMED`, `TASK_CLAIM_LOST`, `TASK_CLAIM_NOT_HELD`, `TASK_NOTHING_READY`, `TASK_HELD`, `TASK_NOT_HELD`, `TASK_HOLD_INVALID`, `TASK_HOLD_STAGE_MISSING`, `TASK_HOLD_MESSAGING_MISSING`, `TASK_NEEDS_INVALID`, `TASK_NEEDS_UNSUPPORTED`, `TASK_PLAN_INVALID`, `TASK_PLAN_TOO_LARGE`, `TASK_OUTCOME_INVALID`, `TASK_OUTCOME_UNAVAILABLE`, `TASK_MOVE_INVALID`, `TASK_RANK_CONFLICT`, `TASK_DELEGATE_INVALID` and `ACTOR_READ_ONLY`.
+
 ## Events
 
 | Event                                                                                                              | Data                                                                                                 |

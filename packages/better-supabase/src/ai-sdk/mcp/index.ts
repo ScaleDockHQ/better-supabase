@@ -33,6 +33,17 @@ export type {
 export {
   type DedupeMcpEventsOptions,
   dedupeMcpEvents,
+  type McpEventRouteOptions,
+  mcpEventRoute,
   postgresMcpEventStore,
   type PostgresMcpEventStoreOptions,
 } from "./events.ts";
+
+export {
+  type McpPromptSummary,
+  type McpResourceClient,
+  type McpResourceToolsOptions,
+  mcpPrompts,
+  mcpPromptMessages,
+  mcpResourceTools,
+} from "./resources.ts";

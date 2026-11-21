@@ -6,6 +6,8 @@ import type {
   Experimental_MCPEventWebhookOptions as MCPEventWebhookOptions,
 } from "@ai-sdk/mcp";
 
+import { experimental_createMCPEventWebhook as createMCPEventWebhook } from "@ai-sdk/mcp";
+
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type { VaultCredentials } from "../../credentials/vault.ts";
 
@@ -188,4 +190,47 @@ export function dedupeMcpEvents(
         }
       : {}),
   };
+}
+
+export interface McpEventRouteOptions extends Handlers {
+  /** Usually `postgresMcpEventStore(...)`. */
+  readonly store: MCPEventStore;
+  readonly validatePayload?: MCPEventWebhookOptions["validatePayload"];
+  /**
+   * Runs a delivery once: see `dedupeMcpEvents`. Without it the handlers can
+   * run twice for one event, so they must be idempotent.
+   */
+  readonly claim?: DedupeMcpEventsOptions["claim"];
+  /** Receives errors the SDK helper catches, such as a failed handler. */
+  readonly onError?: (error: unknown) => void;
+}
+
+/**
+ * The route for an MCP server's event webhook: `(request) => Response` for a
+ * Next.js route handler or any fetch runtime. It verifies each delivery against
+ * the signing secret the store holds for its subscription, answers 503 when a
+ * handler throws so the server retries, and runs a repeat delivery once when
+ * `claim` is set. Mount it at the callback URL before subscribing.
+ */
+export function mcpEventRoute(
+  options: McpEventRouteOptions,
+): (request: Request) => Promise<Response> {
+  const handlers: Handlers = {
+    onEvent: options.onEvent,
+    ...(options.onGap ? { onGap: options.onGap } : {}),
+    ...(options.onTerminated ? { onTerminated: options.onTerminated } : {}),
+  };
+
+  const wrapped = options.claim
+    ? dedupeMcpEvents(handlers, { claim: options.claim })
+    : handlers;
+
+  return createMCPEventWebhook({
+    store: options.store,
+    ...(options.validatePayload
+      ? { validatePayload: options.validatePayload }
+      : {}),
+    ...wrapped,
+    ...(options.onError ? { onError: options.onError } : {}),
+  });
 }

@@ -40,6 +40,9 @@ export const blockConfig = {
  * @public
  */
 export const permissions = {
+  permissions: {
+    explain: "members.read",
+  },
   trash: {
     read: "trash.read",
     create: "trash.create",
@@ -53,4 +56,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "trash.create" | "trash.manage" | "trash.read" | "trash.restore";
+export type PermissionKey = "members.read" | "trash.create" | "trash.manage" | "trash.read" | "trash.restore";
