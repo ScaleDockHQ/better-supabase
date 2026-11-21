@@ -154,6 +154,18 @@ export function moduleContext(
 }
 
 /**
+ * One fact, in the order every block default follows: the config entry, then
+ * the authorization provider's value, then the fallback.
+ */
+export function resolveFact<T>(
+  configured: T | undefined,
+  provided: T | undefined,
+  fallback?: T,
+): T | undefined {
+  return configured ?? provided ?? fallback;
+}
+
+/**
  * The modules that install their functions in `better_supabase` whatever
  * `schema` says.
  */
@@ -230,17 +242,18 @@ function withProviderSuspension(
   const useProviderUser =
     configured.user === undefined && suspension.user !== undefined;
 
+  const tenant = resolveFact(configured.tenant, suspension.tenant);
+
+  const userKey = resolveFact(
+    configured.userKey,
+    useProviderUser ? suspension.userKey : undefined,
+  );
+
   const disabled: NonNullable<AccessBlockConfig["disabled"]> = {
     ...configured,
-    ...(configured.tenant === undefined && suspension.tenant
-      ? { tenant: suspension.tenant }
-      : {}),
+    ...(tenant === undefined ? {} : { tenant }),
     ...(useProviderUser ? { user: suspension.user } : {}),
-    ...(useProviderUser &&
-    configured.userKey === undefined &&
-    suspension.userKey !== undefined
-      ? { userKey: suspension.userKey }
-      : {}),
+    ...(userKey === undefined ? {} : { userKey }),
   };
 
   if (
@@ -329,7 +342,13 @@ function withProviderPlatformRoles(
     ...modules,
     invitations: {
       ...invitations,
-      options: { ...invitations.options, platformRoles: platform },
+      options: {
+        ...invitations.options,
+        platformRoles: resolveFact(
+          invitations.options?.["platformRoles"],
+          platform,
+        ),
+      },
     },
   };
 }
