@@ -47,4 +47,16 @@ describe("parseEnv", () => {
       },
     });
   });
+
+  it("keeps the Vercel integration's connection strings", () => {
+    expect(
+      parseEnv({
+        POSTGRES_URL: "postgresql://u@pooled/db",
+        POSTGRES_URL_NON_POOLING: "postgresql://u@direct/db",
+      }),
+    ).toMatchObject({
+      POSTGRES_URL: "postgresql://u@pooled/db",
+      POSTGRES_URL_NON_POOLING: "postgresql://u@direct/db",
+    });
+  });
 });

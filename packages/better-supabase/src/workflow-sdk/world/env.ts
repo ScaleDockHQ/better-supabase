@@ -1,6 +1,7 @@
 import type { SupabaseWorldOptions } from "./types.ts";
 
 import { WORKFLOW_DELIVERY_MODES } from "../../sql/modules/workflow-sdk.ts";
+import { protectionBypassHeaders } from "../../vercel/vercel.ts";
 import { FLOW_PATH } from "./types.ts";
 
 export function env(name: string): string | undefined {
@@ -22,6 +23,34 @@ export function isServerless(
   return ["VERCEL", "AWS_LAMBDA_FUNCTION_NAME", "NETLIFY"].some(
     (name) => source[name] !== undefined && source[name] !== "",
   );
+}
+
+/**
+ * The connection string variables in the order the pool reads them: the
+ * Supabase and generic names, then the Vercel integration's pooled and direct
+ * strings. The World detects a transaction pooler from the string itself.
+ */
+export const CONNECTION_VARIABLES: readonly string[] = [
+  "WORKFLOW_POSTGRES_URL",
+  "SUPABASE_DB_URL",
+  "DATABASE_URL",
+  "POSTGRES_URL",
+  "POSTGRES_URL_NON_POOLING",
+];
+
+/** The first connection string variable set in `read`'s source. */
+export function connectionStringFrom(
+  read: (name: string) => string | undefined,
+): string | undefined {
+  for (const name of CONNECTION_VARIABLES) {
+    const value = read(name);
+
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
 }
 
 /** The flow route: `flowUrl`, `WORKFLOW_FLOW_URL`, or the local server. */
@@ -111,9 +140,9 @@ export function worldOptionsFromEnv(
   }
 
   const headersText = read("WORKFLOW_DELIVERY_HEADERS");
-  const deliveryHeaders = parseHeaders(headersText);
+  const parsedHeaders = parseHeaders(headersText);
 
-  if (headersText !== undefined && deliveryHeaders === undefined) {
+  if (headersText !== undefined && parsedHeaders === undefined) {
     throw new TypeError(
       "better-supabase: WORKFLOW_DELIVERY_HEADERS must be a JSON object of header names and string values",
     );
@@ -121,12 +150,22 @@ export function worldOptionsFromEnv(
 
   const recoverAfter = positiveInt(read("WORKFLOW_RECOVER_AFTER_SECONDS"));
 
-  const connectionString =
-    read("WORKFLOW_POSTGRES_URL") ??
-    read("SUPABASE_DB_URL") ??
-    read("DATABASE_URL");
+  const connectionString = connectionStringFrom(read);
 
   const flowUrl = read("WORKFLOW_FLOW_URL");
+
+  // The deployment's own bypass secret goes to the flow route only when that
+  // route is on this deployment; headers the app sets explicitly win.
+  const bypass =
+    flowUrl === undefined
+      ? {}
+      : protectionBypassHeaders(source, { url: flowUrl });
+
+  const deliveryHeaders =
+    parsedHeaders === undefined && Object.keys(bypass).length === 0
+      ? undefined
+      : { ...bypass, ...parsedHeaders };
+
   const deliverySecret = read("WORKFLOW_DELIVERY_SECRET");
   const encryptionKey = read("WORKFLOW_ENCRYPTION_KEY");
   const queue = read("WORKFLOW_DELIVERY_QUEUE");

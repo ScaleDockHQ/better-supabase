@@ -13,7 +13,7 @@ import {
 import { readStackStatus } from "../stack-status.ts";
 import { ignoredBy } from "./git-ignored.ts";
 
-const PUBLIC_PREFIXES = [
+export const PUBLIC_PREFIXES: readonly string[] = [
   "NEXT_PUBLIC_",
   "VITE_",
   "PUBLIC_",
@@ -35,7 +35,7 @@ function normalizedUrl(value: string): string | null {
   }
 }
 
-function envEntries(
+export function envEntries(
   file: TextFile,
 ): { key: string; value: string; line: number }[] {
   return file.text.split("\n").flatMap((raw, index) => {

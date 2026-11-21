@@ -39,7 +39,9 @@ export function accessToken(
 
 /**
  * A connection string given by the user: `--db-url-stdin`, `source.dbUrl`,
- * `$DATABASE_URL`, then `$SUPABASE_DB_URL`.
+ * `$DATABASE_URL`, `$SUPABASE_DB_URL`, then the Vercel integration's
+ * `$POSTGRES_URL_NON_POOLING` (a direct connection, which `gen` and `db` need)
+ * and `$POSTGRES_URL`.
  */
 export function databaseUrlCredential(
   config: ResolvedConfig,
@@ -51,5 +53,7 @@ export function databaseUrlCredential(
     ["database.source.dbUrl", config.source.dbUrl],
     ["$DATABASE_URL", env.DATABASE_URL],
     ["$SUPABASE_DB_URL", env.SUPABASE_DB_URL],
+    ["$POSTGRES_URL_NON_POOLING", env.POSTGRES_URL_NON_POOLING],
+    ["$POSTGRES_URL", env.POSTGRES_URL],
   ]);
 }

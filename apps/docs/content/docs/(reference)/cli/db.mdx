@@ -21,7 +21,7 @@ would in `psql -f`, without a `psql` install.
 | `--db-url-stdin`       | Reads the connection string from stdin, so it never reaches argv.                             |
 
 Without `--db-url-stdin`, the command connects through `$DATABASE_URL`,
-`$SUPABASE_DB_URL`, or the local stack. Against a database that is not local,
+`$SUPABASE_DB_URL`, `$POSTGRES_URL_NON_POOLING`, `$POSTGRES_URL`, or the local stack. Against a database that is not local,
 an agent needs the user's consent first. A failing file stops the run, and
 the error names it. The JSON envelope lists the files that ran in `data.ran`.
 
