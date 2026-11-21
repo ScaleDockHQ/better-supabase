@@ -3,13 +3,13 @@
     "raw": 1256236
   },
   "/.well-known/oauth-protected-resource/[...path]/route": {
-    "raw": 834272
+    "raw": 835376
   },
   "/.well-known/vercel/flags/route": {
     "raw": 1304678
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5431823
+    "raw": 5433190
   },
   "/.well-known/workflow/v1/webhook/[token]/route": {
     "raw": 1610603
@@ -39,31 +39,31 @@
     "raw": 3207573
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3786118
+    "raw": 3789518
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5338937
+    "raw": 5342822
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5349168
+    "raw": 5353053
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5341952
+    "raw": 5345837
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5337250
+    "raw": 5341135
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5343161
+    "raw": 5347046
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5349236
+    "raw": 5353121
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3795903
+    "raw": 3799303
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5339267
+    "raw": 5343152
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 3735545
@@ -75,7 +75,7 @@
     "raw": 3211147
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3788656
+    "raw": 3792056
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
     "raw": 3205321
@@ -87,10 +87,10 @@
     "raw": 3203264
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3777608
+    "raw": 3781008
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3788865
+    "raw": 3792265
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
     "raw": 3260856
@@ -135,7 +135,7 @@
     "raw": 3221884
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 3752481
+    "raw": 3755859
   },
   "/[locale]/(app)/community/page": {
     "raw": 3218562
@@ -741,19 +741,19 @@
     "raw": 3218740
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5239883
+    "raw": 5241156
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5243875
+    "raw": 5245148
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5244870
+    "raw": 5246147
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5242581
+    "raw": 5243763
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5237700
+    "raw": 5238973
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 3030046
@@ -849,7 +849,7 @@
     "raw": 1125726
   },
   "/api/bridge/customers/route": {
-    "raw": 940214
+    "raw": 941597
   },
   "/api/bs-sessions/route": {
     "raw": 2702015
@@ -960,7 +960,7 @@
     "raw": 2707162
   },
   "/api/hooks/[token]/route": {
-    "raw": 247059
+    "raw": 247797
   },
   "/api/inbox/contact-deals/route": {
     "raw": 2703714
@@ -1032,7 +1032,7 @@
     "raw": 2707071
   },
   "/api/mcp/route": {
-    "raw": 2417232
+    "raw": 2419678
   },
   "/api/numbering/list/route": {
     "raw": 1148549
@@ -1080,16 +1080,16 @@
     "raw": 2829056
   },
   "/api/queues/audit-export/route": {
-    "raw": 638538
+    "raw": 639829
   },
   "/api/queues/block-ticks/route": {
     "raw": 4801231
   },
   "/api/queues/schedules/route": {
-    "raw": 330432
+    "raw": 331912
   },
   "/api/queues/settings-test/route": {
-    "raw": 292904
+    "raw": 294195
   },
   "/api/quotes/list/route": {
     "raw": 2707184
