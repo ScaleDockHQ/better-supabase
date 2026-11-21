@@ -7,6 +7,7 @@ import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { RULES, runRules } from "../../../src/cli/doctor/rules.ts";
 import {
   LITERAL_LIMIT,
+  blockSqlSizes,
   MODULE_SQL_LIMIT,
 } from "../../../src/cli/doctor/schema-cost.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
@@ -107,5 +108,34 @@ describe("BS244 schema cache pressure", () => {
     ]);
 
     expect(findings).toMatchObject([{ target: "modules:sql-size" }]);
+  });
+
+  it("names the largest blocks in the finding", async () => {
+    const file = (block: string, size: number) => ({
+      path: `supabase/schemas/${block}.sql`,
+      text: `-- @bsb-block ${block}@1 managed\n${"-".repeat(size)}`,
+    });
+
+    const findings = await run("BS244", [
+      file("invoices", MODULE_SQL_LIMIT),
+      file("inventory", 500_000),
+      file("tags", 1000),
+    ]);
+
+    expect(findings[0]!.message).toContain(
+      "largest blocks are invoices 2000 kB, inventory 500 kB, tags 1 kB",
+    );
+  });
+
+  it("adds the files of one block together", () => {
+    const text = (block: string) => `-- @bsb-block ${block}@1 managed\nabc`;
+
+    expect(
+      blockSqlSizes([
+        { path: "a.sql", text: text("tags") },
+        { path: "b.sql", text: text("tags") },
+        { path: "c.sql", text: "no marker" },
+      ]),
+    ).toEqual([{ block: "tags", characters: 2 * text("tags").length }]);
   });
 });

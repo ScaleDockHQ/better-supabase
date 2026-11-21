@@ -1,5 +1,6 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
+import { moduleFileVersion } from "../../sql/markers.ts";
 import { catalogOf, exposedSchemas } from "./shared.ts";
 
 /** A literal above this many characters is parsed again on every call. */
@@ -10,6 +11,34 @@ const SCHEMA_OBJECT_LIMIT = 1500;
 
 /** SQL text of the module files, in characters, before BS244 reports it. */
 export const MODULE_SQL_LIMIT = 2_000_000;
+
+/** How many blocks BS244 names when module SQL is over the limit. */
+const TOP_BLOCKS = 5;
+
+/**
+ * The generated SQL of each block instance in characters, largest first. A file
+ * without a readable marker counts under its path.
+ */
+export function blockSqlSizes(
+  files: readonly { readonly path: string; readonly text: string }[],
+): readonly { readonly block: string; readonly characters: number }[] {
+  const sizes = new Map<string, number>();
+
+  for (const file of files) {
+    if (!file.text.includes("@bsb-block")) {
+      continue;
+    }
+
+    const block = moduleFileVersion(file.text)?.module ?? file.path;
+    sizes.set(block, (sizes.get(block) ?? 0) + file.text.length);
+  }
+
+  return [...sizes]
+    .map(([block, characters]) => ({ block, characters }))
+    .toSorted(
+      (a, b) => b.characters - a.characters || a.block.localeCompare(b.block),
+    );
+}
 
 const FUNCTION_START = /^create\s+(?:or\s+replace\s+)?function\s+([\w."]+)/im;
 const SINGLE_QUOTED = /'(?:[^']|'')*'/g;
@@ -115,13 +144,19 @@ export const SCHEMA_COST_RULES: readonly Rule[] = [
         }
       }
 
-      const size = (context.sqlFiles ?? [])
-        .filter((file) => file.text.includes("@bsb-block"))
-        .reduce((sum, file) => sum + file.text.length, 0);
+      const sizes = blockSqlSizes(context.sqlFiles ?? []);
+      const size = sizes.reduce((sum, each) => sum + each.characters, 0);
 
       if (size > MODULE_SQL_LIMIT) {
+        const top = sizes
+          .slice(0, TOP_BLOCKS)
+          .map(
+            (each) => `${each.block} ${(each.characters / 1000).toFixed(0)} kB`,
+          )
+          .join(", ");
+
         findings.push({
-          message: `The generated module SQL is ${(size / 1_000_000).toFixed(1)} MB (the limit is ${MODULE_SQL_LIMIT / 1_000_000} MB). Install fewer blocks, or set gen.api.expose to "used".`,
+          message: `The generated module SQL is ${(size / 1_000_000).toFixed(1)} MB (the limit is ${MODULE_SQL_LIMIT / 1_000_000} MB). The largest blocks are ${top}. Install fewer blocks, or set gen.api.expose to "used".`,
           target: "modules:sql-size",
         });
       }

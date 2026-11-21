@@ -225,3 +225,22 @@ BS706 warns about a shim of a feature the library ships: a seal trigger beside
 `field-encryption`, a `decider` option where the provider has `approverFor`,
 `approvals: false` with `standaloneApprovals`, and an app file that redefines a
 block function.
+
+## Generators
+
+BS244 now names the five largest blocks by generated SQL size when the module SQL passes 2 MB, so you
+can see which block to install in a smaller form or leave out.
+
+Four generator items from the 0.82 plan did not change code, and the reasons are on record for the ADR:
+
+- **Insert optionality.** `columnsSchema` already reads `not null default` from each column's type text, and a column
+  with a default is optional on insert and required on output. The type test in `tests/core/columns-schema.test.ts`
+  covers it, so there is nothing upstream left to fix.
+- **Empty `saas`, `finance` and `recruiting` slices.** Loading the validation-centrakit config and rendering every
+  block slice produces no slice with an empty composite for those names. The composite entry is only built when
+  every part is installed, so the slice did not reproduce.
+- **`better-supabase sql size`.** The `sql` engine is internal (reached through `add`, `upgrade`, `blocks` and
+  `gen`), so there is no such command to extend. The breakdown lives in BS244.
+- **Gating of inventory, invoices and accounting, block function not-null metadata and the unused declared
+  columns report.** These need changes inside the block SQL modules and a record of which option reads which column.
+  They are not part of this release.
