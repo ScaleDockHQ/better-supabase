@@ -1,5 +1,10 @@
 {
   "$schema": "https://v2-11-11.turborepo.dev/schema.json",
   "extends": ["//"],
-  "tags": ["example"]
+  "tags": ["example"],
+  "tasks": {
+    "start": {
+      "passThroughEnv": ["CACHE_HOOK_BEARER"]
+    }
+  }
 }

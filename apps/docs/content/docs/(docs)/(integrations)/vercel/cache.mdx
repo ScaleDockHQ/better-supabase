@@ -1,0 +1,151 @@
+---
+title: Cache invalidation outside the process
+description: Expire cached reads when a write comes from another service, a cron job or the SQL editor, with a Postgres trigger, a signed route, and adapters for the Vercel Runtime Cache and CDN.
+---
+
+`betterSupabase.cache(adapter)` expires cached reads when a write goes through
+`db` in the same process. A write that doesn't, such as another service, a cron
+job, a Supabase Edge Function or a statement in the SQL editor, leaves the
+cache stale until its lifetime ends. Three parts close that gap: a Postgres
+trigger that reports the change, a route that verifies the report and expires
+the tags, and cache adapters for Vercel.
+
+```bash
+pnpm add @vercel/functions
+```
+
+`@vercel/functions` (`>=3.11.3 <4`) is an optional peer. better-supabase
+types it structurally, so you pass its functions in.
+
+## Tags
+
+Every cached read carries tags (see [Caching](/docs/concepts/caching)):
+
+| Tag                    | Expired by                                                         |
+| ---------------------- | ------------------------------------------------------------------ |
+| `bsb:<table>`          | any change to the table                                            |
+| `bsb:<table>@<tenant>` | a change inside one tenant                                         |
+| `bsb:<table>@*`        | a change to any tenant                                             |
+| `bsb:<table>:<id>`     | a change to one row (composite keys join their parts with a comma) |
+
+The adapters send tags through `encodeCacheTag`. It escapes the characters
+Vercel splits or parses on (the comma, spaces, `?` and `&`) as `~HH` per UTF-8
+byte, and drops a tag longer than 256 bytes. Use it when you tag a response
+yourself.
+
+## Report changes from Postgres
+
+`cacheInvalidationSql(betterSupabase.meta, options)` from `better-supabase/sql`
+returns a SQL script. It creates `better_supabase.notify_cache()` and one
+statement-level trigger per table and event. A statement that changes many rows
+sends one request, with the table, the changed primary keys and the tenants.
+
+```ts title="scripts/cache-triggers.ts"
+import { writeFileSync } from "node:fs";
+
+import { cacheInvalidationSql } from "better-supabase/sql";
+
+import { betterSupabase } from "../src/lib/supabase";
+
+writeFileSync(
+  "supabase/migrations/20260101000000_cache_triggers.sql",
+  cacheInvalidationSql(betterSupabase.meta, {
+    tables: ["customers", "notes"],
+    maxRows: 1000,
+  }),
+);
+```
+
+The function reads two Vault secrets, so a migration never holds the URL or the
+token. Create them once per environment:
+
+```sql
+select vault.create_secret('https://app.example.com/hooks/cache', 'bsb_cache_url');
+select vault.create_secret('a-long-random-token', 'bsb_cache_bearer');
+```
+
+Without `bsb_cache_url` the trigger does nothing, so local development and
+previews stay quiet. The request goes through `pg_net`, which sends it only
+after the transaction commits, and a rolled back write sends nothing. A
+statement that changes more than `maxRows` rows sends no ids, and the route
+expires the whole table.
+
+`pg_net` is at-most-once and doesn't retry a failed request. Keep a short
+`cacheLife` as the backstop for a lost notification.
+
+## Receive them
+
+`cacheRoute` from `better-supabase/server` returns a `(request) => Response`
+handler. It accepts a POST with a bearer token (the `pg_net` trigger) or a
+[Standard Webhooks](/docs/standards/webhooks) signature, and it reads three
+payloads: the trigger's, a Supabase Database Webhook, and a CloudEvent from
+the [outbox](/docs/blocks/outbox).
+
+```ts title="app/hooks/cache/route.ts"
+import { nextCache } from "better-supabase/next";
+import { cacheRoute } from "better-supabase/server";
+
+import { betterSupabase } from "@/lib/supabase";
+
+export const POST = cacheRoute({
+  betterSupabase,
+  caches: [nextCache()],
+  bearer: process.env.CACHE_HOOK_BEARER,
+  secret: process.env.CACHE_HOOK_SECRET,
+});
+```
+
+| Result | Cause                                                    |
+| ------ | -------------------------------------------------------- |
+| 200    | the tags were expired, or the table is not in the schema |
+| 401    | no valid bearer token or signature                       |
+| 405    | not a POST                                               |
+| 502    | an adapter threw, so the sender can retry                |
+
+`cacheRoute` throws when you set neither `secret` nor `bearer`. A delete
+expires the tables the row's foreign keys cascade to as well.
+
+## Vercel adapters
+
+Both are `CacheAdapter`s, so `betterSupabase.cache(...)` and the route's
+`caches` option take them.
+
+`vercelCdnCache({ addCacheTag, invalidateByTag })` is for frameworks other than
+Next.js. `cdn.tag(...tags)` adds tags to the current response, and
+`invalidate` purges them. Both functions do nothing outside a Vercel request
+context, so local runs and tests stay quiet.
+
+```ts title="src/cache.ts"
+import { addCacheTag, invalidateByTag } from "@vercel/functions";
+import { vercelCdnCache } from "better-supabase/server";
+
+export const cdn = vercelCdnCache({ addCacheTag, invalidateByTag });
+
+betterSupabase.cache(cdn);
+```
+
+`vercelRuntimeCacheAdapter(getCache)` stores entries in the
+[Runtime Cache](https://vercel.com/docs/functions/runtime-cache) with the
+tags attached and expires them with `expireTag`:
+
+```ts
+import { getCache } from "@vercel/functions";
+import { vercelRuntimeCacheAdapter } from "better-supabase/server";
+
+const runtime = vercelRuntimeCacheAdapter(getCache);
+await runtime.set("customers:list", rows, {
+  tags: ["bsb:customers"],
+  ttl: 300,
+});
+```
+
+On Vercel, a purge by tag covers the CDN, the Runtime Cache and the Next.js
+Data Cache together, so one adapter is enough for a Vercel-only app. Both
+adapters send at most 16 tags per call, the most Vercel accepts, and
+`invalidateByTag` is rate limited per project, so prefer table tags over a
+tag per row for a bulk write.
+
+## Next.js
+
+Next.js apps put `nextCache()` in the route's `caches`. For `'use cache'` reads
+that anyone may see, use [`bsb.public()`](/docs/concepts/caching#cache-public-data-without-the-service-role).

@@ -1,6 +1,7 @@
 import { createHono } from "better-supabase/hono";
 import { defineListQuery } from "better-supabase/list";
 
+import { cacheHook } from "./cache";
 import { betterSupabase } from "./lib/supabase";
 import { customersTable } from "./lib/supabase/tables/customers";
 import { partnerApi } from "./marketplace";
@@ -32,6 +33,7 @@ const app = bsb
   // Registered before the `/api/*` middleware: Vercel sends its own OIDC
   // token as the bearer, which the handler verifies and Supabase Auth can't.
   .all("/api/vercel/*", (c) => partnerApi(c.req.raw))
+  .post("/hooks/cache", (c) => cacheHook(c.req.raw))
   .post("/oauth/token", (c) => token(c.req.raw))
   .get("/.well-known/jwks.json", () => jwks())
   .post("/oauth/authorize", bsb.middleware({ allow: ["user"] }), async (c) => {
