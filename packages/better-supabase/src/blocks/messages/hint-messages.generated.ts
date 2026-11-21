@@ -1750,6 +1750,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "WORKFLOW_DELIVERY_UNCONFIGURED": "Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching.",
   "WORKFLOW_FORBIDDEN": "Only the service role saves a system workflow.",
   "WORKFLOW_GRANT_INVALID": "Principal_kind is user, team or role.",
+  "WORKFLOW_GRAPHILE_UNSUPPORTED": "Only the purge backstops of @workflow/world-postgres go through workflow.add_job.",
   "WORKFLOW_GRAPH_INVALID": "A graph is an object.",
   "WORKFLOW_LIST_INVALID": "After and offset are two ways to page; pass one.",
   "WORKFLOW_NODE_KINDS": "Kinds is an object keyed by kind.",

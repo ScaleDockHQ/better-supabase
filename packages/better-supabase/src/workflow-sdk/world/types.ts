@@ -145,6 +145,14 @@ export interface SupabaseWorldOptions {
   /** Deliveries in flight at once in poll mode (default 50). */
   readonly concurrency?: number;
   /**
+   * Starts, resumes, cancels and reads runs without delivering any message: the
+   * process never polls the queue, and `start()` skips the owed wake-up sweep
+   * and the re-enqueue of active runs. For a web tier next to separate workers,
+   * as world-postgres's own `skipWorkers`. Read from
+   * `WORKFLOW_POSTGRES_SKIP_WORKERS=1`.
+   */
+  readonly skipWorkers?: boolean;
+  /**
    * Milliseconds between polls of an empty queue (default 250; world-postgres
    * polls graphile-worker on its own schedule).
    */

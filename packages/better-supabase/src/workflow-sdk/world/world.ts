@@ -34,6 +34,7 @@ import { watchPoolErrors } from "../../postgres/pool-errors.ts";
 import { usesTransactionPooler } from "../../postgres/pooler.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
+  WORKFLOW_GRAPHILE_SCHEMA as GRAPHILE_SHIM_SCHEMA,
   WORKFLOW_VAULT_SECRETS,
 } from "../../sql/modules/workflow-sdk.ts";
 import { createAnalytics } from "./analytics.ts";
@@ -139,6 +140,19 @@ export function createSupabaseWorld(
 
   const logger = options.logger ?? consoleLogger;
   const recoverAfter = Math.max(5, options.recoverAfter ?? 300);
+  const skipWorkers = options.skipWorkers === true;
+
+  // world-postgres reads it at call time for the add_job of a zero-retention
+  // run's purge backstop; the SQL module defines that add_job in workflow.
+  const graphileSchema = env("GRAPHILE_WORKER_SCHEMA");
+
+  if (graphileSchema === undefined) {
+    process.env["GRAPHILE_WORKER_SCHEMA"] = GRAPHILE_SHIM_SCHEMA;
+  } else if (graphileSchema !== GRAPHILE_SHIM_SCHEMA) {
+    logger.warn(
+      `GRAPHILE_WORKER_SCHEMA is "${graphileSchema}": the workflow World sends the purge backstops of zero-retention runs to that schema's add_job, where no runner of this World claims them. Unset it or set it to "${GRAPHILE_SHIM_SCHEMA}".`,
+    );
+  }
 
   if (delivery === "poll" && env("VERCEL") !== undefined) {
     logger.warn(
@@ -167,6 +181,7 @@ export function createSupabaseWorld(
       : { enableInvoke: options.enableInvoke }),
     streamFlushIntervalMs:
       options.streamFlushIntervalMs ?? DEFAULT_STREAM_FLUSH_MS,
+    ...(skipWorkers ? { skipWorkers } : {}),
   });
 
   const poller =
@@ -658,8 +673,13 @@ export function createSupabaseWorld(
       prefix: orchestratorPrefix,
     });
 
+  const maintenance = createMaintenance(call, (runId) =>
+    getEncryptionKeyForRun(runId),
+  );
+
   const deliverOnce = async (): Promise<number> => {
     await sweepOwed().catch(() => 0);
+    await maintenance.purgeBackstops().catch(() => 0);
 
     const jobs = await claim(concurrency);
     await Promise.all(jobs.map((job) => deliver(job)));
@@ -717,6 +737,7 @@ export function createSupabaseWorld(
       if (Date.now() - lastSweep >= Math.max(30_000, recoverAfter * 500)) {
         lastSweep = Date.now();
         await sweepOwed().catch(() => 0);
+        await maintenance.purgeBackstops().catch(() => 0);
       }
 
       const room = concurrency - inflight.size;
@@ -729,7 +750,7 @@ export function createSupabaseWorld(
   };
 
   function startPolling(): void {
-    if (delivery !== "poll" || running || closed) {
+    if (delivery !== "poll" || skipWorkers || running || closed) {
       return;
     }
 
@@ -1036,11 +1057,16 @@ export function createSupabaseWorld(
     },
     getEncryptionKeyForRun,
     deliverOnce,
-    ...createMaintenance(call, (runId) => getEncryptionKeyForRun(runId)),
+    ...maintenance,
     eveSessions: createEveSessionStore(call),
     async start() {
       await assertWorldMigrations();
       await warnWithoutKey();
+
+      if (skipWorkers) {
+        return;
+      }
+
       startPolling();
       await sweepOwed().catch(() => 0);
       await reenqueueActiveRuns(

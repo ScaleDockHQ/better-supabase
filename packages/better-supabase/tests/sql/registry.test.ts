@@ -152,6 +152,11 @@ describe("renderBlocks", () => {
       ];
 
       for (const [, name] of functions) {
+        // @workflow/world-postgres calls add_job in GRAPHILE_WORKER_SCHEMA.
+        if (module.name === "workflow-sdk" && name === "workflow.add_job") {
+          continue;
+        }
+
         expect(name).toMatch(/^better_supabase\./);
       }
 

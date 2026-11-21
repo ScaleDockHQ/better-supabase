@@ -99,6 +99,21 @@ describe("createMaintenance", () => {
     expect(sent[0]?.args[3]).toBe(true);
   });
 
+  it("runs purge backstops in batches until one comes back short", async () => {
+    const { sent, call } = fakeCall({
+      workflow_purge_backstops: [
+        [{ workflow_purge_backstops: 100 }],
+        [{ workflow_purge_backstops: 4 }],
+      ],
+    });
+
+    expect(await createMaintenance(call, noKey).purgeBackstops()).toBe(104);
+    expect(sent).toEqual([
+      { fn: "workflow_purge_backstops", args: [100] },
+      { fn: "workflow_purge_backstops", args: [100] },
+    ]);
+  });
+
   it("maps open hooks and their creation time", async () => {
     provideTemporal(Temporal);
 

@@ -35,6 +35,12 @@ export const WORKFLOW_VAULT_SECRETS = {
 
 export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
 
+/**
+ * The schema whose `add_job` stands in for Graphile Worker's (see
+ * `workflow_purge_backstops`).
+ */
+export const WORKFLOW_GRAPHILE_SCHEMA = "workflow";
+
 function deliveryModeOf(ctx: BlockSqlContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
 
@@ -65,7 +71,11 @@ function deliveryQueueOf(ctx: BlockSqlContext): string {
 
 /** The tables the World's DDL and this module create in the `workflow` schema. */
 function workflowTables(): string[] {
-  const names = new Set<string>(["workflow_run_keys", ...EVE_TABLES]);
+  const names = new Set<string>([
+    "workflow_run_keys",
+    "workflow_purge_backstops",
+    ...EVE_TABLES,
+  ]);
 
   for (const match of WORLD_POSTGRES_DDL.matchAll(
     /create table (?:if not exists )?workflow\.(\w+)/gu,
@@ -113,6 +123,7 @@ const SERVICE_FUNCTIONS: readonly (readonly [string, string])[] = [
   ["workflow_set_run_key", "text, text"],
   ["workflow_release_run_key", "text"],
   ["workflow_purge_runs", "interval, text[], integer, boolean"],
+  ["workflow_purge_backstops", "integer"],
   ["workflow_open_hooks", "text, text, integer"],
   ...EVE_SERVICE_FUNCTIONS,
 ];
@@ -148,6 +159,43 @@ create table if not exists workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table if not exists workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
 ${eveTablesSql()}
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
@@ -387,10 +435,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
   delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function ${fn("workflow_purge_backstops")}(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -492,7 +601,9 @@ end
 $$;`,
   ];
 
-  if (deliveryModeOf(ctx) === "pg_net") {
+  const delivery = deliveryModeOf(ctx);
+
+  if (delivery === "pg_net") {
     const schedule = ctx.text("schedule", "1 seconds");
     const dispatch = ctx.fn("dispatch_workflow_deliveries");
 
@@ -503,6 +614,22 @@ ${cronJob(
   schedule,
   `select ${dispatch}()`,
   `pg_cron is not installed: call ${dispatch}() on a schedule to deliver workflow messages`,
+)}`,
+    );
+  }
+
+  // In poll mode the World runs the backstops while it polls; the other modes
+  // have no process that polls.
+  if (delivery !== "poll") {
+    const backstops = ctx.fn("workflow_purge_backstops");
+
+    parts.push(
+      `-- Runs the purge backstops of zero-retention runs every minute.
+${cronJob(
+  "better-supabase-workflow-backstops",
+  "* * * * *",
+  `select ${backstops}()`,
+  `pg_cron is not installed: call ${backstops}() on a schedule to purge zero-retention runs whose purge did not complete`,
 )}`,
     );
   }
@@ -545,6 +672,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["interval", "text[]", "integer", "boolean"],
       returns: "integer",
     },
+    { name: "workflow_purge_backstops", args: ["integer"], returns: "integer" },
     {
       name: "workflow_open_hooks",
       args: ["text", "text", "integer"],
@@ -558,12 +686,12 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   name: "workflow-sdk",
   scopes: ["tenant"],
   title: "Workflow SDK World",
-  description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.`,
+  description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.`,
   requires: ["workflows", "queue", "permissions"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   upgrades: [
     {
       from: 1,
@@ -609,6 +737,12 @@ alter table workflow.workflow_runs alter column "wake_pending" set default false
       from: 7,
       description:
         'dispatch_workflow_deliveries adds the headers in the Vault secret workflow_delivery_headers (a JSON object) to each delivery, and the delivery option accepts "vercel-queue", which sends messages through Vercel Queues and creates no cron job.',
+      sql: () => "",
+    },
+    {
+      from: 8,
+      description:
+        "Follows @workflow/world-postgres 5.4.1, whose terminal write of a zero-retention run adds a purge backstop through Graphile Worker's add_job: workflow.add_job records it in workflow.workflow_purge_backstops, workflow_purge_backstops deletes the data of due runs whose purge did not complete (the World runs it while it polls; the pg_net and vercel-queue modes schedule it every minute under pg_cron), and workflow_purge_runs deletes a purged run's backstop.",
       sql: () => "",
     },
   ],
