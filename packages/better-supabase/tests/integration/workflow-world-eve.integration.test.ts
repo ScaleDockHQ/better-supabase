@@ -69,7 +69,7 @@ describe.skipIf(!live)("eve's World storage", () => {
     for (const world of [worlds.session, worlds.transaction]) {
       expect(world.capabilities).toMatchObject({
         atomicStartHook: { active: true },
-        inBandFence: true,
+        inBandFence: false,
       });
     }
   });

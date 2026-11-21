@@ -3,7 +3,7 @@ import {
   notFound,
   unauthorized,
   unstable_rethrow as nextRethrow,
-} from "next/navigation";
+} from "next/navigation.js";
 
 import type { DbError } from "../core/errors.ts";
 
