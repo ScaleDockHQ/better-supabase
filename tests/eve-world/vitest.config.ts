@@ -15,9 +15,9 @@ const live = (process.env.SUPABASE_DB_URL ?? "") !== "";
 
 export default defineConfig({
   test: {
-    include: live ? ["**/*.{test,spec}.?(c|m)[jt]s?(x)"] : [],
+    exclude: live ? ["**/node_modules/**"] : ["**"],
     passWithNoTests: true,
-    globalSetup: live ? ["./src/global-setup.ts"] : [],
+    globalSetup: ["./src/global-setup.ts"],
     // Each file starts an eve server on its own port, but all share one database.
     fileParallelism: false,
     testTimeout: 60_000,

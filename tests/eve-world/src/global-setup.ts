@@ -13,6 +13,11 @@ import { dbUrl } from "./server.ts";
 const LOCK = 7_351_001;
 
 export default async function setup(): Promise<() => Promise<void>> {
+  if ((process.env["SUPABASE_DB_URL"] ?? "") === "") {
+    // No stack, no suites (vitest.config.ts collects none).
+    return async () => undefined;
+  }
+
   const pool = new Pool({ connectionString: dbUrl(), max: 1 });
   pool.on("error", () => undefined);
 
