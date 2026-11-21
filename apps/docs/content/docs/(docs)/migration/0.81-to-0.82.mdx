@@ -25,6 +25,7 @@ pnpm better-supabase gen sql
 | [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
 | [Record types](#record-types)                                             | Run `codemod record-types`           |
 | [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`             |
+| [Schemas by module reference](#schemas-by-module-reference)               | None                                 |
 
 ## The blocks list
 
@@ -160,3 +161,20 @@ or whose comment already holds the tag, stays in the config and is listed.
 `same-tenant` entries stay in the config: move them by hand. Doctor rule BS702
 lists the facts a comment can hold, and BS703 reports a tag that cannot take
 effect.
+
+## Schemas by module reference
+
+A `gen.json` column and a `blocks.settings.options.schemas` entry can name an
+exported Standard Schema as `"./schemas.ts#name"`. The CLI loads the export,
+reads its JSON Schema for the pg_jsonschema check, and types the column as its
+output, so the config no longer imports a schema library or repeats the type.
+
+| 0.81                                                                           | 0.82                                                  |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `json: { "t.c": { import: "./s.ts#C", schema: C } }` with `import { C }` above | `json: { "t.c": { schema: "./s.ts#C" } }`             |
+| `schemas: { user: { theme: theme } }` with the schema imported                 | `schemas: { user: { theme: "./settings.ts#theme" } }` |
+
+An inline JSON Schema and a schema value still work, and `import` or `type` still
+set a different column type. No codemod moves these: the inline form has no name
+to point at. Doctor rule BS704 reports an inline schema that an exported schema
+in a module the `standardSchema()` generator names already produces.

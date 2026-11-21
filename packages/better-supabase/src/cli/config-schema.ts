@@ -552,6 +552,9 @@ const checkedAuthorization = v.pipe(
 
 const jsonSchema = v.record(v.string(), v.unknown());
 
+/** A JSON Schema object, or a `"./file.ts#name"` module reference. */
+const jsonSchemaOrRef = v.union([jsonSchema, v.string()]);
+
 const presetInstance = v.strictObject({
   ...instanceKeys,
   names: v.optional(stringRecord),
@@ -724,11 +727,15 @@ const FLAT = {
         [
           v.strictObject({
             import: v.string(),
-            schema: v.optional(jsonSchema),
+            schema: v.optional(jsonSchemaOrRef),
           }),
-          v.strictObject({ type: v.string(), schema: v.optional(jsonSchema) }),
+          v.strictObject({
+            type: v.string(),
+            schema: v.optional(jsonSchemaOrRef),
+          }),
+          v.strictObject({ schema: v.string() }),
         ],
-        "Use { import } or { type }, with an optional schema",
+        "Use { import } or { type } with an optional schema, or { schema: './file.ts#name' }",
       ),
     ),
   ),

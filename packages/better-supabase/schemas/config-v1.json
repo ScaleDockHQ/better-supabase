@@ -3510,8 +3510,15 @@
                     "description": "`./path.ts#TypeName`"
                   },
                   "schema": {
-                    "type": "object",
-                    "additionalProperties": {},
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
                     "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
                   }
                 },
@@ -3526,12 +3533,30 @@
                     "description": "Inline TypeScript type."
                   },
                   "schema": {
-                    "type": "object",
-                    "additionalProperties": {},
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ],
                     "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
                   }
                 },
                 "required": ["type"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "schema": {
+                    "type": "string",
+                    "description": "JSON Schema enforced by `better-supabase add jsonb-schemas` (pg_jsonschema)."
+                  }
+                },
+                "required": ["schema"],
                 "additionalProperties": false
               }
             ]

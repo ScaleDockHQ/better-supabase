@@ -44,6 +44,7 @@ import { ERROR_CODE_RULES } from "./error-codes.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { IMPORT_GUARD_RULES } from "./import-guard.ts";
+import { INLINE_SCHEMA_RULES } from "./inline-schemas.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -1130,6 +1131,7 @@ const OWN_RULES: readonly Rule[] = [
 export const RULES: readonly Rule[] = [
   ...AUTH_USER_RULES,
   ...TABLE_FACT_RULES,
+  ...INLINE_SCHEMA_RULES,
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,

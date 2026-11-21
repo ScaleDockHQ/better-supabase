@@ -30,6 +30,19 @@ export default defineConfig({
 `schema` takes a JSON Schema object, or any Standard JSON Schema value (zod 4,
 valibot, arktype).
 
+A module reference names the export instead, so the config imports no schema
+library and one export holds both the database check and the column type:
+
+```ts title="better-supabase.config.ts"
+gen: {
+  json: { "customers.metadata": { schema: "./lib/metadata.ts#CustomerMetadata" } },
+},
+```
+
+The CLI loads the export, reads its JSON Schema for the check, and types the
+column as the schema's output. `import` and `type` are only needed when you want
+a different type.
+
 ## What it installs
 
 The module enables `pg_jsonschema` and adds `better_supabase.check_json_schema()`,

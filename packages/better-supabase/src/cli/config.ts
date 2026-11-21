@@ -19,6 +19,7 @@ import { databaseUrlCredential } from "./core/credentials.ts";
 import { CliError } from "./core/errors.ts";
 import { display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
+import { withModuleSchemas } from "./module-schemas.ts";
 import { withSchemaTags } from "./schema-tags.ts";
 import { withSettingsSchemas } from "./settings-schemas.ts";
 import { readStackStatus } from "./stack-status.ts";
@@ -267,16 +268,18 @@ export async function loadConfig(
   }
 
   return withEnvironment(
-    await withSettingsSchemas(
-      await withSchemaTags(
-        resolveConfig(
-          {
-            ...applyEnvironment(current, environment),
-            ...(legacy.appTables === undefined
-              ? {}
-              : { appTables: legacy.appTables }),
-          },
-          explicit ? cwd : dirname(path),
+    await withModuleSchemas(
+      await withSettingsSchemas(
+        await withSchemaTags(
+          resolveConfig(
+            {
+              ...applyEnvironment(current, environment),
+              ...(legacy.appTables === undefined
+                ? {}
+                : { appTables: legacy.appTables }),
+            },
+            explicit ? cwd : dirname(path),
+          ),
         ),
       ),
     ),

@@ -82,7 +82,7 @@ export function moduleLayout(
       ([fn, roles]) => ({ function: fn, roles }),
     ),
     jsonSchemas: Object.entries(config.json).flatMap(([key, entry]) => {
-      if (!entry.schema) {
+      if (!entry.schema || typeof entry.schema === "string") {
         return [];
       }
 
