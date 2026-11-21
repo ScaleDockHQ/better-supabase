@@ -428,7 +428,10 @@ export function registerNeighborCases(): void {
       );
 
       expect(sql).toContain("default_pipeline(new.org_id, 'task'");
-      expect(sql).not.toContain("new.tenant_id");
+      // The managed claims table keeps its own tenant_id.
+      expect(
+        sql.replace(/task_claims_changed[\s\S]*?\$\$;/u, ""),
+      ).not.toContain("new.tenant_id");
     });
 
     it("moves stock movements onto a ledger without a memo column", () => {

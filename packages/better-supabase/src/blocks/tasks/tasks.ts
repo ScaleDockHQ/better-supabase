@@ -24,6 +24,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { CustomFields } from "../custom-fields/custom-fields.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { TasksCoordination, TaskClaim } from "./coordination.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -37,7 +38,7 @@ import { dbError } from "../../core/errors.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
-import { amountText, optionalMoneyOf } from "../money-codec.ts";
+import { amountText } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -51,6 +52,8 @@ import {
   textOf,
 } from "../shared.ts";
 import { strictChanges } from "../strict-changes.ts";
+import { coordinationClient, liveClaimOf } from "./coordination.ts";
+import { compact, iterationOf, num, projectOf } from "./decode.ts";
 import { projectListSurface, taskListSurface } from "./lists.ts";
 
 /** The state a stage's category sets; `completed` and `canceled` are closed. */
@@ -71,7 +74,7 @@ const STATES: readonly TaskState[] = [
   "canceled",
 ];
 
-export type CloseReason = "completed" | "not_planned" | "duplicate";
+export type CloseReason = "completed" | "not_planned" | "duplicate" | "failed";
 
 /** A work item. `F` types the extra columns the `fields` schema describes. */
 export interface Task<F extends object = Record<never, never>> {
@@ -100,6 +103,18 @@ export interface Task<F extends object = Record<never, never>> {
   readonly state: TaskState;
   readonly closeReason?: CloseReason;
   readonly closedAt?: Temporal.Instant;
+  /** The note `complete`, `cancel` or `fail` was given. `reopen` clears it. */
+  readonly closeNote?: string;
+  /**
+   * How many prerequisites aren't completed yet. Set with the `needs` option
+   * (the `waiting_on` column).
+   */
+  readonly waitingOn?: number;
+  /** The live claim, without its token. */
+  readonly claim?: TaskClaim;
+  /** When and why the task was put on hold. */
+  readonly heldAt?: Temporal.Instant;
+  readonly holdKind?: string;
   /** A locked item keeps its dates, as a locked Gantt bar. */
   readonly locked: boolean;
   readonly rank: string;
@@ -309,7 +324,9 @@ export interface Iteration {
   readonly endsOn: Temporal.PlainDate;
 }
 
-export interface Tasks<F extends object = Record<never, never>> {
+export interface Tasks<
+  F extends object = Record<never, never>,
+> extends TasksCoordination<F> {
   /**
    * `custom` sets custom field values on the new item, by definition id, after
    * it is created (the `customFields` port; hint `TASKS_CUSTOM_FIELDS_MISSING`
@@ -323,6 +340,11 @@ export interface Tasks<F extends object = Record<never, never>> {
     custom?: Readonly<Record<string, string>> | undefined;
     /** Makes a retry return the first result (`idempotency` option). */
     idempotencyKey?: string | undefined;
+    /**
+     * Prerequisites: ids of tasks that block this one until they are completed.
+     * Needs the `needs` option and the relations manage permission.
+     */
+    needs?: readonly string[] | undefined;
   }): AsyncResult<Task<F>>;
   /**
    * Copies a task and its assignees, checklist and child tasks. `overrides`
@@ -338,11 +360,17 @@ export interface Tasks<F extends object = Record<never, never>> {
     input: { changes: readonly TaskChange<F>[] } & TaskUpdateOptions,
   ): AsyncResult<TaskChangeResult>;
   /**
-   * Moves the item to `stageId` and returns the refusal as the error. It is
-   * `update` with one `stageId` change and `strict`, so the `update` hooks see
-   * the move.
+   * Moves the item to `stageId` and returns the refusal as the error. Without
+   * `beforeId` and `afterId` it is `update` with one `stageId` change and
+   * `strict`, so the `update` hooks see the move. With one of them the task is
+   * placed in the lane next to that task (`move_task`, needs the rank block).
    */
-  move(input: { taskId: string; stageId: string }): AsyncResult<true>;
+  move(input: {
+    taskId: string;
+    stageId: string;
+    beforeId?: string | undefined;
+    afterId?: string | undefined;
+  }): AsyncResult<true>;
   /** Replaces the assignees; new ones are notified and every one watches. */
   assign(input: {
     taskId: string;
@@ -468,9 +496,19 @@ export interface Tasks<F extends object = Record<never, never>> {
    * checks that the item is completed afterwards. A stage of another category
    * comes back as an `invalid_input` error (the item has moved by then).
    */
-  complete(input: { taskId: string; stageId: string }): AsyncResult<true>;
+  complete(input: {
+    taskId: string;
+    /** The first stage of the `completed` category when left out. */
+    stageId?: string | undefined;
+    /** Kept as `closeNote` and sent with `task.closed`. */
+    note?: string | undefined;
+  }): AsyncResult<true>;
   /** `complete` for a stage of the `canceled` category. */
-  cancel(input: { taskId: string; stageId: string }): AsyncResult<true>;
+  cancel(input: {
+    taskId: string;
+    stageId?: string | undefined;
+    note?: string | undefined;
+  }): AsyncResult<true>;
   /**
    * Adds `userId` to the item's assignees and keeps the others; `assign`
    * replaces them. The client has no signed-in user, so the caller passes its
@@ -558,6 +596,13 @@ const KNOWN = new Set([
   "state",
   "close_reason",
   "closed_at",
+  "close_note",
+  "waiting_on",
+  "claim",
+  "held_at",
+  "hold_kind",
+  "hold_return_stage",
+  "delegate_profile",
   "locked",
   "rank",
   "archived_at",
@@ -570,15 +615,6 @@ const KNOWN = new Set([
   "assignees",
 ]);
 
-type Loose<T> = { [K in keyof T]: T[K] | undefined };
-
-function compact<T extends object>(value: Loose<T>): T {
-  // SAFETY: what is left after dropping undefined keys has the shape of T.
-  return Object.fromEntries(
-    Object.entries(value).filter(([, item]) => item !== undefined),
-  ) as T;
-}
-
 const idsOf = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((each) => textOf(each)) : [];
 
@@ -587,23 +623,6 @@ const setResultOf = (value: unknown): TaskSetResult => {
 
   return { ids: idsOf(row["ids"]), skipped: idsOf(row["skipped"]) };
 };
-
-const num = (value: unknown): number | undefined => {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (typeof value === "string" && value !== "") {
-    return Number(value);
-  }
-
-  return undefined;
-};
-
-const date = (value: unknown): Temporal.PlainDate | undefined =>
-  typeof value === "string"
-    ? temporal().PlainDate.from(value.slice(0, 10))
-    : undefined;
 
 function itemOf(value: unknown): Task {
   const row = recordOf(value, "work item");
@@ -635,10 +654,15 @@ function itemOf(value: unknown): Task {
         ? undefined
         : enumOrThrow(
             reason,
-            ["completed", "not_planned", "duplicate"] as const,
+            ["completed", "not_planned", "duplicate", "failed"] as const,
             "close reason",
           ),
     closedAt: optionalInstant(row["closed_at"]),
+    closeNote: optionalText(row["close_note"]),
+    waitingOn: num(row["waiting_on"]),
+    claim: liveClaimOf(row["claim"]),
+    heldAt: optionalInstant(row["held_at"]),
+    holdKind: optionalText(row["hold_kind"]),
     locked: row["locked"] === true,
     rank: textOf(row["rank"]),
     assigneeIds: Array.isArray(row["assignees"])
@@ -720,42 +744,6 @@ function nodeOf(value: unknown): TaskNode {
   });
 }
 
-function projectOf(value: unknown): Project {
-  const row = recordOf(value, "project");
-
-  return compact<Project>({
-    id: textOf(row["id"]),
-    key: textOf(row["key"]),
-    name: textOf(row["name"]),
-    ownerId: optionalText(row["owner_id"]),
-    status: enumOrThrow(
-      row["status"],
-      ["planned", "active", "paused", "completed", "canceled"] as const,
-      "project status",
-    ),
-    startOn: date(row["start_on"]),
-    targetOn: date(row["target_on"]),
-    progress: num(row["progress"]),
-    budget:
-      row["budget_currency"] === null || row["budget_currency"] === undefined
-        ? undefined
-        : optionalMoneyOf(row["budget_amount"], row["budget_currency"]),
-    budgetHours: num(row["budget_hours"]),
-  });
-}
-
-function iterationOf(value: unknown): Iteration {
-  const row = recordOf(value, "iteration");
-
-  return compact<Iteration>({
-    id: textOf(row["id"]),
-    teamId: optionalText(row["team_id"]),
-    name: textOf(row["name"]),
-    startsOn: date(row["starts_on"]) ?? temporal().PlainDate.from("1970-01-01"),
-    endsOn: date(row["ends_on"]) ?? temporal().PlainDate.from("1970-01-01"),
-  });
-}
-
 /** A value as the database reads it: instants and dates as ISO text. */
 function valueArg(value: unknown): unknown {
   if (
@@ -832,6 +820,31 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         ),
       );
 
+  /**
+   * `close_task` when there is a note or no stage to move to, so the SQL picks
+   * the stage and stores the note. A bare stage keeps the move-then-check path,
+   * which also works on a database that hasn't taken the 0.82 upgrade.
+   */
+  const close = (
+    {
+      taskId,
+      stageId,
+      note,
+    }: {
+      taskId: string;
+      stageId?: string | undefined;
+      note?: string | undefined;
+    },
+    outcome: "completed" | "canceled",
+  ): AsyncResult<true> =>
+    stageId !== undefined && note === undefined
+      ? settle({ taskId, stageId }, [outcome], outcome)
+      : call(
+          "close_task",
+          { task: taskId, outcome, note: note ?? null, stage: stageId ?? null },
+          () => true as const,
+        );
+
   const taskPages = entityList<Task, RequiredTenantOption>({
     entity: "task",
     surface: taskListSurface,
@@ -857,6 +870,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       assigneeIds,
       custom,
       idempotencyKey,
+      needs,
     }) => {
       const { fields: extra, attachmentIds, ...attrs } = input;
       const entries = Object.entries(custom ?? {});
@@ -881,6 +895,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
               ...(attachmentIds === undefined
                 ? {}
                 : { attachments: [...attachmentIds] }),
+              ...(needs === undefined ? {} : { needs: [...needs] }),
               ...(checked === undefined ? {} : { fields: checked }),
             },
             assignees: assigneeIds === undefined ? null : [...assigneeIds],
@@ -963,13 +978,31 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ).andThen((result) => strictChanges(result, updateOptions.strict)),
       ),
-    move: ({ taskId, stageId }) =>
-      hooked
-        .update({
-          changes: [{ taskId, field: "stageId", value: stageId }],
-          strict: true,
-        })
-        .map(() => true as const),
+    move: ({ taskId, stageId, beforeId, afterId }) =>
+      beforeId === undefined && afterId === undefined
+        ? hooked
+            .update({
+              changes: [{ taskId, field: "stageId", value: stageId }],
+              strict: true,
+            })
+            .map(() => true as const)
+        : call(
+            "move_task",
+            {
+              task: taskId,
+              stage: stageId,
+              before: beforeId ?? null,
+              after: afterId ?? null,
+            },
+            () => true as const,
+          ),
+    ...coordinationClient<F>({
+      call,
+      itemOf,
+      fields,
+      idempotency: options.idempotency,
+      args,
+    }),
     assign: ({ taskId, userIds }) =>
       call(
         "set_task_assignees",
@@ -1140,8 +1173,8 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         iterationOf,
       );
     },
-    complete: (input) => settle(input, ["completed"], "completed"),
-    cancel: (input) => settle(input, ["canceled"], "canceled"),
+    complete: (input) => close(input, "completed"),
+    cancel: (input) => close(input, "canceled"),
     reopen: (input) => settle(input, OPEN_STATES, "open"),
     assignToMe: ({ taskId, userId }) =>
       hooked.get(taskId).andThen((item) => {

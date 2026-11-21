@@ -84,6 +84,9 @@ export function taskPageSql(
       filterAny("parentId", `x.${w("parent")}`, "uuid"),
       `(not ${filterSet("assigneeId")} or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and ${filterAny("assigneeId", `y.${a("user")}`, "uuid")}))`,
       `(not ${filterFlag("open")} or x.${w("closedAt")} is null)`,
+      has("waitingOn")
+        ? `(not ${filterFlag("ready")} or (x.${w("waitingOn")} = 0 and x.${w("closedAt")} is null))`
+        : `(not ${filterFlag("ready")} or x.${w("closedAt")} is null)`,
       `(v_search is null or x.${w("title")} ilike v_search or x.${w("identifier")} ilike v_search)`,
     ],
     keys: taskKeys,

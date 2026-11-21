@@ -36,7 +36,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   "time-entries": { purge: "tenant" },
   "data-lifecycle": { deletePlatform: "platform" },
   tags: { create: "tenant", update: "tenant", delete: "tenant" },
-  tasks: { create: "tenant", delete: "tenant" },
+  tasks: { create: "tenant", delete: "tenant", claim: "tenant" },
   calendar: {
     create: "tenant",
     update: "tenant",

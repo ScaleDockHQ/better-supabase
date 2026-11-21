@@ -4355,6 +4355,10 @@ export const PRESET_CATALOG: PresetCatalog = {
         "templates",
         "tags",
         "catalog",
+        "relations",
+        "rank",
+        "messaging",
+        "housekeeping",
         "pipelines",
         "subjects"
       ],
@@ -4363,6 +4367,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "tenant"
       ],
       "contributes": [
+        "housekeeping",
         "option-sets",
         "templates",
         "pipelines",
@@ -4452,7 +4457,13 @@ export const PRESET_CATALOG: PresetCatalog = {
               "recursFrom": "recurs_from",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "waitingOn": "waiting_on",
+              "heldAt": "held_at",
+              "holdKind": "hold_kind",
+              "holdReturnStage": "hold_return_stage_id",
+              "delegateProfile": "delegate_profile",
+              "closeNote": "close_note"
             }
           },
           "projects": {
@@ -37566,7 +37577,15 @@ export const PRESET_CATALOG: PresetCatalog = {
           "task.reopened",
           "task.archived",
           "task.restored",
-          "task.deleted"
+          "task.deleted",
+          "task.unblocked",
+          "task.claimed",
+          "task.released",
+          "task.claim_expired",
+          "task.failed",
+          "task.delegated",
+          "task.held",
+          "task.hold_released"
         ]
       },
       "actions": [
@@ -37595,7 +37614,8 @@ export const PRESET_CATALOG: PresetCatalog = {
             "iterationId",
             "parentId",
             "assigneeId",
-            "open"
+            "open",
+            "ready"
           ],
           "search": [
             "title",
