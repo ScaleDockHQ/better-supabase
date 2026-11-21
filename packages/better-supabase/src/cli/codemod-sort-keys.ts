@@ -5,14 +5,17 @@ export function isSorted(keys: readonly string[]): boolean {
   );
 }
 
-const LEADING_COMMENTS = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*/;
-const KEY = /^(?:([A-Za-z_$][\w$]*)|"([^"]*)"|'([^']*)')\s*:(?!:)/;
+export const LEADING_COMMENTS: RegExp =
+  /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*/;
+
+export const KEY: RegExp =
+  /^(?:([A-Za-z_$][\w$]*)|"([^"]*)"|'([^']*)')\s*:(?!:)/;
 
 /**
  * The top-level segments of `body`, split at commas outside nesting, strings
  * and comments.
  */
-function segments(body: string): string[] {
+export function segments(body: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let from = 0;

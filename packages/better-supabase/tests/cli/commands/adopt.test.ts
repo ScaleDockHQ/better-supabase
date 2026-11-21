@@ -144,7 +144,7 @@ describe("adopt", () => {
 
     expect(dry.code).toBe(0);
     expect(dry.output).toContain("    tenant       organization_id (guessed)");
-    expect(dry.output).toContain('+    "teams": {');
+    expect(dry.output).toContain('+      "block": "teams",');
     expect(dry.output).toContain("Dry run: nothing written.");
     expect(await readConfig()).toEqual({ blocks: ["tags"] });
 
@@ -158,16 +158,17 @@ describe("adopt", () => {
     expect(written.output).toContain("Run `better-supabase upgrade`");
     expect(written.data).toMatchObject({ block: "teams", written: true });
     expect(await readConfig()).toEqual({
-      blocks: {
-        tags: {},
-        teams: {
+      blocks: [
+        "tags",
+        {
+          block: "teams",
           tables: { teams: "public.teams", members: "public.team_members" },
           columns: {
             teams: { tenant: "organization_id" },
             members: { employee: null, tenant: "organization_id" },
           },
         },
-      },
+      ],
     });
 
     const again = await runAdopt(
@@ -323,12 +324,12 @@ describe("apply --adopt", () => {
       },
     });
     expect(await readConfig()).toMatchObject({
-      blocks: {
-        "updated-at": {},
-        memberships: {},
-        permissions: {},
-        teams: { tables: { teams: "public.teams" } },
-      },
+      blocks: [
+        "updated-at",
+        "memberships",
+        "permissions",
+        { block: "teams", tables: { teams: "public.teams" } },
+      ],
     });
     expect(
       existsSync(

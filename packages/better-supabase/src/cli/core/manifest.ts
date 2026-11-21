@@ -848,6 +848,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "blocks-list",
+        description:
+          "Rewrite blocks: { name: { ... } } as a list of names and { block, name?, ... } objects",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",

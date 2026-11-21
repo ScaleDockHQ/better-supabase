@@ -148,7 +148,7 @@ describe("remove", () => {
     await rm(join(dir, "better-supabase.config.json"));
     await writeFile(
       join(dir, "better-supabase.config.ts"),
-      "const shared = { audit: {} };\n\nexport default { blocks: shared };\n",
+      'const shared = ["audit"];\n\nexport default { blocks: shared };\n',
     );
 
     const refused = await run(["remove", "audit", "--cwd", dir]);

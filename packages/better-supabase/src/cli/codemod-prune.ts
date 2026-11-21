@@ -1,4 +1,5 @@
 import { codeRanges } from "./code-ranges.ts";
+import { closingIndex, listedBlocks, mask } from "./sql/config-edit.ts";
 
 /** Where a property sits in the text, with the object it belongs to. */
 interface Located {
@@ -118,7 +119,14 @@ function property(
   for (const found of body.matchAll(pattern)) {
     const at = found.index;
     const quoted = found[0].startsWith('"') || found[0].startsWith("'");
-    const before = body.slice(0, at).trimEnd().slice(-1);
+    let back = at - 1;
+
+    // Skip whitespace and comments: the key follows a `{` or `,` in code.
+    while (back >= 0 && (/\s/.test(body[back]!) || !code(open + 1 + back))) {
+      back -= 1;
+    }
+
+    const before = back < 0 ? "" : body[back]!;
 
     if (
       depths[at] !== 0 ||
@@ -138,11 +146,12 @@ function property(
   return undefined;
 }
 
-/** `text` without the property at `path`, or undefined when it isn't found. */
-function withoutPath(
-  text: string,
-  path: readonly string[],
-): string | undefined {
+/**
+ * The properties along `path`, outermost first, or undefined when one is
+ * missing. In a `blocks` list the entry `blocks.<name>` is the list element,
+ * and a name with no config has nothing below it.
+ */
+function locate(text: string, path: readonly string[]): Located[] | undefined {
   const ranges = codeRanges(text);
 
   const code = (index: number): boolean =>
@@ -156,8 +165,8 @@ function withoutPath(
 
   const chain: Located[] = [];
 
-  for (const [index, key] of path.entries()) {
-    const found = property(text, key, scope[0], scope[1], code);
+  for (let index = 0; index < path.length; index += 1) {
+    const found = property(text, path[index]!, scope[0], scope[1], code);
 
     if (found === undefined) {
       return undefined;
@@ -165,22 +174,64 @@ function withoutPath(
 
     chain.push(found);
 
-    if (index < path.length - 1) {
-      const open = text.indexOf("{", found.from);
-      const value = text.slice(found.from, open).replace(/^[^:]*:/, "");
-
-      if (open === -1 || value.trim() !== "") {
-        return undefined;
-      }
-
-      const close = matching(text, open, code);
-
-      if (close === -1) {
-        return undefined;
-      }
-
-      scope = [open, close];
+    if (index === path.length - 1) {
+      break;
     }
+
+    const colon = text.indexOf(":", found.from) + 1;
+    const next = text.slice(colon).search(/\S/);
+    const open = colon + next;
+
+    if (next !== -1 && text[open] === "[" && index === 0) {
+      const masked = mask(text);
+      const close = closingIndex(masked, open);
+
+      const element = listedBlocks(text, masked, open).find(
+        (item) => item.name === path[index + 1],
+      );
+
+      if (element?.open === undefined) {
+        return undefined;
+      }
+
+      chain.push({
+        from: element.span.start,
+        to: element.span.end,
+        parentOpen: open,
+        parentClose: close,
+      });
+
+      scope = [element.open, closingIndex(masked, element.open)];
+      index += 1;
+
+      continue;
+    }
+
+    if (next === -1 || text[open] !== "{") {
+      return undefined;
+    }
+
+    const close = matching(text, open, code);
+
+    if (close === -1) {
+      return undefined;
+    }
+
+    scope = [open, close];
+  }
+
+  return chain;
+}
+
+/** `text` without the property at `path`, or undefined when it isn't found. */
+function withoutPath(
+  text: string,
+  path: readonly string[],
+): string | undefined {
+  const chain = locate(text, path);
+
+  if (chain === undefined) {
+    return undefined;
   }
 
   // Remove the deepest property, then each parent it leaves empty, down to the
@@ -203,10 +254,9 @@ function withoutPath(
     }
 
     level -= 1;
-    target = chain[level]!;
 
     // Positions after the removed range shift; locate the parent again.
-    const reparsed = reparse(out, path.slice(0, level + 1));
+    const reparsed = locate(out, path.slice(0, level + 1))?.at(-1);
 
     if (reparsed === undefined) {
       return out;
@@ -225,34 +275,6 @@ function matchingAfter(text: string, open: number, removed: Located): number {
   const close = matching(text, open, code);
 
   return close === -1 ? removed.parentClose : close;
-}
-
-function reparse(text: string, path: readonly string[]): Located | undefined {
-  const ranges = codeRanges(text);
-
-  const code = (index: number): boolean =>
-    ranges.some(([start, end]) => index >= start && index < end);
-
-  let scope = configObject(text, code);
-  let located: Located | undefined;
-
-  for (const key of path) {
-    if (scope === undefined) {
-      return undefined;
-    }
-
-    located = property(text, key, scope[0], scope[1], code);
-
-    if (located === undefined) {
-      return undefined;
-    }
-
-    const open = text.indexOf("{", located.from);
-    const close = open === -1 ? -1 : matching(text, open, code);
-    scope = close === -1 ? undefined : [open, close];
-  }
-
-  return located;
 }
 
 /** `text` without `[from, to)`, its comma and the whole line when it is alone. */
@@ -306,4 +328,34 @@ export function withoutConfigPaths(
   }
 
   return { text: out, missed };
+}
+
+/**
+ * The value of the config's top-level property `key`: where its text starts and
+ * ends, or undefined when the file has no config object or no such key.
+ */
+export function topLevelValue(
+  text: string,
+  key: string,
+): { readonly start: number; readonly end: number } | undefined {
+  const ranges = codeRanges(text);
+
+  const code = (index: number): boolean =>
+    ranges.some(([start, end]) => index >= start && index < end);
+
+  const scope = configObject(text, code);
+
+  if (scope === undefined) {
+    return undefined;
+  }
+
+  const found = property(text, key, scope[0], scope[1], code);
+
+  if (found === undefined) {
+    return undefined;
+  }
+
+  const colon = text.indexOf(":", found.from);
+
+  return { start: colon + 1, end: found.to };
 }

@@ -2,7 +2,8 @@ import * as v from "valibot";
 
 import type {
   BetterSupabaseConfig,
-  BlocksConfig,
+  BlocksInput,
+  BlocksList,
   EnvironmentConfig,
   ExposePrivilege,
   Generator,
@@ -255,19 +256,43 @@ const permissionsBlock = v.strictObject({
 });
 
 /**
- * `blocks`: a list of names, or each block's config. The schema checks the keys
- * every block shares; `resolveConfig` checks the tables, columns, functions,
- * actions, hooks and entities each module declares.
+ * `blocks`: a list of block names and `{ block, name?, ...entry }` objects. The
+ * schema checks the keys every block shares; `resolveConfig` checks the tables,
+ * columns, functions, actions, hooks and entities each module declares. The
+ * object keyed by block name is rejected with the codemod that converts it.
  */
-// SAFETY: resolveConfig checks the names `BlocksConfig` narrows per module.
+const blockListEntry = v.strictObject({
+  ...blockEntries,
+  block: v.string(),
+  name: v.optional(v.string()),
+});
+
+/** The `permissions` entry takes the permissions block's own keys. */
+const permissionsListEntry = v.strictObject({
+  ...permissionsBlock.entries,
+  block: v.literal("permissions"),
+  name: v.optional(v.string()),
+});
+
+const listEntry = v.lazy((input) =>
+  typeof input === "string"
+    ? v.string()
+    : typeof input === "object" &&
+        input !== null &&
+        "block" in input &&
+        input.block === "permissions"
+      ? permissionsListEntry
+      : blockListEntry,
+);
+
+// SAFETY: resolveConfig checks the names each block narrows.
 const blocksSchema = v.lazy((input) =>
   Array.isArray(input)
-    ? strings
-    : v.objectWithRest(
-        { permissions: v.optional(permissionsBlock) },
-        v.strictObject(blockEntries),
+    ? v.array(listEntry)
+    : v.never(
+        "blocks is a list of names and { block, name?, ... } objects. Run `better-supabase codemod blocks-list` to convert the object keyed by block name.",
       ),
-) as v.GenericSchema<unknown, readonly string[] | BlocksConfig>;
+) as v.GenericSchema<unknown, BlocksList | BlocksInput>;
 
 const SCOPE_NAME = /^[a-z][a-z0-9_]*$/;
 

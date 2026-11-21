@@ -21,13 +21,7 @@ async function project(): Promise<string> {
   await writeFile(
     join(root, "better-supabase.config.json"),
     JSON.stringify({
-      blocks: {
-        organizations: {},
-        memberships: {},
-        tags: {},
-        comments: {},
-        audit: {},
-      },
+      blocks: ["organizations", "memberships", "tags", "comments", "audit"],
     }),
   );
 

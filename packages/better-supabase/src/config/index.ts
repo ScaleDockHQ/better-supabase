@@ -8,6 +8,8 @@ export {
   SKILLS_AGENTS,
 } from "./names.ts";
 
+export { blockList } from "./instances.ts";
+
 export { resolveJsonSchema } from "./json.ts";
 
 export {
@@ -142,7 +144,9 @@ export type {
   AuthConfig,
   BetterSupabaseConfig,
   BlockInput,
+  BlockEntry,
   BlocksInput,
+  BlocksList,
   DatabaseConfig,
   DataHooksConfig,
   DataHooksFramework,

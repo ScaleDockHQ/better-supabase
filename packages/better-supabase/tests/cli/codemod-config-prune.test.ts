@@ -7,10 +7,10 @@ import { runCodemod } from "../../src/cli/commands/codemod.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 
 const TEXT = `export default {
-  blocks: {
-    tags: { columns: { tags: {} } },
-    memberships: { columns: { memberships: { role: "team_role" } } },
-  },
+  blocks: [
+    { block: "tags", columns: { tags: {} } },
+    { block: "memberships", columns: { memberships: { role: "team_role" } } },
+  ],
 };
 `;
 
@@ -50,8 +50,8 @@ describe("codemod config --prune", () => {
 
     const text = readFileSync(file, "utf-8");
 
-    expect(text).not.toContain("tags: { columns");
-    expect(text).toMatch(/tags: \{\s*\}/);
+    expect(text).not.toContain("columns: { tags");
+    expect(text).toMatch(/block: "tags"/);
   });
 
   it("keeps an entry that differs from its default", async () => {

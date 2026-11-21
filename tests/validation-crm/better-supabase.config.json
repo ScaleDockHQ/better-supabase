@@ -1,11 +1,12 @@
 {
   "$schema": "../../packages/better-supabase/schemas/config-v1.json",
-  "blocks": {
-    "read-sets": {},
-    "seeds": {},
-    "updated-at": {},
-    "memberships": {},
-    "permissions": {
+  "blocks": [
+    "read-sets",
+    "seeds",
+    "updated-at",
+    "memberships",
+    {
+      "block": "permissions",
       "tables": {
         "roles": "public.roles",
         "permissions": "public.permissions",
@@ -19,7 +20,8 @@
         }
       }
     },
-    "organizations": {
+    {
+      "block": "organizations",
       "tables": {
         "organizations": "public.organizations",
         "profiles": null,
@@ -35,7 +37,8 @@
         }
       }
     },
-    "profiles": {
+    {
+      "block": "profiles",
       "tables": {
         "profiles": "public.profiles"
       },
@@ -48,7 +51,8 @@
         }
       }
     },
-    "teams": {
+    {
+      "block": "teams",
       "tables": {
         "teams": "public.teams",
         "members": "public.team_members"
@@ -63,7 +67,7 @@
         }
       }
     }
-  },
+  ],
   "database": {
     "source": {
       "snapshot": "snapshot.json"

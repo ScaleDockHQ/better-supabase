@@ -620,24 +620,29 @@ export default defineConfig({
       rank: { column: "rank", group: "stage_id" },
     },
   },
-  blocks: {
-    "updated-at": { api: false },
-    "read-sets": { api: false },
-    "realtime-tables": { api: false },
-    "rate-limit": { api: false },
-    "vector-search": { api: false },
+  blocks: [
+    { block: "updated-at", api: false },
+    { block: "read-sets", api: false },
+    { block: "realtime-tables", api: false },
+    { block: "rate-limit", api: false },
+    { block: "vector-search", api: false },
     // The block runs over the fixture's own `public.memberships` table
     // (ADR 0098); its `role` column references the catalog's roles.
-    memberships: { api: false, tables: { memberships: "public.memberships" } },
+    {
+      block: "memberships",
+      api: false,
+      tables: { memberships: "public.memberships" },
+    },
     // Roles, permission keys and their links are rows in the catalog tables
     // (seeded by a data migration), and admins override a role's keys per
     // organization in `permission_overrides`. switch_organization writes
     // app_metadata.tenant_id; the token hook copies it into the access token.
-    permissions: { model: "catalog", activeTenant: "claim" },
+    { block: "permissions", model: "catalog", activeTenant: "claim" },
     // The fixture audits none of its CRM tables (doctor BS315). Members with
     // `audit.read` read their organization's log, and the app's actions
     // record events as the signed-in user.
-    audit: {
+    {
+      block: "audit",
       options: {
         exempt: [
           {
@@ -650,30 +655,31 @@ export default defineConfig({
         eventRoles: ["authenticated", "service_role"],
       },
     },
-    "api-keys": {},
-    settings: {},
-    comments: {},
+    "api-keys",
+    "settings",
+    "comments",
     // Conversations and messages under the channels block (ADR 0062).
-    messaging: {},
-    channels: {},
+    "messaging",
+    "channels",
     // The record history the customer page shows, moved out of comments.
-    timeline: {},
+    "timeline",
     // Members' Gmail and Outlook mail, linked to parties and logged as
     // email activities.
-    "mail-sync": {},
+    "mail-sync",
     // Saved filters over companies and deals, refreshed on a schedule.
-    segments: {},
+    "segments",
     // Round robin and weighted queues that pick an owner for new records.
-    assignment: {},
+    "assignment",
     // Company and person data from an enrichment provider, one result each.
-    enrichment: {},
+    "enrichment",
     // Tenant defaults (pipelines, calendars, tax codes) that new organizations receive.
-    seeds: { api: false },
+    { block: "seeds", api: false },
     // The forecast call by period, snapshotted so a review compares weeks.
-    forecasts: {},
+    "forecasts",
     // Old and new values of a deal's amount, stage, owner and close date,
     // and a company's owner and lifecycle stage.
-    "field-history": {
+    {
+      block: "field-history",
       on: {
         deal: {
           fields: ["amount", "stage_id", "owner_id", "expected_close_on"],
@@ -684,85 +690,87 @@ export default defineConfig({
     // Tags on customers, edited with the tag input on the customer page. The
     // fixture's `public.tags` and `customer_tags` tables are separate seed
     // data that no example renders.
-    tags: {},
-    organizations: {
+    "tags",
+    {
+      block: "organizations",
       tables: { organizations: "public.organizations" },
       columns: {
         organizations: { createdBy: null, deletedAt: null, disabledAt: null },
       },
     },
-    invitations: {},
-    profiles: {},
-    flags: {},
-    announcements: {},
+    "invitations",
+    "profiles",
+    "flags",
+    "announcements",
     // Onboarding checklists run on enrollments (ADR 0077).
-    enrollments: {},
+    "enrollments",
     // Courses behind /courses: each learner's progress is an enrollment.
-    courses: {},
+    "courses",
     // Outreach sequences behind /crm/sequences: each recipient's run is an
     // enrollment, and email steps send through mail-sync (ADR 0091).
-    sequences: {},
-    onboarding: { options: { checklists: [gettingStarted] } },
-    entitlements: {},
-    usage: { options: { history: true } },
+    "sequences",
+    { block: "onboarding", options: { checklists: [gettingStarted] } },
+    "entitlements",
+    { block: "usage", options: { history: true } },
     // Cmd+K over customers, and the customers card on the dashboard.
-    search: {},
-    metrics: { options: { metrics } },
+    "search",
+    { block: "metrics", options: { metrics } },
     // In-app notifications behind the unread badge and /notifications,
     // on the recipient's private topic `notifications:<user id>`.
     // Email goes to the work address `better_supabase.member_address` returns, and to
     // the sign-in email when it returns null.
-    notifications: {
+    {
+      block: "notifications",
       options: { resolveAddress: "better_supabase.member_address" },
     },
     // Durable workflow runs behind /workflows, run by the Workflow SDK on
     // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
-    workflows: {},
-    "workflow-sdk": { api: false },
+    "workflows",
+    { block: "workflow-sdk", api: false },
     // Workflows tenants build on a canvas at /workflows/builder.
-    "workflow-editor": {},
+    "workflow-editor",
     // Tenant rules for expenses, edited with the rule builder at /rules.
-    automations: {},
+    "automations",
     // Lead scoring and account health are score models over parties (ADR 0067).
-    scores: {},
+    "scores",
     // People scored under the "lead" model, again when their segments, mail
     // or enrichment change.
-    "lead-scoring": {},
+    "lead-scoring",
     // Comment reports, the review queue and bans (ADR 0076).
-    moderation: {},
+    "moderation",
     // Vault-backed secrets behind the builder's credential references.
-    credentials: {},
+    "credentials",
     // The support inbox behind /inbox and the Help sheet: jobs carry bot
     // turns and channel replies, streams hold the bot's resumable output.
-    queue: { api: false },
-    streams: {},
-    inbox: {},
-    "chat-sdk-state": { api: false },
+    { block: "queue", api: false },
+    "streams",
+    "inbox",
+    { block: "chat-sdk-state", api: false },
     // The /assistant sample: chats in `ai-chat` on private Realtime topics,
     // resumable answers in `streams` and attachments in `ai-files`.
     // /knowledge ingests documents into `knowledge` for the assistant's
     // search tool, and `memory` keeps what it remembers. /agents builds and
     // installs assistants (`agents`), `connectors` holds the MCP servers they
     // call and `ai-schedules` their schedules.
-    "ai-chat": {},
-    "ai-files": {},
-    knowledge: {},
-    memory: {},
-    agents: {},
-    connectors: {},
-    "ai-schedules": {},
+    "ai-chat",
+    "ai-files",
+    "knowledge",
+    "memory",
+    "agents",
+    "connectors",
+    "ai-schedules",
     // Device push tokens for the Expo example's push registration.
-    push: {},
+    "push",
     // The assistant answers with each organization's own provider keys
     // (`ai-keys`), and `ai-cache` keeps repeated model calls.
-    "ai-cache": {},
-    "ai-keys": {},
+    "ai-cache",
+    "ai-keys",
     // /assistant/prompts keeps versioned prompt templates behind labels,
     // /assistant/evals runs datasets against a prompt version, and
     // /assistant/guardrails holds the per-agent policies and decision log.
-    prompts: {},
-    "ai-evals": {},
-    "ai-guardrails": {},
+    "prompts",
+    "ai-evals",
+    "ai-guardrails",
     // The blocks behind the remaining UI recipes (`/recipes`), one page or
     // card each in the app.
     // Ending a session on /settings/sessions cuts its access at once: every
@@ -770,7 +778,8 @@ export default defineConfig({
     // bumps the user's authorization version, which SessionProvider hears on
     // authz:<uid> and refreshes the token for. `bootstrap` renders
     // better_supabase.bootstrap_islands, which /islands reads in one query.
-    sessions: {
+    {
+      block: "sessions",
       options: {
         policies: true,
         authzVersions: true,
@@ -786,8 +795,9 @@ export default defineConfig({
         },
       },
     },
-    sso: {},
-    approvals: {
+    "sso",
+    {
+      block: "approvals",
       options: {
         // Organizations tighten these policies with their own (ADR 0119).
         tenantPolicies: true,
@@ -848,19 +858,20 @@ export default defineConfig({
         },
       },
     },
-    "access-requests": {},
-    grants: {},
-    subjects: {},
-    reactions: {},
+    "access-requests",
+    "grants",
+    "subjects",
+    "reactions",
     // Forum and feedback boards behind /community (ADR 0092).
-    posts: {},
-    "share-links": {},
+    "posts",
+    "share-links",
     // The example runs no malware scanner, so uploads are readable at once.
-    attachments: { options: { requireScan: false } },
-    waitlist: {},
+    { block: "attachments", options: { requireScan: false } },
+    "waitlist",
     // Teams can be renamed and restored from the trash in the app.
-    teams: { options: { patch: true, restore: true } },
-    contacts: {
+    { block: "teams", options: { patch: true, restore: true } },
+    {
+      block: "contacts",
       names: {
         // Search finds a company by its website as well as its domain, and a
         // person by phone as well as email (EX-101).
@@ -874,18 +885,20 @@ export default defineConfig({
         },
       },
     },
-    pipelines: {},
-    deals: { names: { deal: { url: "/crm/deals" } } },
+    "pipelines",
+    { block: "deals", names: { deal: { url: "/crm/deals" } } },
     // Call recordings on ai-files, with transcripts and notes. Confirmed
     // bookings show up as meetings on the booker's contact.
-    activities: { options: { recordings: true, bookings: true } },
+    { block: "activities", options: { recordings: true, bookings: true } },
     // A rejected, withdrawn or expired quote is sent again in one call.
-    quotes: {
+    {
+      block: "quotes",
       options: { resend: true },
       names: { quote: { url: "/crm/quotes/{id}" } },
     },
-    goals: {},
-    "state-machine": {
+    "goals",
+    {
+      block: "state-machine",
       options: {
         machines: {
           // Any state may follow any other, as the board allows; the machine
@@ -907,41 +920,45 @@ export default defineConfig({
         },
       },
     },
-    rank: {},
+    "rank",
     // The app already has `projects` and `saved_views` tables (appTables), and
     // its own `tasks` table is the `task` subject, so the block keeps the
     // work_item noun.
-    tasks: {
+    {
+      block: "tasks",
       tables: { projects: "work_projects" },
       names: { task: { name: "work_item", url: "/work" } },
     },
     // A second tasks instance: maintenance requests on leased units.
-    facilities: {
+    {
+      name: "facilities",
       block: "tasks",
       names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
       options: { prefix: "MR" },
     },
-    "saved-views": { tables: { views: "shared_views" } },
-    sla: {},
+    { block: "saved-views", tables: { views: "shared_views" } },
+    "sla",
     // Encrypted definitions and sensitive values are audited when read.
-    "custom-fields": { options: { auditReads: true } },
+    { block: "custom-fields", options: { auditReads: true } },
     // `work.setState` writes through a definer function: bulk rows run as the
     // caller, and the work items table is read-only for `authenticated`.
-    "bulk-actions": {
+    {
+      block: "bulk-actions",
       options: { actions: { "work.setState": "public.work_bulk_state" } },
     },
-    trash: {},
-    relations: {},
-    employees: { names: { employee: { url: "/people/{id}" } } },
-    hiring: {},
+    "trash",
+    "relations",
+    { block: "employees", names: { employee: { url: "/people/{id}" } } },
+    "hiring",
     // Time off behind /people/leave: types, requests approved through the
     // approvals block, and balances on the ledger.
-    leave: {},
+    "leave",
     // Time is logged on companies and projects only.
-    "time-entries": { options: { on: ["company", "project"] } },
+    { block: "time-entries", options: { on: ["company", "project"] } },
     // Fixed deposit invoices and a discount on the invoice header.
-    invoices: {
+    {
+      block: "invoices",
       names: { invoice: { url: "/finance/payables" } },
       columns: {
         invoices: {
@@ -952,105 +969,116 @@ export default defineConfig({
         },
       },
     },
-    catalog: { names: { product: { url: "/shop" } } },
-    inventory: {},
+    { block: "catalog", names: { product: { url: "/shop" } } },
+    "inventory",
     // Requests for quotation to suppliers; an award creates the purchase order.
-    rfqs: { names: { rfq: { url: "/rfqs" } } },
+    { block: "rfqs", names: { rfq: { url: "/rfqs" } } },
     // Till sessions, cash drawers and end-of-day counts that post to accounting.
-    tills: { names: { till: { url: "/tills" } } },
+    { block: "tills", names: { till: { url: "/tills" } } },
     // Fiscal periods and leave years close through one protocol.
-    periods: {},
+    "periods",
     // Due dates computed from approved rule sets, with a citation.
-    deadlines: {},
+    "deadlines",
     // Commission plans and entries per sales rep, and referral codes with rewards.
-    commissions: {},
-    referrals: {},
+    "commissions",
+    "referrals",
     // The kitchen display and order board under /shop/kitchen.
-    orders: {
+    {
+      block: "orders",
       options: { kitchen: true },
       names: { order: { url: "/shop/orders/{id}" } },
     },
-    promotions: {},
-    calendar: {},
+    "promotions",
+    "calendar",
     // Weekly or daily rules book a series one occurrence at a time.
-    bookings: {
+    {
+      block: "bookings",
       options: { recurring: true },
       names: { booking: { url: "/calendar" } },
     },
     // Points and areas use PostGIS geography columns (ADR 0066).
-    assets: { options: { postgis: true } },
-    guests: {},
+    { block: "assets", options: { postgis: true } },
+    "guests",
     // Class bookings paid for with pass credits.
-    passes: { options: { credits: true } },
-    "billable-time": {},
-    leases: {},
-    expenses: {},
-    donations: {},
+    { block: "passes", options: { credits: true } },
+    "billable-time",
+    "leases",
+    "expenses",
+    "donations",
     // Product reviews with pre-moderation, public replies and a rating summary.
-    reviews: {},
-    collections: {},
-    warranty: {},
-    "agent-checkout": {},
-    dispatch: { names: { work_order: { url: "/field/dispatch" } } },
-    shipments: { names: { shipment: { url: "/field/shipments" } } },
+    "reviews",
+    "collections",
+    "warranty",
+    "agent-checkout",
+    { block: "dispatch", names: { work_order: { url: "/field/dispatch" } } },
+    { block: "shipments", names: { shipment: { url: "/field/shipments" } } },
     // Contracts send for signature with signatures and remind owners of the
     // notice deadline with reminders; controls publish policies as versions.
-    signatures: {},
-    contracts: {},
-    compliance: {},
+    "signatures",
+    "contracts",
+    "compliance",
     // Certifications and licences members, companies and assets hold, with
     // a gap report; courses grant them with their certificates.
-    qualifications: {},
+    "qualifications",
     // Risks link their barriers to controls and snapshot assessments as
     // versions.
-    risks: {},
+    "risks",
     // Nonconformities, complaints, incidents and more, each on its kind's
     // pipeline, with actions as work items and a close guard.
-    cases: {},
+    "cases",
     // Audit programmes and inspections with a checklist; findings assess
     // controls and raise cases. Planned inspections mirror to the "Audits"
     // calendar of an organization that has one.
-    inspections: { options: { calendar: "Audits" } },
+    { block: "inspections", options: { calendar: "Audits" } },
     // Meetings with an agenda, minutes, votes on decisions and action items
     // that open as tasks; planned meetings mirror to the "Meetings" calendar.
-    meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
+    {
+      block: "meetings",
+      options: { calendar: "Meetings" },
+      uses: { tasks: "tasks" },
+    },
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
-    maintenance: { names: { maintenance_plan: { url: "/maintenance" } } },
+    {
+      block: "maintenance",
+      names: { maintenance_plan: { url: "/maintenance" } },
+    },
     // Renditions of drive files and usage rights with a territory, a channel
     // and an expiry date.
-    dam: {},
+    "dam",
     // Laboratory samples tested against specification limits; an out of
     // specification result opens a nonconformity case, and instruments are
     // assets whose "calibration" qualification must be valid on the test date.
-    lims: {
+    {
+      block: "lims",
       options: { instrumentQualification: "calibration" },
       names: { lims_sample: { url: "/lims" } },
     },
     // Review cycles with self, peer and manager reviews, calibration sessions
     // and sign-off through approvals.
-    appraisals: {},
+    "appraisals",
     // Pick waves and pick lists made from inventory allocations, with cycle
     // count plans that hold large variances for review.
-    warehouse: {},
+    "warehouse",
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
-    observations: { options: { defaults: "vitals" } },
+    { block: "observations", options: { defaults: "vitals" } },
     // Rosters: shifts from templates, assignments checked for leave,
     // qualifications and rest time, open shift requests and swaps.
-    shifts: {},
+    "shifts",
     // Double-entry books with a chart, journals, periods and reports.
-    accounting: {},
-    ledger: { names: { ledger_account: { url: "/finance" } } },
+    "accounting",
+    { block: "ledger", names: { ledger_account: { url: "/finance" } } },
     // Bills of materials on work centers, production orders that consume and
     // receive stock through inventory, lot genealogy and material requirements.
-    manufacturing: {},
+    "manufacturing",
     // Bank accounts with imported statements, matched to invoices and booked
     // through the accounting journals; rules book recurring lines.
-    banking: {},
+    "banking",
     // Several companies in one organization with one default; null means the
     // default entity on the tables listed here.
-    "legal-entities": {
+    {
+      block: "legal-entities",
       options: {
         on: [
           "invoices",
@@ -1066,16 +1094,17 @@ export default defineConfig({
     // Templates per legal entity and language for invoices, quotes and other
     // documents, reusable text blocks and a render call that freezes issued
     // invoices.
-    "document-templates": {},
+    "document-templates",
     // Funded care: products a funder pays per unit, awards per customer,
     // deliveries from approved time and claims the funder answers per line.
-    funding: {},
+    "funding",
     // Payroll runs add up the worked and leave hours of a period for the
     // payroll provider, rendered by a pluggable file format.
-    "payroll-export": {},
+    "payroll-export",
     // Members acknowledge the current version of each policy they are
     // assigned, directly, through a team or through their role.
-    acknowledgements: {
+    {
+      block: "acknowledgements",
       on: {
         compliance_policy: {
           table: "better_supabase.compliance_policies",
@@ -1088,36 +1117,40 @@ export default defineConfig({
       },
     },
     // Consent per customer and purpose, backed by a signature or a form.
-    consents: {},
+    "consents",
     // Medication charts on customers: orders with a dose and schedule,
     // planned doses recorded as given or refused, missed doses notified and
     // opened as incident cases.
-    medications: { options: { missedCaseKind: "incident", guestRead: true } },
+    {
+      block: "medications",
+      options: { missedCaseKind: "incident", guestRead: true },
+    },
     // Care plans keep each customer's problems, goals and actions; a
     // restrictive measure waits for an approval before it starts.
-    "care-plans": { names: { care_plan: { url: "/care-plans" } } },
+    { block: "care-plans", names: { care_plan: { url: "/care-plans" } } },
     // Dose range, duplicate therapy and interaction alerts over medication orders.
-    "clinical-decision-support": {},
-    "e-prescribing": {},
-    incidents: {},
-    reminders: {},
+    "clinical-decision-support",
+    "e-prescribing",
+    "incidents",
+    "reminders",
     // Security advisories for the example's own software: products, versions,
     // vulnerabilities and published CSAF and OpenVEX documents (ADR 0188).
-    advisories: {},
+    "advisories",
     // mfa_satisfied() for restrictive policies, with the factor setup on
     // /settings/security.
-    mfa: {},
+    "mfa",
     // Email and chat identities linked to app users by a one-time code.
-    identities: {},
+    "identities",
     // Time-limited, approved, read-only support sessions at /settings/support.
-    impersonation: {},
+    "impersonation",
     // Vercel Marketplace provider state, read at /settings/integrations/vercel.
-    "vercel-marketplace": {},
-    "drive-files": {},
+    "vercel-marketplace",
+    "drive-files",
     // Contributors add files to a shared folder without seeing what's in it.
     // Controlled documents get a number, an approved effective version and a
     // yearly review; readers below the editor role see only that version.
-    drive: {
+    {
+      block: "drive",
       options: {
         uploadRole: "contributor",
         control: {
@@ -1126,14 +1159,15 @@ export default defineConfig({
         },
       },
     },
-    versions: { on: { customer: { columns: ["name", "kvk"] } } },
+    { block: "versions", on: { customer: { columns: ["name", "kvk"] } } },
     // Pages and posts with locales and scheduled publish, read by anon.
-    content: {},
-    "jsonb-schemas": {},
-    forms: { names: { form: { url: "/forms/{id}" } } },
+    "content",
+    "jsonb-schemas",
+    { block: "forms", names: { form: { url: "/forms/{id}" } } },
     // An import target the pgTAP tests drive; real apps point one at each
     // table their source system fills.
-    imports: {
+    {
+      block: "imports",
       options: {
         targets: {
           customer: {
@@ -1157,18 +1191,20 @@ export default defineConfig({
       },
     },
     // Brand starters reach the organizations whose `brand` matches.
-    templates: {
+    {
+      block: "templates",
       options: { brand: { table: "public.organizations", column: "brand" } },
     },
-    documents: { names: { document: { url: "/documents/{id}" } } },
-    webhooks: {},
-    outbox: {},
-    "service-accounts": {},
-    "signing-keys": {},
+    { block: "documents", names: { document: { url: "/documents/{id}" } } },
+    "webhooks",
+    "outbox",
+    "service-accounts",
+    "signing-keys",
     // Per-tenant data keys in Vault for encrypted columns and custom fields.
     // client_notes seals its columns in its own trigger, so key rotation
     // needs it listed.
-    "field-encryption": {
+    {
+      block: "field-encryption",
       options: {
         sealed: [
           {
@@ -1180,15 +1216,15 @@ export default defineConfig({
       },
     },
     // Exports leave out token, hash and secret columns (doctor BS341).
-    "data-lifecycle": { options: { omitPattern: true } },
-    "reserved-slugs": {},
-    idempotency: {},
-    "webhook-inbox": {},
-    "incoming-webhooks": {},
-    "security-events": {},
-    domains: {},
-    housekeeping: {},
-    "option-sets": {},
-    billing: {},
-  },
+    { block: "data-lifecycle", options: { omitPattern: true } },
+    "reserved-slugs",
+    "idempotency",
+    "webhook-inbox",
+    "incoming-webhooks",
+    "security-events",
+    "domains",
+    "housekeeping",
+    "option-sets",
+    "billing",
+  ],
 });

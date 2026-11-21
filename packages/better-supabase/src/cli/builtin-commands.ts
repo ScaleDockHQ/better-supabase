@@ -147,6 +147,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       import("./commands/codemod.ts").then((m) => m.codemodCommand("config")),
   ],
   [
+    "codemod blocks-list",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("blocks-list"),
+      ),
+  ],
+  [
     "codemod table-modules",
     () =>
       import("./commands/codemod.ts").then((m) =>

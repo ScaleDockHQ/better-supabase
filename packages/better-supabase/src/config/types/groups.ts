@@ -80,6 +80,23 @@ export type BlocksInput = {
   readonly [M in BlockName]?: BlockInput<BlockConfigOf<M>>;
 } & { readonly [instance: string]: NamedInstance | undefined };
 
+/**
+ * One entry of the `blocks` list that carries config: `{ block, name?, ...entry
+ * }`. `block` picks the block, so its keys and options are typed from it, and
+ * `name` renames the instance when the block is installed twice.
+ */
+export type BlockEntry =
+  | {
+      readonly [M in BlockName]: BlockInput<BlockConfigOf<M>> & {
+        readonly block: M;
+        readonly name?: string;
+      };
+    }[BlockName]
+  | (NamedInstance & { readonly block: string; readonly name?: string });
+
+/** The `blocks` list: block names, and entries that set config. */
+export type BlocksList = readonly (BlockName | (string & {}) | BlockEntry)[];
+
 /** One `tables.<name>` entry: an app table with `owner`. */
 export type AppTableInput = Omit<AppTableConfig, "scope"> & {
   /**
@@ -257,10 +274,12 @@ export interface BetterSupabaseConfig {
    */
   readonly recordTypes?: SubjectsConfig;
   /**
-   * The blocks to install and keep in sync: a list of names, or an object keyed
-   * by block name whose values set each block's ownership, names and options.
+   * The blocks to install and keep in sync: a list of block names and `{ block,
+   * name?, ...entry }` objects that set a block's ownership, names and options.
+   * The object form keyed by block name is gone; run `better-supabase codemod
+   * blocks-list`.
    */
-  readonly blocks?: readonly string[] | BlocksInput;
+  readonly blocks?: BlocksList | BlocksInput;
   /** The framework and runtime adapters `init` and `add` wrote. */
   readonly adapters?: readonly IntegrationName[];
   readonly gen?: GenGroupConfig;

@@ -179,6 +179,95 @@ function isNameList(
   return Array.isArray(blocks);
 }
 
+/** An entry of the `blocks` list that carries config: the block and its keys. */
+export interface BlockListObject {
+  readonly block: string;
+  /** The instance name. Defaults to `block`. */
+  readonly name?: string;
+  readonly [key: string]: unknown;
+}
+
+/** One element of the `blocks` list: a block name, or an entry with config. */
+export type BlockListEntry = string | BlockListObject;
+
+const isListObject = (entry: unknown): entry is BlockListObject =>
+  typeof entry === "object" && entry !== null && !Array.isArray(entry);
+
+/**
+ * `blocks` as the resolver reads it. A list of names stays a list. A list that
+ * holds `{ block, name?, ...entry }` objects becomes the map keyed by instance
+ * name (`name`, else `block`), with `block` kept only on a renamed instance.
+ * Throws when two entries share a name or an object has no `block`.
+ */
+export function normalizeBlocks<T>(blocks: T): T | AnyBlocksConfig {
+  if (!Array.isArray(blocks)) {
+    return blocks;
+  }
+
+  const list: readonly unknown[] = blocks;
+
+  if (!list.some(isListObject)) {
+    return blocks;
+  }
+
+  const keyed = new Map<string, unknown>();
+
+  for (const [index, entry] of list.entries()) {
+    if (typeof entry === "string") {
+      if (keyed.has(entry)) {
+        throw new TypeError(
+          `blocks[${String(index)}]: "${entry}" is listed twice. Give one entry a name.`,
+        );
+      }
+
+      keyed.set(entry, {});
+
+      continue;
+    }
+
+    if (!isListObject(entry) || typeof entry.block !== "string") {
+      throw new TypeError(
+        `blocks[${String(index)}] must be a block name or { block, name?, ... }.`,
+      );
+    }
+
+    const { name, block, ...rest } = entry;
+    const key = typeof name === "string" ? name : block;
+
+    if (keyed.has(key)) {
+      throw new TypeError(
+        `blocks[${String(index)}]: two entries are named "${key}". Give one a \`name\`.`,
+      );
+    }
+
+    keyed.set(key, key === block ? rest : { block, ...rest });
+  }
+
+  // SAFETY: each value is a block entry; resolveInstances checks its keys.
+  return Object.fromEntries(keyed) as AnyBlocksConfig;
+}
+
+/**
+ * A keyed `blocks` map as the list the config writes: a name for an entry with
+ * no keys, else `{ block, name?, ...entry }`.
+ */
+export function blockList(
+  blocks: Readonly<Record<string, unknown>>,
+): unknown[] {
+  return Object.entries(blocks).map(([name, entry]) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      return name;
+    }
+
+    const { block: given, ...rest }: { block?: unknown } = entry;
+    const block = typeof given === "string" ? given : name;
+
+    return block === name && Object.keys(rest).length === 0
+      ? name
+      : { block, ...(block === name ? {} : { name }), ...rest };
+  });
+}
+
 /**
  * The instances in `blocks`, keyed by instance name. A list of names installs
  * each block once under its own name. Throws one error that lists every

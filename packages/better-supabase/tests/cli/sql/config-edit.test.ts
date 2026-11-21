@@ -87,7 +87,7 @@ export default defineConfig({
   sql: {
     dir: "supabase/schemas"
   },
-  blocks: { tags: {} }
+  blocks: ["tags"]
 });`);
     expect(
       edited(
@@ -98,10 +98,10 @@ export default defineConfig({
       ),
     ).toBe(`export default defineConfig({
   schemas: ["public"],
-  blocks: { tags: {} },
+  blocks: ["tags"],
 });`);
     expect(edited("export default {};", ["tags"])).toBe(
-      "export default { blocks: { tags: {} } };",
+      `export default { blocks: ["tags"] };`,
     );
   });
 
@@ -223,14 +223,21 @@ module.exports = {
 });
 
 describe("addBlocksToJson", () => {
-  it("adds to an object or a list and keeps the indent", () => {
-    const result = addBlocksToJson(`{\n    "blocks": { "audit": {} }\n}\n`, [
-      "tags",
-    ]);
+  it("adds to a list and keeps the indent", () => {
+    const result = addBlocksToJson(`{\n    "blocks": ["audit"]\n}\n`, ["tags"]);
 
     expect(result).toEqual({
       ok: true,
-      text: `{\n    "blocks": {\n        "audit": {},\n        "tags": {}\n    }\n}\n`,
+      text: `{\n    "blocks": [\n        "audit",\n        "tags"\n    ]\n}\n`,
+    });
+    expect(
+      addBlocksToJson(`{ "blocks": [{ "block": "tags", "name": "labels" }] }`, [
+        "labels",
+        "tags",
+      ]),
+    ).toEqual({
+      ok: true,
+      text: `{\n  "blocks": [\n    {\n      "block": "tags",\n      "name": "labels"\n    },\n    "tags"\n  ]\n}\n`,
     });
     expect(
       addBlocksToJson(`{ "blocks": ["audit"] }`, ["audit", "queue"]),
@@ -252,7 +259,7 @@ describe("addBlocksToJson", () => {
     });
     expect(addBlocksToJson('{ "sql": { "dir": "x" } }', ["tags"])).toEqual({
       ok: true,
-      text: `{\n  "sql": {\n    "dir": "x"\n  },\n  "blocks": {\n    "tags": {}\n  }\n}\n`,
+      text: `{\n  "sql": {\n    "dir": "x"\n  },\n  "blocks": [\n    "tags"\n  ]\n}\n`,
     });
   });
 });
@@ -431,13 +438,13 @@ export default defineConfig({
     );
   });
 
-  it("turns a blocks list into an object, and adds blocks when there is none", () => {
+  it("sets an entry in a blocks list, and adds a list when there is none", () => {
     const listed = setBlock(
       "import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n  blocks: ['tags'],\n});\n",
     );
 
     expect(listed).toContain(
-      "  blocks: {\n    tags: {},\n    teams: {\n      mode: 'adopt',",
+      "  blocks: ['tags', {\n    block: 'teams',\n    mode: 'adopt',",
     );
 
     const added = setBlock(
@@ -445,7 +452,7 @@ export default defineConfig({
     );
 
     expect(added).toContain(
-      '  casing: "camel",\n  blocks: {\n    teams: {\n      mode: "adopt",',
+      '  casing: "camel",\n  blocks: [{\n    block: "teams",\n    mode: "adopt",',
     );
   });
 
@@ -464,7 +471,7 @@ export default defineConfig({
 });
 
 describe("setBlockInJson", () => {
-  it("sets the entry, turning a list into an object", () => {
+  it("sets the entry in the list and refuses the object form", () => {
     const result = setBlockInJson(
       '{\n  "blocks": ["tags"]\n}\n',
       "teams",
@@ -472,16 +479,17 @@ describe("setBlockInJson", () => {
     );
 
     expect(result.ok && JSON.parse(result.text)).toEqual({
-      blocks: { tags: {}, teams: ADOPTED },
+      blocks: ["tags", { block: "teams", ...ADOPTED }],
     });
-    const object = setBlockInJson('{"blocks":{"teams":{}}}', "teams", {});
-    expect(object.ok && JSON.parse(object.text)).toEqual({
-      blocks: { teams: {} },
-    });
+    expect(setBlockInJson('{"blocks":{"teams":{}}}', "teams", {}).ok).toBe(
+      false,
+    );
   });
 
   it("keeps the file as it is when the entry holds the same values", () => {
-    const source = '{ "blocks": { "teams": { "mode": "adopt" } } }\n';
+    const source =
+      '{\n  "blocks": [\n    {\n      "block": "teams",\n      "mode": "adopt"\n    }\n  ]\n}\n';
+
     expect(setBlockInJson(source, "teams", { mode: "adopt" })).toEqual({
       ok: true,
       text: source,
@@ -531,21 +539,22 @@ describe("setPathInConfig", () => {
     expect(text).toContain("    links: {\n      columns: {},\n    },");
   });
 
-  it("creates the objects on the way, and turns a blocks list into entries", () => {
+  it("creates the objects on the way, and turns a listed name into an entry", () => {
     const text = set(
       source,
       ["blocks", "profiles", "options", "extraColumns"],
       { nickname: "text" },
     );
 
-    expect(text).toContain("tags: {}");
+    expect(text).toContain("'tags'");
+    expect(text).toContain("block: 'profiles'");
     expect(text).toContain("nickname: 'text'");
     expect(set(source, ["casing"], "camel")).toContain("casing: 'camel'");
   });
 });
 
 describe("setPathInJson", () => {
-  it("sets a nested key, and turns a blocks list into entries", () => {
+  it("sets a nested key, and turns a listed name into an entry", () => {
     const result = setPathInJson(
       '{\n  "blocks": ["tags"]\n}\n',
       ["blocks", "profiles", "options", "extraColumns"],
@@ -553,10 +562,10 @@ describe("setPathInJson", () => {
     );
 
     expect(result.ok && JSON.parse(result.text)).toEqual({
-      blocks: {
-        tags: {},
-        profiles: { options: { extraColumns: { nickname: "text" } } },
-      },
+      blocks: [
+        "tags",
+        { block: "profiles", options: { extraColumns: { nickname: "text" } } },
+      ],
     });
     expect(setPathInJson("[]", ["casing"], "camel").ok).toBe(false);
   });

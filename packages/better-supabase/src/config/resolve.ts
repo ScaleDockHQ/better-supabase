@@ -19,7 +19,7 @@ import type {
   VectorSearchConfig,
 } from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
-import type { AppTablesInput } from "./types/groups.ts";
+import type { AppTablesInput, BlocksInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
@@ -36,7 +36,11 @@ import {
   resolveExposeFunction,
 } from "./expose.ts";
 import { flattenConfig } from "./groups.ts";
-import { blocksByName, resolveInstances } from "./instances.ts";
+import {
+  blocksByName,
+  normalizeBlocks,
+  resolveInstances,
+} from "./instances.ts";
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -96,16 +100,16 @@ function vectorSearchOf(
  * templates instead of the built-in roles.
  */
 function isBlockNames(
-  blocks: NonNullable<BetterSupabaseConfig["blocks"]>,
+  blocks: NonNullable<FlatConfig["blocks"]>,
 ): blocks is readonly string[] {
   return Array.isArray(blocks);
 }
 
 /** `blocks` with `name` added as an empty entry, unchanged when it is there. */
 function withBlock(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   name: string,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   if (blocks === undefined) {
     return [name];
   }
@@ -123,9 +127,9 @@ function withBlock(
  * the search functions need no `blocks` entry of their own.
  */
 function withVectorSearch(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   vectorSearch: Readonly<Record<string, VectorSearchConfig>> | undefined,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   if (vectorSearch === undefined || Object.keys(vectorSearch).length === 0) {
     return blocks;
   }
@@ -139,9 +143,9 @@ function withVectorSearch(
  * alone does not install it, since templates exist with or without the block.
  */
 function withNotifications(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   config: Pick<FlatConfig, "gen">,
-): BetterSupabaseConfig["blocks"] {
+): FlatConfig["blocks"] {
   const named =
     config.gen?.powersync?.instances.includes("notifications") === true ||
     config.gen?.clientBlocks?.includes("notifications") === true;
@@ -150,7 +154,7 @@ function withNotifications(
 }
 
 function blocksOf(
-  blocks: BetterSupabaseConfig["blocks"],
+  blocks: FlatConfig["blocks"],
   sql: SqlConfig = {},
   provider: boolean,
 ): Pick<
@@ -418,7 +422,15 @@ export function resolveConfig(
   input: ResolveInput,
   root: string,
 ): ResolvedConfig {
-  const config = expandFlatPreset(flattenConfig(input));
+  const listed = normalizeBlocks(input.blocks);
+
+  // SAFETY: normalizeBlocks returns the keyed map or a name list.
+  const keyed = listed as BlocksInput | undefined;
+
+  const config = expandFlatPreset(
+    flattenConfig(keyed === undefined ? input : { ...input, blocks: keyed }),
+  );
+
   const frameworks = frameworkRegistry(config.frameworks);
   const output = config.file ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);

@@ -11,6 +11,7 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { codeRanges } from "./code-ranges.ts";
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
+import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
@@ -127,6 +128,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "extra-columns": extraColumnsCodemod(),
   "owned-columns": ownedColumnsCodemod(),
   config: configCodemod(),
+  "blocks-list": blocksListCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),

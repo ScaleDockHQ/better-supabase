@@ -10,6 +10,7 @@ import {
   closingIndex,
   configObject,
   cutRange,
+  listedBlocks,
   mask,
   properties,
   tidyInline,
@@ -75,24 +76,16 @@ export function removeBlocksFromConfig(
   }
 
   if (code[open] === "[") {
-    const close = closingIndex(code, open);
+    // Each element is a property keyed by its instance name, so the object
+    // cut works on the list too.
+    const listed = listedBlocks(source, code, open).map((item): Property => ({
+      key: item.name,
+      start: item.span.start,
+      valueStart: item.span.start,
+      valueEnd: item.span.end,
+    }));
 
-    const items = [
-      ...source.slice(open + 1, close).matchAll(/(["'])([^"']*)\1/g),
-    ];
-
-    const kept = items
-      .filter((item) => !names.includes(item[2] ?? ""))
-      .map((item) => item[0]);
-
-    if (kept.length === items.length) {
-      return { ok: true, text: source };
-    }
-
-    return {
-      ok: true,
-      text: `${source.slice(0, open)}[${kept.join(", ")}]${source.slice(close + 1)}`,
-    };
+    return { ok: true, text: cutKeys(source, open, listed, new Set(names)) };
   }
 
   return { ok: false, reason: "its blocks key isn't a literal object or list" };
@@ -127,9 +120,11 @@ export function removeBlocksFromJson(
 
   if (Array.isArray(blocks)) {
     const listed: readonly unknown[] = blocks;
-    next = listed.filter(
-      (name) => typeof name !== "string" || !names.includes(name),
-    );
+    next = listed.filter((item) => {
+      const name = isRecord(item) ? (item["name"] ?? item["block"]) : item;
+
+      return typeof name !== "string" || !names.includes(name);
+    });
   } else if (isRecord(blocks)) {
     next = Object.fromEntries(
       Object.entries(blocks).filter(([name]) => !names.includes(name)),

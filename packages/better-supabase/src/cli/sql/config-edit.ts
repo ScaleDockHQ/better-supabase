@@ -326,6 +326,90 @@ const lastOf = (props: readonly Property[]): Span | undefined => {
   return last ? { start: last.start, end: last.valueEnd } : undefined;
 };
 
+const quoted = (code: string, index: number): boolean =>
+  code[index] === '"' || code[index] === "'";
+
+/** The text of the string literal at `span`, or undefined. */
+function stringAt(
+  source: string,
+  code: string,
+  span: Span,
+): string | undefined {
+  return quoted(code, span.start)
+    ? source.slice(span.start + 1, span.end - 1)
+    : undefined;
+}
+
+export interface ListedBlock {
+  readonly name: string;
+  readonly span: Span;
+  /** The `{` of an object element. */
+  readonly open?: number;
+}
+
+/**
+ * The `blocks` list's elements by instance name: a name is its own instance,
+ * and an object is `name`, else `block`.
+ */
+export function listedBlocks(
+  source: string,
+  code: string,
+  open: number,
+): readonly ListedBlock[] {
+  return elements(code, open).flatMap((span): ListedBlock[] => {
+    const text = stringAt(source, code, span);
+
+    if (text !== undefined) {
+      return [{ name: text, span }];
+    }
+
+    if (code[span.start] !== "{") {
+      return [];
+    }
+
+    const props = properties(source, code, span.start) ?? [];
+
+    const read = (key: string): string | undefined => {
+      const prop = props.find((item) => item.key === key);
+
+      return prop === undefined
+        ? undefined
+        : stringAt(source, code, {
+            start: prop.valueStart,
+            end: prop.valueEnd,
+          });
+    };
+
+    const name = read("name") ?? read("block");
+
+    return name === undefined ? [] : [{ name, span, open: span.start }];
+  });
+}
+
+/**
+ * The `blocks` list element for instance `name`: its quoted name when the entry
+ * has no config, else `{ block, name?, ...entry }`.
+ */
+function listEntry(
+  name: string,
+  value: object,
+  indent: string,
+  quote: string,
+): string {
+  const { block: given, ...rest }: { block?: unknown } = value;
+  const block = typeof given === "string" ? given : name;
+
+  if (block === name && Object.keys(rest).length === 0) {
+    return literal(name, indent, quote);
+  }
+
+  return literal(
+    { block, ...(block === name ? {} : { name }), ...rest },
+    indent,
+    quote,
+  );
+}
+
 /** `source` with `names` added to `blocks`, keeping the form it has. */
 export function addBlocksToConfig(
   source: string,
@@ -355,10 +439,10 @@ export function addBlocksToConfig(
   });
 
   if (!blocks) {
-    const entries = names.map((name) => `${keyText(name)}: {}`).join(", ");
+    const entries = names.map((name) => `"${name}"`).join(", ");
 
     const change = append(source, code, root, lastOf(rootProps), [
-      `blocks: { ${entries} }`,
+      `blocks: [${entries}]`,
     ]);
 
     return edit(change.start, change.end, change.text);
@@ -392,14 +476,13 @@ export function addBlocksToConfig(
   }
 
   if (code[open] === "[") {
-    const items = [
-      ...source
-        .slice(open + 1, closingIndex(code, open))
-        .matchAll(/(["'])([^"']*)\1/g),
-    ];
+    const quote =
+      /(["'])/.exec(source.slice(open, closingIndex(code, open)))?.[1] ?? '"';
 
-    const quote = items[0]?.[1] ?? '"';
-    const present = new Set(items.map((item) => item[2]));
+    const present = new Set(
+      listedBlocks(source, code, open).map((item) => item.name),
+    );
+
     const missing = names.filter((name) => !present.has(name));
 
     if (missing.length === 0) {
@@ -439,12 +522,13 @@ export function addBlocksToJson(
     return { ok: false, reason: "it isn't a JSON object" };
   }
 
-  const blocks: unknown = config["blocks"] ?? {};
+  const blocks: unknown = config["blocks"] ?? [];
   let next: unknown;
 
   if (Array.isArray(blocks)) {
     const listed: readonly unknown[] = blocks;
-    next = [...listed, ...names.filter((name) => !listed.includes(name))];
+    const present = new Set(listed.map(jsonListName));
+    next = [...listed, ...names.filter((name) => !present.has(name))];
   } else if (isRecord(blocks)) {
     next = {
       ...blocks,
@@ -693,8 +777,9 @@ function literal(value: unknown, indent: string, quote: string): string {
 }
 
 /**
- * `source` with `blocks.<name>` set to `value`, replacing the entry it has. A
- * `blocks` list becomes an object, each listed block mapped to `{}`.
+ * `source` with the `blocks` entry for instance `name` set to `value`,
+ * replacing the entry it has: a name in the list, or a `{ block, name?, ... }`
+ * object.
  */
 export function setBlockInConfig(
   source: string,
@@ -732,7 +817,7 @@ export function setBlockInConfig(
       : `${indentAt(source, root)}  `;
 
     const change = append(source, code, root, lastOf(rootProps), [
-      `blocks: ${literal({ [name]: value }, indent, quote)}`,
+      `blocks: [${listEntry(name, value, indent, quote)}]`,
     ]);
 
     return edit(change.start, change.end, change.text);
@@ -768,18 +853,26 @@ export function setBlockInConfig(
   }
 
   if (code[open] === "[") {
-    const close = closingIndex(code, open);
+    const listed = listedBlocks(source, code, open);
+    const current = listed.find((item) => item.name === name);
 
-    const listed = [
-      ...source.slice(open + 1, close).matchAll(/(["'])([^"']*)\1/g),
-    ].map((item) => item[2]!);
+    if (current) {
+      return edit(
+        current.span.start,
+        current.span.end,
+        listEntry(name, value, indentAt(source, current.span.start), quote),
+      );
+    }
 
-    const object = Object.fromEntries([
-      ...listed.map((block): [string, object] => [block, {}]),
-      [name, value],
+    const last = elements(code, open).at(-1);
+
+    const inner = last ? indentAt(source, last.start) : `${indent}  `;
+
+    const change = append(source, code, open, last, [
+      listEntry(name, value, inner, quote),
     ]);
 
-    return edit(open, close + 1, literal(object, indent, quote));
+    return edit(change.start, change.end, change.text);
   }
 
   return { ok: false, reason: "its blocks key isn't a literal object or list" };
@@ -803,17 +896,18 @@ export function setBlockInJson(
     return { ok: false, reason: "it isn't a JSON object" };
   }
 
-  const blocks: unknown = config["blocks"] ?? {};
-  let current: Record<string, unknown>;
+  const blocks: unknown = config["blocks"] ?? [];
 
-  if (Array.isArray(blocks)) {
-    current = Object.fromEntries(
-      blocks.map((block: unknown) => [String(block), {}]),
-    );
-  } else if (isRecord(blocks)) {
-    current = blocks;
-  } else {
-    return { ok: false, reason: "its blocks key isn't an object or a list" };
+  if (isRecord(blocks)) {
+    return {
+      ok: false,
+      reason:
+        "its blocks key is the object form. Run `better-supabase codemod blocks-list`",
+    };
+  }
+
+  if (!Array.isArray(blocks)) {
+    return { ok: false, reason: "its blocks key isn't a list" };
   }
 
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
@@ -821,9 +915,48 @@ export function setBlockInJson(
   return jsonEdit(
     source,
     config,
-    { ...config, blocks: { ...current, [name]: value } },
+    { ...config, blocks: withListEntry(blocks, name, value) },
     indent,
   );
+}
+
+/** The instance name of a JSON `blocks` list element. */
+function jsonListName(item: unknown): string | undefined {
+  if (typeof item === "string") {
+    return item;
+  }
+
+  if (isRecord(item)) {
+    const name = item["name"] ?? item["block"];
+
+    return typeof name === "string" ? name : undefined;
+  }
+
+  return undefined;
+}
+
+/** The JSON list entry for instance `name`, like `listEntry`. */
+function jsonListEntry(name: string, value: object): unknown {
+  const { block: given, ...rest }: { block?: unknown } = value;
+  const block = typeof given === "string" ? given : name;
+
+  return block === name && Object.keys(rest).length === 0
+    ? name
+    : { block, ...(block === name ? {} : { name }), ...rest };
+}
+
+/** `list` with the entry for `name` replaced, or appended. */
+function withListEntry(
+  list: readonly unknown[],
+  name: string,
+  value: object,
+): readonly unknown[] {
+  const entry = jsonListEntry(name, value);
+  const index = list.findIndex((item) => jsonListName(item) === name);
+
+  return index === -1
+    ? [...list, entry]
+    : list.map((item, at) => (at === index ? entry : item));
 }
 
 /**
@@ -862,7 +995,8 @@ export function setPathInConfig(
 
   let open = root;
 
-  for (const [index, key] of path.entries()) {
+  for (let index = 0; index < path.length; index += 1) {
+    const key = path[index]!;
     const at = path.slice(0, index + 1).join(".");
     const props = properties(source, code, open);
 
@@ -896,9 +1030,23 @@ export function setPathInConfig(
     if (index === 0 && key === "blocks" && code[current.valueStart] === "[") {
       const [block, ...inside] = rest;
 
-      return block === undefined
-        ? { ok: false, reason: "its blocks key is a list" }
-        : setBlockInConfig(source, block, nested(inside, value) ?? {});
+      if (block === undefined) {
+        return { ok: false, reason: "its blocks key is a list" };
+      }
+
+      const listed = listedBlocks(source, code, current.valueStart).find(
+        (item) => item.name === block,
+      );
+
+      if (listed?.open === undefined || inside.length === 0) {
+        return setBlockInConfig(source, block, nested(inside, value) ?? {});
+      }
+
+      // Keep the entry's own keys: continue the path inside its object.
+      open = listed.open;
+      index += 1;
+
+      continue;
     }
 
     if (code[current.valueStart] !== "{") {
@@ -929,11 +1077,38 @@ function withPath(
 
   const inner: unknown = object[key];
 
-  const next: Readonly<Record<string, unknown>> = Array.isArray(inner)
-    ? Object.fromEntries(inner.map((item: unknown) => [String(item), {}]))
-    : isRecord(inner)
-      ? inner
-      : {};
+  if (Array.isArray(inner)) {
+    const [name, ...inside] = rest;
+    const list: readonly unknown[] = inner;
+
+    if (name === undefined) {
+      return object;
+    }
+
+    const found = list.find((item) => jsonListName(item) === name);
+
+    const entry: Readonly<Record<string, unknown>> = isRecord(found)
+      ? found
+      : { block: name };
+
+    const merged =
+      inside.length > 0
+        ? withPath(entry, inside, value)
+        : isRecord(value)
+          ? jsonListEntry(name, value)
+          : value;
+
+    const kept = list.some((item) => jsonListName(item) === name);
+
+    return {
+      ...object,
+      [key]: kept
+        ? list.map((item) => (jsonListName(item) === name ? merged : item))
+        : [...list, merged],
+    };
+  }
+
+  const next: Readonly<Record<string, unknown>> = isRecord(inner) ? inner : {};
 
   return { ...object, [key]: withPath(next, rest, value) };
 }
@@ -1014,7 +1189,9 @@ export function tidyInline(text: string, open: number): string {
     return `${text.slice(0, open + 1)}${text.slice(close)}`;
   }
 
-  const head = text.slice(0, close).replace(/,\s*$/, " ");
+  const head = text
+    .slice(0, close)
+    .replace(/,\s*$/, text[open] === "[" ? "" : " ");
 
   return head + text.slice(close);
 }

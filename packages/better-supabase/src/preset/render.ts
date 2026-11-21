@@ -17,6 +17,23 @@ const key = (name: string): string =>
 const camel = (name: string): string =>
   name.replaceAll(/-([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
 
+/** A `blocks` list element: the quoted name, or `{ block, ...entry }`. */
+function listEntry(name: string, entry: unknown): string {
+  const rest =
+    typeof entry === "object" && entry !== null && !Array.isArray(entry)
+      ? Object.entries(entry)
+      : [];
+
+  if (rest.length === 0) {
+    return JSON.stringify(name);
+  }
+
+  const { block: given, ...others } = Object.fromEntries(rest);
+  const block = typeof given === "string" ? given : name;
+
+  return literal({ block, ...(block === name ? {} : { name }), ...others });
+}
+
 /** A JSON value as a TypeScript literal, one line. */
 function literal(value: unknown): string {
   if (Array.isArray(value)) {
@@ -69,7 +86,7 @@ export function configSource(
     lines.push(...PROVIDER_COMMENT);
   }
 
-  lines.push("  blocks: {");
+  lines.push("  blocks: [");
 
   const entries: [string, unknown][] =
     typeof blocks === "object" && blocks !== null ? Object.entries(blocks) : [];
@@ -77,18 +94,18 @@ export function configSource(
   for (const block of resolved.blocks) {
     const entry = entries.find(([name]) => name === block.name)?.[1] ?? {};
     const note = block.selected ? "" : ` // ${block.reason}`;
-    lines.push(`    ${key(block.name)}: ${literal(entry)},${note}`);
+    lines.push(`    ${listEntry(block.name, entry)},${note}`);
   }
 
   const listed = new Set(resolved.blocks.map((block) => block.name));
 
   for (const [name, entry] of entries) {
     if (!listed.has(name)) {
-      lines.push(`    ${key(name)}: ${literal(entry)},`);
+      lines.push(`    ${listEntry(name, entry)},`);
     }
   }
 
-  lines.push("  },", "});", "");
+  lines.push("  ],", "});", "");
 
   return lines.join("\n");
 }
