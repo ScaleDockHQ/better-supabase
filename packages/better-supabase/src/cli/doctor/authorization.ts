@@ -408,6 +408,7 @@ function restatedDefaults(context: DoctorContext): FindingInput[] {
   return restatedEntries({
     blocks: context.config.blocks,
     sqlTenantColumn: context.config.sql.tenantColumn,
+    restatedDefaults: context.config.restatedDefaults,
     provider,
     defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
     // Without a snapshot there are no views, so no `null` can be redundant.

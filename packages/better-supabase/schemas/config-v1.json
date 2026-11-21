@@ -237,6 +237,9 @@
               "type": "string",
               "description": "The Data API schema every block writes its security invoker entry points to, unless the block sets its own api or false."
             },
+            "audit": {
+              "type": "boolean"
+            },
             "owner": {
               "enum": ["tenant", "user", "none"],
               "type": "string",

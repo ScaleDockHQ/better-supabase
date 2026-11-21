@@ -153,9 +153,23 @@ function blocksOf(
   blocks: BetterSupabaseConfig["blocks"],
   sql: SqlConfig = {},
   provider: boolean,
-): Pick<ResolvedConfig, "blocks" | "blockNames" | "instances"> {
+): Pick<
+  ResolvedConfig,
+  "blocks" | "blockNames" | "instances" | "restatedDefaults"
+> {
+  const raw = resolveInstances(blocks ?? []);
+
+  const restatedDefaults = Object.entries(raw).flatMap(([name, instance]) => [
+    ...(sql.api !== undefined && instance.config.api === sql.api
+      ? [{ block: name, key: "api" as const }]
+      : []),
+    ...(sql.audit !== undefined && instance.config.audit === sql.audit
+      ? [{ block: name, key: "audit" as const }]
+      : []),
+  ]);
+
   const instances = Object.fromEntries(
-    Object.entries(resolveInstances(blocks ?? [])).map(([name, instance]) => [
+    Object.entries(raw).map(([name, instance]) => [
       name,
       { ...instance, config: withSqlDefaults(instance.config, sql) },
     ]),
@@ -169,6 +183,7 @@ function blocksOf(
     Array.isArray(blocks) &&
     sql.schema === undefined &&
     sql.api === undefined &&
+    sql.audit === undefined &&
     sql.ownTablePolicies === undefined &&
     sql.tenantScope === undefined
       ? {}
@@ -179,7 +194,7 @@ function blocksOf(
     !blockNames.includes("permissions") ||
     resolved.permissions?.model !== undefined
   ) {
-    return { blocks: resolved, blockNames, instances };
+    return { blocks: resolved, blockNames, instances, restatedDefaults };
   }
 
   return {
@@ -189,6 +204,7 @@ function blocksOf(
     },
     blockNames,
     instances,
+    restatedDefaults,
   };
 }
 
@@ -197,12 +213,13 @@ function blocksOf(
  * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
-  const { schema, api, ownTablePolicies, tenantScope } = sql;
+  const { schema, api, audit, ownTablePolicies, tenantScope } = sql;
 
   return {
     ...withColumnNames(block),
     ...(schema === undefined || block.schema !== undefined ? {} : { schema }),
     ...(api === undefined || block.api !== undefined ? {} : { api }),
+    ...(audit === undefined || block.audit !== undefined ? {} : { audit }),
     ...(ownTablePolicies === undefined || block.ownTablePolicies !== undefined
       ? {}
       : { ownTablePolicies }),
@@ -215,11 +232,12 @@ function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
 function blockDefaultsOf(sql: SqlConfig = {}): {
   readonly blockDefaults?: SqlBlockDefaults;
 } {
-  const { schema, api, ownTablePolicies, tenantScope } = sql;
+  const { schema, api, audit, ownTablePolicies, tenantScope } = sql;
 
   const defaults: SqlBlockDefaults = {
     ...(schema === undefined ? {} : { schema }),
     ...(api === undefined ? {} : { api }),
+    ...(audit === undefined ? {} : { audit }),
     ...(ownTablePolicies === undefined ? {} : { ownTablePolicies }),
     ...(tenantScope === undefined ? {} : { tenantScope }),
   };

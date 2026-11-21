@@ -7,6 +7,7 @@ export type RestatedKind =
   | "null"
   | "empty"
   | "tenant"
+  | "default"
   | "provider";
 
 /** One config entry the resolved defaults already supply. */
@@ -23,6 +24,11 @@ export interface RestatedEntry {
 export interface RestatedInput {
   readonly blocks: AnyBlocksConfig;
   readonly sqlTenantColumn?: string | undefined;
+  /** `ResolvedConfig.restatedDefaults`: `api` and `audit` equal to `sql`'s. */
+  readonly restatedDefaults?: readonly {
+    readonly block: string;
+    readonly key: "api" | "audit";
+  }[];
   /** The authorization provider, when the app uses the provider model. */
   readonly provider?: AuthorizationProvider | undefined;
   /** The default column names of a module's tables, by logical table. */
@@ -133,6 +139,15 @@ export function restatedEntries(input: RestatedInput): RestatedEntry[] {
         }
       }
     }
+  }
+
+  for (const entry of input.restatedDefaults ?? []) {
+    found.push({
+      kind: "default",
+      path: `blocks.${entry.block}.${entry.key}`,
+      reason: `repeats sql.${entry.key}`,
+      value: entry.key,
+    });
   }
 
   for (const entry of input.nulls ?? []) {

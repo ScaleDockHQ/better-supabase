@@ -927,6 +927,7 @@ const FLAT = {
       testsDir: v.optional(v.string()),
       schema: v.optional(v.string()),
       api: v.optional(v.string()),
+      audit: v.optional(v.boolean()),
       owner: v.optional(v.picklist(["tenant", "user", "none"])),
       ownTablePolicies: v.optional(v.picklist(["block", "app"])),
       tenantScope: v.optional(blockSchemas.tenantScopeSchema),

@@ -245,6 +245,7 @@ async function prune(
   const entries = restatedEntries({
     blocks: config.blocks,
     sqlTenantColumn: config.sql.tenantColumn,
+    restatedDefaults: config.restatedDefaults,
     provider,
     defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
     nulls: redundantNulls({

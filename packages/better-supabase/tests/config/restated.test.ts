@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { resolveConfig } from "../../src/config/index.ts";
 import { restatedEntries } from "../../src/config/restated.ts";
 
 const tables = {
@@ -116,5 +117,36 @@ describe("restatedEntries", () => {
         ),
       ),
     ).toEqual(["provider:blocks.impersonation.options.claimsHook"]);
+  });
+});
+
+describe("project defaults", () => {
+  const config = resolveConfig(
+    {
+      database: { sql: { audit: false, api: "api" } },
+      blocks: {
+        tags: { audit: false },
+        tasks: { api: "api" },
+        notes: { audit: true, api: "other" },
+        labels: {},
+      },
+    },
+    "/project",
+  );
+
+  it("fills sql.audit into blocks that leave it unset", () => {
+    expect(config.blocks["labels"]?.audit).toBe(false);
+    expect(config.blocks["notes"]?.audit).toBe(true);
+    expect(config.sql.blockDefaults?.audit).toBe(false);
+  });
+
+  it("lists the entries that repeat sql.api or sql.audit", () => {
+    expect(
+      paths(
+        restatedEntries(
+          input({}, { restatedDefaults: config.restatedDefaults }),
+        ),
+      ),
+    ).toEqual(["default:blocks.tags.audit", "default:blocks.tasks.api"]);
   });
 });
