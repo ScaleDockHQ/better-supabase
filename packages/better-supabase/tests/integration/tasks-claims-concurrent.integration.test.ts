@@ -7,6 +7,7 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { FIXTURE_TENANT_SQL } from "./fixture-tenant.ts";
 
 const live = await reachable();
 
@@ -24,7 +25,8 @@ describe.skipIf(!live)("concurrent task claims", () => {
   const orgs: string[] = [];
 
   // Other files commit renders of the pipelines module with their own
-  // subjects, so this file commits the tasks render it claims against.
+  // subjects, so this file commits the tasks render it claims against. It
+  // leaves out the organizations module.
   beforeAll(async () => {
     const layout: BlockSqlLayout = {
       subjects: withBlockSubjects({}, ["tasks"], {}),
@@ -43,20 +45,13 @@ describe.skipIf(!live)("concurrent task claims", () => {
 
     try {
       await session.install(
-        [
-          "organizations",
-          "outbox",
-          "notifications",
-          "subjects",
-          "rank",
-          "relations",
-          "pipelines",
-          "messaging",
-          "tasks",
-        ],
+        ["subjects", "rank", "relations", "pipelines", "messaging", "tasks"],
         layout,
       );
 
+      // The render replaces the fixture's tenant helper, which the stack's
+      // row level security policies call.
+      await session.client.query(FIXTURE_TENANT_SQL);
       await session.client.query("commit");
     } finally {
       session.client.release();
