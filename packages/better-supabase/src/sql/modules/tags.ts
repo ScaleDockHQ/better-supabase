@@ -147,10 +147,21 @@ function subjects(ctx: BlockSqlContext) {
 }
 
 function links(ctx: BlockSqlContext) {
-  return subjectTableBindings(ctx, subjects(ctx), "links", {
+  const bindings = subjectTableBindings(ctx, subjects(ctx), "links", {
     columns: [...LINK_COLUMNS],
     optional: ["tenant", "createdAt"],
   });
+
+  const column = ctx.tenantColumn;
+
+  // A link table that has `sql.tenantColumn` and names no `tenant` uses it.
+  return bindings.map((link) =>
+    column === undefined ||
+    link.columns["tenant"] !== undefined ||
+    !ctx.ownHasColumn(`${link.schema}.${link.table}`, column)
+      ? link
+      : { ...link, columns: { ...link.columns, tenant: column } },
+  );
 }
 
 function kindsOf(extra: Readonly<Record<string, unknown>>): readonly string[] {

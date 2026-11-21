@@ -262,15 +262,22 @@ function entity(
       ? recordOf(period)["fiscalYearStartMonth"]
       : undefined;
 
+  // Without `period`, a format with a year token numbers by it, else none.
+  const written = record["format"] ?? "{n}";
+
   const stated =
-    period === "none" ||
-    period === "year" ||
-    period === "month" ||
-    period === "format"
-      ? period
-      : fiscal === undefined
-        ? undefined
-        : "fiscal";
+    period === undefined
+      ? typeof written === "string" && YEAR_TOKEN.test(written)
+        ? "format"
+        : "none"
+      : period === "none" ||
+          period === "year" ||
+          period === "month" ||
+          period === "format"
+        ? period
+        : fiscal === undefined
+          ? undefined
+          : "fiscal";
 
   if (stated === undefined) {
     throw new TypeError(
@@ -289,7 +296,7 @@ function entity(
     );
   }
 
-  const format = record["format"];
+  const format = written;
 
   if (typeof format !== "string" || format.length === 0 || format.length > 80) {
     throw new TypeError(`${where}.format must be a short template`);
@@ -353,8 +360,8 @@ function entity(
   const tenantColumn =
     record["tenantColumn"] ??
     (typeof table === "string"
-      ? tenantColumnOf(table, ctx.subjects, ctx.naming)
-      : ctx.naming.rename("organization_id"));
+      ? tenantColumnOf(table, ctx.subjects, ctx.naming, ctx.tenantColumn)
+      : (ctx.tenantColumn ?? ctx.naming.rename("organization_id")));
 
   if (typeof tenantColumn !== "string" || !ENTITY.test(tenantColumn)) {
     throw new TypeError(`${where}.tenantColumn must be a column name`);

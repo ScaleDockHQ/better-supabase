@@ -521,6 +521,7 @@ export function resolveConfig(
       ...(config.sql?.tenantColumn === undefined
         ? {}
         : { tenantColumn: config.sql.tenantColumn }),
+      ...(config.sql?.brand === undefined ? {} : { brand: config.sql.brand }),
       ...blockDefaultsOf(config.sql),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),

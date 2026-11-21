@@ -53,6 +53,7 @@ export function moduleLayout(
     ...(config.sql.tenantColumn === undefined
       ? {}
       : { blockTenantColumn: config.sql.tenantColumn }),
+    ...(config.sql.brand === undefined ? {} : { blockBrand: config.sql.brand }),
     subjects: config.subjects,
     appTables: config.appTables,
     vectorSearch: config.vectorSearch,

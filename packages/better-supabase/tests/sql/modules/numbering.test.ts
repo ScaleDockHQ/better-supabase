@@ -116,6 +116,25 @@ describe("number sequences", () => {
     ).toBe(explicit);
   });
 
+  it("defaults the format, the period and the tenant column", () => {
+    const render = (blockTenantColumn?: string): string =>
+      renderBlocks(["numbering"], {
+        modules: {
+          numbering: {
+            options: { entities: { receipt: { table: "public.receipts" } } },
+          },
+        },
+        ...(blockTenantColumn === undefined ? {} : { blockTenantColumn }),
+      })
+        .filter((file) => file.module === "numbering")
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(render()).toContain("organization_id");
+    expect(render("workspace_id")).toContain("workspace_id");
+    expect(render("workspace_id")).not.toContain("organization_id");
+  });
+
   it("refuses a predicate that is not an expression", () => {
     expect(() =>
       sqlOf({
@@ -279,7 +298,7 @@ describe("number sequences", () => {
       { invoice: { period: { fiscalYearStartMonth: 13 }, format: "{n}" } },
       /fiscalYearStartMonth/,
     ],
-    ["a missing format", { invoice: { period: "year" } }, /format/],
+    ["an empty format", { invoice: { format: "" } }, /format/],
     [
       "a table that is not text",
       { invoice: { period: "year", format: "{n}", table: 1, column: "n" } },

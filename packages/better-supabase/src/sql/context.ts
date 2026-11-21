@@ -358,6 +358,16 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: BlockSqlScope;
+  /** Whether the app's own table `schema.table` is known to have `column`. */
+  ownHasColumn(table: string, column: string): boolean;
+  /** `sql.tenantColumn`, the tenant column an option that names none uses. */
+  readonly tenantColumn?: string;
+  /** `sql.brand`, the brand source `options.brand` overrides. */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /**
    * The module's final names: its entities as `blocks.<name>.entities` and
    * `blocks.memberships.names.organization` rename them.
@@ -626,6 +636,11 @@ export interface BlockSqlContextSource {
   /** `sql.scope`: the scope of a module whose config sets none. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /**
    * The modules `module` may read through `installed` and `of`: what it
    * requires and what it lists in `integrates`. Without it nothing is checked.
@@ -1303,6 +1318,10 @@ export function createModuleContext(
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,
+    ownHasColumn: (table, column) =>
+      source.ownColumns?.[table]?.includes(column) === true,
+    ...(tenantColumn === undefined ? {} : { tenantColumn }),
+    ...(source.brand === undefined ? {} : { brand: source.brand }),
     resolved,
     naming,
     blockNaming: () =>

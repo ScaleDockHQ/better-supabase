@@ -932,6 +932,13 @@ const FLAT = {
       ownTablePolicies: v.optional(v.picklist(["block", "app"])),
       tenantScope: v.optional(blockSchemas.tenantScopeSchema),
       tenantColumn: v.optional(v.string()),
+      brand: v.optional(
+        v.strictObject({
+          table: v.string(),
+          column: v.string(),
+          tenant: v.optional(v.string()),
+        }),
+      ),
     }),
   ),
   seed: v.optional(

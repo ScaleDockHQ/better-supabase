@@ -269,6 +269,22 @@
             },
             "tenantColumn": {
               "type": "string"
+            },
+            "brand": {
+              "type": "object",
+              "properties": {
+                "table": {
+                  "type": "string"
+                },
+                "column": {
+                  "type": "string"
+                },
+                "tenant": {
+                  "type": "string"
+                }
+              },
+              "required": ["table", "column"],
+              "additionalProperties": false
             }
           },
           "additionalProperties": false

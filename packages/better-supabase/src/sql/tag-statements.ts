@@ -43,6 +43,8 @@ export interface TagRenderOptions {
   readonly actorMayWrite?: string | undefined;
   /** The tenant scope's name, for `{scope}`. Defaults to `organization`. */
   readonly scope?: string | undefined;
+  /** `sql.tenantColumn`: the tenant column a tag without `tenant=` uses. */
+  readonly tenantColumn?: string | undefined;
 }
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]*$/u;
@@ -73,12 +75,15 @@ function list(tag: BsbTag, name: string): string[] {
 }
 
 /** The tenant column, `false` for none. */
-function tenantColumn(tag: BsbTag): string | undefined {
+function tenantColumn(
+  tag: BsbTag,
+  options: TagRenderOptions,
+): string | undefined {
   const value = arg(tag, "tenant");
 
   return value === "false"
     ? undefined
-    : identifier(value ?? "tenant_id", "tenant");
+    : identifier(value ?? options.tenantColumn ?? "tenant_id", "tenant");
 }
 
 /** The SQL type a column name suggests, for a cursor value. */
@@ -132,7 +137,7 @@ function accessBlock(
   options: TagRenderOptions,
 ): string {
   const target = `${quote(schema)}.${quote(table)}`;
-  const column = tenantColumn(tag);
+  const column = tenantColumn(tag, options);
 
   if (column === undefined) {
     throw new TypeError(
@@ -216,9 +221,14 @@ function accessBlock(
   ].join("\n");
 }
 
-function idempotencyBlock(schema: string, table: string, tag: BsbTag): string {
+function idempotencyBlock(
+  schema: string,
+  table: string,
+  tag: BsbTag,
+  options: TagRenderOptions,
+): string {
   const column = identifier(arg(tag, "column") ?? "idempotency_key", "column");
-  const tenant = tenantColumn(tag);
+  const tenant = tenantColumn(tag, options);
   const keys = tenant === undefined ? [column] : [tenant, column];
 
   return `create unique index ${quote(`bsb_${table}_idempotency_key`)} on ${quote(schema)}.${quote(table)} (${keys.map(quote).join(", ")}) where ${quote(column)} is not null;`;
@@ -252,11 +262,16 @@ function sorts(tag: BsbTag): Sort[] {
   });
 }
 
-function listBlock(schema: string, table: string, tag: BsbTag): string {
+function listBlock(
+  schema: string,
+  table: string,
+  tag: BsbTag,
+  options: TagRenderOptions,
+): string {
   const target = `${quote(schema)}.${quote(table)}`;
   const name = identifier(arg(tag, "name") ?? `list_${table}`, "name");
   const fn = `${quote(schema)}.${quote(name)}`;
-  const tenant = tenantColumn(tag);
+  const tenant = tenantColumn(tag, options);
   const tenantType = castType(arg(tag, "tenant-type") ?? "uuid", "list");
   const idColumn = identifier(arg(tag, "id") ?? "id", "id");
   const idType = castType(arg(tag, "id-type") ?? "uuid", "list");
@@ -634,11 +649,11 @@ export function renderTagBlock(
       }
 
       case "list": {
-        return listBlock(schema, table, tag);
+        return listBlock(schema, table, tag, options);
       }
 
       case "idempotency": {
-        return idempotencyBlock(schema, table, tag);
+        return idempotencyBlock(schema, table, tag, options);
       }
 
       case "rpc": {

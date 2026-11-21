@@ -109,6 +109,7 @@ export function moduleContext(
       ...(layout.blockTenantColumn
         ? { tenantColumn: layout.blockTenantColumn }
         : {}),
+      ...(layout.blockBrand ? { brand: layout.blockBrand } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
       ...(modules?.permissions?.model === "provider" &&

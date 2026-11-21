@@ -135,7 +135,13 @@ export function entries(ctx: BlockSqlContext): readonly Entry[] {
       throw new TypeError(`${where}.${key}.export must be true or false`);
     }
 
-    if (config.user === undefined && config.tenant === undefined) {
+    // An entry that names neither column is a tenant table, in `sql.tenantColumn`.
+    const tenant =
+      config.user === undefined && config.tenant === undefined
+        ? ctx.tenantColumn
+        : config.tenant;
+
+    if (config.user === undefined && tenant === undefined) {
       throw new TypeError(`${where}.${key} needs a user or a tenant column`);
     }
 
@@ -151,12 +157,8 @@ export function entries(ctx: BlockSqlContext): readonly Entry[] {
       configured.push({ ...base, subject: "user", column: config.user });
     }
 
-    if (config.tenant !== undefined) {
-      configured.push({
-        ...base,
-        subject: "organization",
-        column: config.tenant,
-      });
+    if (tenant !== undefined) {
+      configured.push({ ...base, subject: "organization", column: tenant });
     }
   }
 

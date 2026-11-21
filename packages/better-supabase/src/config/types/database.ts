@@ -88,6 +88,15 @@ export interface SqlConfig {
    */
   readonly tenantScope?: TenantScopeConfig;
   readonly tenantColumn?: string;
+  /**
+   * Where a tenant's brand lives, for every block with an `options.brand`
+   * (templates, option sets, pipelines). A block's own `brand` overrides it.
+   */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
 }
 
 /** `sql` with defaults applied. */
@@ -100,6 +109,15 @@ export interface ResolvedSqlConfig {
   /** Unset means `tenant`. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
+  /**
+   * Where a tenant's brand lives, for every block with an `options.brand`
+   * (templates, option sets, pipelines). A block's own `brand` overrides it.
+   */
+  readonly brand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /**
    * `schema`, `api`, `audit`, `ownTablePolicies` and `tenantScope` as the
    * config sets them, for blocks added after the config was resolved. Unset

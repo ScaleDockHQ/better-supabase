@@ -140,6 +140,7 @@ async function runTable(
       canIn: config.authorization?.functions.canIn,
       actorMayWrite: config.authorization?.functions.actorMayWrite,
       scope: config.authorization?.tenantScope,
+      tenantColumn: config.sql.tenantColumn,
     },
   );
 
