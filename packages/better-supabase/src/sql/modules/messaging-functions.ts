@@ -11,6 +11,7 @@ import {
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { followersSql, watchSql } from "../watch-sql.ts";
+import { actorKindSql, actorNameSql } from "./actor-label.ts";
 import { authorLookup } from "./authors.ts";
 import { conversationFunctions } from "./messaging-conversations.ts";
 import { messagingRowJson } from "./messaging-names.ts";
@@ -345,7 +346,7 @@ function messageRecord(
 
   return q.ctx.record({
     type,
-    payload: `jsonb_build_object('organizationId', ${row}.${ms("tenant")}::text, 'conversationId', ${row}.${ms("conversation")}, 'messageId', ${row}.${ms("id")}, 'authorId', ${row}.${ms("author")}, 'threadId', ${row}.${ms("thread")}, 'subjectType', ${sqlString(q.e("message"))}, 'subjectId', ${row}.${ms("id")}::text${extra})
+    payload: `jsonb_build_object('organizationId', ${row}.${ms("tenant")}::text, 'conversationId', ${row}.${ms("conversation")}, 'messageId', ${row}.${ms("id")}, 'authorId', ${row}.${ms("author")}${q.ctx.has("messages", "authorKind") ? `, 'actorKind', ${row}.${ms("authorKind")}` : ""}${q.ctx.has("messages", "authorName") ? `, 'actorName', ${row}.${ms("authorName")}` : ""}, 'threadId', ${row}.${ms("thread")}, 'subjectType', ${sqlString(q.e("message"))}, 'subjectId', ${row}.${ms("id")}::text${extra})
       || coalesce((select jsonb_build_object('conversationKind', c.${cv("kind")}, 'recordType', c.${cv("subjectType")}, 'recordId', c.${cv("subjectId")}) from ${q.t("conversations")} c where c.${cv("id")} = ${row}.${ms("conversation")}), '{}'::jsonb)`,
     subject: `'messages/' || ${row}.${ms("id")}::text`,
     tenant: `${row}.${ms("tenant")}::text`,
@@ -462,6 +463,20 @@ function messageFunctions(q: MessagingSql): string {
   const anchors = ctx.has("messages", "anchor");
   const schedules = ctx.has("messages", "scheduledFor");
   const rm = q.cols("recordMentions");
+
+  // The caller's profile (attrs.actor: { kind, name }) labels the row, so a
+  // comment or a timeline entry says whether a person or an agent wrote it.
+  const profile = "send_message.attrs -> 'actor'";
+
+  const actorColumns = [
+    ctx.has("messages", "authorKind") ? ` ${ms("authorKind")},` : "",
+    ctx.has("messages", "authorName") ? ` ${ms("authorName")},` : "",
+  ].join("");
+
+  const actorValues = [
+    ctx.has("messages", "authorKind") ? ` ${actorKindSql(profile)},` : "",
+    ctx.has("messages", "authorName") ? ` ${actorNameSql(profile)},` : "",
+  ].join("");
 
   return `
 -- The mentions in a body: @[Name](user:<id>) or @[Name](<id>) users,
@@ -679,10 +694,10 @@ begin
     ["jsonb", "send_message.attrs"],
   ])}
   begin
-    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")}, ${ms("body")}, ${ms("document")},${anchors ? ` ${ms("anchor")},` : ""}
+    insert into ${t("messages")} (${ms("tenant")}, ${ms("conversation")}, ${ms("parent")}, ${ms("thread")}, ${ms("author")},${actorColumns} ${ms("body")}, ${ms("document")},${anchors ? ` ${ms("anchor")},` : ""}
       ${ms("mentions")}, ${ms("mentionScope")}, ${ms("broadcast")},${schedules ? ` ${ms("scheduledFor")},` : ""} ${ms("sentAt")})
     values (v_conv.${cv("tenant")}, v_conv.${cv("id")}, v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(),${actorValues} coalesce(send_message.body, ''), send_message.attrs -> 'document',
       ${anchors ? "case when v_parent is null then send_message.attrs -> 'anchor' end, " : ""}v_mentions,
       ${ctx.cast("messages", "mentionScope", `case when v_conv.${cv("access")} = 'subject' then null else v_parsed ->> 'scope' end`)},
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),

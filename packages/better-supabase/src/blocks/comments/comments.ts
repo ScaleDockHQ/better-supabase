@@ -11,6 +11,7 @@ import type {
   UploadProgress,
 } from "../attachments/attachments.ts";
 import type {
+  ActorProfile,
   Message,
   MessageEdit,
   MessageEdition,
@@ -99,6 +100,8 @@ export interface NewComment<F extends object = Record<never, never>> {
    * comments only.
    */
   readonly anchor?: unknown;
+  /** Who acts, for an agent or a service commenting as the user. */
+  readonly actor?: ActorProfile;
   /**
    * User ids or mention groups (`options.mentionGroups`); default `mentionsOf`,
    * or the ids `mentionsIn(body)` finds.
@@ -347,6 +350,9 @@ export function createComments<
                   ...(comment.anchor === undefined
                     ? {}
                     : { anchor: comment.anchor }),
+                  ...(comment.actor === undefined
+                    ? {}
+                    : { actor: comment.actor }),
                   ...(checked === undefined ? {} : { fields: checked }),
                 },
                 attachments: [...(comment.attachmentIds ?? [])],

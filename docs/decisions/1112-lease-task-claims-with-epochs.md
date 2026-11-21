@@ -17,4 +17,4 @@ A column on the task row was rejected: it can't hold the token, epoch and profil
 
 ## Consequences
 
-A real concurrent claim can't be tested in the one-transaction harness; `skip locked` is covered by reading the SQL.
+`tests/integration/tasks-claims-concurrent.integration.test.ts` runs concurrent claims on separate connections: exactly one of two claims of a task wins, and `claim_next_task` never hands one task to two workers.

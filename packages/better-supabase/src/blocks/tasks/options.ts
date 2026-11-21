@@ -47,8 +47,19 @@ export type TasksSqlOptions = {
   /**
    * `stage` is the stage key of the task's pipeline a hold moves the task to.
    * Without it a hold only sets `held_at`. ADR 1114.
+   *
+   * `approval` files each hold with the approvals block, which needs the
+   * `held_at` column: `true` asks one approver (members with the manage
+   * permission), or give a `policy` (approvals policy without `run`). An
+   * approval releases the task; a rejection cancels it, or with `onReject:
+   * "keep"` leaves it on hold. ADR 1161.
    */
-  readonly hold?: { readonly stage?: string };
+  readonly hold?: {
+    readonly stage?: string;
+    readonly approval?:
+      | boolean
+      | { readonly policy?: unknown; readonly onReject?: "cancel" | "keep" };
+  };
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =

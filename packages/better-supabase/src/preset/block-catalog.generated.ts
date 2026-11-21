@@ -2614,6 +2614,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "pipelines"
       ],
       "integrates": [
+        "approvals",
         "outbox",
         "notifications",
         "numbering",

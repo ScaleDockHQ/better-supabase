@@ -207,6 +207,15 @@ With `options.needs: { kind: "blocks" }` and the [relations](/docs/blocks/relati
 
 `hold({ taskId, kind, note, askUserIds })` puts a task on hold to ask a person. The note goes through [messaging](/docs/blocks/messaging) and mentions `askUserIds`, who must be able to read the task. With `options.hold.stage` the task moves to that stage until `releaseHold`. A manual move into that stage is not a hold, and a manual move out of it clears one.
 
+With the [approvals](/docs/blocks/approvals) block installed, `options.hold.approval` files each hold as an approval request of the subject type `task_hold`. `true` asks one approver, a member with the manage permission; `{ policy }` takes an approvals policy without `run`. An approval releases the task, and a rejection cancels it, or with `onReject: "keep"` leaves it on hold. Nobody needs the write permission to decide: approvals checks the approver, and the task changes through an internal function that is granted to no role. A decision on a task that is no longer on hold is refused. The option needs the `held_at` column and fails at render without the approvals block. `task.held` then carries the request as `approvalId`.
+
+```ts
+// better-supabase.config.ts
+blocks: {
+  tasks: { options: { hold: { stage: "blocked", approval: { onReject: "cancel" } } } },
+}
+```
+
 ### Outcomes
 
 `complete`, `cancel` and `fail` take a `note`, kept in `closeNote` and sent with the event. `fail` closes the task in a canceled stage with the close reason `failed` and sends `task.closed` and `task.failed`. When the pipeline has no canceled stage it raises `TASK_OUTCOME_UNAVAILABLE`.

@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:531c0623faa07fd4379cab2406d62b58f354916566d44bf7d43eff69ea689876
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:028dc9b549db0143be1275c66ed94d3ce4994dcd66779966afbf02aa6425cede
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,6 +92,8 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -440,7 +442,7 @@ begin
   select * into v_msg from "better_supabase"."messages" m where m."id" = messaging_message_sent.message;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id";
   perform "better_supabase"."index_record_mentions"(v_msg."id");
-  perform "better_supabase".emit_event('message.sent', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'mentionIds', to_jsonb(v_msg."mentions"), 'recordMentions', (select coalesce(jsonb_agg(jsonb_build_object('type', x."subject_type", 'id', x."subject_id") order by x."subject_type", x."subject_id"), '[]'::jsonb) from "better_supabase"."message_record_mentions" x where x."message_id" = v_msg."id"))
+  perform "better_supabase".emit_event('message.sent', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'mentionIds', to_jsonb(v_msg."mentions"), 'recordMentions', (select coalesce(jsonb_agg(jsonb_build_object('type', x."subject_type", 'id', x."subject_id") order by x."subject_type", x."subject_id"), '[]'::jsonb) from "better_supabase"."message_record_mentions" x where x."message_id" = v_msg."id"))
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   -- Mentioned users who can read the conversation.
   v_mentioned := array(
@@ -1678,10 +1680,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -1812,7 +1819,7 @@ begin
   end;
   if v_msg."sent_at" is not null then
     perform "better_supabase"."index_record_mentions"(v_msg."id");
-    perform "better_supabase".emit_event('message.updated', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
+    perform "better_supabase".emit_event('message.updated', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   end if;
   declare
@@ -1861,7 +1868,7 @@ begin
   delete from "better_supabase"."attachments" a
   where a."subject_type" = 'message' and a."subject_id" = v_msg."id"::text;
   if v_msg."sent_at" is not null then
-    perform "better_supabase".emit_event('message.deleted', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
+    perform "better_supabase".emit_event('message.deleted', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   end if;
   return true;
@@ -1893,7 +1900,7 @@ begin
     "pinned_by" = case when pin_message.pinned then coalesce(m."pinned_by", auth.uid()) end
   where m."id" = v_msg."id"
   returning * into v_msg;
-  perform "better_supabase".emit_event('message.pinned', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'pinned', pin_message.pinned)
+  perform "better_supabase".emit_event('message.pinned', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'pinned', pin_message.pinned)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   return "better_supabase"."messaging_messages_json"(array[v_msg."id"]) -> 0;
 end;
@@ -1925,7 +1932,7 @@ begin
     "resolved_by" = case when resolve_message.resolved then coalesce(m."resolved_by", auth.uid()) end
   where m."id" = v_msg."id"
   returning * into v_msg;
-  perform "better_supabase".emit_event('message.resolved', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'resolved', resolve_message.resolved)
+  perform "better_supabase".emit_event('message.resolved', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'resolved', resolve_message.resolved)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   return "better_supabase"."messaging_messages_json"(array[v_msg."id"]) -> 0;
 end;

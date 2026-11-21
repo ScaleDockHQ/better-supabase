@@ -33,6 +33,7 @@ import {
 import { backfillProjectDimensions } from "./tasks-data.ts";
 import { checklistTable, taskExtrasContract } from "./tasks-extras.ts";
 import { taskFunctions } from "./tasks-functions.ts";
+import { holdApprovalContribution } from "./tasks-hold-approvals.ts";
 import { taskLinesContract, taskLinesSql } from "./tasks-lines.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
@@ -708,7 +709,7 @@ function build(ctx: BlockSqlContext): string {
   const claim = ctx.permission("claim", keys.write);
 
   const n: TaskNames = {
-    co: coordinationOf(ctx, claim),
+    co: coordinationOf(ctx, claim, ctx.permissionKey("manage", keys.manage)),
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
@@ -848,6 +849,15 @@ const PRIORITY_ITEMS = [
 ] as const;
 
 const CONTRIBUTES: BlockContributes = {
+  approvals: (own) =>
+    holdApprovalContribution(
+      own,
+      coordinationOf(
+        own,
+        "",
+        own.permissionKey("manage", moduleOperations("tasks").manage),
+      ).holdApproval,
+    ),
   housekeeping: (own) =>
     own.hasTable("claims")
       ? [
@@ -946,6 +956,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   // The pipelines module binds the tasks table, so the table comes first.
   before: "pipelines",
   integrates: [
+    "approvals",
     "outbox",
     "notifications",
     "numbering",

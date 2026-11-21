@@ -76,6 +76,7 @@ export class BlockSession {
   async install(
     names: readonly string[],
     layout: BlockSqlLayout = {},
+    options: { freshMemberships?: boolean } = {},
   ): Promise<void> {
     // The seed's team members belong to the fixture's `public.memberships`,
     // which a render over another memberships table can't reference. The
@@ -96,6 +97,35 @@ export class BlockSession {
         end if;
       end
     $$`);
+
+    // `create table if not exists` keeps the role column an earlier render
+    // gave the memberships table: role names (text) under the roles model,
+    // catalog keys (uuid) under the catalog model. The catalog's
+    // memberships_role_fkey can't be added over text names, and a render can't
+    // convert the names, so a render that changes the model starts from a new
+    // table. Only a test that opts in drops it, because the drop cascades
+    // to the policies that read the table and a committing suite would keep that. A real app that switches the model migrates its roles first
+    // (ADR 1160).
+    if (options.freshMemberships === true && names.includes("permissions")) {
+      const wanted =
+        layout.modules?.permissions?.model === "catalog" ? "uuid" : "text";
+
+      await this.client.query(
+        `do $$
+        begin
+          if to_regclass('better_supabase.memberships') is not null
+            and exists (
+              select 1 from pg_attribute
+              where attrelid = to_regclass('better_supabase.memberships')
+                and attname = 'role' and not attisdropped
+                and atttypid <> $1::regtype
+            ) then
+            drop table better_supabase.memberships cascade;
+          end if;
+        end
+        $$`.replace("$1", `'${wanted}'`),
+      );
+    }
 
     // `create table if not exists` keeps a tasks table an earlier render left
     // with its projects key on another projects table.
@@ -234,10 +264,27 @@ export class BlockSession {
     await this.service();
 
     for (const [role, user] of Object.entries(members)) {
-      await this.client.query(
-        "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, $3)",
-        [id, user.id, role.replace(/\d+$/, "")],
+      const key = role.replace(/\d+$/, "");
+
+      // The catalog model keeps the role as a uuid key into the roles table.
+      const { rows } = await this.client.query<{ catalog: boolean }>(
+        `select exists (
+          select 1 from pg_attribute
+          where attrelid = to_regclass('better_supabase.memberships')
+            and attname = 'role' and atttypid = 'uuid'::regtype
+        ) as catalog`,
       );
+
+      await (rows[0]?.catalog === true
+        ? this.client.query(
+            `insert into better_supabase.memberships (organization_id, user_id, role)
+             select $1, $2, r.id from better_supabase.roles r where r.key = $3`,
+            [id, user.id, key],
+          )
+        : this.client.query(
+            "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, $3)",
+            [id, user.id, key],
+          ));
     }
 
     return id;

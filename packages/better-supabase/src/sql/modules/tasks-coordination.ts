@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { TaskNames } from "./tasks-functions.ts";
+import type { HoldApproval } from "./tasks-hold-approvals.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
@@ -11,6 +12,11 @@ import {
 } from "./tasks-coordination-claims.ts";
 import { liveSql, orderSql } from "./tasks-coordination-order.ts";
 import { actorPayload, load, taskRecord } from "./tasks-coordination-shared.ts";
+import {
+  holdApprovalOf,
+  holdApprovalOn,
+  settleHoldSql,
+} from "./tasks-hold-approvals.ts";
 
 export { actorPayload, taskRecord };
 
@@ -28,6 +34,8 @@ export interface Coordination {
   readonly expiredStage: string | null;
   /** The stage key a hold moves a task to, or null for a flag-only hold. */
   readonly holdStage: string | null;
+  /** Whether a hold opens an approval, and what a rejection does. */
+  readonly holdApproval: HoldApproval | null;
   /** The permission key a claim checks, as a SQL literal. */
   readonly claim: string;
 }
@@ -72,6 +80,7 @@ function stageKey(value: unknown, at: string): string | null {
 export function coordinationOf(
   ctx: BlockSqlContext,
   claim: string,
+  manageKey: string,
 ): Coordination {
   const at = "blocks.tasks.options";
   const needs = ctx.option("needs");
@@ -84,7 +93,7 @@ export function coordinationOf(
     "startStage",
     "expiredStage",
   ]);
-  only(hold, `${at}.hold`, ["stage"]);
+  only(hold, `${at}.hold`, ["stage", "approval"]);
 
   const lease = claims["lease"] ?? DEFAULT_LEASE;
   const maxLease = claims["maxLease"] ?? Math.max(DEFAULT_LEASE, Number(lease));
@@ -140,6 +149,7 @@ export function coordinationOf(
     startStage: stageKey(claims["startStage"], `${at}.claims.startStage`),
     expiredStage: stageKey(claims["expiredStage"], `${at}.claims.expiredStage`),
     holdStage: stageKey(hold["stage"], `${at}.hold.stage`),
+    holdApproval: holdApprovalOf(ctx, hold["approval"], manageKey),
     claim,
   };
 }
@@ -236,7 +246,7 @@ export function coordinationSql(
     actorSql(n),
     needsSql(ctx, n, h),
     claimsSql(ctx, n, h),
-    holdSql(ctx, n, h),
+    `${holdSql(ctx, n, h)}${settleHoldSql(ctx, n)}`,
     outcomesSql(ctx, n, h),
     orderSql(ctx, n, h),
     liveSql(ctx, n),
@@ -593,6 +603,9 @@ export function coordinationContract(
       returns: "jsonb",
     },
     { name: "release_task_hold", args: ["uuid"], returns: "jsonb" },
+    ...(holdApprovalOn(ctx)
+      ? [{ name: "settle_task_hold", args: ["uuid", "text"], returns: "void" }]
+      : []),
     {
       name: "close_task",
       args: ["uuid", "text", "text", "uuid"],

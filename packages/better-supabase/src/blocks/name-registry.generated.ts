@@ -1589,7 +1589,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "conversations": "id" | "tenant" | "kind" | "access" | "subjectType" | "subjectId" | "title" | "memberKey" | "createdBy" | "lastMessageAt" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "members": "conversation" | "tenant" | "user" | "role" | "notify" | "lastReadAt" | "joinedAt";
-      readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "kind" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
+      readonly "messages": "id" | "tenant" | "conversation" | "parent" | "thread" | "author" | "authorKind" | "authorName" | "kind" | "body" | "document" | "anchor" | "mentions" | "mentionScope" | "broadcast" | "replyCount" | "lastReplyAt" | "replyUsers" | "pinnedAt" | "pinnedBy" | "resolvedAt" | "resolvedBy" | "scheduledFor" | "sentAt" | "editedAt" | "deletedAt" | "createdAt";
       readonly "edits": "id" | "tenant" | "message" | "body" | "document" | "editor" | "editedAt";
       readonly "reads": "tenant" | "user" | "conversation" | "thread" | "lastReadAt";
       readonly "recordMentions": "tenant" | "message" | "conversation" | "subjectType" | "subjectId" | "createdAt";
@@ -1599,7 +1599,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
-      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_at" | "sent_at" | "edited_at" | "archived_at" | "created_at";
+      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "author_kind" | "author_name" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_at" | "sent_at" | "edited_at" | "archived_at" | "created_at";
       readonly "conversation": "id" | "tenant_id" | "kind" | "access" | "subject_type" | "subject_id" | "title" | "member_key" | "created_by" | "last_message_at" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "message";
