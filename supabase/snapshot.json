@@ -296515,10 +296515,38 @@
       {
         "id": 3003212,
         "schema": "better_supabase",
+        "name": "workflow_purge_backstops",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  v_due text[];\n  v_ids text[];\nbegin\n  with due as (\n    delete from workflow.workflow_purge_backstops b\n    where b.run_id in (\n      select d.run_id from workflow.workflow_purge_backstops d\n      where d.due_at <= now()\n      order by d.due_at\n      limit least(greatest(coalesce(batch, 100), 1), 1000)\n      for update skip locked\n    )\n    returning b.run_id\n  )\n  select coalesce(array_agg(due.run_id), '{}') into v_due from due;\n  if cardinality(v_due) = 0 then\n    return 0;\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.id = any (v_due)\n      and r.status::text in ('completed', 'failed', 'cancelled')\n      and r.attributes ->> '$retention' = '0'\n      and r.expired_at is null\n    for update\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  update workflow.workflow_runs set expired_at = now(),\n    input_cbor = null, input = null, output_cbor = null, output = null,\n    error_cbor = null, error = null, dynamic_workflow_code_cbor = null\n    where id = any (v_ids);\n  update workflow.workflow_steps set input_cbor = null, input = null,\n    output_cbor = null, output = null, error_cbor = null, error = null\n    where run_id = any (v_ids);\n  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null\n    where run_id = any (v_ids);\n  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null\n    where run_id = any (v_ids);\n  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);\n  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()\n    where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  return cardinality(v_ids);\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_purge_backstops(batch integer DEFAULT 100)\n RETURNS integer\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_due text[];\n  v_ids text[];\nbegin\n  with due as (\n    delete from workflow.workflow_purge_backstops b\n    where b.run_id in (\n      select d.run_id from workflow.workflow_purge_backstops d\n      where d.due_at <= now()\n      order by d.due_at\n      limit least(greatest(coalesce(batch, 100), 1), 1000)\n      for update skip locked\n    )\n    returning b.run_id\n  )\n  select coalesce(array_agg(due.run_id), '{}') into v_due from due;\n  if cardinality(v_due) = 0 then\n    return 0;\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.id = any (v_due)\n      and r.status::text in ('completed', 'failed', 'cancelled')\n      and r.attributes ->> '$retention' = '0'\n      and r.expired_at is null\n    for update\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  update workflow.workflow_runs set expired_at = now(),\n    input_cbor = null, input = null, output_cbor = null, output = null,\n    error_cbor = null, error = null, dynamic_workflow_code_cbor = null\n    where id = any (v_ids);\n  update workflow.workflow_steps set input_cbor = null, input = null,\n    output_cbor = null, output = null, error_cbor = null, error = null\n    where run_id = any (v_ids);\n  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null\n    where run_id = any (v_ids);\n  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null\n    where run_id = any (v_ids);\n  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);\n  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()\n    where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  return cardinality(v_ids);\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "batch",
+            "type_id": 23,
+            "has_default": true
+          }
+        ],
+        "argument_types": "batch integer DEFAULT 100",
+        "identity_argument_types": "batch integer",
+        "return_type_id": 23,
+        "return_type": "integer",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3003213,
+        "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
-        "definition": "\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')\n      and not (coalesce(skip_unprojected, false) and exists (\n        select 1 from workflow.eve_session_runs sr\n        join workflow.eve_sessions es on es.session_id = sr.session_id\n        where sr.run_id = r.id\n          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)\n      ))\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.eve_session_runs where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_purge_runs(older_than interval DEFAULT '30 days'::interval, statuses text[] DEFAULT ARRAY['completed'::text, 'failed'::text, 'cancelled'::text], batch integer DEFAULT 500, skip_unprojected boolean DEFAULT false)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')\n      and not (coalesce(skip_unprojected, false) and exists (\n        select 1 from workflow.eve_session_runs sr\n        join workflow.eve_sessions es on es.session_id = sr.session_id\n        where sr.run_id = r.id\n          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)\n      ))\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.eve_session_runs where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n$function$\n",
+        "definition": "\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')\n      and not (coalesce(skip_unprojected, false) and exists (\n        select 1 from workflow.eve_session_runs sr\n        join workflow.eve_sessions es on es.session_id = sr.session_id\n        where sr.run_id = r.id\n          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)\n      ))\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);\n  delete from workflow.eve_session_runs where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_purge_runs(older_than interval DEFAULT '30 days'::interval, statuses text[] DEFAULT ARRAY['completed'::text, 'failed'::text, 'cancelled'::text], batch integer DEFAULT 500, skip_unprojected boolean DEFAULT false)\n RETURNS integer\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_statuses text[] := coalesce(statuses, array['completed', 'failed', 'cancelled']);\n  v_ids text[];\n  v_count integer;\nbegin\n  if exists (select 1 from unnest(v_statuses) s where s not in ('completed', 'failed', 'cancelled')) then\n    raise exception 'workflow_purge_runs deletes only completed, failed or cancelled runs'\n      using errcode = '22023', hint = 'WORKFLOW_PURGE_STATUS';\n  end if;\n  select coalesce(array_agg(x.id), '{}') into v_ids from (\n    select r.id from workflow.workflow_runs r\n    where r.status::text = any (v_statuses)\n      and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')\n      and not (coalesce(skip_unprojected, false) and exists (\n        select 1 from workflow.eve_session_runs sr\n        join workflow.eve_sessions es on es.session_id = sr.session_id\n        where sr.run_id = r.id\n          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)\n      ))\n    order by coalesce(r.completed_at, r.updated_at)\n    limit least(greatest(coalesce(batch, 500), 1), 10000)\n    for update skip locked\n  ) x;\n  if cardinality(v_ids) = 0 then\n    return 0;\n  end if;\n  delete from workflow.workflow_events where run_id = any (v_ids);\n  delete from workflow.workflow_event_slots where run_id = any (v_ids);\n  delete from workflow.workflow_steps where run_id = any (v_ids);\n  delete from workflow.workflow_waits where run_id = any (v_ids);\n  delete from workflow.workflow_stream_chunks where run_id = any (v_ids);\n  delete from workflow.workflow_snapshots where run_id = any (v_ids);\n  delete from workflow.workflow_invocations where run_id = any (v_ids);\n  delete from workflow.workflow_hooks\n    where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());\n  delete from workflow.workflow_run_keys where run_id = any (v_ids);\n  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);\n  delete from workflow.eve_session_runs where run_id = any (v_ids);\n  delete from workflow.workflow_runs where id = any (v_ids);\n  get diagnostics v_count = row_count;\n  return v_count;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -296559,7 +296587,7 @@
         }
       },
       {
-        "id": 3003213,
+        "id": 3003214,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -296587,7 +296615,7 @@
         }
       },
       {
-        "id": 3003214,
+        "id": 3003215,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -296615,7 +296643,7 @@
         }
       },
       {
-        "id": 3003215,
+        "id": 3003216,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -296649,7 +296677,7 @@
         }
       },
       {
-        "id": 3003216,
+        "id": 3003217,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -296725,7 +296753,7 @@
         }
       },
       {
-        "id": 3003217,
+        "id": 3003218,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -296753,7 +296781,7 @@
         }
       },
       {
-        "id": 3003218,
+        "id": 3003219,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -296787,7 +296815,7 @@
         }
       },
       {
-        "id": 3003219,
+        "id": 3003220,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -296821,7 +296849,7 @@
         }
       },
       {
-        "id": 3003220,
+        "id": 3003221,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -296842,7 +296870,7 @@
         }
       },
       {
-        "id": 3003221,
+        "id": 3003222,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -296888,7 +296916,7 @@
         }
       },
       {
-        "id": 3003222,
+        "id": 3003223,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -296916,7 +296944,7 @@
         }
       },
       {
-        "id": 3003223,
+        "id": 3003224,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -296944,7 +296972,7 @@
         }
       },
       {
-        "id": 3003224,
+        "id": 3003225,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -296972,7 +297000,7 @@
         }
       },
       {
-        "id": 3003225,
+        "id": 3003226,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -297000,7 +297028,7 @@
         }
       },
       {
-        "id": 3003226,
+        "id": 3003227,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -297040,7 +297068,7 @@
         }
       },
       {
-        "id": 3003227,
+        "id": 3003228,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -297080,7 +297108,7 @@
         }
       },
       {
-        "id": 3003228,
+        "id": 3003229,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -297126,7 +297154,7 @@
         }
       },
       {
-        "id": 3003229,
+        "id": 3003230,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -297172,7 +297200,7 @@
         }
       },
       {
-        "id": 3003230,
+        "id": 3003231,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -297221,7 +297249,7 @@
         }
       },
       {
-        "id": 3003231,
+        "id": 3003232,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -297270,7 +297298,7 @@
         }
       },
       {
-        "id": 3003232,
+        "id": 3003233,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -297304,7 +297332,7 @@
         }
       },
       {
-        "id": 3003233,
+        "id": 3003234,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -297344,7 +297372,7 @@
         }
       },
       {
-        "id": 3003234,
+        "id": 3003235,
         "schema": "public",
         "name": "import_customer_batch",
         "language": "plpgsql",
@@ -297378,7 +297406,7 @@
         }
       },
       {
-        "id": 3003235,
+        "id": 3003236,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -297406,7 +297434,7 @@
         }
       },
       {
-        "id": 3003236,
+        "id": 3003237,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -297434,7 +297462,7 @@
         }
       },
       {
-        "id": 3003237,
+        "id": 3003238,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -297522,7 +297550,7 @@
         }
       },
       {
-        "id": 3003238,
+        "id": 3003239,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -297579,7 +297607,7 @@
         }
       },
       {
-        "id": 3003239,
+        "id": 3003240,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -297649,7 +297677,7 @@
         }
       },
       {
-        "id": 3003240,
+        "id": 3003241,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -297726,7 +297754,7 @@
         }
       },
       {
-        "id": 3003241,
+        "id": 3003242,
         "schema": "public",
         "name": "rs_finance_overview",
         "language": "sql",
@@ -297754,7 +297782,7 @@
         }
       },
       {
-        "id": 3003242,
+        "id": 3003243,
         "schema": "public",
         "name": "rs_pipeline_overview",
         "language": "sql",
@@ -297782,7 +297810,7 @@
         }
       },
       {
-        "id": 3003243,
+        "id": 3003244,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -297810,7 +297838,7 @@
         }
       },
       {
-        "id": 3003244,
+        "id": 3003245,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -297844,7 +297872,7 @@
         }
       },
       {
-        "id": 3003245,
+        "id": 3003246,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -297892,7 +297920,7 @@
         }
       },
       {
-        "id": 3003246,
+        "id": 3003247,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -297920,7 +297948,7 @@
         }
       },
       {
-        "id": 3003247,
+        "id": 3003248,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -297948,7 +297976,7 @@
         }
       },
       {
-        "id": 3003248,
+        "id": 3003249,
         "schema": "public",
         "name": "work_bulk_state",
         "language": "plpgsql",

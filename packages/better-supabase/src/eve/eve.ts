@@ -123,6 +123,16 @@ export {
 
 export { sessionHistory } from "./history.ts";
 
+export { supabaseSkillScopes } from "./skills.ts";
+
+export type {
+  EveSkillPersonaContext,
+  EveSkillScope,
+  EveSkillScopeContext,
+  EveSkillScopeResolver,
+  SupabaseSkillScopesOptions,
+} from "./skills.ts";
+
 export { endStrandedSessions, openSessions } from "./upgrade.ts";
 
 export { createEveSessionStore } from "./store.ts";

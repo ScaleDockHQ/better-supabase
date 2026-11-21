@@ -66,7 +66,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 11. `@supabase/postgrest-typegen` is an optional peer that only the CLI loads.
 12. Imports stay at the top; lazy loads are listed in `.agents/rules/lazy-imports.mdc`.
 13. Splinter lints are fetched at a pinned commit and hash, never vendored.
-14. Never bypass `minimumReleaseAge`. One maintainer-approved, time-boxed exception (ADR 1097) lists exact releases until 2026-11-21 16:53 UTC.
+14. Never bypass `minimumReleaseAge`. Two maintainer-approved, time-boxed exceptions list exact releases: ADR 1097 until 2026-11-21 16:53 UTC and ADR 1105 until 2026-11-21 23:29 UTC.
 15. better-supabase never depends on an authorization library; only the Create page names PermDock, as one optional choice.
 
 ## Conventions

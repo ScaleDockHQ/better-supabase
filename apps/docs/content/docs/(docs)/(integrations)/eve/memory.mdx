@@ -1,6 +1,6 @@
 ---
 title: Memory on eve
-description: Recall core and archival memory and tenant documents per turn, and store eve's file memory in the memory module.
+description: Recall core and archival memory and tenant documents per turn, store eve's file memory in the memory module, and keep custom skills inside the tenant.
 ---
 
 `supabaseMemory` is a memory provider over the memory block, with
@@ -74,3 +74,56 @@ export default defineMemory({
   provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
 });
 ```
+
+## Custom skills
+
+eve's experimental custom skills extension lets the people who talk to the
+agent save their own versioned skills. Store them with
+`supabaseDocumentBackend` under their own scope, and pass
+`supabaseSkillScopes()` so every skill stays inside the caller's tenant:
+
+```ts title="agent/extensions/skills.ts"
+import customSkills from "eve/experimental/extensions/custom-skills";
+import {
+  supabaseDocumentBackend,
+  supabaseSkillScopes,
+} from "better-supabase/eve";
+
+import { memory } from "../lib/blocks";
+
+export default customSkills({
+  storage: supabaseDocumentBackend({ memory, scope: "skills" }),
+  scopes: supabaseSkillScopes({ organization: { writableBy: ["owner"] } }),
+});
+```
+
+The resolver reads the `tenantId`, `roles` and `isAnonymous` attributes that
+[`supabaseAuth`](/docs/eve/auth) sets and returns these scopes, in this
+order:
+
+| Scope          | Key                          | Who has it                                                         |
+| -------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `personal`     | `tenant:<id>:user:<user>`    | a signed-in user; anonymous and runtime callers have none          |
+| `persona`      | `tenant:<id>:persona:<name>` | everyone in the tenant, read-only, when `persona` returns a name   |
+| `channel`      | `tenant:<id>:space:<space>`  | everyone in a shared conversation space; `channel: false` drops it |
+| `organization` | `tenant:<id>`                | everyone in the tenant; `organization: false` drops it             |
+
+The `organization` scope is read-only unless the caller is a user who holds
+one of the roles in `writableBy`. A caller without a tenant gets only the
+`personal` and `channel` scopes, keyed `user:<user>` and `space:<space>` as
+eve's defaults are.
+
+`persona` picks a shared, read-only set of skills per turn. It receives the
+tenant, the caller, the session, the turn id and the parent session (for a
+subagent, the session that delegated to it; eve 1.3 added both), so a
+subagent can speak as the persona its parent chose:
+
+```ts
+supabaseSkillScopes({
+  persona: ({ parent, sessionId }) =>
+    personaFor(parent?.rootSessionId ?? sessionId),
+});
+```
+
+Give each agent that shares the memory tables its own `scope` (or eve's
+`namespace` option), or the agents share every user's skills.

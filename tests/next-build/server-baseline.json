@@ -9,7 +9,7 @@
     "raw": 1272236
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5422076
+    "raw": 5430040
   },
   "/.well-known/workflow/v1/webhook/[token]/route": {
     "raw": 1639347
@@ -39,7 +39,7 @@
     "raw": 3198919
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3771035
+    "raw": 3776746
   },
   "/[locale]/(app)/assistant/activity/page": {
     "raw": 5349313
@@ -60,13 +60,13 @@
     "raw": 5359612
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3780820
+    "raw": 3786531
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
     "raw": 5349636
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
-    "raw": 3721179
+    "raw": 3726891
   },
   "/[locale]/(app)/assistant/evals/page": {
     "raw": 3201396
@@ -75,7 +75,7 @@
     "raw": 3202493
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3773573
+    "raw": 3779284
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
     "raw": 3196667
@@ -87,10 +87,10 @@
     "raw": 3194610
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3762525
+    "raw": 3768236
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3773782
+    "raw": 3779493
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
     "raw": 3252202
@@ -135,7 +135,7 @@
     "raw": 3213230
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 3737398
+    "raw": 3743109
   },
   "/[locale]/(app)/community/page": {
     "raw": 3209908
@@ -258,10 +258,10 @@
     "raw": 3201850
   },
   "/[locale]/(app)/documents/register/[id]/page": {
-    "raw": 3734733
+    "raw": 3740445
   },
   "/[locale]/(app)/documents/register/page": {
-    "raw": 3722293
+    "raw": 3728005
   },
   "/[locale]/(app)/documents/templates/[id]/page": {
     "raw": 3208683
@@ -270,10 +270,10 @@
     "raw": 3205479
   },
   "/[locale]/(app)/drive/[folderId]/page": {
-    "raw": 3742046
+    "raw": 3747758
   },
   "/[locale]/(app)/drive/page": {
-    "raw": 3748173
+    "raw": 3753885
   },
   "/[locale]/(app)/field/day/page": {
     "raw": 3219395
@@ -375,7 +375,7 @@
     "raw": 3201624
   },
   "/[locale]/(app)/knowledge/page": {
-    "raw": 3711330
+    "raw": 3717042
   },
   "/[locale]/(app)/legal-entities/[id]/page": {
     "raw": 3252161
@@ -741,19 +741,19 @@
     "raw": 3210086
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5223578
+    "raw": 5231229
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5227570
+    "raw": 5235221
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5228565
+    "raw": 5236216
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5226276
+    "raw": 5233927
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5221395
+    "raw": 5229046
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 3021392
@@ -780,7 +780,7 @@
     "raw": 1472556
   },
   "/[locale]/(auth)/send/[token]/page": {
-    "raw": 3532322
+    "raw": 3538034
   },
   "/[locale]/(auth)/share/[token]/page": {
     "raw": 3031564
@@ -858,13 +858,13 @@
     "raw": 1088263
   },
   "/api/chat/[id]/participants/route": {
-    "raw": 1958159
+    "raw": 1963868
   },
   "/api/chat/[id]/stop/route": {
-    "raw": 1957639
+    "raw": 1963348
   },
   "/api/chat/[id]/stream/route": {
-    "raw": 1957666
+    "raw": 1963375
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3575364
@@ -876,7 +876,7 @@
     "raw": 3575467
   },
   "/api/chat/route": {
-    "raw": 1957589
+    "raw": 1963298
   },
   "/api/checkout-sessions/list/route": {
     "raw": 2787852
@@ -939,7 +939,7 @@
     "raw": 2797717
   },
   "/api/documents/register/list/route": {
-    "raw": 3321333
+    "raw": 3327043
   },
   "/api/domains/list/route": {
     "raw": 2790254
@@ -1047,7 +1047,7 @@
     "raw": 2790934
   },
   "/api/outbox/route": {
-    "raw": 4736326
+    "raw": 4743962
   },
   "/api/passes/list/route": {
     "raw": 2788445
@@ -1167,16 +1167,16 @@
     "raw": 2675580
   },
   "/api/workflows/definitions/list/route": {
-    "raw": 4871962
+    "raw": 4879598
   },
   "/api/workflows/hooks/[token]/route": {
-    "raw": 3253624
+    "raw": 3261260
   },
   "/api/workflows/runs/list/route": {
-    "raw": 4871950
+    "raw": 4879586
   },
   "/api/workflows/tick/route": {
-    "raw": 4753398
+    "raw": 4761034
   },
   "/manifest.webmanifest/route": {
     "raw": 182438

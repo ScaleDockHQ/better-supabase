@@ -169,6 +169,7 @@ export function worldOptionsFromEnv(
   const encryptionKeys = read("WORKFLOW_ENCRYPTION_KEYS");
 
   const enableInvoke = read("WORKFLOW_POSTGRES_ENABLE_INVOKE");
+  const skipWorkers = read("WORKFLOW_POSTGRES_SKIP_WORKERS");
 
   const streamFlushIntervalMs = Number(
     read("WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS") ?? "",
@@ -178,6 +179,9 @@ export function worldOptionsFromEnv(
     ...(enableInvoke === undefined
       ? {}
       : { enableInvoke: enableInvoke === "1" || enableInvoke === "true" }),
+    ...(skipWorkers === undefined
+      ? {}
+      : { skipWorkers: skipWorkers === "1" || skipWorkers === "true" }),
     ...(Number.isFinite(streamFlushIntervalMs) &&
     streamFlushIntervalMs >= 0 &&
     read("WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS") !== undefined
