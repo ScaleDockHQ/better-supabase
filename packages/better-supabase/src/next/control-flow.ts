@@ -1,9 +1,6 @@
-import {
-  forbidden,
-  notFound,
-  unauthorized,
-  unstable_rethrow as nextRethrow,
-} from "next/navigation.js";
+import { forbidden } from "next/dist/client/components/forbidden.js";
+import { notFound } from "next/dist/client/components/not-found.js";
+import { unauthorized } from "next/dist/client/components/unauthorized.js";
 
 import type { DbError } from "../core/errors.ts";
 
@@ -54,10 +51,41 @@ export function interrupt(error: DbError): never {
   throw new DbException(error);
 }
 
+const NEXT_DIGESTS: ReadonlySet<string> = new Set([
+  "NEXT_REDIRECT",
+  "NEXT_HTTP_ERROR_FALLBACK",
+  "DYNAMIC_SERVER_USAGE",
+  "BAILOUT_TO_CLIENT_SIDE_RENDERING",
+  "HANGING_PROMISE_REJECTION",
+  "NEXT_PRERENDER_INTERRUPTED",
+]);
+
+const REACT_POSTPONE = Symbol.for("react.postpone");
+
 /**
- * Rethrows Next's own control-flow errors (redirects, `notFound()`, dynamic
- * rendering bailouts, prerender interrupts) and returns for any other error.
+ * `unstable_rethrow` without `next/navigation`: that entry loads the client
+ * router context, which Turbopack can't resolve inside route handlers. The
+ * digests are the ones Next 16 checks.
  */
 export function rethrowNextControlFlow(error: unknown): void {
-  nextRethrow(error);
+  if (typeof error !== "object" || error === null) {
+    return;
+  }
+
+  const digest = "digest" in error ? error.digest : undefined;
+
+  if (
+    (typeof digest === "string" &&
+      NEXT_DIGESTS.has(digest.split(";", 1)[0] ?? "")) ||
+    ("$$typeof" in error && error.$$typeof === REACT_POSTPONE) ||
+    (error instanceof Error &&
+      error.message.includes("needs to bail out of prerendering"))
+  ) {
+    // oxlint-disable-next-line typescript/only-throw-error -- React's postpone signal is not an Error, and Next needs the original value.
+    throw error;
+  }
+
+  if ("cause" in error) {
+    rethrowNextControlFlow(error.cause);
+  }
 }

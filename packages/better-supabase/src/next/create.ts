@@ -1,6 +1,6 @@
 import { cacheLife, io } from "next/cache.js";
+import { redirect } from "next/dist/client/components/redirect.js";
 import { cookies } from "next/headers.js";
-import { redirect } from "next/navigation.js";
 import { cache } from "react";
 
 import type { AuthResolution } from "../auth/resolve.ts";
@@ -660,10 +660,8 @@ export function createNext<
               ? (bootstrapOptions.reasons?.banned ?? "user_banned")
               : (bootstrapOptions.reasons?.ended ?? "session_not_found");
 
-          // SAFETY: the target is an app-chosen path built at runtime. With typedRoutes on,
-          // Next types redirect() to the app's route union, which a runtime string never matches.
           redirect(
-            `${bootstrapOptions.redirect}?reason=${encodeURIComponent(reason)}` as never,
+            `${bootstrapOptions.redirect}?reason=${encodeURIComponent(reason)}`,
           );
         }
 

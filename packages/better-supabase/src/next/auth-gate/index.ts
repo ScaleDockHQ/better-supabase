@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 
-import { forbidden, redirect, unauthorized } from "next/navigation.js";
+import { forbidden } from "next/dist/client/components/forbidden.js";
+import { redirect } from "next/dist/client/components/redirect.js";
+import { unauthorized } from "next/dist/client/components/unauthorized.js";
 import { Fragment, Suspense, createElement } from "react";
 
 import type { GateUser } from "../user.ts";
