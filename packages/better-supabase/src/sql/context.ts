@@ -358,6 +358,8 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * tenant, user or shared-space check goes through.
    */
   readonly scope: BlockSqlScope;
+  /** Whether the app's schema files create the function `schema.name`. */
+  appHasFunction(name: string): boolean;
   /** Whether the app's own table `schema.table` is known to have `column`. */
   ownHasColumn(table: string, column: string): boolean;
   /** `sql.tenantColumn`, the tenant column an option that names none uses. */
@@ -679,6 +681,8 @@ export interface BlockSqlContextSource {
    * 0580).
    */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
+  /** `layout.appFunctions`. */
+  readonly appFunctions?: readonly string[];
   /** `layout.appColumns`: the columns the app's files add to tables. */
   readonly appColumns?: Readonly<
     Record<string, readonly { readonly name: string; readonly type: string }[]>
@@ -1318,6 +1322,7 @@ export function createModuleContext(
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,
+    appHasFunction: (name) => source.appFunctions?.includes(name) === true,
     ownHasColumn: (table, column) =>
       source.ownColumns?.[table]?.includes(column) === true,
     ...(tenantColumn === undefined ? {} : { tenantColumn }),

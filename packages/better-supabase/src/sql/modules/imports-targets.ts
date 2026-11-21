@@ -40,6 +40,128 @@ function refsOf(
   return refs;
 }
 
+/** `options.targetConvention`: how a bare entity name finds its functions. */
+interface TargetConvention {
+  readonly schema: string;
+  readonly write: string;
+  readonly updatedAt: string;
+}
+
+const DEFAULT_CONVENTION: TargetConvention = {
+  schema: "public",
+  write: "import_{entity}",
+  updatedAt: "import_{entity}_updated_at",
+};
+
+function conventionOf(ctx: BlockSqlContext): TargetConvention {
+  const raw: unknown = ctx.option("targetConvention");
+
+  if (raw === undefined) {
+    return DEFAULT_CONVENTION;
+  }
+
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new TypeError(
+      "blocks['imports'].options.targetConvention must be { schema?, write?, updatedAt? }",
+    );
+  }
+
+  const entries = new Map<string, unknown>(Object.entries(raw));
+
+  const text = (key: keyof TargetConvention): string => {
+    const value = entries.get(key) ?? DEFAULT_CONVENTION[key];
+
+    if (typeof value !== "string" || value === "") {
+      throw new TypeError(
+        `blocks['imports'].options.targetConvention.${key} must be text`,
+      );
+    }
+
+    return value;
+  };
+
+  return {
+    schema: text("schema"),
+    write: text("write"),
+    updatedAt: text("updatedAt"),
+  };
+}
+
+/**
+ * A bare entity name (a list entry, or `entity: true`) as a full target:
+ * `write` and `updatedAt` follow the convention (`updatedAt` only when the
+ * app's files create that function), and `subjectType` is the record type of
+ * the same name.
+ */
+function bareTarget(
+  ctx: BlockSqlContext,
+  where: string,
+  entity: string,
+  convention: TargetConvention,
+): Record<string, unknown> {
+  const name = entity.replaceAll(/[^a-z0-9_]/giu, "_").toLowerCase();
+
+  const fill = (template: string): string =>
+    `${convention.schema}.${template.replaceAll("{entity}", name)}`;
+
+  const subjectType = Object.keys(ctx.subjects).find((key) => key === entity);
+
+  if (subjectType === undefined) {
+    throw new TypeError(
+      `${where}.${entity}: a bare target takes its subjectType from the record type "${entity}", and config.recordTypes has none. Add it or write { subjectType, write }.`,
+    );
+  }
+
+  const updatedAt = fill(convention.updatedAt);
+
+  return {
+    subjectType,
+    write: fill(convention.write),
+    ...(ctx.appHasFunction(updatedAt) ? { updatedAt } : {}),
+  };
+}
+
+/** `targets` as a map: a list of names becomes one bare entry each. */
+function targetMap(
+  ctx: BlockSqlContext,
+  where: string,
+  raw: unknown,
+): ReadonlyMap<string, unknown> {
+  const written: unknown = Array.isArray(raw)
+    ? Object.fromEntries(raw.map((name: unknown) => [String(name), true]))
+    : raw;
+
+  if (typeof written !== "object" || written === null) {
+    throw new TypeError(`${where} must map entity names to targets`);
+  }
+
+  const convention = conventionOf(ctx);
+
+  return new Map(
+    Object.entries(written).map(([entity, value]) => {
+      const bare =
+        value === true ||
+        (typeof value === "object" &&
+          value !== null &&
+          !Array.isArray(value) &&
+          !("write" in value) &&
+          !("subjectType" in value));
+
+      if (!bare || !ENTITY_NAME.test(entity)) {
+        return [entity, value] as const;
+      }
+
+      return [
+        entity,
+        {
+          ...bareTarget(ctx, where, entity, convention),
+          ...(typeof value === "object" ? value : {}),
+        },
+      ] as const;
+    }),
+  );
+}
+
 /**
  * Every target the module dispatches to: the contributions of the blocks that
  * use `imports`, then the app's own from `blocks.imports.options.targets`.
@@ -49,15 +171,10 @@ export function targetsOf(
   ctx: BlockSqlContext,
 ): readonly ImportTargetContribution[] {
   const where = "blocks['imports'].options.targets";
-  const raw: unknown = ctx.option("targets") ?? {};
-
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new TypeError(`${where} must map entity names to targets`);
-  }
-
+  const entries = targetMap(ctx, where, ctx.option("targets") ?? {});
   const own: ImportTargetContribution[] = [];
 
-  for (const [entity, value] of new Map<string, unknown>(Object.entries(raw))) {
+  for (const [entity, value] of entries) {
     if (!ENTITY_NAME.test(entity)) {
       throw new TypeError(`${where}: "${entity}" is not a valid entity name`);
     }

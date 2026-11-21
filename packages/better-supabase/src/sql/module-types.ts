@@ -361,6 +361,11 @@ export interface BlockSqlLayout {
    * subject read policy compares a subject whose id column is listed here on
    * the column's own type, inside the branch for its subject type.
    */
+  /**
+   * The functions the app's own schema files create, as lowercase
+   * `schema.name`. Read only for the bare import targets.
+   */
+  readonly appFunctions?: readonly string[];
   readonly uuidColumns?: Readonly<Record<string, readonly string[]>>;
   /**
    * `schema.table` of each table the app already has, to the schema file that

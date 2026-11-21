@@ -25,8 +25,42 @@ describe("import target options", () => {
     expect(sql).toContain("write_item");
   });
 
+  describe("bare targets", () => {
+    const layout = (targets: unknown, appFunctions: string[] = []) =>
+      moduleBody("imports", {
+        modules: { imports: { options: { targets } } },
+        subjects: { invoice: { table: "invoices" } },
+        appFunctions,
+      });
+
+    it("fills write and subjectType from the convention", () => {
+      const sql = layout(["invoice"]);
+
+      expect(sql).toContain("import_invoice");
+      expect(sql).not.toContain("import_invoice_updated_at");
+    });
+
+    it("adds updatedAt when the app's files create it", () => {
+      expect(
+        layout({ invoice: true }, ["public.import_invoice_updated_at"]),
+      ).toContain("import_invoice_updated_at");
+    });
+
+    it("keeps an explicit key over the convention", () => {
+      expect(
+        layout({
+          invoice: { write: "app.load_invoice", subjectType: "invoice" },
+        }),
+      ).toContain("load_invoice");
+    });
+
+    it("needs a record type of the same name", () => {
+      expect(() => imports(["invoice"])).toThrow(/record type "invoice"/);
+    });
+  });
+
   it("refuses a target that is not a map of entities", () => {
-    expect(() => imports([])).toThrow(/must map entity names/);
+    expect(() => imports("item")).toThrow(/must map entity names/);
     expect(() => imports({ "Not A Name": valid })).toThrow(
       /not a valid entity name/,
     );

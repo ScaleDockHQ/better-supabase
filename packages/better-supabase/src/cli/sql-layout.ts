@@ -222,6 +222,9 @@ export async function moduleLayoutFor(
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
     uuidColumns: uuidColumnsOf(await appSchemaTexts(config), config.schemas),
+    ...(resolved.has("imports")
+      ? { appFunctions: appFunctionsOf(await appSchemaTexts(config)) }
+      : {}),
     ...(resolved.has("pgtap") ? await accessTokenHookOf(config) : {}),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
@@ -253,6 +256,27 @@ export async function moduleLayoutFor(
       : {}),
     ...own,
   };
+}
+
+const FUNCTION_DECLARATION =
+  /\bcreate\s+(?:or\s+replace\s+)?function\s+(?:"?([a-z_][a-z0-9_]*)"?\s*\.\s*)?"?([a-z_][a-z0-9_]*)"?\s*\(/giu;
+
+/**
+ * The functions the app's files create, as `schema.name` (`public`
+ * unqualified).
+ */
+function appFunctionsOf(
+  files: readonly { readonly text: string }[],
+): readonly string[] {
+  return [
+    ...new Set(
+      files.flatMap((file) =>
+        [...file.text.matchAll(FUNCTION_DECLARATION)].map((match) =>
+          `${match[1] ?? "public"}.${match[2] ?? ""}`.toLowerCase(),
+        ),
+      ),
+    ),
+  ];
 }
 
 /** The columns the app's files declare as `uuid`, by `schema.table`. */
