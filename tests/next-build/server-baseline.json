@@ -741,19 +741,19 @@
     "raw": 3218740
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5241156
+    "raw": 5241173
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5245148
+    "raw": 5245165
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5246147
+    "raw": 5246164
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5243763
+    "raw": 5243780
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5238973
+    "raw": 5238990
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 3030046
