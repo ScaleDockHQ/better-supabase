@@ -325,3 +325,39 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
 export function clientFunctions(module: string): readonly string[] {
   return CLIENT_FUNCTIONS[module]?.split(" ") ?? [];
 }
+
+/**
+ * The client functions whose result is never null, by module: `true` for the
+ * whole result, or the `returns table` columns that are never null. `gen` reads
+ * it, so an app lists them in `gen.functions.<name>.notNull` for its own
+ * functions only.
+ */
+const CLIENT_NOT_NULL: Readonly<
+  Record<string, Readonly<Record<string, true | readonly string[]>>>
+> = {
+  announcements: {
+    active_announcements: true,
+    dismiss_announcement: true,
+    list_announcements: true,
+    purge_announcement: true,
+    save_announcement: true,
+  },
+  settings: {
+    get_platform_settings: true,
+    reset_platform_setting: true,
+    set_platform_setting: true,
+  },
+  webhooks: {
+    dispatch_webhook: true,
+    redeliver_webhook: true,
+    rotate_webhook_secret: true,
+  },
+};
+
+/** What `module` declares about the null results of its function `name`. */
+export function clientNotNull(
+  module: string,
+  name: string,
+): true | readonly string[] | undefined {
+  return CLIENT_NOT_NULL[module]?.[name];
+}

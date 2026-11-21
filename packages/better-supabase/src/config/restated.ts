@@ -10,7 +10,8 @@ export type RestatedKind =
   | "default"
   | "permission"
   | "option"
-  | "provider";
+  | "provider"
+  | "notNull";
 
 /** One config entry the resolved defaults already supply. */
 export interface RestatedEntry {
@@ -54,6 +55,12 @@ export interface RestatedInput {
         >
       >
     | undefined;
+  /** `gen.functions`, for `notNull` entries a block already declares. */
+  readonly genFunctions?: Readonly<
+    Record<string, { readonly notNull?: unknown } | undefined>
+  >;
+  /** What an installed block declares as not null for a function name. */
+  readonly blockNotNull?: (name: string) => unknown;
   /** The `null` entries for columns the app's views lack anyway. */
   readonly nulls?: readonly {
     readonly block: string;
@@ -166,6 +173,23 @@ export function restatedEntries(input: RestatedInput): RestatedEntry[] {
       reason: `maps to null, but ${entry.view} has no "${entry.name}" column`,
       value: null,
     });
+  }
+
+  for (const [key, spec] of Object.entries(input.genFunctions ?? {})) {
+    const declared = input.blockNotNull?.(key.slice(key.lastIndexOf(".") + 1));
+
+    if (
+      spec?.notNull !== undefined &&
+      declared !== undefined &&
+      same(spec.notNull, declared)
+    ) {
+      found.push({
+        kind: "notNull",
+        path: `gen.functions.${key}.notNull`,
+        reason: "repeats the not-null result the block declares for it",
+        value: declared,
+      });
+    }
   }
 
   const provided = providerEntries(input);

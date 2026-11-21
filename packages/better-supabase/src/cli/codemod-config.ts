@@ -6,7 +6,7 @@ import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { restatedEntries } from "../config/index.ts";
-import { redundantNulls, SQL_MODULES } from "../sql/index.ts";
+import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { loadConfig } from "./config.ts";
@@ -251,6 +251,13 @@ async function prune(
       sqlTenantColumn: config.sql.tenantColumn,
       subjects: config.subjects,
       restatedDefaults: config.restatedDefaults,
+      genFunctions: config.functions,
+      blockNotNull: (name) =>
+        Object.entries(config.blocks).flatMap(([key, entry]) => {
+          const declared = clientNotNull(entry?.block ?? key, name);
+
+          return declared === undefined ? [] : [declared];
+        })[0],
       provider,
       defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
       nulls: redundantNulls({

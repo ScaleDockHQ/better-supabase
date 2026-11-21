@@ -668,6 +668,49 @@ function build(ctx: BlockSqlContext): string {
 ${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${allocationImportFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${inventoryPages(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
+const ALLOCATION_CONTRACT: readonly BlockSqlContractFunction[] = [
+  {
+    name: "allocate_stock",
+    args: [
+      "{id}",
+      "uuid",
+      "uuid",
+      "numeric",
+      "text",
+      "text",
+      "text",
+      "boolean",
+    ],
+    returns: "jsonb",
+  },
+  {
+    name: "fulfill_allocation",
+    args: ["uuid", "numeric", "jsonb"],
+    returns: "jsonb",
+  },
+  {
+    name: "restore_allocation",
+    args: ["uuid", "numeric", "jsonb"],
+    returns: "jsonb",
+  },
+  {
+    name: "release_allocations",
+    args: ["{id}", "text", "text"],
+    returns: "integer",
+  },
+  { name: "release_allocation", args: ["uuid"], returns: "jsonb" },
+  {
+    name: "transfer_allocation",
+    args: ["uuid", "text", "text", "text"],
+    returns: "jsonb",
+  },
+  {
+    name: "list_allocations",
+    args: ["{id}", "text", "text"],
+    returns: "jsonb",
+  },
+];
+
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const transfers = ctx.hasTable("transfers") && ctx.hasTable("transferLines");
 
@@ -761,46 +804,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "expiring_lots", args: ["{id}", "date"], returns: "jsonb" },
     { name: "expire_lots", args: ["{id}", "date"], returns: "integer" },
     { name: "stock_valuation", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "allocate_stock",
-      args: [
-        "{id}",
-        "uuid",
-        "uuid",
-        "numeric",
-        "text",
-        "text",
-        "text",
-        "boolean",
-      ],
-      returns: "jsonb",
-    },
-    {
-      name: "fulfill_allocation",
-      args: ["uuid", "numeric", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "restore_allocation",
-      args: ["uuid", "numeric", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "release_allocations",
-      args: ["{id}", "text", "text"],
-      returns: "integer",
-    },
-    { name: "release_allocation", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "transfer_allocation",
-      args: ["uuid", "text", "text", "text"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_allocations",
-      args: ["{id}", "text", "text"],
-      returns: "jsonb",
-    },
+    ...(ctx.hasTable("allocations") ? ALLOCATION_CONTRACT : []),
     ...(transfers
       ? [
           {

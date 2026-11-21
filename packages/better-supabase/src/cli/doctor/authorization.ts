@@ -17,6 +17,7 @@ import {
   redundantNulls,
   sameTemplateFunction,
   SQL_MODULES,
+  clientNotNull,
   templatePlaceholderProblems,
 } from "../../sql/index.ts";
 import {
@@ -462,6 +463,13 @@ async function restatedDefaults(
       sqlTenantColumn: context.config.sql.tenantColumn,
       subjects: context.config.subjects,
       restatedDefaults: context.config.restatedDefaults,
+      genFunctions: context.config.functions,
+      blockNotNull: (name) =>
+        Object.entries(context.config.blocks).flatMap(([key, entry]) => {
+          const declared = clientNotNull(entry?.block ?? key, name);
+
+          return declared === undefined ? [] : [declared];
+        })[0],
       provider,
       defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
       // Without a snapshot there are no views, so no `null` can be redundant.

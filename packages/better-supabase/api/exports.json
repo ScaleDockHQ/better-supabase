@@ -10142,6 +10142,7 @@
       "checkedValueMaps",
       "checkValues",
       "clearMemo",
+      "clientNotNull",
       "columnTagComments",
       "commentOnTableSql",
       "compileReadSet",

@@ -137,6 +137,63 @@ describe("function types", () => {
   });
 });
 
+describe("block not-null results", () => {
+  async function returnsOf(
+    blocks: object,
+    functions: object = {},
+  ): Promise<string | undefined> {
+    const snapshot = await withGenerator((generator) => {
+      const template = generator.functions.find(
+        (fn) => fn.name === "purge_rate_limits",
+      )!;
+
+      generator.functions.push({
+        ...template,
+        id: 1_999_300,
+        schema: "better_supabase",
+        name: "dismiss_announcement",
+        args: [],
+        argument_types: "",
+        identity_argument_types: "",
+        return_type_id: 16,
+        return_type: "boolean",
+      });
+    });
+
+    const withBlocks = resolveConfig(
+      // SAFETY: the test passes only keys the config accepts.
+      {
+        gen: { casing: "camel" },
+        schemas: ["public", "better_supabase"],
+        blocks,
+        functions,
+      } as never,
+      fixtures,
+    );
+
+    return buildModel(snapshot, withBlocks).functions.find(
+      (entry) => entry.key === "dismiss_announcement",
+    )?.returns;
+  }
+
+  it("types a result the installed block declares not null", async () => {
+    expect(await returnsOf({ announcements: {} })).toBe("boolean");
+  });
+
+  it("leaves another project's function of that name nullable", async () => {
+    expect(await returnsOf({})).toBe("boolean | null");
+  });
+
+  it("lets the app's own entry win", async () => {
+    expect(
+      await returnsOf(
+        { announcements: {} },
+        { dismiss_announcement: { notNull: [] } },
+      ),
+    ).toBe("boolean | null");
+  });
+});
+
 describe("generator model blocks", () => {
   it("lists the installed blocks with their final names", async () => {
     const snapshot = await loadFixtureSnapshot();

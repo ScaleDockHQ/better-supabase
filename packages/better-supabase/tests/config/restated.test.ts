@@ -24,6 +24,45 @@ const input = (blocks: object, extra: object = {}) => ({
 const paths = (entries: ReturnType<typeof restatedEntries>) =>
   entries.map((entry) => `${entry.kind}:${entry.path}`);
 
+describe("restatedEntries gen.functions", () => {
+  const declared = (name: string) =>
+    name === "set_platform_setting" ? true : undefined;
+
+  it("reports a notNull the block declares", () => {
+    expect(
+      paths(
+        restatedEntries(
+          input(
+            {},
+            {
+              genFunctions: {
+                set_platform_setting: { notNull: true },
+                own_function: { notNull: true },
+                "public.other": { notNull: ["a"] },
+              },
+              blockNotNull: declared,
+            },
+          ),
+        ),
+      ),
+    ).toEqual(["notNull:gen.functions.set_platform_setting.notNull"]);
+  });
+
+  it("keeps a notNull that differs from the block's", () => {
+    expect(
+      restatedEntries(
+        input(
+          {},
+          {
+            genFunctions: { set_platform_setting: { notNull: [] } },
+            blockNotNull: declared,
+          },
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("restatedEntries", () => {
   it("reports an identity mapping of an optional column", () => {
     expect(
