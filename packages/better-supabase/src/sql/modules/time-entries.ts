@@ -1048,6 +1048,12 @@ const REQUIRES = ["memberships", "permissions", "approvals"] as const;
 export const TIME_ENTRIES: BlockSqlDefinition = {
   contributes: TIME_ENTRIES_CONTRIBUTES,
   name: "time-entries",
+  providerOptional: {
+    approverFor:
+      "lets the users the provider names decide a request, such as out of office covers and delegations",
+    managedUsers:
+      "counts the people a caller manages through the provider as that caller's reports",
+  },
   scopes: ["tenant"],
   title: "Time tracking",
   description:

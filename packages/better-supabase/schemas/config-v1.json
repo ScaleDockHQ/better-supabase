@@ -1087,11 +1087,77 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "approval": {
+                    "type": "object",
+                    "properties": {
+                      "steps": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "mode": {
+                        "enum": ["sequential", "parallel"],
+                        "type": "string"
+                      },
+                      "effects": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["steps"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["permission"],
                 "additionalProperties": false
               }
+            },
+            "actionKeys": {
+              "type": "object",
+              "properties": {
+                "blocks": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "recordTypes": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "buckets": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "topics": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
             },
             "memberships": {
               "type": "array",

@@ -85,6 +85,13 @@ export function moduleContext(
       ...(layout.permissionCatalog
         ? { permissionCatalog: layout.permissionCatalog }
         : {}),
+      ...(layout.providerActionKeys?.blocks
+        ? { providerActionKeys: layout.providerActionKeys.blocks }
+        : {}),
+      ...providerPeople(modules, layout),
+      ...(layout.providerApprovals
+        ? { providerApprovals: layout.providerApprovals }
+        : {}),
       ...(layout.rerunnable === true ? { rerunnable: true } : {}),
       ...(layout.grants
         ? {
@@ -438,6 +445,30 @@ function withProviderRoles(
       ...tenant,
       options: { ...tenant.options, roleThrough: source.role.through },
     },
+  };
+}
+
+/**
+ * The provider's `approverFor` (when it names the request with `{id}`) and
+ * `managedUsers` templates, which only count under the `provider` model.
+ */
+function providerPeople(
+  modules: AnyBlocksConfig | undefined,
+  layout: BlockSqlLayout,
+): { providerApproverFor?: string; providerManagedUsers?: string } {
+  const functions = layout.accessProvider?.functions;
+
+  if (modules?.permissions?.model !== "provider" || functions === undefined) {
+    return {};
+  }
+
+  return {
+    ...(functions.approverFor?.includes("{id}")
+      ? { providerApproverFor: functions.approverFor }
+      : {}),
+    ...(functions.managedUsers === undefined
+      ? {}
+      : { providerManagedUsers: functions.managedUsers }),
   };
 }
 

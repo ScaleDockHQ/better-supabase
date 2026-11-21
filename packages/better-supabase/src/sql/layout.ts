@@ -1,4 +1,9 @@
-import type { ResolvedConfig } from "../config/index.ts";
+import type {
+  AuthorizationActionKeys,
+  AuthorizationApproval,
+  AuthorizationOperation,
+  ResolvedConfig,
+} from "../config/index.ts";
 import type {
   BlockSqlAccessProvider,
   BlockSqlEntitlementsProvider,
@@ -20,6 +25,10 @@ export function moduleLayout(
     ...(entitlementsProvider ? { entitlementsProvider } : {}),
     ...(accessProvider ? { accessProvider } : {}),
     ...(permissionCatalog ? { permissionCatalog } : {}),
+    ...providerApprovalsOf(config.authorization?.operations),
+    ...(config.authorization?.actionKeys
+      ? { providerActionKeys: config.authorization.actionKeys }
+      : {}),
     ...(config.authorization?.versions
       ? {
           authzVersionsProvider: {
@@ -54,7 +63,10 @@ export function moduleLayout(
       ? {}
       : { blockTenantColumn: config.sql.tenantColumn }),
     ...(config.sql.brand === undefined ? {} : { blockBrand: config.sql.brand }),
-    subjects: config.subjects,
+    subjects: withProviderKeys(
+      config.subjects,
+      config.authorization?.actionKeys,
+    ),
     appTables: config.appTables,
     vectorSearch: config.vectorSearch,
     grants: Object.entries(config.expose).flatMap(([table, roles]) => [
@@ -88,4 +100,45 @@ export function moduleLayout(
       ? { tenantColumn: config.extensions.tenant.column }
       : {}),
   };
+}
+
+/**
+ * The record types with the permission keys the provider gives their actions
+ * (`authorization.actionKeys.recordTypes`). An entry the config sets wins.
+ */
+export function withProviderKeys(
+  subjects: ResolvedConfig["subjects"],
+  actionKeys: AuthorizationActionKeys | undefined,
+): ResolvedConfig["subjects"] {
+  const byType = actionKeys?.recordTypes;
+
+  if (byType === undefined) {
+    return subjects;
+  }
+
+  return Object.fromEntries(
+    Object.entries(subjects).map(([type, entry]) => {
+      const keys = byType[type];
+
+      return [
+        type,
+        keys === undefined
+          ? entry
+          : { ...entry, permissions: { ...keys, ...entry.permissions } },
+      ];
+    }),
+  );
+}
+
+/** The operations that carry an approval floor, by operation name. */
+function providerApprovalsOf(
+  operations: Readonly<Record<string, AuthorizationOperation>> | undefined,
+): { providerApprovals?: Record<string, AuthorizationApproval> } {
+  const entries = Object.entries(operations ?? {}).flatMap(([name, op]) =>
+    op.approval === undefined ? [] : [[name, op.approval] as const],
+  );
+
+  return entries.length === 0
+    ? {}
+    : { providerApprovals: Object.fromEntries(entries) };
 }

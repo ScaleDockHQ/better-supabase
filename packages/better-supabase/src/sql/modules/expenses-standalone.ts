@@ -28,7 +28,12 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
-import { appFunction, deciderCall, managerDecides } from "./direct-approver.ts";
+import {
+  appFunction,
+  deciderCall,
+  hasDecider,
+  managerDecides,
+} from "./direct-approver.ts";
 import {
   EXPENSE_RESERVED,
   invoicedCheck,
@@ -152,7 +157,7 @@ function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
               "approve",
               OPERATIONS["expenses.approve"],
             ),
-            ...(ctx.text("decider", "") === "" ? {} : { decider: true }),
+            ...(hasDecider(ctx) ? { decider: true } : {}),
           },
         },
       ],

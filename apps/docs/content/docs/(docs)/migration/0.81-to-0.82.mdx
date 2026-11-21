@@ -17,11 +17,12 @@ pnpm better-supabase codemod config --prune
 pnpm better-supabase gen sql
 ```
 
-| Section                                                                   | Needs code                         |
-| ------------------------------------------------------------------------- | ---------------------------------- |
-| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`          |
-| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column |
-| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`       |
+| Section                                                                   | Needs code                           |
+| ------------------------------------------------------------------------- | ------------------------------------ |
+| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`            |
+| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column   |
+| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`         |
+| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
 
 ## The blocks list
 
@@ -63,3 +64,32 @@ an `api` or `audit` equal to `sql`'s, a permission key equal to the one the
 block would use, an option equal to its default, and the numbering values above.
 It renders the blocks with the old and the new config and writes nothing when a
 generated file differs.
+
+## Provider fields
+
+An `AuthorizationProvider` can now state the permission keys, the approvers and
+the approval floors that the config used to repeat. Every field is optional, so
+a provider that sets none of them keeps working.
+
+| 0.81                                                   | 0.82                                                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `blocks.<name>.permissions` in every app               | `actionKeys.blocks.<name>` in the provider; the config entry still wins   |
+| `subjects.<type>.permissions` in every app             | `actionKeys.recordTypes.<type>`                                           |
+| bucket and topic keys written in policies              | `actionKeys.buckets` and `actionKeys.topics`, checked by `gen` and doctor |
+| `options.decider` on leave, expenses and time entries  | `functions.approverFor` with `{kind}` and `{id}`; the option still wins   |
+| manager chains read from the employees block           | `functions.managedUsers`, read next to the employees manager              |
+| `options.policies.<subjectType>.<action>` on approvals | `operations["<subjectType>:<action>"].approval`; the option still wins    |
+
+`codemod config --prune` removes a `permissions` entry that equals the
+provider's `actionKeys`. Drop `options.decider` by hand once the provider
+supplies `approverFor`: the codemod can't know the function does the same.
+
+`gen sql` and doctor (BS411) now check the keys of operations, bucket and topic
+`actionKeys` and `@bsb access` tags the way they check module keys, and refuse
+a key the provider does not mark `sqlComplete: true`. Doctor reports at info
+level when leave, expenses or time entries are installed and the provider sets
+no `approverFor` or `managedUsers`.
+
+`actionKeys.buckets` and `actionKeys.topics` are typed and checked only. The
+storage and realtime policies are code in your schema files, so they do not
+read the map.

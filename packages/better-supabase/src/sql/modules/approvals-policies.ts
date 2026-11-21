@@ -332,14 +332,14 @@ export function approvalPolicies(
   const raw = ctx.option("policies");
 
   if (raw === undefined) {
-    return [];
+    return providerFloors(ctx, []);
   }
 
   if (!isFields(raw)) {
     throw new TypeError(`${WHERE} must be an object`);
   }
 
-  return Object.entries(raw).flatMap(([subjectType, actions]) => {
+  const configured = Object.entries(raw).flatMap(([subjectType, actions]) => {
     if (!KEY.test(subjectType) && subjectType !== ANY_SUBJECT) {
       throw new TypeError(`${WHERE}.${subjectType} has an invalid name`);
     }
@@ -360,6 +360,49 @@ export function approvalPolicies(
       ),
     );
   });
+
+  return providerFloors(ctx, configured);
+}
+
+/**
+ * The floors of `authorization.operations[<subjectType>:<action>].approval`
+ * that `options.policies` does not already set.
+ */
+function providerFloors(
+  ctx: BlockSqlContext,
+  configured: readonly ApprovalPolicy[],
+): readonly ApprovalPolicy[] {
+  const set = new Set(
+    configured.map((policy) => `${policy.subjectType}:${policy.action}`),
+  );
+
+  const extra = Object.entries(ctx.providerApprovals).flatMap(
+    ([name, approval]) => {
+      const at = name.indexOf(":");
+
+      if (at === -1 || set.has(name)) {
+        return [];
+      }
+
+      const subjectType = name.slice(0, at);
+
+      if (!KEY.test(subjectType) && subjectType !== ANY_SUBJECT) {
+        return [];
+      }
+
+      return [
+        policyOf(
+          subjectType,
+          name.slice(at + 1),
+          approval,
+          `authorization.operations.${name}.approval`,
+          true,
+        ),
+      ];
+    },
+  );
+
+  return [...configured, ...extra];
 }
 
 /**

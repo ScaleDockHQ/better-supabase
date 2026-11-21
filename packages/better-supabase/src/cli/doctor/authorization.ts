@@ -23,7 +23,9 @@ import {
   accessRequirements,
   entitlementRequirements,
   entitlementsMode,
+  catalogKeyProblems,
   moduleKeyProblems,
+  providerKeyUses,
   providerLabel,
   unsafeKey,
 } from "../authorization.ts";
@@ -86,12 +88,56 @@ function missingTemplates(
     }
   }
 
-  return [...callers].map(([name, modules]) => ({
-    severity: "warning",
-    message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.permissions.functions.canAssignFor" : ""}.`,
+  const optional = new Map<
+    keyof AuthorizationProvider["functions"],
+    string[]
+  >();
+
+  for (const module of Object.values(SQL_MODULES)) {
+    if (!installed.has(module.name)) {
+      continue;
+    }
+
+    for (const [name, gain] of Object.entries(module.providerOptional ?? {})) {
+      // SAFETY: `providerOptional` is keyed by the provider's template names.
+      const template = name as keyof AuthorizationProvider["functions"];
+
+      if (
+        provider.functions[template] === undefined &&
+        !(
+          template === "approverFor" &&
+          hasConfiguredDecider(context, module.name)
+        )
+      ) {
+        optional.set(template, [
+          ...(optional.get(template) ?? []),
+          `${module.name} (${gain})`,
+        ]);
+      }
+    }
+  }
+
+  const info = [...optional].map(([name, uses]): FindingInput => ({
+    severity: "info",
+    message: `${providerLabel(provider)} doesn't set authorization.functions.${name}, which the ${uses.join("; ")} would read. Set it to let the provider answer instead of repeating that in blocks config.`,
     target: `authorization.functions.${name}`,
   }));
+
+  return [
+    ...info,
+    ...[...callers].map(([name, modules]): FindingInput => ({
+      severity: "warning",
+      message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.permissions.functions.canAssignFor" : ""}.`,
+      target: `authorization.functions.${name}`,
+    })),
+  ];
 }
+
+const hasConfiguredDecider = (
+  context: DoctorContext,
+  module: string,
+): boolean =>
+  typeof context.config.blocks[module]?.options?.["decider"] === "string";
 
 /**
  * Tables whose generated policies call the provider's functions by role and
@@ -414,6 +460,7 @@ async function restatedDefaults(
     restatedEntries({
       blocks: context.config.blocks,
       sqlTenantColumn: context.config.sql.tenantColumn,
+      subjects: context.config.subjects,
       restatedDefaults: context.config.restatedDefaults,
       provider,
       defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
@@ -749,7 +796,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
+      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It reports at info level when leave, expenses or time entries are installed and the provider sets no `approverFor` or `managedUsers`. It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
     check: (context) => {
       const mode = accessModule(context);
 
@@ -782,12 +829,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
       try {
         findings.push(
+          ...catalogKeyProblems(provider, providerKeyUses(provider)),
           ...moduleKeyProblems(
             provider,
             modulePermissionKeys(
               context.config.blocks,
               context.config.blockNames,
               context.config.subjects,
+              provider.actionKeys,
             ),
           ),
         );

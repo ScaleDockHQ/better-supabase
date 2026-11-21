@@ -43,6 +43,11 @@ export interface TagRenderOptions {
   readonly actorMayWrite?: string | undefined;
   /** The tenant scope's name, for `{scope}`. Defaults to `organization`. */
   readonly scope?: string | undefined;
+  /**
+   * A problem with a permission key a tag hands to the provider (one the
+   * provider's SQL functions can't answer for completely); the tag throws it.
+   */
+  readonly keyProblem?: ((key: string) => string | undefined) | undefined;
   /** `sql.tenantColumn`: the tenant column a tag without `tenant=` uses. */
   readonly tenantColumn?: string | undefined;
 }
@@ -160,6 +165,12 @@ function accessBlock(
   const scope = options.scope ?? "organization";
 
   const can = (permission: string): string => {
+    const problem = options.keyProblem?.(permission);
+
+    if (problem !== undefined) {
+      throw new TypeError(problem);
+    }
+
     if (options.canIn === undefined) {
       return `${quote(column)} in (select better_supabase.tenant_ids_with(${sqlString(permission)}))`;
     }

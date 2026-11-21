@@ -319,6 +319,8 @@
       "AppTableSubject",
       "AppTableVersions",
       "AuthConfig",
+      "AuthorizationActionKeys",
+      "AuthorizationApproval",
       "AuthorizationFixtureRole",
       "AuthorizationFunctions",
       "AuthorizationMembership",

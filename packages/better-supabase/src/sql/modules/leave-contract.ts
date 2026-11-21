@@ -13,7 +13,7 @@ import {
   policyOf,
   policySnapshot,
 } from "./approvals-policies.ts";
-import { deciderCall } from "./direct-approver.ts";
+import { deciderCall, hasDecider } from "./direct-approver.ts";
 import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
 import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -77,7 +77,7 @@ export function workingDaysOf(ctx: BlockSqlContext): readonly number[] {
  * `options.decider` joins in approvals mode.
  */
 export function leavePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
-  const decider = !leaveStatusMode(ctx) && ctx.text("decider", "") !== "";
+  const decider = !leaveStatusMode(ctx) && hasDecider(ctx);
 
   const raw = ctx.option("policy") ?? {
     steps: [

@@ -184,6 +184,8 @@ export type {
 } from "./expose.ts";
 
 export type {
+  AuthorizationActionKeys,
+  AuthorizationApproval,
   AuthorizationFixtureRole,
   AuthorizationFunctions,
   AuthorizationMembership,

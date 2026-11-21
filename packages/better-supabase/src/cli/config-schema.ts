@@ -381,8 +381,31 @@ const authorization = v.strictObject({
             title: v.optional(v.string()),
           }),
         ),
+        approval: v.optional(
+          v.strictObject({
+            steps: v.array(v.record(v.string(), v.unknown())),
+            mode: v.optional(v.picklist(["sequential", "parallel"])),
+            effects: v.optional(strings),
+          }),
+        ),
       }),
     ),
+  ),
+  actionKeys: v.optional(
+    v.strictObject({
+      blocks: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      recordTypes: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      buckets: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+      topics: v.optional(
+        v.record(v.string(), v.record(v.string(), v.string())),
+      ),
+    }),
   ),
   memberships: v.optional(
     v.array(

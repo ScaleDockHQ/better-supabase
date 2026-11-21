@@ -249,6 +249,7 @@ async function prune(
     restatedEntries({
       blocks: config.blocks,
       sqlTenantColumn: config.sql.tenantColumn,
+      subjects: config.subjects,
       restatedDefaults: config.restatedDefaults,
       provider,
       defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,

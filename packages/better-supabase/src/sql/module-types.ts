@@ -1,4 +1,6 @@
 import type {
+  AuthorizationActionKeys,
+  AuthorizationApproval,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
@@ -104,6 +106,14 @@ export interface BlockSql {
    * warns (BS411) when the provider doesn't set one.
    */
   readonly providerFunctions?: readonly (keyof AuthorizationFunctions)[];
+  /**
+   * `authorization.functions` templates it reads when the provider sets them,
+   * with what it gains. Doctor reports a missing one at info level (BS411) and
+   * never fails on it.
+   */
+  readonly providerOptional?: Readonly<
+    Partial<Record<keyof AuthorizationFunctions, string>>
+  >;
   /**
    * Modules it works with when they are installed, without needing them.
    * `ctx.installed` and `ctx.of` accept only these and what it requires;
@@ -483,6 +493,13 @@ export interface BlockSqlLayout {
   readonly appTables?: AppTablesConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
+  /** `authorization.actionKeys`: the provider's keys per instance and action. */
+  readonly providerActionKeys?: AuthorizationActionKeys;
+  /**
+   * The approval floors of `authorization.operations`, by
+   * `<subjectType>:<action>`.
+   */
+  readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
   /**
    * `authorization.delegation.scopes`: the access module's `scope_permissions`
    * (with `blocks.permissions.scopes` merged over it).

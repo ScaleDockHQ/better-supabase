@@ -1,3 +1,4 @@
+import type { AuthorizationApproval } from "../config/authorization.ts";
 /* oxlint-disable eslint/max-lines -- the former permission key check adds two lines past the limit. 1 finding. */
 import type {
   BlockMode,
@@ -346,6 +347,11 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** The provider's `rowsWith` and `rowsWithFor` templates under `provider`. */
   readonly providerRowsWith: string | undefined;
   readonly providerRowsWithFor: string | undefined;
+  /** The provider's `approverFor` (with `{id}`) and `managedUsers` templates. */
+  readonly providerApproverFor: string | undefined;
+  readonly providerManagedUsers: string | undefined;
+  /** The provider's operation approval floors, by `<subjectType>:<action>`. */
+  readonly providerApprovals: Readonly<Record<string, AuthorizationApproval>>;
   /** The `provider` model's `can_user` answers only for the caller. */
   readonly providerCallerOnly?: boolean;
   /**
@@ -667,6 +673,17 @@ export interface BlockSqlContextSource {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** `layout.permissionCatalog`: the permission keys the provider lists. */
   readonly permissionCatalog?: readonly string[];
+  /** `layout.providerActionKeys.blocks`: the provider's keys by instance. */
+  readonly providerActionKeys?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
+  /**
+   * The provider's `approverFor` and `managedUsers` templates, under
+   * `provider`.
+   */
+  readonly providerApproverFor?: string;
+  readonly providerManagedUsers?: string;
+  readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
   /** The tables `expose` lists, as `schema.table`. */
@@ -883,6 +900,7 @@ export function createModuleContext(
 
   const permissionKey = (action: string, fallback: string): string =>
     config.permissions[action] ??
+    source.providerActionKeys?.[instance]?.[action] ??
     resourcePermissionKey(
       ownKey(fallback),
       action,
@@ -1319,6 +1337,9 @@ export function createModuleContext(
     subjects: source.subjects ?? {},
     providerRowsWith: source.providerRowsWith,
     providerRowsWithFor: source.providerRowsWithFor,
+    providerApproverFor: source.providerApproverFor,
+    providerManagedUsers: source.providerManagedUsers,
+    providerApprovals: source.providerApprovals ?? {},
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,

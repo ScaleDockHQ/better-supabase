@@ -4,6 +4,7 @@ import type {
   ExtraColumn,
 } from "../context.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -172,21 +173,38 @@ export function managerMatch(
     readonly user: string;
     /** The employee whose manager decides, as text, when not null. */
     readonly employee?: string;
+    /** `user` is another member, not the caller the provider answers for. */
+    readonly other?: boolean;
   },
 ): string {
   const manager = managerOf(ctx, args.requester, args.tenant, args.employee);
 
+  // The provider's `managedUsers` answers for the caller (`auth.uid()`), so it
+  // can't judge another member, and it names users, not employee ids.
+  const managed =
+    ctx.providerManagedUsers === undefined ||
+    args.other === true ||
+    args.employee !== undefined
+      ? ""
+      : `coalesce(${args.requester} in (select t.u from ${fillTemplate(
+          "authorization.functions.managedUsers",
+          ctx.providerManagedUsers,
+          { tenant: args.tenant },
+        )} as t(u)), false)`;
+
   if (manager === undefined) {
-    return "false";
+    return managed === "" ? "false" : `(${managed})`;
   }
 
   const members = ctx.of("memberships");
   const m = (column: string): string => members.col("memberships", column);
 
-  return `(coalesce(${manager} = ${args.user}, false) and exists (
+  const local = `(coalesce(${manager} = ${args.user}, false) and exists (
       select 1 from ${members.table("memberships")} mm
       where mm.${m("tenant")} = ${args.tenant} and mm.${m("user")} = ${args.user}${activeMembership(ctx, "mm")}
     ))`;
+
+  return managed === "" ? local : `(${local} or ${managed})`;
 }
 
 /**
@@ -225,6 +243,7 @@ export function otherDecider(
         requester: args.requester,
         tenant: args.tenant,
         user: `om.${m("user")}`,
+        other: true,
         ...(args.employee === undefined ? {} : { employee: args.employee }),
       })
     : "";

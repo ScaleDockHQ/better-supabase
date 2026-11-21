@@ -33,6 +33,13 @@ export interface RestatedInput {
   }[];
   /** The authorization provider, when the app uses the provider model. */
   readonly provider?: AuthorizationProvider | undefined;
+  /** `subjects`, for permission keys the provider's `actionKeys` repeat. */
+  readonly subjects?: Readonly<
+    Record<
+      string,
+      { readonly permissions?: Readonly<Record<string, unknown>> | undefined }
+    >
+  >;
   /** The default column names of a module's tables, by logical table. */
   readonly defaultColumns: (
     module: string,
@@ -185,6 +192,32 @@ function providerEntries(input: RestatedInput): RestatedEntry[] {
       value,
     });
   };
+
+  const keys = provider.actionKeys;
+
+  for (const [name, actions] of Object.entries(keys?.blocks ?? {})) {
+    const set = input.blocks[name]?.permissions;
+
+    for (const [action, key] of Object.entries(actions)) {
+      if (set?.[action] === key) {
+        add(`blocks.${name}.permissions.${action}`, "an actionKeys entry", key);
+      }
+    }
+  }
+
+  for (const [type, actions] of Object.entries(keys?.recordTypes ?? {})) {
+    const set = input.subjects?.[type]?.permissions;
+
+    for (const [action, key] of Object.entries(actions)) {
+      if (set?.[action] === key) {
+        add(
+          `subjects.${type}.permissions.${action}`,
+          "an actionKeys entry",
+          key,
+        );
+      }
+    }
+  }
 
   const invitations = input.blocks["invitations"];
   const memberships = input.blocks["memberships"];

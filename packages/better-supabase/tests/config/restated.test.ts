@@ -118,6 +118,32 @@ describe("restatedEntries", () => {
       ),
     ).toEqual(["provider:blocks.impersonation.options.claimsHook"]);
   });
+
+  it("reports permissions equal to the provider's actionKeys", () => {
+    const provider = {
+      name: "stub",
+      actionKeys: {
+        blocks: { audit: { read: "audit.read", export: "audit.export" } },
+        recordTypes: { note: { read: "note.read" } },
+      },
+      // SAFETY: only the fields restatedEntries reads are set.
+    } as never;
+
+    expect(
+      paths(
+        restatedEntries({
+          ...input(
+            { audit: { permissions: { read: "audit.read", export: "mine" } } },
+            { provider },
+          ),
+          subjects: { note: { permissions: { read: "note.read" } } },
+        }),
+      ),
+    ).toEqual([
+      "provider:blocks.audit.permissions.read",
+      "provider:subjects.note.permissions.read",
+    ]);
+  });
 });
 
 describe("project defaults", () => {
