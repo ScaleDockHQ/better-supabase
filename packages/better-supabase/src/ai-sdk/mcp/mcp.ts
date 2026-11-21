@@ -79,16 +79,26 @@ export interface ConnectToolsOptions {
    */
   readonly maxRetries?: number;
   /**
-   * `true` makes every tool wait for the user's approval unless the server
-   * marks it `readOnlyHint: true`. A tool without the annotation asks. The
+   * `true` fills `toolApproval` with every tool the server doesn't mark
+   * `readOnlyHint: true`. A tool without the annotation asks. Pass it as the
+   * agent's `toolApproval` (or `agentToolApproval` to merge it). The
    * annotations are the server's claim, so this only reduces prompts for a
    * server you trust.
    */
   readonly askUnlessReadOnly?: boolean;
 }
 
+/** A `toolApproval` map: the tools that wait for the user. */
+export type McpToolApproval = Readonly<Record<string, "user-approval">>;
+
 export interface ConnectedTools {
   readonly tools: ToolSet;
+  /**
+   * The tools that wait for the user, by prefixed name; empty unless
+   * `askUnlessReadOnly`. It is the per-agent `toolApproval` the AI SDK now
+   * reads, not `needsApproval` on each tool.
+   */
+  readonly toolApproval: McpToolApproval;
   /** Tools only an MCP App may call; empty unless `apps`. */
   readonly appTools: ToolSet;
   readonly client: MCPClient;
@@ -298,11 +308,11 @@ async function digestOf(fingerprints: Record<string, string>): Promise<string> {
   return `sha256:${await sha256Hex(JSON.stringify(entries))}`;
 }
 
-/** Makes the tools that aren't read-only wait for the user's approval. */
-function askingUnlessReadOnly(
+/** The names of the tools that aren't read-only, in the `toolApproval` form. */
+function approvalUnlessReadOnly(
   tools: ToolSet,
   definitions: ListToolsResult,
-): ToolSet {
+): Record<string, "user-approval"> {
   const readOnly = new Set(
     definitions.tools.flatMap((definition) =>
       definition.annotations?.readOnlyHint === true ? [definition.name] : [],
@@ -310,12 +320,24 @@ function askingUnlessReadOnly(
   );
 
   return Object.fromEntries(
-    Object.entries(tools).map(([name, tool]) => [
-      name,
-      readOnly.has(name)
-        ? tool
-        : // oxlint-disable-next-line typescript/no-deprecated -- no replacement for a per-tool approval flag yet; `toolApproval` is per agent
-          { ...tool, needsApproval: true },
+    Object.keys(tools).flatMap((name) =>
+      readOnly.has(name) ? [] : [[name, "user-approval" as const]],
+    ),
+  );
+}
+
+function prefixedApproval(
+  approval: Record<string, "user-approval">,
+  prefix: string | undefined,
+): Record<string, "user-approval"> {
+  if (prefix === undefined || prefix === "") {
+    return approval;
+  }
+
+  return Object.fromEntries(
+    Object.entries(approval).map(([name, value]) => [
+      `${prefix}${name}`,
+      value,
     ]),
   );
 }
@@ -439,10 +461,17 @@ export function connectTools(
 
       const listed = client.toolsFromDefinitions(split.modelVisible);
 
-      const tools =
+      const modelTools =
+        options.schemas === undefined
+          ? listed
+          : client.toolsFromDefinitions(split.modelVisible, {
+              schemas: options.schemas,
+            });
+
+      const toolApproval =
         options.askUnlessReadOnly === true
-          ? askingUnlessReadOnly(listed, split.modelVisible)
-          : listed;
+          ? approvalUnlessReadOnly(modelTools, split.modelVisible)
+          : {};
 
       const fingerprints = await fingerprintTools(listed);
       const fingerprint = await digestOf(fingerprints);
@@ -471,21 +500,8 @@ export function connectTools(
       }
 
       return ok({
-        tools: prefixed(
-          options.schemas === undefined
-            ? tools
-            : options.askUnlessReadOnly === true
-              ? askingUnlessReadOnly(
-                  client.toolsFromDefinitions(split.modelVisible, {
-                    schemas: options.schemas,
-                  }),
-                  split.modelVisible,
-                )
-              : client.toolsFromDefinitions(split.modelVisible, {
-                  schemas: options.schemas,
-                }),
-          options.prefix,
-        ),
+        tools: prefixed(modelTools, options.prefix),
+        toolApproval: prefixedApproval(toolApproval, options.prefix),
         appTools: prefixed(
           client.toolsFromDefinitions(split.appVisible),
           options.prefix,
@@ -518,6 +534,8 @@ export interface ConnectAllOptions extends Omit<
 
 export interface ConnectAllResult {
   readonly tools: ToolSet;
+  /** The merged `toolApproval` of the servers; see `ConnectedTools`. */
+  readonly toolApproval: McpToolApproval;
   /** The servers left out, with why. */
   readonly skipped: readonly {
     readonly server: ConnectorServer;
@@ -550,12 +568,14 @@ export async function connectAll(
   );
 
   const tools: ToolSet = {};
+  const toolApproval: Record<string, "user-approval"> = {};
   const skipped: { server: ConnectorServer; error: DbError }[] = [];
   const open: ConnectedTools[] = [];
 
   for (const { server, result } of results) {
     if (result.ok) {
       Object.assign(tools, result.data.tools);
+      Object.assign(toolApproval, result.data.toolApproval);
       open.push(result.data);
     } else {
       skipped.push({ server, error: result.error });
@@ -564,6 +584,7 @@ export async function connectAll(
 
   return {
     tools,
+    toolApproval,
     skipped,
     close: async () => {
       await Promise.all(open.map((connected) => connected.close()));
