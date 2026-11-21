@@ -7,7 +7,7 @@ import { betterSupabase } from "./lib/supabase";
  * Tags the responses `/api/customers` sends, so the CDN can drop them by table
  * or by row. Call `cdn.tag(...)` with the tags of what the handler read.
  */
-export const cdn = vercelCdnCache({ addCacheTag, invalidateByTag });
+const cdn = vercelCdnCache({ addCacheTag, invalidateByTag });
 
 /** Attach it to mutations made through `db`, in the same process. */
 betterSupabase.cache(cdn);

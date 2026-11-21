@@ -30,7 +30,7 @@ export function isServerless(
  * Supabase and generic names, then the Vercel integration's pooled and direct
  * strings. The World detects a transaction pooler from the string itself.
  */
-export const CONNECTION_VARIABLES: readonly string[] = [
+const CONNECTION_VARIABLES: readonly string[] = [
   "WORKFLOW_POSTGRES_URL",
   "SUPABASE_DB_URL",
   "DATABASE_URL",

@@ -7,6 +7,7 @@
   "ai-sdk/chat",
   "ai-sdk/embeddings",
   "ai-sdk/files",
+  "ai-sdk/gateway",
   "ai-sdk/generations",
   "ai-sdk/json-render",
   "ai-sdk/mcp",
@@ -617,7 +618,11 @@
   "testing",
   "vercel",
   "vercel-sandbox",
+  "vercel/cache",
+  "vercel/connect-events",
+  "vercel/deploy",
   "vercel/functions",
+  "vercel/observability",
   "vercel/passport",
   "vercel/security"
 ]
