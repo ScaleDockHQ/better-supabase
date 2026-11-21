@@ -5449,6 +5449,7 @@
   },
   "./vercel-passport": {
     "values": [
+      "PASSPORT_COOKIE",
       "PASSPORT_HEADER",
       "PASSPORT_ISSUER",
       "PASSPORT_JWKS_URL",
