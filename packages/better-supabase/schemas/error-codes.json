@@ -4439,7 +4439,7 @@
   },
   {
     "code": "PERMISSIONS_FORBIDDEN",
-    "message": "Not allowed to read roles"
+    "message": "Not allowed to explain this member"
   },
   {
     "code": "PERMISSIONS_KEY_CEILING",
@@ -5552,7 +5552,11 @@
   },
   {
     "code": "TASK_ATTRS_INVALID",
-    "message": "window must be an object of startAt and endAt"
+    "message": "the stage can"
+  },
+  {
+    "code": "TASK_CHANGES_INVALID",
+    "message": "moves must be a list"
   },
   {
     "code": "TASK_CHECKLIST_ITEM_INVALID",
@@ -5563,12 +5567,44 @@
     "message": "no such checklist item on this work item"
   },
   {
+    "code": "TASK_CLAIM_LOST",
+    "message": "the claim ran out or another holder took over"
+  },
+  {
+    "code": "TASK_CLAIM_NOT_HELD",
+    "message": "nobody holds this task"
+  },
+  {
+    "code": "TASK_CLAIMED",
+    "message": "another holder has a live claim on the task"
+  },
+  {
+    "code": "TASK_CLOSED",
+    "message": "a closed task can"
+  },
+  {
+    "code": "TASK_DELEGATE_INVALID",
+    "message": "the user can"
+  },
+  {
     "code": "TASK_FIELD_UNKNOWN",
     "message": "that field can"
   },
   {
     "code": "TASK_FORBIDDEN",
-    "message": "not allowed to manage projects and iterations"
+    "message": "not allowed to claim work items"
+  },
+  {
+    "code": "TASK_HELD",
+    "message": "the task is on hold"
+  },
+  {
+    "code": "TASK_HOLD_INVALID",
+    "message": "kind must be a short lowercase word such as review or input"
+  },
+  {
+    "code": "TASK_HOLD_MESSAGING_MISSING",
+    "message": "asking people needs the messaging block"
   },
   {
     "code": "TASK_ITERATION_INVALID",
@@ -5587,8 +5623,40 @@
     "message": "the item is locked; its dates can"
   },
   {
+    "code": "TASK_MOVE_INVALID",
+    "message": "the task to place after isn"
+  },
+  {
+    "code": "TASK_NEEDS_INVALID",
+    "message": "a task can"
+  },
+  {
+    "code": "TASK_NEEDS_UNSUPPORTED",
+    "message": "needs takes the relations block"
+  },
+  {
     "code": "TASK_NOT_FOUND",
-    "message": "no such work item you can edit"
+    "message": "no such work item"
+  },
+  {
+    "code": "TASK_NOT_HELD",
+    "message": "the task isn"
+  },
+  {
+    "code": "TASK_NOT_READY",
+    "message": "the task waits on prerequisites that aren"
+  },
+  {
+    "code": "TASK_NOTHING_READY",
+    "message": "no task is ready to claim"
+  },
+  {
+    "code": "TASK_OUTCOME_INVALID",
+    "message": "outcome is completed, canceled, failed or open"
+  },
+  {
+    "code": "TASK_OUTCOME_UNAVAILABLE",
+    "message": "this tasks table has no canceled state"
   },
   {
     "code": "TASK_PARENT_CYCLE",
@@ -5597,6 +5665,10 @@
   {
     "code": "TASK_PARENT_INVALID",
     "message": "the parent is in another organization"
+  },
+  {
+    "code": "TASK_PLAN_INVALID",
+    "message": "items must be a list of tasks"
   },
   {
     "code": "TASK_PROJECT_INVALID",
@@ -5611,8 +5683,16 @@
     "message": "project not found"
   },
   {
+    "code": "TASK_RANK_CONFLICT",
+    "message": "the neighbours share a rank key"
+  },
+  {
     "code": "TASK_RECURRENCE_INVALID",
     "message": "rrule must be an RRULE such as FREQ=WEEKLY;BYDAY=MO"
+  },
+  {
+    "code": "TASK_STAGE_REQUIRED",
+    "message": "the task"
   },
   {
     "code": "TASK_TITLE_REQUIRED",

@@ -174,6 +174,9 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  permissions: {
+    explain: "members.read",
+  },
   search: {
     read: "search.read",
   },

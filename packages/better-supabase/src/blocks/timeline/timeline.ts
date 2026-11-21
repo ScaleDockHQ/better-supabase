@@ -71,6 +71,13 @@ export interface ActivityEntry {
   readonly organizationId: string;
   readonly type: string;
   readonly actorId: string | undefined;
+  /**
+   * How the actor acted (`user`, `agent`, `service`, or a task profile's own
+   * kind), when the event's data names it. Task events do.
+   */
+  readonly actorKind: string | undefined;
+  /** The actor's display name, when the event's data names it. */
+  readonly actorName: string | undefined;
   readonly subject: RecordRef | undefined;
   readonly summary: string | undefined;
   readonly data: Readonly<Record<string, unknown>>;
@@ -116,6 +123,7 @@ export interface Timeline {
 
 function activityOf(value: unknown): ActivityEntry {
   const row = recordOf(value, "timeline_entries");
+  const data = isRecord(row["data"]) ? row["data"] : {};
 
   return {
     id: textOf(row["id"]),
@@ -123,9 +131,11 @@ function activityOf(value: unknown): ActivityEntry {
     organizationId: textOf(row["tenant_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
+    actorKind: optionalText(data["actorKind"]),
+    actorName: optionalText(data["actorName"]),
     subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),
     summary: optionalText(row["summary"]),
-    data: isRecord(row["data"]) ? row["data"] : {},
+    data,
     occurredAt: toInstant(textOf(row["occurred_at"])),
   };
 }

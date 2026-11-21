@@ -23,6 +23,13 @@ import {
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
+import {
+  actorPayload,
+  coordinationColumns,
+  coordinationContract,
+  coordinationOf,
+  coordinationTables,
+} from "./tasks-coordination.ts";
 import { backfillProjectDimensions } from "./tasks-data.ts";
 import { checklistTable, taskExtrasContract } from "./tasks-extras.ts";
 import { taskFunctions } from "./tasks-functions.ts";
@@ -64,6 +71,9 @@ const ITEM = [
   "subjectType",
   "subjectId",
   "title",
+  "actorId",
+  "actorKind",
+  "actorName",
 ] as const;
 
 const EVENTS: BlockSqlEvents<TasksEvents> = {
@@ -75,12 +85,35 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
   },
   "task.closed": {
     subject: "tasks",
-    payload: [...ITEM, "state", "closeReason"],
+    payload: [...ITEM, "state", "closeReason", "note"],
   },
   "task.reopened": { subject: "tasks", payload: [...ITEM] },
   "task.archived": { subject: "tasks", payload: [...ITEM] },
   "task.restored": { subject: "tasks", payload: [...ITEM] },
   "task.deleted": { subject: "tasks", payload: [...ITEM] },
+  "task.unblocked": { subject: "tasks", payload: [...ITEM, "waitingOn"] },
+  "task.claimed": {
+    subject: "tasks",
+    payload: [...ITEM, "holderId", "epoch", "expiresAt"],
+  },
+  "task.released": {
+    subject: "tasks",
+    payload: [...ITEM, "holderId", "epoch", "expiresAt", "note"],
+  },
+  "task.claim_expired": {
+    subject: "tasks",
+    payload: [...ITEM, "holderId", "epoch", "expiresAt", "returnStageId"],
+  },
+  "task.failed": { subject: "tasks", payload: [...ITEM, "note"] },
+  "task.delegated": { subject: "tasks", payload: [...ITEM, "delegateId"] },
+  "task.held": {
+    subject: "tasks",
+    payload: [...ITEM, "kind", "note", "askUserIds"],
+  },
+  "task.hold_released": {
+    subject: "tasks",
+    payload: [...ITEM, "kind", "returnStageId"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -129,6 +162,7 @@ const NAMES: BlockSqlNames = {
     "after_task_update",
     "before_task_clone",
     "after_task_clone",
+    "before_task_close",
   ],
   options: [
     "prefix",
@@ -138,6 +172,9 @@ const NAMES: BlockSqlNames = {
     "actionPath",
     "searchColumn",
     "templates",
+    "needs",
+    "claims",
+    "hold",
   ],
   tables: {
     items: {
@@ -177,8 +214,20 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        waitingOn: "waiting_on",
+        heldAt: "held_at",
+        holdKind: "hold_kind",
+        holdReturnStage: "hold_return_stage_id",
+        delegateProfile: "delegate_profile",
+        closeNote: "close_note",
       },
       optional: [
+        "waitingOn",
+        "heldAt",
+        "holdKind",
+        "holdReturnStage",
+        "delegateProfile",
+        "closeNote",
         "body",
         "project",
         "iteration",
@@ -195,6 +244,23 @@ const NAMES: BlockSqlNames = {
       ],
       typed: ["state", "closeReason"],
       mappable: ["priority"],
+    },
+    claims: {
+      name: "task_claims",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", user: "holder", export: false },
+      columns: {
+        task: "task_id",
+        tenant: "tenant_id",
+        token: "token",
+        epoch: "epoch",
+        holder: "holder_id",
+        profile: "profile",
+        claimedAt: "claimed_at",
+        expiresAt: "expires_at",
+        expiredAt: "expired_at",
+      },
     },
     specification: {
       name: "task_specification_lines",
@@ -441,7 +507,7 @@ create table if not exists ${t("items")} (
   ${w("stage")} uuid,
   ${w("stageEnteredAt")} timestamptz,
   ${w("state")} text not null default 'backlog' check (${w("state")} in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  ${w("closeReason")} text check (${w("closeReason")} in ('completed', 'not_planned', 'duplicate')),
+  ${w("closeReason")} text check (${w("closeReason")} in ('completed', 'not_planned', 'duplicate', 'failed')),
   ${w("closedAt")} timestamptz,${column("items", "locked", (name) => `${name} boolean not null default false`)}
   ${w("rank")} text collate "C" not null default 'V',
   ${w("archivedAt")} timestamptz,${column("items", "createdBy", (name) => `${name} uuid`)}
@@ -479,10 +545,34 @@ function guard(ctx: BlockSqlContext, n: TaskNames): string {
   const guardName = ctx.naming.rename("bsb_task_guard");
 
   const payload = (extra: string): string =>
-    `jsonb_build_object('organizationId', new.${w("tenant")}, 'taskId', new.${w("id")}, 'subjectType', ${sqlString(n.type)}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
+    `jsonb_build_object('organizationId', new.${w("tenant")}, 'taskId', new.${w("id")}, 'subjectType', ${sqlString(n.type)}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra}${actorPayload(n)})`;
+
+  const closeNote = `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`;
+
+  const onClose = `${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := ${closeNote};\n` : ""}${ctx.has("items", "heldAt") ? `      new.${w("heldAt")} := null;\n${ctx.has("items", "holdKind") ? `      new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `      new.${w("holdReturnStage")} := null;\n` : ""}` : ""}${ctx.hasTable("claims") ? `      delete from ${t("claims")} c where c.${c("claims", "task")} = new.${w("id")};\n` : ""}`;
+
+  const started =
+    ctx.has("items", "waitingOn") && n.co.needs?.refuse === "started"
+      ? `
+  if tg_op = 'UPDATE' and new.${w("stage")} is distinct from old.${w("stage")} and new.${w("waitingOn")} > 0
+    and (select s.${ctx.of("pipelines").col("stages", "category")}::text from ${ctx.of("pipelines").table("stages")} s where s.${ctx.of("pipelines").col("stages", "id")} = new.${w("stage")}) = 'started' then
+    ${fail("TASK_NOT_READY", "the task waits on prerequisites that aren't completed", "55000")}
+  end if;`
+      : "";
 
   const subject = `'tasks/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
+
+  const holdStage =
+    n.co.holdStage !== null && ctx.has("items", "heldAt")
+      ? `
+  if tg_op = 'UPDATE' and old.${w("heldAt")} is not null and new.${w("heldAt")} is not distinct from old.${w("heldAt")}
+    and new.${w("stage")} is distinct from old.${w("stage")}
+    and old.${w("stage")} is not distinct from (select s.${ctx.of("pipelines").col("stages", "id")} from ${ctx.of("pipelines").table("stages")} s where s.${ctx.of("pipelines").col("stages", "pipeline")} = old.${w("pipeline")} and s.${ctx.of("pipelines").col("stages", "key")} = ${sqlString(n.co.holdStage)}) then
+    new.${w("heldAt")} := null;
+${ctx.has("items", "holdKind") ? `    new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `    new.${w("holdReturnStage")} := null;\n` : ""}    ${ctx.record({ type: "task.hold_released", row: "new", payload: payload(`, 'returnStageId', new.${w("stage")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+  end if;`
+      : "";
 
   const state = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("items", "state", value, labels, negate);
@@ -540,23 +630,23 @@ begin
       new.${w("closeReason")} := coalesce(new.${w("closeReason")}, ${reason});
     end if;
     return new;
-  end if;
+  end if;${started}${holdStage}
   if new.${w("state")} is distinct from old.${w("state")} then
     if ${closed} and ${state(`old.${w("state")}`, ["completed", "canceled"], true)} then
       new.${w("closedAt")} := now();
       new.${w("closeReason")} := coalesce(new.${w("closeReason")}, ${reason});
-${
-  ctx.has("items", "progress")
-    ? `      if ${state(`new.${w("state")}`, ["completed"])} and new.${w("progress")} is not null then
+${onClose}${
+    ctx.has("items", "progress")
+      ? `      if ${state(`new.${w("state")}`, ["completed"])} and new.${w("progress")} is not null then
         new.${w("progress")} := 100;
       end if;
 `
-    : ""
-}      ${ctx.record({ type: "task.closed", row: "new", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+      : ""
+  }      ${ctx.record({ type: "task.closed", row: "new", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}, 'note', ${closeNote}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     elsif not (${closed}) and ${state(`old.${w("state")}`, ["completed", "canceled"])} then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
-      ${ctx.record({ type: "task.reopened", row: "new", payload: payload(""), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := null;\n` : ""}      ${ctx.record({ type: "task.reopened", row: "new", payload: payload(""), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
     end if;
   end if;
   new.${w("updatedAt")} := now();
@@ -568,6 +658,37 @@ drop trigger if exists ${guardName} on ${t("items")};
 create trigger ${guardName} before insert or update on ${t("items")}
 for each row execute function better_supabase.${guardName}();
 `;
+}
+
+/**
+ * The version 6 step: the new columns, the wider close reason, the waiting_on
+ * backfill and one rebalance of the lanes whose tasks tie on rank.
+ */
+function upgradeFromFive(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const items = ctx.table("items");
+  const w = (column: string): string => ctx.col("items", column);
+
+  const rebalance =
+    ctx.installed("rank") && ctx.has("items", "stage")
+      ? `
+with tied as (
+  select ${w("tenant")} as tenant, ${w("stage")} as stage from ${items}
+  where ${w("stage")} is not null and ${w("archivedAt")} is null
+  group by ${w("tenant")}, ${w("stage")} having count(*) <> count(distinct ${w("rank")})
+), ordered as (
+  select x.${w("id")} as id, row_number() over (partition by x.${w("tenant")}, x.${w("stage")} order by x.${w("rank")} collate "C", x.${w("number")}, x.${w("id")}) as nth,
+    count(*) over (partition by x.${w("tenant")}, x.${w("stage")}) as total
+  from ${items} x join tied t on t.tenant = x.${w("tenant")} and t.stage = x.${w("stage")}
+  where x.${w("archivedAt")} is null
+)
+update ${items} y set ${w("rank")} = ${ctx.of("rank").fn("rank_key")}(o.nth, o.total) from ordered o where y.${w("id")} = o.id;`
+      : "";
+
+  return `${coordinationColumns(ctx)}${rebalance}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -584,7 +705,10 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
+  const claim = ctx.permission("claim", keys.write);
+
   const n: TaskNames = {
+    co: coordinationOf(ctx, claim),
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
@@ -614,7 +738,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.
-${tables(ctx, n)}${guard(ctx, n)}${taskFunctions(ctx, n)}`;
+${tables(ctx, n)}${coordinationTables(ctx, n)}${guard(ctx, n)}${taskFunctions(ctx, n)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -664,6 +788,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     ...taskExtrasContract(ctx),
     ...taskLinesContract(ctx),
+    ...coordinationContract(ctx),
   ];
 }
 
@@ -723,6 +848,16 @@ const PRIORITY_ITEMS = [
 ] as const;
 
 const CONTRIBUTES: BlockContributes = {
+  housekeeping: (own) =>
+    own.hasTable("claims")
+      ? [
+          {
+            job: own.fnName("expire_task_claims"),
+            function: own.fn("expire_task_claims"),
+            every: "1 minute",
+          },
+        ]
+      : [],
   "option-sets": (own) => [
     {
       type: taskType(own),
@@ -821,10 +956,14 @@ export const WORK_ITEMS: BlockSqlDefinition = {
     "templates",
     "tags",
     "catalog",
+    "relations",
+    "rank",
+    "messaging",
+    "housekeeping",
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 6,
   upgrades: [
     {
       from: 1,
@@ -837,6 +976,12 @@ export const WORK_ITEMS: BlockSqlDefinition = {
       description:
         "Adds archive_tasks and delete_tasks, the set forms that check access once and return the skipped ids.",
       sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "Adds task coordination (ADRs 1110 to 1119): prerequisites with waiting_on and task.unblocked, create_tasks, claims with leases, actor labels on events, holds, close_task with a note and the failed outcome, move_task with lane rebalancing, stage times and the tasks:{tenant} topic. New columns are added where the table is managed or declares them, close_reason takes failed, and lanes whose tasks share a rank key are rebalanced.",
+      sql: (ctx) => upgradeFromFive(ctx),
     },
   ],
   names: NAMES,

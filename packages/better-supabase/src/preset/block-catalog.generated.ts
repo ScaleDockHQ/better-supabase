@@ -2624,6 +2624,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "templates",
         "tags",
         "catalog",
+        "relations",
+        "rank",
+        "messaging",
+        "housekeeping",
         "pipelines",
         "subjects"
       ],
@@ -2634,9 +2638,16 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "task.archived",
         "task.assigned",
+        "task.claim_expired",
+        "task.claimed",
         "task.closed",
         "task.created",
+        "task.delegated",
         "task.deleted",
+        "task.failed",
+        "task.held",
+        "task.hold_released",
+        "task.released",
         "task.reopened",
         "task.restored",
         "task.updated"

@@ -207,6 +207,35 @@ export interface TaskEventData extends SubjectEventData {
   /** For `task.closed`: `completed` or `canceled`, and why. */
   readonly state?: string;
   readonly closeReason?: string;
+  /** For `task.closed` and `task.failed`: the note the closer left. */
+  readonly note?: string | null;
+  /**
+   * Who acted: the user id, and what kind of actor (`user`, `agent`, `service`,
+   * `system`).
+   */
+  readonly actorId?: string | null;
+  readonly actorKind?: string;
+  readonly actorName?: string | null;
+  /**
+   * For the claim events: the holder, the claim's epoch and when its lease
+   * ends.
+   */
+  readonly holderId?: string | null;
+  readonly epoch?: number;
+  readonly expiresAt?: string;
+  /**
+   * For `task.claim_expired` and `task.hold_released`: the stage the task went
+   * back to.
+   */
+  readonly returnStageId?: string | null;
+  /** For `task.held` and `task.hold_released`: what the hold waits for. */
+  readonly kind?: string;
+  /** For `task.held`: the people asked to answer. */
+  readonly askUserIds?: readonly string[];
+  /** For `task.delegated`: who the task was handed to. */
+  readonly delegateId?: string | null;
+  /** For `task.unblocked`: the prerequisites still open (always 0). */
+  readonly waitingOn?: number;
 }
 
 /** Events from the quotes module. Amounts are minor units as text. */

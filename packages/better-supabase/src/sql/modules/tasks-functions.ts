@@ -1,4 +1,5 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { Coordination } from "./tasks-coordination.ts";
 
 import { STALE_WRITE, STALE_WRITE_SQLSTATE } from "../../core/stale-write.ts";
 import { sqlString } from "../../core/template.ts";
@@ -14,6 +15,11 @@ import {
 } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { asText } from "./over-app.ts";
+import {
+  claimReadSql,
+  coordinationSql,
+  taskRecord,
+} from "./tasks-coordination.ts";
 import {
   itemExtrasJson,
   linkAttachmentsSql,
@@ -52,6 +58,8 @@ export interface TaskNames {
   readonly type: string;
   /** Template rows are enabled (ADR 0244). */
   readonly templates: boolean;
+  /** The prerequisite, claim and hold options (ADRs 1110 to 1114). */
+  readonly co: Coordination;
 }
 
 /**
@@ -185,18 +193,10 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
     `(${n.service} or ${ctx.scope.can(`${alias}.${w("tenant")}`, n.write)})`;
 
   const row = (alias: string): string =>
-    `${ctx.rowJson("items", alias, { as: { number: (v) => `${v}::text` } })} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}`;
+    `${ctx.rowJson("items", alias, { as: { number: (v) => `${v}::text` } })} || ${int8Text(alias, [w("number")])} || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra.${a("user")} order by ${ctx.has("assignees", "createdAt") ? `ra.${a("createdAt")}, ` : ""}ra.${a("user")}) from ${t("assignees")} ra where ra.${a("item")} = ${alias}.${w("id")}), '[]'::jsonb)) || ${itemExtrasJson(ctx, n, alias)}${ctx.hasTable("claims") ? ` || jsonb_build_object('claim', ${fn("task_claim")}(${alias}.${w("id")}))` : ""}`;
 
   const record = (type: string, alias: string, extra = ""): string =>
-    ctx.record({
-      type,
-      payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'taskId', ${alias}.${w("id")}, 'subjectType', ${item}, 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
-      subject: `'tasks/' || ${alias}.${w("id")}::text`,
-      tenant: `${alias}.${w("tenant")}::text`,
-      row: alias,
-      audit: false,
-      ...(n.templates ? { live: `${alias}.${w("template")} is null` } : {}),
-    });
+    taskRecord(ctx, n, type, alias, extra);
 
   const writes = [
     ...fields(ctx, w, e).map((field) =>
@@ -322,6 +322,8 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
   perform ${ctx.of("accounting").fn("accounting_sync_dimension_value")}(x.${p("tenant")}, 'project', 'Project', x.${p("id")}::text, x.${p("key")} || ' ' || x.${p("name")}, x.${p("archivedAt")} is not null)
   from ${t("projects")} x where x.${p("id")} = v_id;`
     : "";
+
+  const claimRead = claimReadSql(ctx, n);
 
   const projects = ctx.hasTable("projects")
     ? `
@@ -475,7 +477,7 @@ ${userGrant(`${fn("save_iteration")}(${ctx.idType}, uuid, jsonb)`)}
 `
     : "";
 
-  return `
+  return `${claimRead}
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
 -- progress, startAt, endAt, dueAt, pipelineId, stageId, and fields (the
@@ -623,7 +625,20 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform ${fn("set_task_assignees")}(v_id, create_task.assignees);
   end if;
-  select * into v_row from ${t("items")} x where x.${w("id")} = v_id;
+${
+  ctx.installed("rank")
+    ? `  update ${t("items")} x set ${w("rank")} = ${ctx.of("rank").fn("rank_between")}((select max(y.${w("rank")} collate "C") from ${t("items")} y where y.${w("tenant")} = x.${w("tenant")} and y.${w("stage")} is not distinct from x.${w("stage")} and y.${w("archivedAt")} is null and y.${w("id")} <> x.${w("id")}), null)
+  where x.${w("id")} = v_id and x.${w("stage")} is not null;
+`
+    : ""
+}${
+    ctx.installed("relations")
+      ? `  if jsonb_typeof(create_task.attrs -> 'needs') = 'array' and jsonb_array_length(create_task.attrs -> 'needs') > 0 then
+    perform ${fn("set_task_needs")}(v_id, array(select x::uuid from jsonb_array_elements_text(create_task.attrs -> 'needs') x));
+  end if;
+`
+      : ""
+  }  select * into v_row from ${t("items")} x where x.${w("id")} = v_id;
   ${linkAttachmentsSql(ctx, n, "v_row", "(create_task.attrs -> 'attachments')")}
   ${record("task.created", "v_row")}
   ${ctx.hook("after_task_create", [["uuid", "v_id"]])}
@@ -926,7 +941,7 @@ as $$
       and (list_tasks.filter ->> 'parentId' is null or x.${w("parent")} = (list_tasks.filter ->> 'parentId')::uuid)
       and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or ${ctx.mapsValues("items", "state") ? ctx.label("items", "state", `x.${w("state")}`) : asText(ctx, "items", `x.${w("state")}`)} = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
-      and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)
+      and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x.${w("closedAt")} is null)${has("waitingOn") ? `\n      and (coalesce((list_tasks.filter ->> 'ready')::boolean, false) = false or (x.${w("waitingOn")} = 0 and x.${w("closedAt")} is null))` : ""}
       and (list_tasks.search is null or x.${w("title")} ilike '%' || list_tasks.search || '%' or x.${w("identifier")} ilike list_tasks.search || '%')
       and (list_tasks.after is null or x.${w("number")} < (select z.${w("number")} from ${t("items")} z where z.${w("id")} = list_tasks.after))
     order by x.${w("number")} desc
@@ -936,7 +951,8 @@ $$;
 ${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
 
 ${pages.tasks}
-${cloneTask(ctx, n, fn, t, w, a, row)}${taskExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
+${cloneTask(ctx, n, fn, t, w, a, row)}${taskExtraFunctions(ctx, n, row, record)}${projects}${iterations}
+${coordinationSql(ctx, n, { row })}`;
 }
 
 /**

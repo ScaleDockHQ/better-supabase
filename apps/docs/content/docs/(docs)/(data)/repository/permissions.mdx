@@ -720,6 +720,27 @@ A provider that maps scopes at runtime (per client, or from RFC 9396
 `forContext` calls it for a delegated context and caps the work to the keys
 it returns, narrowed by its own `permissions`. A throw grants nothing.
 
+## Explain a permission
+
+`explain_permission(tenant, member, permission)` answers why a member holds or lacks one key. It reads the verdict from `member_can`, so it can't disagree with a check. A caller explains their own access, and a member with `members.read` explains anyone's in the tenant.
+
+```ts
+const why = await db.permissions
+  .explain({ userId, key: "invoices.write", organizationId })
+  .orThrow();
+// { allowed, reason, roles, matchedBy, override }
+```
+
+`reason` is one of `granted_by_role`, `granted_by_override`, `member_disabled`, `organization_disabled`, `not_a_member`, `denied_by_override`, `not_in_scope` (a delegated token's cap or scope excludes the key) or `role_lacks_key`. `override` is `null` unless the catalog model has an override for the key.
+
+`explainPermissionTool({ permissions })` from `better-supabase/mcp` is a read-only MCP tool with the same answer, for an agent that has to say why it was refused. Pass it in `createMcp({ tools })`.
+
+The access model already stops a member from granting what they don't hold: `set_permission_override` and `can_assign` refuse a grant above the caller's own keys, and `tests/integration/permissions-explain.integration.test.ts` covers both.
+
+## Give an agent less
+
+An agent should work with fewer keys than the user it acts for. Call `forContext(context, { permissions: ["tasks.read", "tasks.write"] })` (ADR 0026) before you hand the context to the agent. The cap travels in the `bsb_permission_cap` claim, so every check in the database narrows to it, and `explain` reports `not_in_scope` for a key outside it. Prefer this over a role made for the agent.
+
 ## Disabled tenants and users
 
 `blocks.permissions.disabled` names columns that switch a tenant or a user off when

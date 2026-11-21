@@ -54,6 +54,7 @@ const NOT_LITERAL = [
   "activities: activity.recorded",
   "activities: activity.transcribed",
   "activities: activity.summarized",
+  "tasks: task.unblocked",
   "invoices: invoice.archived",
   "invoices: invoice.restored",
   "passes: pass.credit_used",

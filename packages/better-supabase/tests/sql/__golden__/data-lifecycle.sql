@@ -1782,7 +1782,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:e3792ee182e6f9c12d4a245c735529b4eb71794d267b9b3413cfefc8e898aabb
+-- @bsb-hash sha256:918b2c2675d8bba35182676504c627ada4b9c1789456c53d63aba9da4e61d8c9
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3069,6 +3069,7 @@ as $$
     ('user', 'better_supabase.deal_members', '"better_supabase"."deal_members"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.application_scorecards', '"better_supabase"."application_scorecards"', 'reviewer_id', true, '{}'::text[], true),
     ('user', 'better_supabase.tasks', '"better_supabase"."tasks"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.task_claims', '"better_supabase"."task_claims"', 'holder_id', true, '{}'::text[], false),
     ('user', 'better_supabase.task_checklist_items', '"better_supabase"."task_checklist_items"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.task_assignees', '"better_supabase"."task_assignees"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.pipeline_stage_history', '"better_supabase"."pipeline_stage_history"', 'actor_id', true, '{}'::text[], true),
@@ -3389,6 +3390,7 @@ as $$
     ('organization', 'better_supabase.application_scorecards', '"better_supabase"."application_scorecards"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.interviews', '"better_supabase"."interviews"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.tasks', '"better_supabase"."tasks"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.task_claims', '"better_supabase"."task_claims"', 'tenant_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.task_specification_lines', '"better_supabase"."task_specification_lines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.task_material_lines', '"better_supabase"."task_material_lines"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.task_checklist_items', '"better_supabase"."task_checklist_items"', 'tenant_id', true, '{}'::text[], true),
