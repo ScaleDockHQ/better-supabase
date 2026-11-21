@@ -1,10 +1,18 @@
+import { rm, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
+
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { redundantNulls } from "../sql/index.ts";
+import { restatedEntries } from "../config/index.ts";
+import { redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
+import { withoutConfigPaths } from "./codemod-prune.ts";
+import { loadConfig } from "./config.ts";
 import { ownLayout } from "./sql-layout.ts";
+import { layoutFor } from "./sql/providers.ts";
+import { renderBlocksCached } from "./sql/render-cache.ts";
 
 /**
  * The config options the `config` codemod never edits (ADR 0324): each states a
@@ -190,6 +198,123 @@ export function configFiles(
     : [{ path: config.path, contents: text, policy: "edit" }];
 }
 
+/** The rendered files of `config`, by path. */
+async function renderedFiles(
+  config: ResolvedConfig,
+): Promise<ReadonlyMap<string, string>> {
+  const layout = await layoutFor(config, {}, config.blockNames);
+
+  const files = await renderBlocksCached(config, config.blockNames, layout, {
+    cache: false,
+  });
+
+  return new Map(files.map((file) => [file.path, file.contents]));
+}
+
+/** The first path whose text differs between two renders. */
+function firstDifference(
+  before: ReadonlyMap<string, string>,
+  after: ReadonlyMap<string, string>,
+): string | undefined {
+  for (const path of new Set([...before.keys(), ...after.keys()])) {
+    if (before.get(path) !== after.get(path)) {
+      return path;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * `config --prune`: removes every entry `restatedEntries` reports, then renders
+ * with the old and the new config and refuses to write when a file differs.
+ */
+async function prune(
+  project: CodemodProject,
+): Promise<{
+  files: readonly PlannedFile[];
+  review: readonly { message: string }[];
+}> {
+  const { config, configFile, configText } = project;
+
+  const provider =
+    config.authorization && config.blocks.permissions?.model === "provider"
+      ? config.authorization
+      : undefined;
+
+  const entries = restatedEntries({
+    blocks: config.blocks,
+    sqlTenantColumn: config.sql.tenantColumn,
+    provider,
+    defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
+    nulls: redundantNulls({
+      modules: config.blocks,
+      ...(await ownLayout(config).catch(() => undefined)),
+    }),
+  });
+
+  if (configFile === undefined || configText === undefined) {
+    return {
+      files: [],
+      review: entries.map((entry) => ({
+        message: `${entry.path} ${entry.reason}; remove it from the config.`,
+      })),
+    };
+  }
+
+  const pruned = withoutConfigPaths(
+    configText,
+    entries.map((entry) => entry.path),
+  );
+
+  const review = pruned.missed
+    .filter(
+      (path) => entries.find((entry) => entry.path === path)?.kind !== "empty",
+    )
+    .map((path) => ({
+      message: `${path} repeats its default, but the codemod could not find it in ${configFile}; remove it by hand.`,
+    }));
+
+  if (pruned.text === configText) {
+    return { files: [], review };
+  }
+
+  const copy = join(
+    dirname(configFile),
+    `.${basename(configFile, extname(configFile))}.prune-${String(process.pid)}${extname(configFile)}`,
+  );
+
+  try {
+    await writeFile(copy, pruned.text);
+
+    const after = await loadConfig(dirname(configFile), copy);
+
+    const differs = firstDifference(
+      await renderedFiles(config),
+      await renderedFiles(after),
+    );
+
+    if (differs !== undefined) {
+      return {
+        files: [],
+        review: [
+          ...review,
+          {
+            message: `Pruning changes the render of ${differs}, so nothing was written. Review the entries by hand: ${entries.map((entry) => entry.path).join(", ")}.`,
+          },
+        ],
+      };
+    }
+  } finally {
+    await rm(copy, { force: true });
+  }
+
+  return {
+    files: [{ path: configFile, contents: pruned.text, policy: "edit" }],
+    review,
+  };
+}
+
 /** The `config` codemod: drop the entries the catalog already implies. */
 export function configCodemod(): Codemod {
   return {
@@ -197,6 +322,10 @@ export function configCodemod(): Codemod {
     description:
       "Remove the columns entries the render refuses: a null for a column the view lacks and a tenant that repeats sql.tenantColumn",
     project: async (project: CodemodProject) => {
+      if (project.prune === true) {
+        return prune(project);
+      }
+
       const { config } = project;
 
       let own: Awaited<ReturnType<typeof ownLayout>> | undefined;

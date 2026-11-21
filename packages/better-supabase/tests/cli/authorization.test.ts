@@ -177,6 +177,7 @@ describe("accessProviderMode", () => {
         functions: stubProvider.functions,
         memberships: stubProvider.memberships,
         sqlCompleteKeys: sqlCompleteKeys(stubProvider),
+        tokenHook: { function: "authz.access_token_hook" },
         truncatedClaim: "memberships_truncated",
       },
     });

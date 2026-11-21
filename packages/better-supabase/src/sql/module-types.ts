@@ -543,6 +543,8 @@ export interface BlockSqlAccessProvider {
    * the `permissions` claim carry only these; unset keeps every key.
    */
   readonly sqlCompleteKeys?: readonly string[];
+  /** `blocks.impersonation.options.claimsHook` defaults to its function. */
+  readonly tokenHook?: { readonly function: string };
   /**
    * The provider's hook writes the `permissions` claim (`ownedClaims`), so the
    * hook template leaves it out.

@@ -144,6 +144,64 @@ export interface InstanceKeys {
 }
 
 /**
+ * A `columns` entry: the column's name, `null` for an optional column the table
+ * lacks, or `{ column, required: true }` to name an optional column the table
+ * must have.
+ */
+export type ColumnMapping =
+  | string
+  | null
+  | { readonly column: string; readonly required?: boolean };
+
+/**
+ * `config` with each `{ column, required }` entry of `columns` replaced by its
+ * name, and the required ones listed in `requiredColumns`.
+ */
+export function withColumnNames<T extends BlockConfig>(config: T): T {
+  // SAFETY: `columns` maps logical tables to logical columns to a mapping.
+  const columns = config.columns as
+    | Readonly<
+        Record<string, Readonly<Record<string, ColumnMapping>> | undefined>
+      >
+    | undefined;
+
+  if (
+    columns === undefined ||
+    !Object.values(columns).some((table) =>
+      Object.values(table ?? {}).some(
+        (entry) => entry !== null && typeof entry === "object",
+      ),
+    )
+  ) {
+    return config;
+  }
+
+  const required: Record<string, string[]> = {};
+
+  const flat = Object.fromEntries(
+    Object.entries(columns).map(([table, entries]) => [
+      table,
+      Object.fromEntries(
+        Object.entries(entries ?? {}).map(([logical, entry]) => {
+          if (entry === null || typeof entry === "string") {
+            return [logical, entry];
+          }
+
+          if (entry.required === true) {
+            required[table] = [...(required[table] ?? []), logical];
+          }
+
+          return [logical, entry.column];
+        }),
+      ),
+    ]),
+  );
+
+  // SAFETY: the flat form is the same shape with the objects replaced by names.
+  return { ...config, columns: flat, requiredColumns: required };
+}
+
+/**
  * Options every module takes; `Options` types `options`
  * (`blocks.<module>.options`) and `Names` the names the other keys accept.
  */
@@ -172,9 +230,15 @@ export interface BlockConfig<
    */
   readonly columns?: {
     readonly [T in keyof Names["tables"]]?: {
-      readonly [C in Names["tables"][T]]?: string | null;
+      readonly [C in Names["tables"][T]]?: ColumnMapping;
     };
   };
+  /**
+   * The `{ column, required: true }` mappings of `columns`, by logical table,
+   * set when the config resolves. A name for an optional column that equals the
+   * module's default is a no-op unless it is listed here.
+   */
+  readonly requiredColumns?: Readonly<Record<string, readonly string[]>>;
   /**
    * Logical table to logical column to the values the app's column stores for
    * each label the block writes or compares, e.g. `{ events: { status: {
@@ -543,7 +607,12 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
     columns: Object.fromEntries(
       Object.entries(defined(config.columns)).map(([table, columns]) => [
         table,
-        defined(columns),
+        Object.fromEntries(
+          Object.entries(defined(columns)).map(([logical, entry]) => [
+            logical,
+            entry === null || typeof entry === "string" ? entry : entry.column,
+          ]),
+        ),
       ]),
     ),
     ...(config.values === undefined ? {} : { values: config.values }),

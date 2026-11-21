@@ -2464,16 +2464,29 @@ row level security.
 
 ### BS426
 
-**Info: a config value the authorization provider already supplies.**
-`blocks.invitations.options.platformRoles`,
-`blocks.memberships.options.roleThrough`, the memberships `disabledAt` column
-and `blocks.permissions.disabled` (`tenant`, `user` and `userKey`) default to
-what the provider declares in `platformRoles`, a role source's `through`, a
-membership's `disabledAt` and `suspension`. A config value equal to
-the provider's is a second copy that goes stale when the provider changes.
-Doctor reports it only under the provider access model. `disabled.userKey`
-is reported only when `disabled.user` is unset or equal to the provider's,
-because the provider's key applies only then. Remove each reported copy.
+**Retired in 0.82.** The code stays reserved and doctor no longer reports it.
+BS427 covers its checks.
+
+### BS427
+
+**Warning: config restates its default.** An entry equals the value the render
+uses without it, so it is a second copy that goes stale. Doctor reports:
+
+- an identity mapping for an optional column, such as
+  `columns.<table>.<column>` set to the column's default name. Write
+  `{ column: "name", required: true }` when the table must have the column;
+- a `null` for a column the view lacks anyway;
+- an empty `columns`, `values` or `tables` map;
+- `columns.<table>.tenant` equal to `sql.tenantColumn`;
+- a value equal to the authorization provider's: `platformRoles`, a role
+  source's `through`, a membership's `disabledAt`, `suspension` and
+  `tokenHook.function` for `impersonation.options.claimsHook`.
+
+The provider kinds are reported under the provider access model only, and
+`disabled.userKey` only when `disabled.user` is unset or equal to the
+provider's, because the provider's key applies only then.
+`better-supabase codemod config --prune` removes each entry when the render
+stays the same.
 
 ## Env files
 

@@ -301,6 +301,9 @@ export function accessProviderMode(
         ? { operations: provider.operations }
         : {}),
       sqlCompleteKeys: sqlCompleteKeys(provider),
+      ...(provider.tokenHook === undefined
+        ? {}
+        : { tokenHook: { function: provider.tokenHook.function } }),
       ...(ownsPermissionsClaim(provider, config.claims?.permissions)
         ? { ownsPermissions: true }
         : {}),

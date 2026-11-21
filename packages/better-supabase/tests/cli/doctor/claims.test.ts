@@ -70,7 +70,7 @@ describe("BS419", () => {
   });
 });
 
-describe("BS426", () => {
+describe("BS427", () => {
   it("reports config values equal to the provider's", () => {
     const platformRoles = {
       table: "app.platform_roles",
@@ -91,12 +91,12 @@ describe("BS426", () => {
       "/project",
     );
 
-    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
-    // SAFETY: BS426 reads only `config`.
+    // SAFETY: BS427 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
-    expect(rule?.severity).toBe("info");
+    expect(rule?.severity).toBe("warning");
     expect(found).toEqual([
       expect.objectContaining({
         target: "blocks.invitations.options.platformRoles",
@@ -137,9 +137,9 @@ describe("BS426", () => {
       "/project",
     );
 
-    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
-    // SAFETY: BS426 reads only `config`.
+    // SAFETY: BS427 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
     expect((await found)?.map((finding) => finding.target)).toEqual([
@@ -169,9 +169,9 @@ describe("BS426", () => {
       "/project",
     );
 
-    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
-    // SAFETY: BS426 reads only `config`.
+    // SAFETY: BS427 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
     expect((await found)?.map((finding) => finding.target)).toEqual([
@@ -198,9 +198,9 @@ describe("BS426", () => {
       "/project",
     );
 
-    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
-    // SAFETY: BS426 reads only `config`.
+    // SAFETY: BS427 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
     expect(found).toEqual([]);
@@ -231,9 +231,9 @@ describe("BS426", () => {
       "/project",
     );
 
-    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS426");
+    const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
-    // SAFETY: BS426 reads only `config`.
+    // SAFETY: BS427 reads only `config`.
     const found = rule?.check({ config } as unknown as DoctorContext);
 
     expect((await found)?.map((finding) => finding.target)).toEqual([]);

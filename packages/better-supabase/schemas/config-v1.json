@@ -3885,10 +3885,27 @@
             "additionalProperties": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 {
-                  "type": "null"
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["column"],
+                  "additionalProperties": false
                 }
               ]
             }
@@ -4205,10 +4222,27 @@
             "additionalProperties": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 {
-                  "type": "null"
+                  "type": "object",
+                  "properties": {
+                    "column": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["column"],
+                  "additionalProperties": false
                 }
               ]
             }

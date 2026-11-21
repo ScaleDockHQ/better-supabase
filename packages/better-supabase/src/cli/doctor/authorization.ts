@@ -10,9 +10,11 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 import {
   DEFAULT_ACTIVE_TENANT,
   FormerPermissionKeyError,
+  restatedEntries,
 } from "../../config/index.ts";
 import {
   modulePermissionKeys,
+  redundantNulls,
   sameTemplateFunction,
   SQL_MODULES,
   templatePlaceholderProblems,
@@ -25,7 +27,7 @@ import {
   providerLabel,
   unsafeKey,
 } from "../authorization.ts";
-import { accessModule } from "./app-tables.ts";
+import { accessModule, adoptionContext, appViewsOf } from "./app-tables.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
 
@@ -393,110 +395,42 @@ function requirementProblem(
 }
 
 /**
- * Config values that repeat what the provider already supplies (BS426): the
- * generated SQL fills them from `authorization` when they are unset.
+ * Config entries that equal their resolved default (BS427): identity column
+ * mappings, `null`s for columns the views lack, empty maps, a tenant column
+ * that repeats `sql.tenantColumn` and values equal to the provider's.
  */
 function restatedDefaults(context: DoctorContext): FindingInput[] {
-  const provider = context.config.authorization;
+  const provider =
+    context.config.authorization && accessModule(context).kind === "provider"
+      ? context.config.authorization
+      : undefined;
 
-  // The provider's values are filled in only under the provider model.
-  // Advising their removal under another model deletes the setting.
-  if (!provider || accessModule(context).kind !== "provider") {
-    return [];
-  }
-
-  const findings: FindingInput[] = [];
-
-  const same = (a: unknown, b: unknown): boolean =>
-    JSON.stringify(a) === JSON.stringify(b);
-
-  const invitations = context.config.blocks["invitations"];
-  const tenant = context.config.blocks["memberships"];
-
-  if (
-    invitations?.options?.["platformRoles"] !== undefined &&
-    provider.platformRoles !== undefined &&
-    same(invitations.options["platformRoles"], provider.platformRoles)
-  ) {
-    findings.push({
-      message: `blocks.invitations.options.platformRoles repeats ${providerLabel(provider)}'s platformRoles. Remove it: the provider's value is the default.`,
-      target: "blocks.invitations.options.platformRoles",
-    });
-  }
-
-  const through = tenant?.options?.["roleThrough"];
-
-  if (
-    through !== undefined &&
-    (provider.roleSources ?? []).some((source) =>
-      same(source.role.through, through),
-    )
-  ) {
-    findings.push({
-      message: `blocks.memberships.options.roleThrough repeats a role source of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-      target: "blocks.memberships.options.roleThrough",
-    });
-  }
-
-  const disabledAt = tenant?.columns?.["memberships"]?.["disabledAt"];
-
-  if (
-    typeof disabledAt === "string" &&
-    (provider.memberships ?? []).some(
-      (entry) => entry.disabledAt === disabledAt,
-    )
-  ) {
-    findings.push({
-      message: `blocks.memberships.columns.memberships.disabledAt repeats the disabledAt of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-      target: "blocks.memberships.columns.memberships.disabledAt",
-    });
-  }
-
-  const disabled = context.config.blocks.permissions?.disabled;
-
-  if (disabled !== undefined && provider.suspension !== undefined) {
-    for (const key of ["tenant", "user"] as const) {
-      if (
-        disabled[key] !== undefined &&
-        provider.suspension[key] !== undefined &&
-        same(disabled[key], provider.suspension[key])
-      ) {
-        findings.push({
-          message: `blocks.permissions.disabled.${key} repeats the suspension.${key} of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-          target: `blocks.permissions.disabled.${key}`,
-        });
-      }
-    }
-
-    // The provider's userKey applies only when its user is the one in use.
-    const providerUser =
-      disabled.user === undefined ||
-      (provider.suspension.user !== undefined &&
-        same(disabled.user, provider.suspension.user));
-
-    if (
-      providerUser &&
-      disabled.userKey !== undefined &&
-      provider.suspension.userKey !== undefined &&
-      same(disabled.userKey, provider.suspension.userKey)
-    ) {
-      findings.push({
-        message: `blocks.permissions.disabled.userKey repeats the suspension.userKey of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-        target: "blocks.permissions.disabled.userKey",
-      });
-    }
-  }
-
-  return findings;
+  return restatedEntries({
+    blocks: context.config.blocks,
+    sqlTenantColumn: context.config.sql.tenantColumn,
+    provider,
+    defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
+    // Without a snapshot there are no views, so no `null` can be redundant.
+    nulls: Reflect.has(context, "snapshot")
+      ? redundantNulls({
+          modules: context.config.blocks,
+          ...appViewsOf(context),
+          ...adoptionContext(context),
+        })
+      : [],
+  }).map((entry) => ({
+    message: `${entry.path} ${entry.reason}. Remove it: the default is the same (\`better-supabase codemod config --prune\` removes it).`,
+    target: entry.path,
+  }));
 }
 
 export const AUTHORIZATION_RULES: readonly Rule[] = [
   {
-    code: "BS426",
-    severity: "info",
-    title: "Config value the authorization provider already supplies",
+    code: "BS427",
+    severity: "warning",
+    title: "Config restates its default",
     description:
-      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough`, the memberships `disabledAt` column and `blocks.permissions.disabled` (`tenant`, `user`, `userKey`) default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one under the provider access model; under another model the provider's value is not the default. `disabled.userKey` is reported only when `disabled.user` is unset or equal to the provider's, because the provider's key applies only then. Remove each reported copy.",
+      "A config entry equals the value the render uses without it, so it is a second copy that goes stale and hides the entries that matter. Doctor reports an identity mapping for an optional column (`columns.<table>.<column>` set to the column's default name, which only a `{ column, required: true }` entry still enforces), a `null` for a column the view lacks anyway, an empty `columns`, `values` or `tables` map, `columns.<table>.tenant` equal to `sql.tenantColumn`, and a value equal to the authorization provider's (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`, `tokenHook.function` for `impersonation.options.claimsHook`). The provider kinds are reported under the provider access model only, and `disabled.userKey` only when `disabled.user` is unset or equal to the provider's. `better-supabase codemod config --prune` removes each one when the render stays the same. It replaces BS426, whose code stays reserved.",
     check: restatedDefaults,
   },
   {

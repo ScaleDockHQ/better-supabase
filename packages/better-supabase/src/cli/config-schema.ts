@@ -115,7 +115,19 @@ const blockEntries = {
   ),
   schema: v.optional(v.string()),
   columns: v.optional(
-    v.record(v.string(), v.record(v.string(), v.nullable(v.string()))),
+    v.record(
+      v.string(),
+      v.record(
+        v.string(),
+        v.union([
+          v.nullable(v.string()),
+          v.strictObject({
+            column: v.string(),
+            required: v.optional(v.boolean()),
+          }),
+        ]),
+      ),
+    ),
   ),
   values: v.optional(blockSchemas.valueMapsSchema),
   idType: v.optional(v.string()),

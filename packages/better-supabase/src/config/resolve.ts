@@ -28,7 +28,7 @@ import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
 import { withBlockSubjects } from "./block-subjects.ts";
-import { tenantNameOf } from "./blocks.ts";
+import { tenantNameOf, withColumnNames } from "./blocks.ts";
 import { CONFIG_DEFAULTS } from "./defaults.ts";
 import {
   isFunctionKey,
@@ -200,7 +200,7 @@ function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
   const { schema, api, ownTablePolicies, tenantScope } = sql;
 
   return {
-    ...block,
+    ...withColumnNames(block),
     ...(schema === undefined || block.schema !== undefined ? {} : { schema }),
     ...(api === undefined || block.api !== undefined ? {} : { api }),
     ...(ownTablePolicies === undefined || block.ownTablePolicies !== undefined

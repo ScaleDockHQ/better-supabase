@@ -31,6 +31,8 @@ export interface CodemodProject {
   readonly configText?: string;
   /** False when the config did not load and `config` is the default one. */
   readonly configLoaded?: boolean;
+  /** `config --prune`: remove every entry that equals its default. */
+  readonly prune?: boolean;
   /**
    * The columns of `tables` (`schema.table`) in the live database, by table, or
    * undefined when no database could be read.
