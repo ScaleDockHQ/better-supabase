@@ -7,6 +7,7 @@ import {
   htmlToText,
 } from "../../../src/blocks/knowledge/index.ts";
 import { refusedUrl } from "../../../src/blocks/knowledge/url-source.ts";
+import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const page = (body: string, type = "text/html", status = 200) =>
@@ -66,6 +67,14 @@ describe("htmlToText", () => {
     expect(title).toBe("A & B");
     expect(text).toBe("## Rates\n\n5 < 6\n\ntwo");
   });
+
+  it("decodes numeric entities and leaves ones it cannot", () => {
+    const { text } = htmlToText(
+      "<p>&#65; &#x42; &#X43; &#0; &#x110000; &unknown;</p>",
+    );
+
+    expect(text).toBe("A B C &#0; &#x110000; &unknown;");
+  });
 });
 
 describe("refusedUrl", () => {
@@ -97,6 +106,41 @@ describe("refusedUrl", () => {
     expect(
       refusedUrl(new URL("https://evilexample.com/"), ["example.com"]),
     ).toBeTypeOf("string");
+  });
+
+  it("refuses the remaining private ranges and accepts public addresses", () => {
+    for (const url of [
+      "http://0.0.0.0/",
+      "http://100.64.1.1/",
+      "http://100.127.255.1/",
+      "http://172.16.0.1/",
+      "http://172.31.1.1/",
+      "http://192.0.0.1/",
+      "http://198.18.0.1/",
+      "http://198.19.0.1/",
+      "http://224.0.0.1/",
+      "http://[::]/",
+      "http://[fe80::1]/",
+      "http://[ff02::1]/",
+      "http://[::ffff:10.1.2.3]/",
+      "http://[::ffff:a00:1]/",
+    ]) {
+      expect(refusedUrl(new URL(url), undefined)).toBeTypeOf("string");
+    }
+
+    expect(refusedUrl(new URL("http://8.8.8.8/"), undefined)).toBeUndefined();
+    expect(
+      refusedUrl(new URL("http://100.63.0.1/"), undefined),
+    ).toBeUndefined();
+    expect(
+      refusedUrl(new URL("http://172.15.0.1/"), undefined),
+    ).toBeUndefined();
+    expect(
+      refusedUrl(new URL("http://198.51.100.1/"), undefined),
+    ).toBeUndefined();
+    expect(
+      refusedUrl(new URL("http://[2001:db8::1]/"), undefined),
+    ).toBeUndefined();
   });
 });
 
@@ -186,5 +230,167 @@ describe("createUrlSource", () => {
     const all = await source.resyncAll({ organizationId: "o1" }).orThrow();
 
     expect(all).toMatchObject({ resynced: 1, failed: [] });
+  });
+
+  it("reports a bad URL, a failed fetch, a redirect without a location and a plain body", async () => {
+    const knowledge = {} as Knowledge;
+
+    const refused = await createUrlSource({ knowledge, fetch }).ingest({
+      organizationId: null,
+      url: "not a url",
+    });
+
+    expect(refused.error?.hint).toBe("KNOWLEDGE_URL_REFUSED");
+
+    const bare = await createUrlSource({ knowledge }).ingest({
+      organizationId: null,
+      url: "http://127.0.0.1/",
+    });
+
+    expect(bare.error?.hint).toBe("KNOWLEDGE_URL_REFUSED");
+
+    const down = await createUrlSource({
+      knowledge,
+      fetch: () => Promise.reject("down"),
+    }).ingest({ organizationId: null, url: "https://example.com/" });
+
+    expect(down.error?.kind).toBe("network");
+
+    const lost = await createUrlSource({
+      knowledge,
+      fetch: () => Promise.resolve(new Response(null, { status: 302 })),
+    }).ingest({ organizationId: null, url: "https://example.com/a" });
+
+    expect(lost.error?.message).toContain("no location");
+
+    const plain = new Response("plain text");
+    plain.headers.delete("content-type");
+
+    const { ingested, source } = fixture(() => Promise.resolve(plain));
+
+    await source
+      .ingest({
+        organizationId: "o1",
+        url: "https://docs.example.com/plain",
+        document: { title: "Kept" },
+        signal: AbortSignal.timeout(5000),
+      })
+      .orThrow();
+
+    expect(ingested[0]).toMatchObject({
+      document: { title: "Kept", text: "plain text" },
+    });
+  });
+
+  it("refuses a declared size, an empty body and a document that is not a URL", async () => {
+    const huge = createUrlSource({
+      knowledge: {} as Knowledge,
+      fetch: () =>
+        Promise.resolve(
+          new Response("hi", {
+            headers: {
+              "content-length": "999999",
+              "content-type": "text/plain",
+            },
+          }),
+        ),
+      maxBytes: 10,
+    });
+
+    expect(
+      (await huge.ingest({ organizationId: null, url: "https://e.com/" })).ok,
+    ).toBe(false);
+
+    const { source, ingested } = fixture(() =>
+      Promise.resolve(
+        new Response(null, { headers: { "content-type": "text/plain" } }),
+      ),
+    );
+
+    await source
+      .ingest({ organizationId: null, url: "https://docs.example.com/empty" })
+      .orThrow();
+
+    expect(ingested[0]).toMatchObject({
+      document: { text: "", title: "https://docs.example.com/empty" },
+    });
+
+    const notUrl = createUrlSource({
+      knowledge: {
+        documents: {
+          get: () =>
+            AsyncResult.ok({
+              id: "d1",
+              metadata: { kind: "file" },
+              source: undefined,
+            }),
+        },
+      } as unknown as Knowledge,
+      fetch,
+    });
+
+    expect((await notUrl.resync({ documentId: "d1" })).error?.hint).toBe(
+      "KNOWLEDGE_NOT_URL",
+    );
+  });
+
+  it("stops resyncing when the page fails and counts an unchanged document", async () => {
+    const failed = createUrlSource({
+      knowledge: {
+        documents: {
+          page: () =>
+            Promise.resolve({ ok: false, error: dbError("network", "down") }),
+        },
+      } as unknown as Knowledge,
+      fetch,
+    });
+
+    expect((await failed.resyncAll({ organizationId: "o1" })).error?.kind).toBe(
+      "network",
+    );
+
+    const doc = {
+      id: "d1",
+      source: "https://docs.example.com/a",
+      metadata: { kind: "url" },
+      chunkCount: 1,
+      status: "ready",
+      embeddingModel: "m",
+    };
+
+    const broken = { ...doc, id: "d2", source: "not a url" };
+    let pages = 0;
+
+    const same = createUrlSource({
+      knowledge: {
+        documents: {
+          get: (id: string) => AsyncResult.ok(id === "d2" ? broken : doc),
+          write: () => AsyncResult.ok(doc),
+          page: () => {
+            pages += 1;
+
+            return Promise.resolve({
+              ok: true,
+              data:
+                pages === 1
+                  ? { items: [doc, broken], hasMore: true, nextCursor: ["d1"] }
+                  : { items: [], hasMore: false, nextCursor: null },
+            });
+          },
+        },
+      } as unknown as Knowledge,
+      fetch: () => Promise.resolve(page("<p>x</p>")),
+    });
+
+    const first = await same.resyncAll({
+      organizationId: "o1",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    expect(first.data).toMatchObject({
+      resynced: 1,
+      changed: 0,
+      failed: [{ documentId: "d2" }],
+    });
   });
 });

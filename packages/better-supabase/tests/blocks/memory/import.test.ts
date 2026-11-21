@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { Memory } from "../../../src/blocks/memory/index.ts";
 
 import { importMemories } from "../../../src/blocks/memory/import.ts";
-import { ok } from "../../../src/core/result.ts";
+import { dbError } from "../../../src/core/errors.ts";
+import { err, ok } from "../../../src/core/result.ts";
 
 type Upsert = Parameters<Memory["archival"]["upsert"]>[0];
 
@@ -97,5 +98,102 @@ describe("importMemories", () => {
     });
 
     expect(result.ok).toBe(false);
+  });
+
+  it("rejects a three part table and a column that is not an identifier", async () => {
+    const { memory, source } = fixture([]);
+
+    expect(
+      (
+        await importMemories({
+          memory,
+          source,
+          table: "a.b.c",
+          organizationId: null,
+        })
+      ).ok,
+    ).toBe(false);
+
+    expect(
+      (
+        await importMemories({
+          memory,
+          source,
+          table: "memories",
+          organizationId: null,
+          columns: { embedding: "1bad" },
+        })
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("reads a null embedding column, null row fields and an empty table", async () => {
+    const { memory, queries, saved, source } = fixture([
+      {
+        id: "1",
+        content: "a",
+        embedding: null,
+        category: null,
+        confidence: null,
+      },
+      {
+        id: "2",
+        content: "b",
+        embedding: "[1]",
+        category: "fact",
+        confidence: 0.5,
+      },
+    ]);
+
+    const named = await importMemories({
+      memory,
+      source,
+      table: "memories",
+      organizationId: null,
+      batch: 1,
+      columns: { embedding: "vec", category: "cat", confidence: "score" },
+    });
+
+    expect(named.data).toMatchObject({ imported: 2, lastId: "2" });
+    expect(queries[0]?.text).toContain('"vec"::text as embedding');
+    expect(queries[0]?.text).toContain('"score"::real as confidence');
+    expect(saved[0]).not.toHaveProperty("category");
+    expect(saved[1]).toMatchObject({ category: "fact", confidence: 0.5 });
+    expect(queries.length).toBeGreaterThan(1);
+
+    const empty = fixture([]);
+
+    expect(
+      (
+        await importMemories({
+          memory: empty.memory,
+          source: empty.source,
+          table: "memories",
+          organizationId: null,
+          columns: { embedding: null, category: null, confidence: null },
+        })
+      ).data,
+    ).toEqual({ imported: 0, skipped: 0, lastId: undefined });
+    expect(empty.queries[0]?.text).toContain("null::text as embedding");
+  });
+
+  it("returns the upsert error and stops", async () => {
+    const { source } = fixture([{ id: "1", content: "a", embedding: null }]);
+
+    const memory = {
+      archival: {
+        upsert: () => Promise.resolve(err(dbError("conflict", "full"))),
+      },
+    } as unknown as Memory;
+
+    const result = await importMemories({
+      memory,
+      source,
+      table: "memories",
+      organizationId: null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.kind).toBe("conflict");
   });
 });

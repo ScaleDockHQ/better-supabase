@@ -6,6 +6,8 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { parseHeaders } from "../../../src/workflow-sdk/world/env.ts";
+
 const inner = vi.fn(
   async (_request: Request): Promise<Response> =>
     new Response("{}", { status: 200 }),
@@ -248,6 +250,44 @@ describe("options", () => {
     expect(() => worldOptionsFromEnv({ WORKFLOW_DELIVERY: "push" })).toThrow(
       'WORKFLOW_DELIVERY must be "poll", "pg_net" or "vercel-queue"',
     );
+    expect(
+      worldOptionsFromEnv({
+        WORKFLOW_POSTGRES_ENABLE_INVOKE: "true",
+        WORKFLOW_POSTGRES_SKIP_WORKERS: "0",
+        WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS: "20",
+        WORKFLOW_ENCRYPTION_KEYS: "ring",
+        WORKFLOW_DELIVERY_HEADERS: '{"x-a":"b"}',
+        WORKFLOW_RECOVER_AFTER_SECONDS: "30",
+        WORKFLOW_POSTGRES_POLL_INTERVAL_MS: "15",
+        WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS: "40",
+        WORKFLOW_POSTGRES_CONNECTION: "transaction",
+      }),
+    ).toEqual({
+      enableInvoke: true,
+      skipWorkers: false,
+      streamFlushIntervalMs: 20,
+      encryptionKeys: "ring",
+      deliveryHeaders: { "x-a": "b" },
+      recoverAfter: 30,
+      pollInterval: 15,
+      idleInTransactionTimeout: 40,
+      connection: "transaction",
+    });
+    expect(
+      worldOptionsFromEnv({
+        WORKFLOW_POSTGRES_ENABLE_INVOKE: "0",
+        WORKFLOW_POSTGRES_SKIP_WORKERS: "true",
+        WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS: "nope",
+      }),
+    ).toEqual({ enableInvoke: false, skipWorkers: true });
+    expect(parseHeaders(undefined)).toBeUndefined();
+    expect(parseHeaders("[]")).toBeUndefined();
+    expect(parseHeaders("not json")).toBeUndefined();
+    expect(parseHeaders('{"a":1}')).toBeUndefined();
+    expect(parseHeaders("null")).toBeUndefined();
+    expect(() =>
+      worldOptionsFromEnv({ WORKFLOW_DELIVERY_HEADERS: "[]" }),
+    ).toThrow("WORKFLOW_DELIVERY_HEADERS");
   });
 
   it("reports errors of idle pooled connections without throwing", async () => {
@@ -838,6 +878,37 @@ describe("createSupabaseWorld", () => {
     );
     expect(await world.getEncryptionKeyForRun!(fresh)).toEqual(
       await deriveRunKey(Buffer.alloc(32, 2), fresh),
+    );
+    await world.close();
+  });
+
+  it("remembers the key id stored on a run", async () => {
+    const seen: string[] = [];
+
+    const query = vi.fn(async (text: string) => {
+      seen.push(text);
+
+      return { rows: text.includes("attributes->>") ? [{ id: "a" }] : [] };
+    });
+
+    const pool = { query, end: async () => undefined } as unknown as Pool;
+
+    const ring = JSON.stringify([
+      { id: "a", key: Buffer.alloc(32, 1).toString("base64") },
+      {
+        id: "b",
+        key: Buffer.alloc(32, 2).toString("base64"),
+        from: "2026-06-01T00:00:00Z",
+      },
+    ]);
+
+    const world = createSupabaseWorld({ pool, encryptionKeys: ring });
+    const runId = "wrun_01K0000000000000000000000";
+    const first = await world.getEncryptionKeyForRun!(runId);
+
+    expect(await world.getEncryptionKeyForRun!(runId)).toEqual(first);
+    expect(seen.filter((text) => text.includes("attributes->>"))).toHaveLength(
+      1,
     );
     await world.close();
   });
