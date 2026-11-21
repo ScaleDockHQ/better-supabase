@@ -1185,7 +1185,8 @@ a `schema.table` glob (`*` matches any run of characters) and `reason` says why
 its changes need no audit entry. `{ class: "no-tenant-column", reason }` leaves
 out every table that has no tenant column, which the audit helpers can't
 register. A bare glob string still works, but doctor reports it as an error and
-asks for the reason. Doctor only checks tables in `schemas`, and
+asks for the reason. A table whose comment carries `@bsb audit-exempt
+reason="..."` is exempt too, and a tag without a reason is reported here. Doctor only checks tables in `schemas`, and
 a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"
@@ -3012,3 +3013,21 @@ the one small interlock segment, so its Postgres sets `shared_memory_type` or
 memory then take segments of their own and fill the limit faster. The
 defaults on macOS and Linux are `mmap` and `posix`; remove the override from
 the stack's Postgres settings.
+
+### BS702
+
+**Info: table fact held in the config.** The config holds an audit exemption,
+a `data-lifecycle` table entry or an `expose` entry for a table whose comment
+does not carry it. A `comment on table` with `@bsb audit-exempt reason="..."`,
+`@bsb data-lifecycle user=owner_id` or `@bsb grant authenticated=select` sits
+next to the table, so a review of the schema shows the fact. Run
+[`codemod table-tags`](/docs/cli/codemod) to move the entries. The config entry
+keeps working.
+
+### BS703
+
+**Warning: table tag cannot take effect.** A `@bsb data-lifecycle`, `grant` or
+`same-tenant` tag is malformed or incomplete: a flag that is not `true` or
+`false`, a `data-lifecycle` tag with neither `user=` nor `tenant=`, a `grant`
+with an unknown role or privilege, or `same-tenant` on a column that has no
+single-column foreign key. The tag is ignored until you fix it.

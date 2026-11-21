@@ -439,6 +439,14 @@ export interface BlockSqlLayout {
    */
   readonly foreignKeys?: readonly DeclaredForeignKey[];
   /**
+   * The `same-tenant` column tags in the schema files. They replace the derived
+   * entry of their column, and `same-tenant=false` drops it.
+   */
+  readonly sameTenantTags?: {
+    readonly entries: readonly Record<string, unknown>[];
+    readonly skip: readonly string[];
+  };
+  /**
    * Each declared table's columns, `schema.table` to names, for
    * `sameTenant.auto`.
    */

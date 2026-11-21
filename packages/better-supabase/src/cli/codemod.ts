@@ -21,6 +21,7 @@ import { recordTypesCodemod } from "./codemod-record-types.ts";
 import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
+import { tableTagsCodemod } from "./codemod-table-tags.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
@@ -131,6 +132,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   config: configCodemod(),
   "blocks-list": blocksListCodemod(),
   "record-types": recordTypesCodemod(),
+  "table-tags": tableTagsCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),

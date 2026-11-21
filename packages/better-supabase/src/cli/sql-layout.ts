@@ -32,6 +32,7 @@ import {
   resolveExposeColumns,
   resolveBlocks,
   sameTenantLayout,
+  sameTenantTagsOf,
   rlsTables,
 } from "../sql/index.ts";
 import { apiUsedNames } from "./api-used.ts";
@@ -246,6 +247,11 @@ export async function moduleLayoutFor(
     ...(fromPolicies
       ? { rlsTables: rlsTables(await declarativeTexts(config), config.schemas) }
       : {}),
+    sameTenantTags: sameTenantTagsOf(
+      (await appSchemaTexts(config)).map((file) => file.text),
+      config.schemas,
+      appForeignKeys(await appSchemaTexts(config), config.schemas),
+    ),
     ...(autoSameTenant
       ? sameTenantLayout(await declarativeTexts(config), config.schemas)
       : {}),

@@ -89,16 +89,15 @@ function addColumns(
 }
 
 /**
- * `text` with `columns` listed as `@bsb fields` in the comment of a table the
+ * `text` with the tag `line` (`@bsb fields a, b`) in the comment of a table the
  * app creates: an existing `comment on table` gets the line, a table without
  * one gets the statement.
  */
-function taggedFields(
+export function withTableTag(
   text: string,
   table: string,
-  columns: readonly string[],
+  line: string,
 ): string {
-  const line = `@bsb fields ${columns.join(", ")}`;
   const [schema, name] = table.split(".");
 
   const comment = new RegExp(
@@ -106,15 +105,29 @@ function taggedFields(
     "i",
   );
 
+  const escaped = line.replaceAll("'", "''");
+
   if (comment.test(text)) {
+    // One `@bsb` starts the tag block and `;` separates the tags in it, so a
+    // second `@bsb` would read as a word of the tag before it.
     return text.replace(
       comment,
       (_all, head: string, body: string, tail: string) =>
-        `${head}${body === "" ? "" : `${body}\n`}${line}${tail}`,
+        /(^|\s)@bsb(?:\s|$)/u.test(body)
+          ? `${head}${body.trimEnd().replace(/;$/u, "")}; ${escaped.replace(/^@bsb\s+/u, "")}${tail}`
+          : `${head}${body === "" ? "" : `${body}\n`}${escaped}${tail}`,
     );
   }
 
-  return `${text.replace(/\n*$/, "\n")}\ncomment on table "${quoted(schema!)}"."${quoted(name!)}" is '${line}';\n`;
+  return `${text.replace(/\n*$/, "\n")}\ncomment on table "${quoted(schema!)}"."${quoted(name!)}" is '${escaped}';\n`;
+}
+
+function taggedFields(
+  text: string,
+  table: string,
+  columns: readonly string[],
+): string {
+  return withTableTag(text, table, `@bsb fields ${columns.join(", ")}`);
 }
 
 /**

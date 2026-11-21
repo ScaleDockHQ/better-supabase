@@ -76,6 +76,7 @@ import {
   workflowOf,
 } from "./shared.ts";
 import { STACK_RULES } from "./stacks.ts";
+import { TABLE_FACT_RULES } from "./table-facts.ts";
 import { WIRING_RULES } from "./wiring.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
@@ -1128,6 +1129,7 @@ const OWN_RULES: readonly Rule[] = [
 
 export const RULES: readonly Rule[] = [
   ...AUTH_USER_RULES,
+  ...TABLE_FACT_RULES,
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,

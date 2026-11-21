@@ -135,6 +135,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod table-tags",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("table-tags"),
+      ),
+  ],
+  [
     "codemod extra-columns",
     () =>
       import("./commands/codemod.ts").then((m) =>

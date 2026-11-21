@@ -143,6 +143,23 @@ export { auditRegistrations } from "./audit-registrations.ts";
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
 export {
+  auditExemptTag,
+  columnTagComments,
+  grantExpose,
+  grantTag,
+  lifecycleTag,
+  sameTenantTag,
+  sameTenantTagsOf,
+  type SameTenantTags,
+  splitList,
+  TABLE_FACT_TAGS,
+  type ColumnTagComment,
+  type GrantFact,
+  type LifecycleFact,
+  type SameTenantFact,
+} from "./table-facts.ts";
+
+export {
   type DeclaredForeignKey,
   declaredForeignKeys,
   sameTenantLayout,

@@ -24,6 +24,7 @@ pnpm better-supabase gen sql
 | [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`         |
 | [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
 | [Record types](#record-types)                                             | Run `codemod record-types`           |
+| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`             |
 
 ## The blocks list
 
@@ -127,3 +128,35 @@ name. Doctor rule BS346 suggests it when a name matches after that change.
 
 An inferred `uuid` or integer id type casts a stored text id only when the id
 has that type's shape, so a malformed id reads as not found instead of raising.
+
+## Table facts in comments
+
+Four facts about one table now sit in a `comment on table` next to the table,
+where a review of the schema shows them. The config entry still works. For
+audit, data lifecycle and privileges it wins when both exist; a `same-tenant`
+tag replaces the entries for its column.
+
+| Fact                | Config in 0.81                                     | Comment in 0.82                                      |
+| ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Audit exemption     | `blocks.audit.options.exempt: [{ table, reason }]` | `@bsb audit-exempt reason="rebuilt nightly"`         |
+| Data lifecycle      | `blocks.data-lifecycle.options.tables.<table>`     | `@bsb data-lifecycle user=owner_id export=false`     |
+| Data API privileges | `database.expose.<table>`                          | `@bsb grant authenticated="select,update(title)"`    |
+| Same-tenant check   | `blocks.memberships.options.sameTenant` entry      | `@bsb same-tenant match=region=region` on the column |
+
+```sql
+comment on table public.invoices is '@bsb data-lifecycle user=owner_id; grant authenticated=select';
+comment on column public.tasks.project_id is '@bsb same-tenant';
+```
+
+One `@bsb` starts the tag block, and `;` separates the tags in it.
+
+`audit-exempt` needs a reason, and doctor rule BS315 reports a tag without one.
+`grant` on a table a block adopts exposes the table, so the block only enables
+row level security on it and the `grants` module writes the privileges.
+
+`codemod table-tags` writes the comments into the schema file that creates each
+table and removes the config entries. A fact whose table no schema file creates,
+or whose comment already holds the tag, stays in the config and is listed.
+`same-tenant` entries stay in the config: move them by hand. Doctor rule BS702
+lists the facts a comment can hold, and BS703 reports a tag that cannot take
+effect.

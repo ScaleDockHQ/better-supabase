@@ -862,6 +862,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "table-tags",
+        description:
+          "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",
