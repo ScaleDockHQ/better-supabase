@@ -28,6 +28,8 @@ export type VercelBatchResult =
       readonly status: "failed";
       readonly statusCode: number;
       readonly error: string;
+      /** Absent in `@vercel/queue` releases before it reported this. */
+      readonly retryable?: boolean;
     };
 
 /**
