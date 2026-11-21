@@ -26,7 +26,14 @@ export function explainSql(
   active: string,
 ): string {
   const id = ctx.idType;
-  const key = ctx.permission("explain", OPERATIONS["permissions.explain"]);
+
+  // A provider's functions list no key for this, so with `model: "provider"`
+  // the members read key is not checked: only the service role and a member's
+  // own answer pass.
+  const reader =
+    accessModel(ctx) === "provider"
+      ? ""
+      : `\n    or coalesce(better_supabase.member_can(auth.uid(), explain_permission.tenant, ${ctx.permission("explain", OPERATIONS["permissions.explain"])}), false)`;
 
   const override =
     accessModel(ctx) === "catalog" && ctx.hasTable("overrides")
@@ -55,8 +62,7 @@ declare
   v_override boolean;
   v_reason text;
 begin
-  if not (${SERVICE} or explain_permission.member is not distinct from auth.uid()
-    or coalesce(better_supabase.member_can(auth.uid(), explain_permission.tenant, ${key}), false)) then
+  if not (${SERVICE} or explain_permission.member is not distinct from auth.uid()${reader}) then
     ${fail("PERMISSIONS_FORBIDDEN", "Not allowed to explain this member's permissions")}
   end if;
   v_allowed := coalesce(better_supabase.member_can(explain_permission.member, explain_permission.tenant, explain_permission.permission), false);

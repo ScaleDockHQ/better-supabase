@@ -601,7 +601,7 @@ const KNOWN = new Set([
   "claim",
   "held_at",
   "hold_kind",
-  "hold_return_stage",
+  "hold_return_stage_id",
   "delegate_profile",
   "locked",
   "rank",

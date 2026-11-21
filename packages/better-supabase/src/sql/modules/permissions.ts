@@ -1141,8 +1141,10 @@ export const ACCESS: BlockSqlDefinition = {
     },
     { name: "permission_claims", args: ["uuid"], returns: "jsonb" },
   ],
-  unusedPermissions: (ctx) =>
-    rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
+  unusedPermissions: (ctx) => [
+    ...(rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"]),
+    ...(accessModel(ctx) === "provider" ? ["explain"] : []),
+  ],
   data: catalogRoles,
   build: accessSql,
 };

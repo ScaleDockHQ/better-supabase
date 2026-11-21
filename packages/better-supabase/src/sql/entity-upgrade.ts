@@ -203,9 +203,12 @@ function bodyRenames(
       from === to
         ? []
         : add(
+            // A policy on a Supabase-owned table (`realtime.messages`) can be
+            // created by the app role but not renamed by it. The upgrade's
+            // re-run then creates the policy under its new name.
             guarded(
               `exists (select 1 from pg_policies where schemaname = ${sqlString(table.schema)} and tablename = ${sqlString(table.name)} and policyname = ${sqlString(from)})`,
-              `alter policy ${quote(from)} on ${sqlName(table)} rename to ${quote(to)};`,
+              `begin alter policy ${quote(from)} on ${sqlName(table)} rename to ${quote(to)}; exception when insufficient_privilege then null; end;`,
             ),
           ),
     ),
