@@ -113,6 +113,8 @@ await service
 
 A brand starter has scope `brand`, no organization and the brand in `brand`. Every organization whose column holds that brand reads, forks and applies it like a system starter, and other organizations don't see it. Keys and defaults count the brand, so each brand keeps its own `launch`. A brand table other than the tenant table takes `tenant`, the column there with the tenant id (`id` by default). Without `options.brand`, `sync` refuses a starter with a `brand`.
 
+To name the brand source once for every block that reads one, set `database.sql.brand: { table, column, tenant? }` in the config. Option sets and pipelines read it too, and a block's own `options.brand` overrides it.
+
 ## Fields and preview
 
 `variables({ type })` lists the merge fields a template type offers, in catalog order, for an editor's field picker. It returns `not_found` for a type not in `options.types` and an empty list for a type without a catalog.

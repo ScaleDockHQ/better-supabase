@@ -75,3 +75,65 @@ describe("codemod config --prune", () => {
     expect(readFileSync(file, "utf-8")).toBe(TEXT);
   });
 });
+
+describe("codemod config --prune numbering entries", () => {
+  const NUMBERING = `export default {
+  blocks: [
+    {
+      block: "numbering",
+      options: {
+        entities: {
+          widget: { format: "{n}", period: "none", table: "public.widgets", column: "number" },
+          ticket: { format: "T-{n}", period: "none", table: "public.tickets", column: "number" },
+        },
+      },
+    },
+  ],
+};
+`;
+
+  it("removes format, period and column that equal the defaults and keeps the rest", async () => {
+    const root = mkdtempSync(join(tmpdir(), "bsb-prune-num-"));
+
+    mkdirSync(join(root, "supabase"), { recursive: true });
+
+    const file = join(root, "better-supabase.config.ts");
+
+    writeFileSync(file, NUMBERING);
+
+    const config = resolveConfig(
+      {
+        blocks: {
+          numbering: {
+            options: {
+              entities: {
+                widget: {
+                  format: "{n}",
+                  period: "none",
+                  table: "public.widgets",
+                  column: "number",
+                },
+                ticket: {
+                  format: "T-{n}",
+                  period: "none",
+                  table: "public.tickets",
+                  column: "number",
+                },
+              },
+            },
+          },
+        },
+      },
+      root,
+    );
+
+    await runCodemod(config, { _: ["config"], prune: true }, undefined, file);
+
+    const text = readFileSync(file, "utf-8");
+
+    expect(text).not.toContain('format: "{n}"');
+    expect(text).toContain('format: "T-{n}"');
+    expect(text).not.toContain('column: "number"');
+    expect(text).not.toContain('period: "none"');
+  });
+});

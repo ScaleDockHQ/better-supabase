@@ -1,0 +1,65 @@
+---
+title: From 0.81 to 0.82
+description: What to change when upgrading from better-supabase 0.81 to 0.82. The blocks list, project-level defaults, config the render already supplies, and authorization facts that move into the provider.
+---
+
+0.82 shrinks the config. Facts the project, the schema files or the
+authorization provider already state are no longer written twice. It is a minor
+release, and below 1.0 a minor version may carry breaking changes. Each change
+is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+Run the codemods in this order, then review the diff and the render:
+
+```bash
+pnpm better-supabase codemod blocks-list
+pnpm better-supabase codemod config --prune
+pnpm better-supabase gen sql
+```
+
+| Section                                                                   | Needs code                         |
+| ------------------------------------------------------------------------- | ---------------------------------- |
+| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`          |
+| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column |
+| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`       |
+
+## The blocks list
+
+`blocks` is a list of block names and `{ block, name?, ...entry }` objects. The
+keyed object form is rejected when the config loads, with a hint to run the
+codemod. A block with nothing to configure is a plain name.
+
+| 0.81                                               | 0.82                                                   |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| `blocks: { tags: {} }`                             | `blocks: ["tags"]`                                     |
+| `blocks: { comments: { api: "api" } }`             | `blocks: [{ block: "comments", api: "api" }]`          |
+| `blocks: { "ops-tasks": { block: "tasks", ... } }` | `blocks: [{ block: "tasks", name: "ops-tasks", ... }]` |
+
+`codemod blocks-list` keeps comments and key order. It writes nothing when the
+file already holds a list, and `--check` exits 1 while a file still needs it.
+
+## Project-level defaults
+
+These facts are set once under `database.sql` and every block that needs one
+reads it.
+
+| 0.81                                                                       | 0.82                                             |
+| -------------------------------------------------------------------------- | ------------------------------------------------ |
+| `tenant: "org_id"` on each table, data-lifecycle table and tag link        | `database.sql.tenantColumn: "org_id"`            |
+| `numbering` entry without a tenant column uses `organization_id`           | the entry uses `sql.tenantColumn` when it is set |
+| `format: "{n}"`, `period: "none"`, `column: "number"` on each entity       | the same values are the defaults; remove them    |
+| `brand: { table, column }` on each templates, option set or pipeline block | `database.sql.brand: { table, column, tenant? }` |
+
+The numbering tenant default changes from `organization_id` to
+`sql.tenantColumn`. An app whose numbering entity set no tenant column and
+whose project column differs sees the render change: run `gen sql` and read the
+diff before you deploy.
+
+## Config the render already supplies
+
+`codemod config --prune` removes each entry that `doctor` reports as BS427:
+identity column mappings, empty maps, a tenant that repeats `sql.tenantColumn`,
+an `api` or `audit` equal to `sql`'s, a permission key equal to the one the
+block would use, an option equal to its default, and the numbering values above.
+It renders the blocks with the old and the new config and writes nothing when a
+generated file differs.

@@ -184,7 +184,12 @@ export async function probeRestated(
   const unchanged = async (group: readonly Candidate[]): Promise<boolean> => {
     renders += 1;
 
-    return sameRender(base, await renderOf(patched(config, group)));
+    // A removal the render refuses (a column without its table) is not restated.
+    try {
+      return sameRender(base, await renderOf(patched(config, group)));
+    } catch {
+      return false;
+    }
   };
 
   const search = async (group: readonly Candidate[]): Promise<void> => {
