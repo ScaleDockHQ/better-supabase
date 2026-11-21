@@ -58,10 +58,10 @@ vi.mock(import("next/cache.js"), () => ({
   io: () => Promise.resolve(),
 }));
 
-vi.mock(
-  import("next/dist/client/components/redirect.js"),
-  async (original) => ({ ...(await original()), redirect: mocks.redirect }),
-);
+vi.mock(import("next/navigation"), async (original) => ({
+  ...(await original()),
+  redirect: mocks.redirect,
+}));
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 

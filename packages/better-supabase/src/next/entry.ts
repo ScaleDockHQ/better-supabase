@@ -1,11 +1,12 @@
 import * as nextCache from "next/cache.js";
-import { cacheLife, cacheTag } from "next/cache.js";
+import { cacheLife } from "next/cache.js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheScope, CachedOptions, CachedStage } from "./types.ts";
 
 import { tagFor } from "../core/tags.ts";
+import { applyCacheTags } from "./cache-tags.ts";
 import { cachedLife, sessionIdTag, supportTag, tableTags } from "./cache.ts";
 
 /** What `applyCacheEntry` reads from the scope's context. */
@@ -125,6 +126,6 @@ export function applyCacheEntry<C, P>(input: CacheEntryScope<C, P>): void {
   ];
 
   if (tags.length > 0) {
-    cacheTag(...tags);
+    applyCacheTags(tags);
   }
 }
