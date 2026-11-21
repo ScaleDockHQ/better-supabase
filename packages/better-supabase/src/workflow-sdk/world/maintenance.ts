@@ -108,6 +108,25 @@ export function createMaintenance(
         }
       }
     },
+    async purgeBackstops(options = {}) {
+      const batch = Math.max(1, Math.trunc(options.batch ?? 100));
+      let total = 0;
+
+      for (;;) {
+        const [row] = await call<{ workflow_purge_backstops: number }>(
+          "workflow_purge_backstops",
+          [batch],
+        );
+
+        const purged = row?.workflow_purge_backstops ?? 0;
+
+        total += purged;
+
+        if (purged < batch) {
+          return total;
+        }
+      }
+    },
     async openHooks(options = {}) {
       const rows = await call<HookRow>("workflow_open_hooks", [
         options.tenantId ?? null,

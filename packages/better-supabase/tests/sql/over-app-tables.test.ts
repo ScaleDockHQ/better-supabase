@@ -173,6 +173,7 @@ const SPECLESS: Readonly<Record<string, readonly string[]>> = {
     "workflow_hooks",
     "workflow_invocations",
     "workflow_job_lock_holders",
+    "workflow_purge_backstops",
     "workflow_run_delivery_leases",
     "workflow_run_keys",
     "workflow_runs",

@@ -12,8 +12,8 @@ describe("workflow-sdk upgrades", () => {
 
     const plan = plans.find((entry) => entry.module === "workflow-sdk");
 
-    expect(plan?.to).toBe(8);
-    expect(plan?.steps.map((step) => step.from)).toEqual([5, 6, 7]);
+    expect(plan?.to).toBe(9);
+    expect(plan?.steps.map((step) => step.from)).toEqual([5, 6, 7, 8]);
 
     const sql = plan?.steps[0]?.sql ?? "";
     const add = sql.indexOf('"wake_pending" boolean not null default true');
@@ -30,6 +30,6 @@ describe("workflow-sdk upgrades", () => {
       undefined,
     );
 
-    expect(plan?.steps.map((step) => step.from)).toEqual([4, 5, 6, 7]);
+    expect(plan?.steps.map((step) => step.from)).toEqual([4, 5, 6, 7, 8]);
   });
 });

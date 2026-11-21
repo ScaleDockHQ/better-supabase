@@ -155,6 +155,33 @@ describe("workflow-sdk module", () => {
     expect(body).not.toContain("cron.schedule('better-supabase-workflow");
   });
 
+  it("schedules the purge backstops only where no World polls", () => {
+    const backstops = "cron.schedule('better-supabase-workflow-backstops'";
+
+    expect(dataOf("workflow-sdk")).not.toContain(backstops);
+
+    for (const delivery of ["pg_net", "vercel-queue"]) {
+      expect(
+        dataOf("workflow-sdk", { "workflow-sdk": { options: { delivery } } }),
+      ).toContain(
+        `${backstops}, '* * * * *', 'select "better_supabase"."workflow_purge_backstops"()')`,
+      );
+    }
+  });
+
+  it("records only world-postgres's purge backstops in workflow.add_job", () => {
+    const body = moduleBody("workflow-sdk")!;
+
+    expect(body).toContain("create or replace function workflow.add_job(");
+    expect(body).toContain("hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED'");
+    expect(body).toContain(
+      "grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;",
+    );
+    expect(body).toContain(
+      "delete from workflow.workflow_purge_backstops where run_id = any (v_ids);",
+    );
+  });
+
   it("rejects an unknown delivery mode or queue name", () => {
     expect(() =>
       dataOf("workflow-sdk", {
@@ -181,6 +208,7 @@ describe("workflow-sdk module", () => {
       "workflow_set_run_key",
       "workflow_release_run_key",
       "workflow_purge_runs",
+      "workflow_purge_backstops",
       "workflow_open_hooks",
       "eve_session_wake",
       "eve_session_lease",

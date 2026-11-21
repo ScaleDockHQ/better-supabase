@@ -1,11 +1,11 @@
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@8 managed
--- @bsb-hash sha256:c4ed04dc646181c9a1af66c877f46005421af8a4940f587d4ad7a5fa42f0a5d4
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
+-- @bsb-block workflow-sdk@9 managed
+-- @bsb-hash sha256:26714529d828d782ae1a2a2f147c4e6a721daeabbb1c2d497bdf4c7d87554588
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.4.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -212,6 +212,43 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
 -- The eve projection (eve sessions copied into the blocks by syncSession).
 -- session_id is the id of the session's first run. read_cursor is the next
 -- line of the session stream to read. A session is behind while dirty_at is
@@ -270,6 +307,9 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_purge_backstops enable row level security;
+revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
+grant all on workflow.workflow_purge_backstops to service_role;
 alter table workflow.workflow_run_delivery_leases enable row level security;
 revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
 grant all on workflow.workflow_run_delivery_leases to service_role;
@@ -523,10 +563,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
   delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function "better_supabase"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -805,6 +906,8 @@ revoke execute on function "better_supabase"."workflow_release_run_key"(text) fr
 grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
 revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_backstops"(integer) to service_role;
 revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
 revoke execute on function "better_supabase"."eve_session_wake"(text, integer) from public, anon, authenticated;

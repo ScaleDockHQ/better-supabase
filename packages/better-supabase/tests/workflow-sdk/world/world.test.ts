@@ -999,6 +999,71 @@ describe("createSupabaseWorld", () => {
     await open.close();
   });
 
+  it("starts without delivering anything with skipWorkers", async () => {
+    const { pool, queries } = fakePool({
+      vault: () => [],
+      claim_jobs: () => [],
+    });
+
+    const world = createSupabaseWorld({
+      pool,
+      skipWorkers: true,
+      pollInterval: 10,
+    });
+
+    expect(created.at(-1)).toMatchObject({ skipWorkers: true });
+
+    await world.start();
+    await world.queue("__wkf_workflow_test", { runId: "wrun_1" });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 30);
+    });
+
+    expect(reenqueue).not.toHaveBeenCalled();
+    expect(queries.map((query) => query.fn)).not.toContain("claim_jobs");
+    expect(queries.map((query) => query.fn)).toContain("enqueue_job");
+    await world.close();
+
+    expect(
+      worldOptionsFromEnv({ WORKFLOW_POSTGRES_SKIP_WORKERS: "1" }),
+    ).toEqual({ skipWorkers: true });
+  });
+
+  it("points world-postgres's add_job at the workflow schema and runs purge backstops", async () => {
+    const warnings: string[] = [];
+
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (message: string) => warnings.push(message),
+      error: () => undefined,
+    };
+
+    vi.stubEnv("GRAPHILE_WORKER_SCHEMA", "");
+
+    const { pool, queries } = fakePool({
+      vault: () => [],
+      claim_jobs: () => [],
+    });
+
+    const world = createSupabaseWorld({ pool, logger });
+
+    expect(process.env["GRAPHILE_WORKER_SCHEMA"]).toBe("workflow");
+
+    await world.deliverOnce();
+    expect(queries.map((query) => query.fn)).toContain(
+      "workflow_purge_backstops",
+    );
+    await world.close();
+
+    vi.stubEnv("GRAPHILE_WORKER_SCHEMA", "graphile_worker");
+    const other = createSupabaseWorld({ pool, logger });
+    expect(warnings).toEqual([
+      expect.stringContaining("GRAPHILE_WORKER_SCHEMA"),
+    ]);
+    await other.close();
+  });
+
   it("fails closed on an unreadable Vault and reads it again next time", async () => {
     let broken = true;
     const master = Buffer.alloc(32, 3).toString("base64");

@@ -20,9 +20,9 @@ SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
 eve loads the World by name and refuses a World built for another
-`@workflow/*` major at startup. eve 1.2 bundles Workflow 5.7, which reads the
+`@workflow/*` major at startup. eve 1.3 bundles Workflow 5.7.1, which reads the
 5.3 protocol the World speaks (`WORKFLOW_WORLD_PROTOCOL`). The World wraps
-`@workflow/world-postgres` 5.4, so it inherits the atomic start hooks eve
+`@workflow/world-postgres` 5.4.1, so it inherits the atomic start hooks eve
 needs. The [Workflow SDK page](/docs/blocks/workflow-sdk) lists every
 variable and option. The sections below are the ones an eve app decides.
 
@@ -61,6 +61,12 @@ secret `workflow_delivery_headers` for the database dispatcher).
 and the Vercel side stays unproven until a maintainer runs
 `scripts/eve-vercel-check.ts` against a deployment (see the
 [Workflow SDK page](/docs/blocks/workflow-sdk#delivery-on-vercel)).
+
+A process that only starts runs and reads their state, such as a web server
+next to a separate eve worker, can set `skipWorkers: true` (or
+`WORKFLOW_POSTGRES_SKIP_WORKERS=1`). It still queues messages, but it never
+claims or posts a delivery and `world.start()` recovers nothing, so keep at
+least one process without it.
 
 ## Connection modes
 
@@ -104,10 +110,18 @@ await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
 (see [Sessions](/docs/eve/sessions)). The retention option runs the same
 purge hourly.
 
+A run started with a retention of 0 (the `$retention` attribute `'0'`) has its
+data cleared when it ends. world-postgres 5.4.1 also records a backstop for
+it, due a minute later, in case that purge does not finish. The World points
+`GRAPHILE_WORKER_SCHEMA` at `workflow` when you leave it unset, where
+`workflow.add_job` records the backstop, and `world.purgeBackstops()` clears
+the data of every due run whose purge did not finish. The World runs it while
+it polls; the `pg_net` and `vercel-queue` modes schedule it every minute under
+pg_cron.
+
 ## Supported eve versions
 
-The peer ranges are `eve >=1.2.0 <2`, `workflow >=5.7.0 <6`,
-`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.0 <5.5`.
-eve 1.2 peers on `@vercel/connect` 2.9 (ADR 1097). Upgrade the
-`workflow-sdk` module to version 8 before you deploy it (see
-[the migration guide](/docs/migration/0.79-to-0.80)).
+The peer ranges are `eve >=1.3.0 <2`, `workflow >=5.7.1 <6`,
+`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.1 <5.5`.
+Upgrade the `workflow-sdk` module to version 9 before you deploy them (see
+[the migration guide](/docs/migration/0.80-to-0.81)).

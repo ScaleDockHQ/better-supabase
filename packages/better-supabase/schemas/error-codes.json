@@ -6043,6 +6043,9 @@
     "message": "A graph is an object"
   },
   {
+    "code": "WORKFLOW_GRAPHILE_UNSUPPORTED"
+  },
+  {
     "code": "WORKFLOW_KEY_UNSUPPORTED",
     "message": "this workflow runs table has no idempotency_key column"
   },
