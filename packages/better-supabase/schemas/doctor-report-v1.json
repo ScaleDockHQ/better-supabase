@@ -264,7 +264,9 @@
               "BS703",
               "BS704",
               "BS705",
-              "BS706"
+              "BS706",
+              "BS707",
+              "BS708"
             ]
           },
           "severity": { "enum": ["error", "warning", "info"] },

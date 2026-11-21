@@ -256,3 +256,11 @@ A disabled feature renders no SQL. `blocks.inventory.tables.allocations: null` d
 its eleven functions, the import target and the contract entries (599 fewer lines). `blocks.accounting.tables.budgets: null`
 or `budgetLines: null` drops the budgets table, the four budget functions and their contract entries (232 fewer
 lines). Inventory and invoices already gated their other optional tables.
+
+Doctor BS707 (info) lists `blocks.<name>.columns` entries that no enabled feature reads. The render records each
+`table.column` it reads, so an entry for a feature that is off is reported with the block, table and column. The
+report names the block and column, not the option that turns the feature on, because a column read carries no
+option name.
+
+Doctor BS708 (info) lists the generated SQL of each installed block in kilobytes, largest first, and
+`doctor --json` carries it under that code. It replaces the idea of a `sql size` command.

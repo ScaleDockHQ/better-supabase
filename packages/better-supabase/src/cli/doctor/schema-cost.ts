@@ -164,4 +164,33 @@ export const SCHEMA_COST_RULES: readonly Rule[] = [
       return findings;
     },
   },
+  {
+    code: "BS708",
+    severity: "info",
+    title: "Generated SQL size per block",
+    description:
+      "The characters of generated SQL each installed block adds to the module files, largest first, so you can see which block to leave out, install in a smaller form, or gate with an optional table set to `null`. Doctor reports one finding with the full list, and `doctor --json` carries it under that code. BS244 names the largest five once the total passes 2 MB.",
+    check: (context) => {
+      const sizes = blockSqlSizes(context.sqlFiles ?? []);
+
+      if (sizes.length === 0) {
+        return [];
+      }
+
+      const total = sizes.reduce((sum, each) => sum + each.characters, 0);
+
+      const list = sizes
+        .map(
+          (each) => `${each.block} ${(each.characters / 1000).toFixed(0)} kB`,
+        )
+        .join(", ");
+
+      return [
+        {
+          message: `The generated module SQL is ${(total / 1000).toFixed(0)} kB. Per block: ${list}.`,
+          target: "modules:sql-size-by-block",
+        },
+      ];
+    },
+  },
 ];

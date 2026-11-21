@@ -94,6 +94,27 @@ describe("BS243 large literal in a security definer helper", () => {
   });
 });
 
+describe("BS708 generated SQL size per block", () => {
+  const file = (block: string, size: number) => ({
+    path: `supabase/schemas/${block}.sql`,
+    text: `-- @bsb-block ${block}@1 managed\n${"-".repeat(size)}`,
+  });
+
+  it("is quiet without module files", async () => {
+    expect(await run("BS708", [])).toEqual([]);
+  });
+
+  it("lists every block, largest first", async () => {
+    const findings = await run("BS708", [
+      file("tags", 1000),
+      file("invoices", 5000),
+    ]);
+
+    expect(findings).toMatchObject([{ target: "modules:sql-size-by-block" }]);
+    expect(findings[0]!.message).toMatch(/invoices 5 kB, tags 1 kB/);
+  });
+});
+
 describe("BS244 schema cache pressure", () => {
   it("is quiet for a small project", async () => {
     expect(await run("BS244", [])).toEqual([]);

@@ -28,6 +28,7 @@ import {
   sameTenantColumn,
   sameTenantTrigger,
   SQL_MODULES,
+  unusedDeclaredColumns,
   writtenValues,
 } from "../../sql/index.ts";
 import { tenantEntries } from "../codemod-config.ts";
@@ -386,6 +387,22 @@ export const ADOPTION_RULES: readonly Rule[] = [
         }),
       );
     },
+  },
+  {
+    code: "BS707",
+    severity: "info",
+    title: "A columns entry no enabled feature reads",
+    description:
+      "`blocks.<name>.columns.<table>.<column>` names a column, but the block's render never reads it, because the feature that uses it is off (an optional table mapped to `null`, or an option left at its default). The entry does nothing today. Remove it, or turn the feature on, and the column starts to count.",
+    check: (context) =>
+      unusedDeclaredColumns({
+        modules: context.config.blocks,
+        ownTables: appTablesOf(context),
+        ...appViewsOf(context),
+      }).map((entry): FindingInput => ({
+        message: `blocks.${entry.block}.columns.${entry.table}.${entry.logical} maps to "${entry.column}", but no enabled feature of ${entry.block} reads it.`,
+        target: `blocks.${entry.block}.columns.${entry.table}.${entry.logical}`,
+      })),
   },
   {
     code: "BS622",

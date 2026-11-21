@@ -11,6 +11,8 @@ export {
   legacyOptionTarget,
 } from "./legacy-options.ts";
 
+export { unusedDeclaredColumns, type UnusedColumn } from "./unused-columns.ts";
+
 export { clientNotNull } from "./client-functions.ts";
 
 export { moduleContext, redundantNulls } from "./module-context.ts";

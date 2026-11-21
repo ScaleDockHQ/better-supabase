@@ -722,6 +722,28 @@ export interface Contributor<K extends keyof BlockContributions> {
   ) => readonly BlockContributions[K][];
 }
 
+let columnSink: Set<string> | undefined;
+
+/**
+ * Runs `run` and returns the `table.logical` columns the render read through
+ * `ctx.col`, `ctx.has` and the helpers over them. A column the render never
+ * reads belongs to a feature that is off.
+ */
+export function trackColumnReads<T>(run: () => T): {
+  readonly value: T;
+  readonly reads: ReadonlySet<string>;
+} {
+  const previous = columnSink;
+  const reads = new Set<string>();
+  columnSink = reads;
+
+  try {
+    return { value: run(), reads };
+  } finally {
+    columnSink = previous;
+  }
+}
+
 const IDENT = /^[A-Za-z_][A-Za-z0-9_$]*$/;
 
 function splitTable(
@@ -990,6 +1012,7 @@ export function createModuleContext(
       );
     }
 
+    columnSink?.add(`${table}.${logical}`);
     const mapped = config.columns[table]?.[logical];
 
     checkTenantEntry(
