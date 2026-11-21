@@ -17,6 +17,11 @@ import {
   BlobContentTypeNotAllowedError,
   BlobError,
   BlobFileTooLargeError,
+  BlobPathnameMismatchError,
+  BlobClientTokenExpiredError,
+  BlobStoreSuspendedError,
+  BlobPreconditionFailedError,
+  BlobStoreNotFoundError,
   BlobNotFoundError,
   BlobServiceRateLimited,
   fakeBlobModule,
@@ -210,6 +215,36 @@ describe("vercelBlobStore", () => {
     expect(fake.calls).toEqual([["del", ["p/files/a", "p/files/b"], {}]]);
   });
 
+  it("passes OIDC, store, TTL and cache options to the SDK", async () => {
+    const fake = fakeBlobModule();
+
+    const store = vercelBlobStore(fake.module, {
+      oidcToken: "oidc",
+      storeId: "store_1",
+      ttlDays: 30,
+      cacheControlMaxAge: 3600,
+    });
+
+    await store.put("files", "a", new Blob(["a"])).orThrow();
+    await store.delete("files", ["a"]).orThrow();
+
+    expect(fake.calls[0]).toEqual([
+      "put",
+      "files/a",
+      expect.objectContaining({
+        ttlDays: 30,
+        cacheControlMaxAge: 3600,
+        oidcToken: "oidc",
+        storeId: "store_1",
+      }),
+    ]);
+    expect(fake.calls[1]).toEqual([
+      "del",
+      ["files/a"],
+      { oidcToken: "oidc", storeId: "store_1" },
+    ]);
+  });
+
   it("signs a download URL for one pathname until expiresIn", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-13T12:00:00Z"));
@@ -329,6 +364,11 @@ describe("vercelBlobStore", () => {
       [new BlobServiceRateLimited(30), "rate_limited"],
       [new BlobFileTooLargeError(), "invalid_input"],
       [new BlobContentTypeNotAllowedError(), "invalid_input"],
+      [new BlobPathnameMismatchError(), "invalid_input"],
+      [new BlobClientTokenExpiredError(), "unauthorized"],
+      [new BlobStoreSuspendedError(), "forbidden"],
+      [new BlobPreconditionFailedError(), "conflict"],
+      [new BlobStoreNotFoundError(), "unexpected"],
       [new BlobError("Unknown error"), "network"],
       [new TypeError("fetch failed"), "network"],
     ] as const;

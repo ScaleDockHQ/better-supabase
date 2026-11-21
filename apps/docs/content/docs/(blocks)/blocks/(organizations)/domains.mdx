@@ -262,3 +262,12 @@ const hostname = await domains.add(organizationId, "app.acme.com").orThrow();
 //   value: "better-supabase-hostname-verification=3f1c...",
 // }
 ```
+
+## Check the DNS
+
+With `vercelDomainProvider`, `status` and a verified `verify` also ask Vercel
+whether the hostname's DNS points at the project. The result carries
+`misconfigured` and `dns` (`cname` and `ipv4`, the records Vercel recommends,
+lowest rank first), so the page can show the records to set. The check needs
+`domains.getDomainConfig` in the SDK you pass in, which `@vercel/sdk` has; an
+SDK without it returns the status as before.

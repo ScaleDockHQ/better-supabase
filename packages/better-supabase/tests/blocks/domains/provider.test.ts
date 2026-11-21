@@ -369,3 +369,100 @@ describe("vercelDomainProvider", () => {
     });
   });
 });
+
+describe("vercelDomainProvider DNS verdict", () => {
+  const config = (overrides: Record<string, unknown> = {}) => ({
+    misconfigured: true,
+    recommendedCNAME: [
+      { rank: 2, value: "later.vercel-dns.com." },
+      { rank: 1, value: "cname.vercel-dns.com." },
+    ],
+    recommendedIPv4: [{ rank: 1, value: ["76.76.21.21"] }],
+    ...overrides,
+  });
+
+  it("reports misconfigured DNS on status and verify once the domain is verified", async () => {
+    const vercel = fakeVercel();
+    const calls: unknown[] = [];
+
+    const sdk = {
+      ...vercel.sdk,
+      domains: {
+        getDomainConfig: async (request: unknown) => {
+          calls.push(request);
+
+          return config();
+        },
+      },
+    };
+
+    const provider = vercelDomainProvider(sdk, {
+      projectId: "prj_1",
+      teamId: "team_1",
+    });
+
+    await provider.add(HOST).orThrow();
+
+    const expected = {
+      hostname: HOST,
+      verified: true,
+      records: [],
+      misconfigured: true,
+      dns: { cname: "cname.vercel-dns.com.", ipv4: ["76.76.21.21"] },
+    };
+
+    expect(await provider.status(HOST).orThrow()).toEqual(expected);
+    expect(await provider.verify(HOST).orThrow()).toEqual(expected);
+    expect(calls[0]).toEqual({
+      domain: HOST,
+      projectIdOrName: "prj_1",
+      teamId: "team_1",
+    });
+  });
+
+  it("leaves the verdict out when the config call fails or the domain is unverified", async () => {
+    const failing = fakeVercel();
+
+    const broken = vercelDomainProvider(
+      {
+        ...failing.sdk,
+        domains: {
+          getDomainConfig: async () => {
+            throw new Error("down");
+          },
+        },
+      },
+      { projectId: "prj_1" },
+    );
+
+    await broken.add(HOST).orThrow();
+    expect(await broken.status(HOST).orThrow()).toEqual({
+      hostname: HOST,
+      verified: true,
+      records: [],
+    });
+
+    const pending = fakeVercel({ challenge: true });
+    let asked = 0;
+
+    const provider = vercelDomainProvider(
+      {
+        ...pending.sdk,
+        domains: {
+          getDomainConfig: async () => {
+            asked += 1;
+
+            return config();
+          },
+        },
+      },
+      { projectId: "prj_1" },
+    );
+
+    await provider.add(HOST).orThrow();
+    expect(
+      (await provider.status(HOST).orThrow())?.misconfigured,
+    ).toBeUndefined();
+    expect(asked).toBe(0);
+  });
+});

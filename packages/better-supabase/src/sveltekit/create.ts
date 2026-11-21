@@ -50,6 +50,11 @@ export interface SvelteKitHelpers {
   error(status: number, message: string): never;
   redirect(status: 303, location: string): never;
   fail(status: number, data: Record<string, unknown>): SvelteKitError<unknown>;
+  /**
+   * `getRequestEvent` from `$app/server`. With it, `bsb.caller()` guards a
+   * remote function (`query`, `command`, `form`) without an `event`.
+   */
+  getRequestEvent?(): SvelteKitRequestEvent;
 }
 
 export interface SvelteKitOptions extends FrameworkOptions {
@@ -109,6 +114,32 @@ export interface BetterSvelteKit<
    */
   require<R extends boolean = false>(
     event: SvelteKitRequestEvent,
+    options?: BlockRequireOptions<
+      C,
+      P,
+      R,
+      Ref,
+      LocalsResource<M, F, E, C, P, B>
+    >,
+  ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
+  /**
+   * The caller inside a remote function (`query`, `command` or `form` from
+   * `$app/server`), or SvelteKit's `error()` for a refused one. It reads the
+   * event with `getRequestEvent`, which `kit` must carry, and never redirects:
+   * a remote function answers the client that called it, so a refusal is an
+   * HTTP error the client handles.
+   *
+   * ```ts
+   * export const orders = query(async () => {
+   *   const { db } = await bsb.caller({ requireTenant: true });
+   *   return db.orders.list().orThrow();
+   * });
+   * ```
+   *
+   * Call it before the first `await` in environments without
+   * `AsyncLocalStorage`: `getRequestEvent` must run synchronously there.
+   */
+  caller<R extends boolean = false>(
     options?: BlockRequireOptions<
       C,
       P,
@@ -249,6 +280,42 @@ export function createSvelteKit<
 
         // SAFETY: requireTenant refused a missing tenant.
         return { ...locals, ...caller } as never;
+      },
+
+      caller(callerOptions = {}) {
+        // Read before any await: without AsyncLocalStorage the event is only
+        // available synchronously.
+        const event = options.kit?.getRequestEvent?.();
+
+        if (event === undefined) {
+          throw new TypeError(
+            "better-supabase: bsb.caller() needs createSvelteKit(..., { kit: { getRequestEvent } }) from $app/server",
+          );
+        }
+
+        return (async () => {
+          const locals = localsFrom(event);
+
+          const caller = await requireCaller(
+            locals.bsb.auth,
+            callerOptions,
+            locals.tenant,
+            server.authorizer,
+            locals,
+          );
+
+          if ("kind" in caller) {
+            return options.kit
+              ? options.kit.error(
+                  caller.status,
+                  toProblem(caller, { expose }).detail ?? caller.message,
+                )
+              : Promise.reject(new DbException(caller));
+          }
+
+          // SAFETY: requireTenant refused a missing tenant.
+          return { ...locals, ...caller } as never;
+        })();
       },
 
       action(actionOptions, fn) {

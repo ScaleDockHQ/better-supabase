@@ -1,8 +1,11 @@
 import type { DbError } from "../core/errors.ts";
 import type { ProblemFormat } from "../core/problem.ts";
+import type { Result } from "../core/result.ts";
+import type { RateLimiter, RateLimitVerdict } from "../server/rate-limit.ts";
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
+import { err, ok } from "../core/result.ts";
 
 /**
  * A check that runs before a route handler: `undefined` lets the request
@@ -89,6 +92,38 @@ export type CheckRateLimit = (
   options?: FirewallRateLimitCheckOptions,
 ) => Promise<FirewallRateLimitResult>;
 
+/** What a guard decided about one request, as `onVerdict` receives it. */
+export type VercelGuardOutcome = "allowed" | "refused" | "error";
+
+/**
+ * Observes a guard's verdict (metrics, logs, an event sink). It runs after the
+ * decision and can't change it: a throw or a rejected promise is ignored, and
+ * the guard doesn't wait for it.
+ */
+export type VercelVerdictHandler<V> = (event: {
+  readonly verdict: V | undefined;
+  readonly outcome: VercelGuardOutcome;
+  /** The hint of the refusal or failure, such as `BOT_DETECTED`. */
+  readonly hint?: string | undefined;
+  /** `undefined` for `botIdCheck`, which has no request. */
+  readonly request: Request | undefined;
+}) => void | PromiseLike<void>;
+
+function observe<V>(
+  handler: VercelVerdictHandler<V> | undefined,
+  event: Parameters<VercelVerdictHandler<V>>[0],
+): void {
+  if (handler === undefined) {
+    return;
+  }
+
+  try {
+    Promise.resolve(handler(event)).catch(() => undefined);
+  } catch {
+    // A handler never changes a guard's decision.
+  }
+}
+
 export interface BotIdCheckOptions {
   readonly checkBotId: CheckBotId;
   /**
@@ -103,6 +138,8 @@ export interface BotIdCheckOptions {
    * outage can't open the route to bots; `allow` lets the request through.
    */
   readonly onError?: VercelGuardErrorPolicy;
+  /** Called with BotID's verdict for every request; it can't change the answer. */
+  readonly onVerdict?: VercelVerdictHandler<BotIdVerdict>;
 }
 
 export interface BotIdGuardOptions extends BotIdCheckOptions {
@@ -133,6 +170,8 @@ export interface FirewallRateLimitOptions {
    * default) lets the request through, `deny` refuses with a 503.
    */
   readonly onError?: VercelGuardErrorPolicy;
+  /** Called with the Firewall's answer for every request; it can't change it. */
+  readonly onVerdict?: VercelVerdictHandler<FirewallRateLimitResult>;
 }
 
 const DEFAULT_RETRY_AFTER = 60;
@@ -176,6 +215,13 @@ async function botIdError(
   try {
     verdict = await options.checkBotId(configFor(options.config, request));
   } catch {
+    observe(options.onVerdict, {
+      verdict: undefined,
+      outcome: "error",
+      hint: "BOT_CHECK_FAILED",
+      request,
+    });
+
     return options.onError === "allow"
       ? undefined
       : dbError("network", "The bot check could not run", {
@@ -184,8 +230,17 @@ async function botIdError(
   }
 
   if (!verdict.isBot || (verdict.isVerifiedBot && options.allowVerifiedBots)) {
+    observe(options.onVerdict, { verdict, outcome: "allowed", request });
+
     return undefined;
   }
+
+  observe(options.onVerdict, {
+    verdict,
+    outcome: "refused",
+    hint: "BOT_DETECTED",
+    request,
+  });
 
   return dbError("forbidden", "The request looks automated", {
     hint: "BOT_DETECTED",
@@ -258,6 +313,13 @@ export function firewallRateLimit(
         ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
       });
     } catch {
+      observe(options.onVerdict, {
+        verdict: undefined,
+        outcome: "error",
+        hint: "FIREWALL_UNAVAILABLE",
+        request,
+      });
+
       return failed(
         request,
         dbError("network", "The rate limit check could not run", {
@@ -267,6 +329,13 @@ export function firewallRateLimit(
     }
 
     if (result.error === "blocked") {
+      observe(options.onVerdict, {
+        verdict: result,
+        outcome: "refused",
+        hint: "FIREWALL_BLOCKED",
+        request,
+      });
+
       return refuse(
         request,
         dbError("forbidden", "The Firewall blocked the request", {
@@ -276,6 +345,13 @@ export function firewallRateLimit(
     }
 
     if (result.error === "not-found") {
+      observe(options.onVerdict, {
+        verdict: result,
+        outcome: "error",
+        hint: "FIREWALL_RULE_NOT_FOUND",
+        request,
+      });
+
       return failed(
         request,
         dbError(
@@ -285,6 +361,13 @@ export function firewallRateLimit(
         ),
       );
     }
+
+    observe(options.onVerdict, {
+      verdict: result,
+      outcome: result.rateLimited ? "refused" : "allowed",
+      ...(result.rateLimited ? { hint: "RATE_LIMITED" } : {}),
+      request,
+    });
 
     return result.rateLimited
       ? refuse(
@@ -327,4 +410,106 @@ export function withGuards<R extends Request, A extends unknown[]>(
 
   return async (request, ...rest) =>
     (await check(request)) ?? handler(request, ...rest);
+}
+
+export interface FirewallRateLimiterOptions {
+  readonly checkRateLimit: CheckRateLimit;
+  /** The `retryAfter` seconds of a refused hit. Default: 60. */
+  readonly retryAfter?: number;
+  /**
+   * The `remaining` of an allowed hit. The Firewall only says whether a key is
+   * limited, so this is a fixed number for the `RateLimit` header. Default: 1.
+   */
+  readonly remaining?: number;
+  /** Milliseconds before `checkRateLimit` gives up, which counts as a failure. */
+  readonly timeout?: number;
+  /** Called with the Firewall's answer; it can't change the verdict. */
+  readonly onVerdict?: VercelVerdictHandler<FirewallRateLimitResult>;
+}
+
+/**
+ * A `RateLimiter` for `rateLimit()` in the Hono and oRPC middleware, backed by
+ * Vercel Firewall rate limit rules: `scope` is the rule's id and `key` the
+ * entity it counts. A rule the Firewall doesn't know and a blocked request come
+ * back as errors, so `failOpen` decides them. The rule's own window and limit
+ * apply; a route `rule` is ignored.
+ */
+export function firewallRateLimiter(
+  options: FirewallRateLimiterOptions,
+): RateLimiter {
+  const retryAfter = Math.max(
+    1,
+    Math.ceil(options.retryAfter ?? DEFAULT_RETRY_AFTER),
+  );
+
+  return {
+    async check(scope, key): Promise<Result<RateLimitVerdict>> {
+      let result: FirewallRateLimitResult;
+
+      try {
+        result = await options.checkRateLimit(scope, {
+          rateLimitKey: key,
+          ...(options.timeout === undefined
+            ? {}
+            : { timeout: options.timeout }),
+        });
+      } catch {
+        observe(options.onVerdict, {
+          verdict: undefined,
+          outcome: "error",
+          hint: "FIREWALL_UNAVAILABLE",
+          request: undefined,
+        });
+
+        return err(
+          dbError("network", "The rate limit check could not run", {
+            hint: "FIREWALL_UNAVAILABLE",
+          }),
+        );
+      }
+
+      if (result.error === "blocked") {
+        observe(options.onVerdict, {
+          verdict: result,
+          outcome: "refused",
+          hint: "FIREWALL_BLOCKED",
+          request: undefined,
+        });
+
+        return err(
+          dbError("forbidden", "The Firewall blocked the request", {
+            hint: "FIREWALL_BLOCKED",
+          }),
+        );
+      }
+
+      if (result.error === "not-found") {
+        observe(options.onVerdict, {
+          verdict: result,
+          outcome: "error",
+          hint: "FIREWALL_RULE_NOT_FOUND",
+          request: undefined,
+        });
+
+        return err(
+          dbError("network", `The Firewall has no rate limit rule ${scope}`, {
+            hint: "FIREWALL_RULE_NOT_FOUND",
+          }),
+        );
+      }
+
+      observe(options.onVerdict, {
+        verdict: result,
+        outcome: result.rateLimited ? "refused" : "allowed",
+        ...(result.rateLimited ? { hint: "RATE_LIMITED" } : {}),
+        request: undefined,
+      });
+
+      return ok(
+        result.rateLimited
+          ? { allowed: false, remaining: 0, retryAfter }
+          : { allowed: true, remaining: options.remaining ?? 1, retryAfter: 0 },
+      );
+    },
+  };
 }

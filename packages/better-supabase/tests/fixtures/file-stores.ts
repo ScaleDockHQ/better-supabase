@@ -60,6 +60,36 @@ export class BlobContentTypeNotAllowedError extends BlobError {
   }
 }
 
+export class BlobPathnameMismatchError extends BlobError {
+  constructor() {
+    super("Pathname mismatch");
+  }
+}
+
+export class BlobClientTokenExpiredError extends BlobError {
+  constructor() {
+    super("Client token has expired");
+  }
+}
+
+export class BlobStoreSuspendedError extends BlobError {
+  constructor() {
+    super("This store has been suspended");
+  }
+}
+
+export class BlobPreconditionFailedError extends BlobError {
+  constructor() {
+    super("Precondition failed");
+  }
+}
+
+export class BlobStoreNotFoundError extends BlobError {
+  constructor() {
+    super("This store does not exist");
+  }
+}
+
 const STORE = "https://store.private.blob.vercel-storage.com";
 
 /**

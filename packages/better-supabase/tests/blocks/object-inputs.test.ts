@@ -45,6 +45,7 @@ const POSITIONAL = new Set<string>([
   "domains/provider.ts:add",
   "domains/provider.ts:addProjectDomain",
   "domains/provider.ts:body",
+  "domains/provider.ts:getDomainConfig",
   "domains/provider.ts:getProjectDomain",
   "domains/provider.ts:remove",
   "domains/provider.ts:removeProjectDomain",
