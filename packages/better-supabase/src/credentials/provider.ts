@@ -110,6 +110,10 @@ export interface StartAuthorizationOptions {
   readonly deviceCode?: boolean;
   /** The OAuth `prompt` (`consent`, `login`) for the authorization server. */
   readonly prompt?: string;
+  /** A URL the provider calls when the grant changes (Vercel Connect). */
+  readonly webhook?: string;
+  /** How long the authorization link works, in milliseconds. */
+  readonly expiresInMs?: number;
 }
 
 /** Where to send the user, and what the provider needs to finish. */

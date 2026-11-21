@@ -9,7 +9,7 @@
     "raw": 1272236
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5430040
+    "raw": 5430928
   },
   "/.well-known/workflow/v1/webhook/[token]/route": {
     "raw": 1639347
@@ -39,7 +39,7 @@
     "raw": 3198919
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3776746
+    "raw": 3777464
   },
   "/[locale]/(app)/assistant/activity/page": {
     "raw": 5349313
@@ -60,7 +60,7 @@
     "raw": 5359612
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3786531
+    "raw": 3787249
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
     "raw": 5349636
@@ -75,7 +75,7 @@
     "raw": 3202493
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3779284
+    "raw": 3780002
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
     "raw": 3196667
@@ -87,10 +87,10 @@
     "raw": 3194610
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3768236
+    "raw": 3768954
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3779493
+    "raw": 3780211
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
     "raw": 3252202
@@ -135,7 +135,7 @@
     "raw": 3213230
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 3743109
+    "raw": 3743827
   },
   "/[locale]/(app)/community/page": {
     "raw": 3209908
@@ -858,13 +858,13 @@
     "raw": 1088263
   },
   "/api/chat/[id]/participants/route": {
-    "raw": 1963868
+    "raw": 1964592
   },
   "/api/chat/[id]/stop/route": {
-    "raw": 1963348
+    "raw": 1964072
   },
   "/api/chat/[id]/stream/route": {
-    "raw": 1963375
+    "raw": 1964099
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3575364
@@ -876,7 +876,7 @@
     "raw": 3575467
   },
   "/api/chat/route": {
-    "raw": 1963298
+    "raw": 1964022
   },
   "/api/checkout-sessions/list/route": {
     "raw": 2787852

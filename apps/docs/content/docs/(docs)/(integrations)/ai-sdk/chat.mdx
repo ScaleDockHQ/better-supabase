@@ -225,14 +225,16 @@ as ArkType. A plain Standard Schema without a JSON Schema passes unchecked.
 Gateway error into a `DbError`, so a route answers with the same problem
 details as the rest of the app. It matches errors by name, and the message
 is fixed per kind: the provider's message can quote the prompt or a key, so
-it never reaches the client.
+it never reaches the client. A gateway error also carries its `generationId` and
+`ruleId` in `details`, so you can find the request in the gateway dashboard.
 
 | Error                                                             | Kind                                | Code                              |
 | ----------------------------------------------------------------- | ----------------------------------- | --------------------------------- |
 | `APICallError` 429, gateway `rate_limit_exceeded`                 | `rate_limited` (with `Retry-After`) | `AI_PROVIDER_RATE_LIMITED`        |
-| `APICallError` 408 or 504, gateway `timeout`                      | `timeout`                           | `AI_PROVIDER_TIMEOUT`             |
+| `APICallError` 408 or 504, gateway `timeout_error`                | `timeout`                           | `AI_PROVIDER_TIMEOUT`             |
 | `APICallError` 400, 413 or 422                                    | `invalid_request`                   | `AI_PROVIDER_BAD_REQUEST`         |
 | `APICallError` 5xx, gateway `internal_server_error`               | `network`                           | `AI_PROVIDER_UNAVAILABLE`         |
+| Gateway error with status 402 (budget or credits used up)         | `quota_exceeded`, status 402        | `AI_GATEWAY_PAYMENT_REQUIRED`     |
 | `NoSuchModelError`, gateway `model_not_found`                     | `not_found`                         | `AI_MODEL_NOT_FOUND`              |
 | Gateway `access_policy_denied` (`GatewayAccessPolicyDeniedError`) | `forbidden`                         | `AI_GATEWAY_ACCESS_POLICY_DENIED` |
 | `TypeValidationError`                                             | `validation`                        | `AI_TYPE_VALIDATION`              |

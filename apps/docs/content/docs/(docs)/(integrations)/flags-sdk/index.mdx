@@ -14,7 +14,7 @@ pnpm add flags
 pnpm better-supabase add flags
 ```
 
-`flags` is an optional peer (`>=4.2 <5`). The entry types the SDK
+`flags` is an optional peer (`>=4.5.0 <5`). The entry types the SDK
 structurally and never imports it, so it adds nothing to a bundle that
 doesn't use it, and a type test fails when a new `flags` release changes the
 `Adapter` shape. The entry imports no Node built-ins, so it runs in

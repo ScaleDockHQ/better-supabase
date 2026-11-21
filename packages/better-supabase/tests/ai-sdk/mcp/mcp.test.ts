@@ -573,8 +573,12 @@ describe("connectTools", () => {
 
     expect(first).not.toHaveProperty("maxRetries");
     expect(second.maxRetries).toBe(2);
-    expect(plain.tools["search"]).not.toHaveProperty("needsApproval");
-    expect(asking.tools["search"]).toHaveProperty("needsApproval", true);
+    expect(plain.toolApproval).toEqual({});
+    expect(asking.tools["search"]).not.toHaveProperty("needsApproval");
+    expect(asking.toolApproval).toEqual({
+      search: "user-approval",
+      render: "user-approval",
+    });
   });
 
   it("lets connectAll set the transport options per server", async () => {
