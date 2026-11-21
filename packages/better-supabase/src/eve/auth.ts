@@ -5,8 +5,8 @@ import type { EveSessionAuth } from "./types.ts";
 
 import { resolveAuth } from "../auth/resolve.ts";
 import { isAnonymousUser } from "../auth/view.ts";
-import { isRecord } from "../core/block-helpers.ts";
 import { claimAt, DEFAULT_CLAIMS, tenantClaimPaths } from "../core/claims.ts";
+import { isRecord } from "../core/guards.ts";
 
 /**
  * Thrown by `supabaseAuth` so eve answers with `response` instead of

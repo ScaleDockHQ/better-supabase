@@ -156,7 +156,13 @@ export type {
 
 export interface AiChatOptions<
   S extends StandardSchemaV1 | undefined = undefined,
+  M extends string = string,
 > extends BlockTemporalOptions {
+  /**
+   * `blocks.ai-chat.options.modes`, which `defineBlocks` passes from
+   * `blocks.generated.ts`. It types a chat's `mode` as the union of the names.
+   */
+  readonly modes?: readonly M[];
   /**
    * A Standard Schema for the chat columns the app adds (columns the app's
    * schema files add to the table), keyed by column name. It types and parses
@@ -172,7 +178,7 @@ export interface AiChatOptions<
    */
   readonly messages?: AiChatMessageStorage;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<AiChat<FieldsOf<S>>>>;
+  readonly hooks?: NoInfer<BlockHooks<AiChat<FieldsOf<S>, M>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   /**
@@ -191,8 +197,14 @@ export interface AiChatOptions<
   readonly mappers?: readonly ErrorMapper[];
 }
 
-/** `F` is the extra chat fields `options.fields` describes. */
-export interface AiChat<F extends object = Record<never, never>> {
+/**
+ * `F` is the extra chat fields `options.fields` describes and `M` the chat
+ * modes `options.modes` lists.
+ */
+export interface AiChat<
+  F extends object = Record<never, never>,
+  M extends string = string,
+> {
   readonly chats: {
     /**
      * Keys besides the input's own are the chat's extra columns. `null` makes a
@@ -200,9 +212,9 @@ export interface AiChat<F extends object = Record<never, never>> {
      */
     create(input: {
       organizationId: string | null;
-      input?: (AiChatInput & Partial<F>) | undefined;
-    }): AsyncResult<AiChatRecord & F>;
-    get(chatId: string): AsyncResult<AiChatRecord & F>;
+      input?: (AiChatInput<M> & Partial<F>) | undefined;
+    }): AsyncResult<AiChatRecord<M> & F>;
+    get(chatId: string): AsyncResult<AiChatRecord<M> & F>;
     /**
      * The caller's chats and the ones they take part in, in a tenant, with `q`
      * over titles and message text. The default order is newest activity first;
@@ -210,7 +222,7 @@ export interface AiChat<F extends object = Record<never, never>> {
      */
     page(
       options: PageOptions & RequiredTenantOption,
-    ): AsyncResult<ListPage<AiChatRecord & F>>;
+    ): AsyncResult<ListPage<AiChatRecord<M> & F>>;
     /** The values of each facet (`pinned`, `archived`) and their chat counts. */
     facets(
       options: FacetOptions & RequiredTenantOption,
@@ -224,8 +236,8 @@ export interface AiChat<F extends object = Record<never, never>> {
     list(query?: AiChatQuery): AsyncResult<AiChatPage<F>>;
     update(input: {
       chatId: string;
-      patch: AiChatPatch & Partial<F>;
-    }): AsyncResult<AiChatRecord & F>;
+      patch: AiChatPatch<M> & Partial<F>;
+    }): AsyncResult<AiChatRecord<M> & F>;
     remove(chatId: string): AsyncResult<boolean>;
     /**
      * Who each chat is shared with: the users (owner first), the number of
@@ -486,14 +498,19 @@ const CHAT_INPUT: ReadonlySet<string> = new Set([
 
 export function createAiChat<
   S extends StandardSchemaV1 | undefined = undefined,
->(options: AiChatOptions<S>): AiChat<FieldsOf<S>> {
+  const M extends string = string,
+>(options: AiChatOptions<S, M>): AiChat<FieldsOf<S>, M> {
   type F = FieldsOf<S>;
 
   applyTemporal(options);
   const fields: BlockFields<F> = blockFields(options.fields, "chat fields");
 
-  const typed = (value: unknown): AsyncResult<AiChatRecord & F> =>
-    AsyncResult.from(() => withFields(fields, value, chatOf(value)));
+  const typed = (value: unknown): AsyncResult<AiChatRecord<M> & F> =>
+    AsyncResult.from(() =>
+      // SAFETY: a check constraint from options.modes limits the stored mode
+      // to M, so the row's text is one of the listed names.
+      withFields(fields, value, chatOf(value) as AiChatRecord<M>),
+    );
 
   const checked = (input: object): AsyncResult<Record<string, unknown>> =>
     AsyncResult.from(() => fields.write(extraOf(input, CHAT_INPUT)));
@@ -543,7 +560,7 @@ export function createAiChat<
     rowOf: (row) => projectOf(row),
   });
 
-  const client: AiChat<F> = {
+  const client: AiChat<F, M> = {
     chats: {
       create: ({ organizationId, input = {} }) =>
         checked(input).andThen((extra) =>
@@ -559,13 +576,16 @@ export function createAiChat<
       get: (chatId) =>
         call("get_ai_chat", { chat: chatId }, (value) => value).andThen(typed),
       page: (pageOptions) =>
-        chatPages
-          .page(pageOptions)
-          .andThen((page) =>
-            AsyncResult.from(() => allWithFields(fields, page.items)).map(
-              (items) => ({ ...page, items }),
-            ),
+        chatPages.page(pageOptions).andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({
+              ...page,
+              // SAFETY: options.modes' check constraint limits the stored
+              // mode to M.
+              items: items as (AiChatRecord<M> & F)[],
+            }),
           ),
+        ),
       facets: chatPages.facets,
       count: chatPages.count,
       // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)

@@ -4,10 +4,11 @@ import type {
 } from "../blocks/knowledge/knowledge.ts";
 import type { Memory, MemoryNamespace } from "../blocks/memory/memory.ts";
 import type { DbError } from "../core/errors.ts";
+import type { RecordRef } from "../schema/types.ts";
 import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { DbException } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { importOptionalPeer } from "../core/optional-peer.ts";
 import { stableUuid } from "./ids.ts";
 
@@ -47,6 +48,7 @@ export {
   eveScheduleRun,
   queueDynamicSchedules,
   queueScheduleProvider,
+  validateExpression,
 } from "./dynamic-schedules.ts";
 
 export type {
@@ -55,6 +57,8 @@ export type {
   EveDynamicTargetHandle,
   EveScheduleAuthContext,
   EveScheduleExpression,
+  EveScheduleFailureNotice,
+  EveScheduleMirror,
   EveScheduleHandle,
   EveScheduleJob,
   EveScheduleOccurrence,
@@ -65,9 +69,11 @@ export type {
   EveScheduleProviderContext,
   EveScheduleRecord,
   EveScheduleRun,
+  EveScheduleScopeRule,
   EveScheduleState,
   QueueDynamicSchedulesOptions,
   QueueScheduleProviderOptions,
+  ValidateExpressionOptions,
 } from "./dynamic-schedules.ts";
 
 export { stableUuid } from "./ids.ts";
@@ -83,6 +89,7 @@ export type {
 
 export {
   agentJobHandler,
+  aiScheduleDispatch,
   eveAgentJob,
   jobAuth,
   queueSchedules,
@@ -91,6 +98,8 @@ export {
 
 export type {
   AgentJobOptions,
+  AiScheduleDispatch,
+  AiScheduleDispatchOptions,
   EveAgentJob,
   EveDispatchOptions,
   EveQueueDrainer,
@@ -105,9 +114,83 @@ export type {
 
 export { chatIdOf, persistSessions } from "./sessions.ts";
 
-export type { EveSessionHooks, PersistSessionsOptions } from "./sessions.ts";
+export {
+  createSessionSync,
+  sessionChatId,
+  sweepSessions,
+  syncSession,
+} from "./sync.ts";
 
-export { eveContext, supabaseTool, tenantToolApproval } from "./tools.ts";
+export { sessionHistory } from "./history.ts";
+
+export { endStrandedSessions, openSessions } from "./upgrade.ts";
+
+export { createEveSessionStore } from "./store.ts";
+
+export type {
+  EvePersistedEvent,
+  EveSessionHooks,
+  PersistSessionsOptions,
+} from "./sessions.ts";
+
+export type {
+  EveSessionMeters,
+  EveSessionPrincipal,
+  EveSessionRead,
+  EveSessionReply,
+  EveSessionResolveInput,
+  EveSessionTarget,
+  EveSyncEvent,
+  SessionSync,
+  SyncSessionResult,
+  SyncSessionsOptions,
+  SyncSessionStatus,
+} from "./sync.ts";
+
+export type { EveHistoryMessage, SessionHistoryOptions } from "./history.ts";
+
+export type {
+  EndStrandedSessionsOptions,
+  EndStrandedSessionsResult,
+  OpenSessionsOptions,
+} from "./upgrade.ts";
+
+export type {
+  EveBehindOptions,
+  EveOpenOptions,
+  EveOpenSession,
+  EveSessionCommit,
+  EveSessionLease,
+  EveSessionStatus,
+  EveSessionStore,
+} from "./store.ts";
+
+export {
+  inboxConnectionWebhook,
+  inboxHandoff,
+  inboxPrincipal,
+  inboxReplies,
+  inboxRunAs,
+} from "./inbox-connections.ts";
+
+export type {
+  EveInboxConnection,
+  InboxConnectionWebhookOptions,
+  InboxEventParser,
+  InboxHandoffOptions,
+  InboxHandoffResult,
+  InboxInboundMessage,
+  InboxRepliesOptions,
+  InboxReplyMode,
+  InboxRunAsOptions,
+} from "./inbox-connections.ts";
+
+export {
+  eveContext,
+  strictestApproval,
+  supabaseTool,
+  tenantToolApproval,
+} from "./tools.ts";
 
 export type {
   EveContextOptions,
@@ -311,6 +394,15 @@ export interface SupabaseMemoryOptions {
   /** The tenant of a principal. Defaults to `attributes.tenantId`. */
   readonly organizationOf?: (auth: EveSessionAuth) => string | undefined;
   /**
+   * The memory scopes to recall from and write to, in this order. Defaults to
+   * `["user"]`, the signed-in user's own memory. `"organization"` is shared by
+   * the tenant and `{ record }` names one record, such as the inbox contact the
+   * conversation is about. Shared scopes are read-only unless the entry sets
+   * `write: true`: the provider runs as the service role, so a writable shared
+   * scope lets the model change what every user of the tenant recalls.
+   */
+  readonly scopes?: readonly EveMemoryScopeOption[];
+  /**
    * Facts to keep from a finished turn (an LLM call of yours). Without it the
    * provider stores only what the model saves with its `remember` tool.
    */
@@ -322,6 +414,32 @@ export interface SupabaseMemoryOptions {
   readonly tools?: boolean;
   /** Returns `eve/tools`; defaults to importing it on first use. */
   readonly load?: () => Promise<unknown>;
+}
+
+/** One entry of `supabaseMemory({ scopes })`. */
+export type EveMemoryScopeOption =
+  | "user"
+  | "organization"
+  | {
+      readonly scope: "user" | "organization";
+      /** Lets the `remember` and `forget` tools change this scope. */
+      readonly write?: boolean;
+    }
+  | {
+      readonly scope: "record";
+      /** The record the conversation is about, or `undefined` for none. */
+      readonly subject: (
+        ctx: EveMemoryToolsContext,
+        auth: EveSessionAuth | undefined,
+      ) => RecordRef | undefined | Promise<RecordRef | undefined>;
+      readonly write?: boolean;
+    };
+
+interface MemoryTarget {
+  readonly name: string;
+  readonly organizationId: string;
+  readonly namespace: MemoryNamespace;
+  readonly write: boolean;
 }
 
 const OPS_SCOPE = "eve-ops";
@@ -379,40 +497,86 @@ export function supabaseMemory(
       return typeof tenant === "string" ? tenant : undefined;
     });
 
-  const target = async (
+  const scopes: readonly EveMemoryScopeOption[] = options.scopes ?? ["user"];
+
+  if (scopes.length === 0) {
+    throw new TypeError("supabaseMemory({ scopes }) needs at least one scope");
+  }
+
+  const targets = async (
     ctx: EveMemoryToolsContext,
-  ): Promise<
-    | { readonly organizationId: string; readonly namespace: MemoryNamespace }
-    | undefined
-  > => {
+  ): Promise<readonly MemoryTarget[]> => {
     const auth = ctx.session.auth.current;
 
-    if (auth?.principalType !== "user") {
-      return undefined;
-    }
-
-    const organizationId = organizationOf(auth);
+    const organizationId = auth === null ? undefined : organizationOf(auth);
 
     if (organizationId === undefined) {
-      return undefined;
+      return [];
     }
 
-    return {
-      organizationId,
-      namespace: {
-        scope: "agent",
-        agentId: await stableUuid(`eve-memory:${ctx.memory.scope.key}`),
-        ownerId: auth.principalId,
-      },
-    };
+    const found: MemoryTarget[] = [];
+
+    for (const entry of scopes) {
+      const spec = typeof entry === "string" ? { scope: entry } : entry;
+
+      switch (spec.scope) {
+        case "user": {
+          if (auth?.principalType !== "user") {
+            break;
+          }
+
+          found.push({
+            name: "user",
+            organizationId,
+            namespace: {
+              scope: "agent",
+              agentId: await stableUuid(`eve-memory:${ctx.memory.scope.key}`),
+              ownerId: auth.principalId,
+            },
+            write: !("write" in spec) || spec.write,
+          });
+          break;
+        }
+
+        case "organization": {
+          found.push({
+            name: "organization",
+            organizationId,
+            namespace: { scope: "organization" },
+            write: "write" in spec && spec.write,
+          });
+          break;
+        }
+
+        case "record": {
+          const subject = await spec.subject(ctx, auth ?? undefined);
+
+          if (subject !== undefined) {
+            found.push({
+              name: `record:${subject.type}`,
+              organizationId,
+              namespace: { scope: "record", subject },
+              write: spec.write === true,
+            });
+          }
+
+          break;
+        }
+
+        default: {
+          const never: never = spec;
+
+          throw new TypeError(`Unknown memory scope ${JSON.stringify(never)}`);
+        }
+      }
+    }
+
+    return found;
   };
 
   const recall = async (
     ctx: EveMemoryContext,
-    where: {
-      readonly organizationId: string;
-      readonly namespace: MemoryNamespace;
-    },
+    found: readonly MemoryTarget[],
   ): Promise<EveRecallResult> => {
     const query = (ctx.turn?.input ?? [])
       .filter((message) => message.role === "user")
@@ -420,40 +584,59 @@ export function supabaseMemory(
       .join("\n")
       .trim();
 
-    const [core, archival, documents] = await Promise.all([
-      memory
-        .render({ organizationId: where.organizationId, ns: where.namespace })
-        .orThrow(),
-      query.length === 0
-        ? Promise.resolve([])
-        : memory.archival
-            .search({
+    const perScope = await Promise.all(
+      found.map(async (where) => {
+        const [core, archival] = await Promise.all([
+          memory
+            .render({
               organizationId: where.organizationId,
-              query,
               ns: where.namespace,
-              k,
             })
             .orThrow(),
-      query.length === 0 || !options.knowledge
-        ? Promise.resolve([])
-        : options.knowledge
+          query.length === 0
+            ? Promise.resolve([])
+            : memory.archival
+                .search({
+                  organizationId: where.organizationId,
+                  query,
+                  ns: where.namespace,
+                  k,
+                })
+                .orThrow(),
+        ]);
+
+        return { name: where.name, core, archival };
+      }),
+    );
+
+    const first = found[0];
+
+    const documents =
+      query.length === 0 || !options.knowledge || first === undefined
+        ? []
+        : await options.knowledge
             .search({
-              organizationId: where.organizationId,
+              organizationId: first.organizationId,
               query,
               k,
               scopes: options.knowledgeScopes ?? [{ scope: "organization" }],
             })
-            .orThrow(),
-    ]);
+            .orThrow();
 
     const messages: EveRecallMessage[] = [];
 
-    if (core.trim().length > 0) {
-      messages.push({ id: "core", content: core });
-    }
+    for (const [index, entry] of perScope.entries()) {
+      if (entry.core.trim().length > 0) {
+        // The first scope keeps the id earlier releases used.
+        messages.push({
+          id: index === 0 ? "core" : `core:${entry.name}`,
+          content: entry.core,
+        });
+      }
 
-    for (const hit of archival) {
-      messages.push({ id: `memory:${hit.id}`, content: hit.content });
+      for (const hit of entry.archival) {
+        messages.push({ id: `memory:${hit.id}`, content: hit.content });
+      }
     }
 
     for (const hit of documents) {
@@ -483,9 +666,9 @@ export function supabaseMemory(
   const provider: EveMemoryProvider = {
     recall: {
       "turn.started": async (ctx) => {
-        const where = await target(ctx);
+        const found = await targets(ctx);
 
-        if (!where) {
+        if (found.length === 0) {
           return null;
         }
 
@@ -502,7 +685,7 @@ export function supabaseMemory(
           return isRecallResult(value) ? value : null;
         }
 
-        const result = await recall(ctx, where);
+        const result = await recall(ctx, found);
 
         const written = await memory.documents.write({
           scopeKey: OPS_SCOPE,
@@ -533,7 +716,7 @@ export function supabaseMemory(
           capture: {
             "turn.completed": async (ctx: EveMemoryContext) => {
               const extract = options.extract;
-              const where = await target(ctx);
+              const where = (await targets(ctx)).find((entry) => entry.write);
 
               if (!extract || !where) {
                 return;
@@ -585,13 +768,29 @@ export function supabaseMemory(
   return {
     ...provider,
     tools: async (ctx) => {
-      const where = await target(ctx);
+      const writable = (await targets(ctx)).filter((entry) => entry.write);
+      const first = writable[0];
 
-      if (!where) {
+      if (first === undefined) {
         return null;
       }
 
       const { defineTool } = await loaded();
+      const names = writable.map((entry) => entry.name);
+
+      const scopeProperty: { readonly [key: string]: EveJsonValue } =
+        writable.length > 1
+          ? {
+              scope: {
+                type: "string",
+                enum: names,
+                description: `Where to keep it. Defaults to ${first.name}.`,
+              },
+            }
+          : {};
+
+      const pick = (input: Readonly<Record<string, unknown>>): MemoryTarget =>
+        writable.find((entry) => entry.name === input["scope"]) ?? first;
 
       return {
         remember: defineTool({
@@ -601,12 +800,14 @@ export function supabaseMemory(
             type: "object",
             properties: {
               fact: { type: "string", minLength: 1, maxLength: 2000 },
+              ...scopeProperty,
             },
             required: ["fact"],
             additionalProperties: false,
           },
           execute: async (input: Readonly<Record<string, unknown>>) => {
             const fact = typeof input["fact"] === "string" ? input["fact"] : "";
+            const where = pick(input);
 
             const saved = await memory.archival
               .upsert({
@@ -633,22 +834,26 @@ export function supabaseMemory(
                 ? input["id"].replace(/^memory:/, "")
                 : "";
 
-            const page = await memory.archival
-              // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
-              .list({
-                organizationId: where.organizationId,
-                ns: where.namespace,
-                limit: 1000,
-              })
-              .orThrow();
+            for (const where of writable) {
+              const page = await memory.archival
+                // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
+                .list({
+                  organizationId: where.organizationId,
+                  ns: where.namespace,
+                  limit: 1000,
+                })
+                .orThrow();
 
-            if (!page.some((record) => record.id === id)) {
-              return { deleted: false };
+              if (page.some((record) => record.id === id)) {
+                return {
+                  deleted: await memory.archival
+                    .forget({ memoryId: id })
+                    .orThrow(),
+                };
+              }
             }
 
-            return {
-              deleted: await memory.archival.forget({ memoryId: id }).orThrow(),
-            };
+            return { deleted: false };
           },
         }),
       };

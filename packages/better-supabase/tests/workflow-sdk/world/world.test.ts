@@ -18,7 +18,9 @@ const reenqueue = vi.fn(async () => undefined);
 vi.mock("@workflow/world-postgres", () => ({
   createWorld: (config: Record<string, unknown>) => ({
     ...(created.push(config), {}),
-    runs: {},
+    runs: { waitForTerminalStatus: async () => undefined },
+    events: { subscribe: () => () => undefined },
+    streams: { get: async () => new ReadableStream(), list: async () => [] },
     createQueueHandler: () => inner,
     close: baseClose,
   }),
@@ -34,6 +36,7 @@ const {
   createWorld,
   usesTransactionPooler,
   deriveRunKey,
+  isServerless,
   parseMasterKey,
   resolveFlowUrl,
   signDelivery,
@@ -243,7 +246,7 @@ describe("options", () => {
       }),
     ).toEqual({ maxConnections: 8 });
     expect(() => worldOptionsFromEnv({ WORKFLOW_DELIVERY: "push" })).toThrow(
-      'WORKFLOW_DELIVERY must be "poll" or "pg_net"',
+      'WORKFLOW_DELIVERY must be "poll", "pg_net" or "vercel-queue"',
     );
   });
 
@@ -521,7 +524,10 @@ describe("createSupabaseWorld", () => {
       expect.stringMatching(/^msg_/),
       expect.stringMatching(/^msg_/),
     ]);
-    expect(queries).toHaveLength(1);
+    expect(queries.map((query) => query.fn)).toEqual([
+      "enqueue_job",
+      "dispatch_workflow_deliveries",
+    ]);
 
     const [, max, payloads, delays, keys] = queries[0]!.params as [
       string,
@@ -718,17 +724,122 @@ describe("createSupabaseWorld", () => {
       streamFlushIntervalMs: 0,
     });
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("LISTEN/NOTIFY");
+    expect(warnings).toHaveLength(0);
     expect(created.at(-1)).toMatchObject({
       enableInvoke: true,
       streamFlushIntervalMs: 0,
     });
     await world.close();
 
+    const session = createSupabaseWorld({
+      connectionString: "postgres://u:p@aws.pooler.supabase.com:6543/db",
+      connection: "session",
+      logger,
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("LISTEN");
+    expect(created.at(-1)).toMatchObject({ streamFlushIntervalMs: 20 });
+    await session.close();
+
     const { pool } = fakePool({});
     createSupabaseWorld({ pool, logger });
     expect(warnings).toHaveLength(1);
+  });
+
+  it("serves streams by polling and leaves the LISTEN-only hooks out in transaction mode", async () => {
+    const { pool } = fakePool({});
+    const session = createSupabaseWorld({ pool });
+
+    const transaction = createSupabaseWorld({
+      pool,
+      connection: "transaction",
+    });
+
+    expect(session.events).toHaveProperty("subscribe");
+    expect(session.runs).toHaveProperty("waitForTerminalStatus");
+    expect(transaction.events).not.toHaveProperty("subscribe");
+    expect(transaction.runs).not.toHaveProperty("waitForTerminalStatus");
+    expect(transaction.streams).toHaveProperty("list");
+
+    await session.close();
+    await transaction.close();
+  });
+
+  it("detects the connection kind and the serverless pool size", () => {
+    vi.stubEnv("WORKFLOW_POSTGRES_CONNECTION", "transaction");
+    expect(
+      worldOptionsFromEnv({ WORKFLOW_POSTGRES_CONNECTION: "session" }),
+    ).toMatchObject({ connection: "session" });
+    expect(() =>
+      worldOptionsFromEnv({ WORKFLOW_POSTGRES_CONNECTION: "pooled" }),
+    ).toThrow("session");
+    expect(isServerless({ VERCEL: "1" })).toBe(true);
+    expect(isServerless({ AWS_LAMBDA_FUNCTION_NAME: "f" })).toBe(true);
+    expect(isServerless({})).toBe(false);
+  });
+
+  it("warns once at startup when production has no encryption key", async () => {
+    const warnings: string[] = [];
+
+    const logger = {
+      debug: () => undefined,
+      info: () => undefined,
+      warn: (message: string) => warnings.push(message),
+      error: () => undefined,
+    };
+
+    vi.stubEnv("NODE_ENV", "production");
+    const { pool } = fakePool({ list_applied: () => [] });
+    const bare = createSupabaseWorld({ pool, logger });
+    await bare.start().catch(() => undefined);
+
+    expect(warnings.some((message) => message.includes("unencrypted"))).toBe(
+      true,
+    );
+    warnings.length = 0;
+
+    const keyed = createSupabaseWorld({
+      pool,
+      logger,
+      encryptionKey: Buffer.alloc(32, 7).toString("base64"),
+    });
+
+    await keyed.start().catch(() => undefined);
+
+    expect(warnings.some((message) => message.includes("unencrypted"))).toBe(
+      false,
+    );
+    vi.stubEnv("NODE_ENV", "test");
+    const quiet = createSupabaseWorld({ pool, logger });
+    await quiet.start().catch(() => undefined);
+
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("derives each run's key from the ring entry that was active at its creation", async () => {
+    const { pool } = fakePool({});
+
+    const ring = JSON.stringify([
+      { id: "a", key: Buffer.alloc(32, 1).toString("base64") },
+      {
+        id: "b",
+        key: Buffer.alloc(32, 2).toString("base64"),
+        from: "2026-06-01T00:00:00Z",
+      },
+    ]);
+
+    const world = createSupabaseWorld({ pool, encryptionKeys: ring });
+    const old = "wrun_01K0000000000000000000000";
+    const fresh = "wrun_01KZZZZZZZZZZZZZZZZZZZZZZZ";
+
+    expect(await world.getEncryptionKeyForRun!(old)).toEqual(
+      await deriveRunKey(Buffer.alloc(32, 1), old),
+    );
+    expect(await world.getEncryptionKeyForRun!(fresh)).toEqual(
+      await deriveRunKey(Buffer.alloc(32, 2), fresh),
+    );
+    await world.close();
   });
 
   it("shares one World per connection and namespace, and forgets it on close", async () => {
@@ -898,6 +1009,10 @@ describe("createSupabaseWorld", () => {
           throw new Error("permission denied for schema vault");
         }
 
+        if (params[0] === "workflow_encryption_keys") {
+          return [];
+        }
+
         return params[0] === "workflow_encryption_key"
           ? [{ secret: master }]
           : [{ secret: "sec" }];
@@ -1008,5 +1123,261 @@ describe("createSupabaseWorld", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("delivery in poll and pg_net mode", () => {
+  /** A pool that returns each enqueued message from the next claim. */
+  function queuePool(
+    extra: Record<string, (params: unknown[]) => unknown[]> = {},
+  ) {
+    const jobs: unknown[] = [];
+
+    const made = fakePool({
+      enqueue_job: (params) => {
+        jobs.push(JSON.parse(String(params[1])));
+
+        return [{ enqueue_job: 1 }];
+      },
+      claim_jobs: () =>
+        jobs
+          .splice(0)
+          .map((payload, index) => ({
+            id: index + 1,
+            attempts: 1,
+            message: { payload },
+          })),
+      complete_job: () => [{ complete_job: true }],
+      vault: () => [],
+      ...extra,
+    });
+
+    return made;
+  }
+
+  it("keeps the path prefix of the flow URL when it posts to a registered route", async () => {
+    const { pool } = queuePool();
+
+    const fetch = vi.fn(async (_url: string | URL, _init: RequestInit) =>
+      Response.json({}),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/app/.well-known/workflow/v1/flow",
+      deliverySecret: "sec",
+    });
+
+    await world.close();
+    world.registerRoute?.("__jobs_wkf_workflow_", "/api/jobs/queue");
+    await world.queue("__jobs_wkf_workflow_b", { runId: "r2" });
+    await world.deliverOnce();
+
+    expect(String(fetch.mock.calls[0]![0])).toBe(
+      "https://app.test/app/api/jobs/queue",
+    );
+  });
+
+  it("adds the configured headers to a post and never replaces its own", async () => {
+    const { pool } = queuePool();
+
+    const fetch = vi.fn(async (_url: string | URL, _init: RequestInit) =>
+      Response.json({}),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/f",
+      deliverySecret: "sec",
+      deliveryHeaders: {
+        "x-vercel-protection-bypass": "bypass",
+        "x-vqs-queue-name": "spoofed",
+      },
+    });
+
+    await world.close();
+    await world.queue("__wkf_workflow_c", { runId: "r3" });
+    await world.deliverOnce();
+
+    const headers = new Headers(fetch.mock.calls[0]![1].headers);
+    expect(headers.get("x-vercel-protection-bypass")).toBe("bypass");
+    expect(headers.get("x-vqs-queue-name")).toBe("__wkf_workflow_c");
+  });
+
+  it("reads the extra headers from the Vault secret when no option sets them", async () => {
+    const { pool } = queuePool({
+      vault: (params) =>
+        params[0] === "workflow_delivery_headers"
+          ? [{ secret: '{"x-from-vault":"1"}' }]
+          : [],
+    });
+
+    const fetch = vi.fn(async (_url: string | URL, _init: RequestInit) =>
+      Response.json({}),
+    );
+
+    vi.stubGlobal("fetch", fetch);
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/f",
+      deliverySecret: "sec",
+    });
+
+    await world.close();
+    await world.queue("__wkf_workflow_c", { runId: "r3" });
+    await world.deliverOnce();
+
+    expect(
+      new Headers(fetch.mock.calls[0]![1].headers).get("x-from-vault"),
+    ).toBe("1");
+  });
+
+  it("asks pg_net to dispatch an undelayed message at once, and leaves a delayed one to the cron", async () => {
+    const { pool, queries } = queuePool({
+      dispatch_workflow_deliveries: () => [{ dispatch_workflow_deliveries: 1 }],
+    });
+
+    const world = createSupabaseWorld({ pool, delivery: "pg_net" });
+    await world.queue("__wkf_workflow_c", { runId: "r" });
+    await world.queue("__wkf_workflow_c", { runId: "r" }, { delaySeconds: 30 });
+
+    expect(
+      queries.filter((query) => query.fn === "dispatch_workflow_deliveries"),
+    ).toHaveLength(1);
+    await world.close();
+  });
+
+  it("leaves the cron to dispatch when the immediate dispatch fails", async () => {
+    const { pool } = queuePool({
+      dispatch_workflow_deliveries: () => {
+        throw new Error("no pg_net");
+      },
+    });
+
+    const world = createSupabaseWorld({ pool, delivery: "pg_net" });
+
+    await expect(
+      world.queue("__wkf_workflow_c", { runId: "r" }),
+    ).resolves.toMatchObject({ messageId: expect.any(String) });
+    await world.close();
+  });
+
+  it("wakes an idle poller when a message is queued", async () => {
+    const claims = vi.fn();
+
+    const { pool } = queuePool({
+      claim_jobs: () => {
+        claims();
+
+        return [];
+      },
+    });
+
+    const world = createSupabaseWorld({ pool, pollInterval: 60_000 });
+    await world.queue("__wkf_workflow_c", { runId: "r" });
+    await vi.waitFor(() => {
+      expect(claims).toHaveBeenCalledOnce();
+    });
+    await world.queue("__wkf_workflow_c", { runId: "r" });
+    await vi.waitFor(() => {
+      expect(claims).toHaveBeenCalledTimes(2);
+    });
+    await world.close();
+  });
+
+  it("clears the wake-up a completed orchestrator delivery consumed, and keeps it for a wait or a step", async () => {
+    const deliver = async (queueName: string, response: unknown) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => Response.json(response)),
+      );
+
+      const { pool, queries } = fakePool({
+        claim_jobs: () => [
+          {
+            id: 1,
+            attempts: 1,
+            message: { payload: stored(1, { queueName }) },
+          },
+        ],
+        complete_job: () => [{ complete_job: true }],
+        vault: () => [],
+      });
+
+      const world = createSupabaseWorld({
+        pool,
+        flowUrl: "https://app.test/f",
+      });
+
+      await world.deliverOnce();
+      await world.close();
+
+      // The update is the one statement with the run id as its only parameter.
+      return queries.some(
+        (query) => query.params[0] === "wrun_1" && query.params.length === 1,
+      );
+    };
+
+    expect(await deliver("__wkf_workflow_test", {})).toBe(true);
+    expect(await deliver("__wkf_workflow_test", { timeoutSeconds: 5 })).toBe(
+      false,
+    );
+    expect(await deliver("__wkf_step_test", {})).toBe(false);
+  });
+
+  it("sends again a wake-up a run has been owed for too long, once per window", async () => {
+    const { pool, queries } = queuePool({
+      // The fake pool names a query by its first call, which is now().
+      now: () => [{ id: "wrun_9", name: "flow", spec_version: "3" }],
+    });
+
+    const world = createSupabaseWorld({
+      pool,
+      flowUrl: "https://app.test/f",
+      recoverAfter: 60,
+    });
+
+    await world.close();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({})),
+    );
+    await world.deliverOnce();
+
+    const enqueued = queries.filter((query) => query.fn === "enqueue_job");
+    expect(enqueued).toHaveLength(1);
+    expect(String(enqueued[0]!.params[0])).toBe("workflow_deliveries");
+
+    const message = JSON.parse(String(enqueued[0]!.params[1])) as {
+      queueName: string;
+      body: string;
+    };
+
+    expect(message.queueName).toBe("__wkf_workflow_flow");
+    expect(JSON.parse(Buffer.from(message.body, "base64").toString())).toEqual({
+      runId: "wrun_9",
+      runSpecVersion: 3,
+    });
+    expect(String(enqueued[0]!.params[4])).toMatch(/^wake:wrun_9:\d+$/);
+  });
+
+  it("warns once when it polls on Vercel", () => {
+    vi.stubEnv("VERCEL", "1");
+    const warn = vi.fn();
+    const { pool } = queuePool();
+
+    createSupabaseWorld({
+      pool,
+      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+    });
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('delivery: "vercel-queue"'),
+    );
   });
 });

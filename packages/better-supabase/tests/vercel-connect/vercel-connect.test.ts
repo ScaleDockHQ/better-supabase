@@ -464,6 +464,36 @@ describe("vercelConnectCredentials", () => {
     expect(missing.ok ? undefined : missing.error.kind).toBe("invalid_request");
   });
 
+  it("passes the team and organization scope and builds the Resend config", async () => {
+    const connectResendAdapter = vi.fn(() => ({
+      apiKey: async () => "re_1",
+      webhookVerifier: () => true,
+    }));
+
+    const { module, calls } = fakeConnect();
+
+    const provider = vercelConnectCredentials({
+      teamId: "team_1",
+      orgId: "org_1",
+      load: async () => module,
+      loadChat: async () => ({
+        createConnectWebhookVerifier: () => () => true,
+        connectResendAdapter,
+      }),
+    });
+
+    await provider.getToken(ref, { subject: { type: "app" } }).orThrow();
+    expect(calls[0]?.[3]).toEqual({ teamId: "team_1", orgId: "org_1" });
+
+    const config = await provider.channelConfig(ref, "resend").orThrow();
+    expect("apiKey" in config).toBe(true);
+    expect(connectResendAdapter).toHaveBeenCalledWith(
+      "github",
+      { installationId: "inst_1", scopes: ["repo"] },
+      { teamId: "team_1", orgId: "org_1" },
+    );
+  });
+
   it("pins the Supabase Auth issuer on a user subject", () => {
     expect(
       connectSubject({ id: "u1" }, { supabaseUrl: "https://p.supabase.co/" }),

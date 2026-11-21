@@ -392,6 +392,22 @@ in a unit test, send `cookie.header` as the `cookie` header.
 only. Merge it into `identify`, and target it with a rule such as
 `{ variant: "on", contexts: { environment: ["preview"] } }`.
 
+## Running without `FLAGS_SECRET`
+
+Flags 4.5 works on Vercel without a `FLAGS_SECRET`. Flags Explorer overrides
+and the discovery endpoint use tokens that Vercel signs, and precompute signs
+its codes with a key Vercel provides for each deployment. Locally, run
+`vercel env pull` so the SDK can identify the project, and make sure the
+project exposes the system environment variables on Vercel. Nothing in
+better-supabase reads `FLAGS_SECRET` itself, so the flags block, `identify`
+and `flagsExplorerApiData` need no change. Projects that already have a
+secret keep working.
+
+You still need a `FLAGS_SECRET` to precompute flags outside Vercel or in a
+prebuilt deployment (`vercel build` and `vercel deploy --prebuilt`), to use
+Flags Explorer outside Vercel or without `vercel env pull`, and to create
+your own encrypted overrides, for example in end-to-end tests.
+
 ## Reporting exposures
 
 `flag()` reports each value to Vercel Web Analytics when the page renders

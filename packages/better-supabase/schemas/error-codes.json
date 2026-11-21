@@ -2145,6 +2145,9 @@
     "code": "EU_SALES_VAT_INVALID"
   },
   {
+    "code": "EVE_SESSION_STATUS"
+  },
+  {
     "code": "EVIDENCE_TASK_NOT_FOUND",
     "message": "the evidence task isn"
   },

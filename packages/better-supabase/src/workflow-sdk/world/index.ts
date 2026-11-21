@@ -16,17 +16,22 @@ export type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
 
 export {
   deriveRunKey,
+  parseKeyRing,
   parseMasterKey,
+  type RingKey,
+  ringKeyFor,
+  runCreatedAt,
   signDelivery,
   verifyDelivery,
 } from "./crypto.ts";
 
-export { resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
+export { isServerless, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
 
 export {
   type DeadLetter,
   type SupabaseWorldOptions,
   WORKFLOW_WORLD_PROTOCOL,
+  type WorldConnection,
 } from "./types.ts";
 
 export default createWorld;

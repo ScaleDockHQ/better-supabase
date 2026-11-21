@@ -1,0 +1,31 @@
+{
+  "name": "@better-supabase/eve-world",
+  "private": true,
+  "description": "A fixture eve agent with a scripted model, run on eve's own server over the Supabase World in every delivery mode that works locally.",
+  "type": "module",
+  "scripts": {
+    "bench": "node src/bench.ts",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@workflow/world": "catalog:",
+    "@workflow/world-postgres": "catalog:",
+    "ai": "catalog:",
+    "better-supabase": "workspace:*",
+    "eve": "catalog:",
+    "pg": "catalog:",
+    "workflow": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "oxlint": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

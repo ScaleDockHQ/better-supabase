@@ -184,6 +184,31 @@ by link or with participants. `organizationId` is `undefined` on such chats,
 and the AI SDK adapter then skips the quota and the `org:` gateway tag. A
 chat that names a tenant still follows the permissions above.
 
+## Modes
+
+A chat has a free `mode` text, such as `ask` or `agent`. Set the `modes` option
+on the block to restrict it to a list: the module adds a check constraint
+(`bsb_ai_chat_mode_check`) so the database refuses any other value, and
+`createAiChat({ modes })` narrows the `mode` type of every chat, input and patch
+to that list. Run `bsb gen` after you change the option, since `modes` is a
+client option that the generated `blocks.generated.ts` carries. A mode name
+starts with a lowercase letter and holds lowercase letters, digits, `_` and `-`
+(at most 100 characters).
+
+```ts title="lib/blocks.ts"
+import { createAiChat } from "better-supabase/blocks/ai-chat";
+
+export const chat = createAiChat({
+  transport,
+  modes: ["ask", "agent", "plan"],
+});
+
+// chat.create({ organizationId, chat: { mode: "agnet" } }) is a type error.
+```
+
+Chats created before you set `modes` keep a `null` mode, which the constraint
+allows.
+
 ## Message storage
 
 `blocks["ai-chat"].options.messages` chooses how `ai_messages` is keyed and

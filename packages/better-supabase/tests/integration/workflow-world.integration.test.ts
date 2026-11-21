@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import { beforeAll, describe } from "vitest";
 
 import { dbUrl, reachable } from "./block-session.ts";
-import { installWorld } from "./workflow-world.ts";
+import { installWorld, resetWorld } from "./workflow-world.ts";
 
 const live = await reachable();
 
@@ -21,6 +21,7 @@ describe.skipIf(!live)("@workflow/world-testing in poll mode", () => {
 
     try {
       await installWorld(pool);
+      await resetWorld(pool);
     } finally {
       await pool.end();
     }

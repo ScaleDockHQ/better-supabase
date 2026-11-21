@@ -7,7 +7,7 @@ import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { GatewayOptions } from "../gateway-options.ts";
 import type { AiUsage } from "../gateway.ts";
 
-import { isRecord } from "../../core/block-helpers.ts";
+import { isRecord } from "../../core/guards.ts";
 import { problemResponse } from "../../core/problem.ts";
 import { validate } from "../../core/standard.ts";
 import { aiErrorToDbError } from "../errors.ts";

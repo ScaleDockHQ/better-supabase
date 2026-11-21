@@ -130,14 +130,15 @@ pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
 Set `experimental.workflow.world` to `"better-supabase/workflow-sdk/world"`
 in `defineAgent`, then use the helpers from `better-supabase/eve`:
 
-| Helper                    | Where it goes                          | What it does                                            |
-| ------------------------- | -------------------------------------- | ------------------------------------------------------- |
-| `supabaseAuth({ env })`   | `eveChannel({ auth: [...] })`          | signs eve routes in with the Supabase session           |
-| `credentialAuth(...)`     | a connection's `auth`                  | resolves the connection's token from a `credential_ref` |
-| `supabaseMemory(...)`     | `defineMemoryProvider(...)`            | backs eve memory with the memory and knowledge blocks   |
-| `supabaseDocumentBackend` | `fileMemory({ backend })`              | stores file memory in `memory_documents`                |
-| `persistSessions(...)`    | `defineHook({ events })`               | copies sessions into the AI chat tables                 |
-| `routeInbox(...)`         | `chatSdkChannel()` over `inboxAdapter` | hands inbox conversations in bot mode to eve            |
+| Helper                    | Where it goes                              | What it does                                             |
+| ------------------------- | ------------------------------------------ | -------------------------------------------------------- |
+| `supabaseAuth({ env })`   | `eveChannel({ auth: [...] })`              | signs eve routes in with the Supabase session            |
+| `credentialAuth(...)`     | a connection's `auth`                      | resolves the connection's token from a `credential_ref`  |
+| `supabaseMemory(...)`     | `defineMemoryProvider(...)`                | backs eve memory with the memory and knowledge blocks    |
+| `supabaseDocumentBackend` | `fileMemory({ backend })`                  | stores file memory in `memory_documents`                 |
+| `persistSessions(...)`    | `defineHook({ events })`                   | wakes the sync that copies sessions into the chat tables |
+| `createSessionSync(...)`  | a schedule or the `eve_session_sync` queue | reads sessions through eve's reader into the chat tables |
+| `routeInbox(...)`         | `chatSdkChannel()` over `inboxAdapter`     | hands inbox conversations in bot mode to eve             |
 
 ## Chat SDK bots
 

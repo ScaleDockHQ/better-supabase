@@ -1,7 +1,7 @@
 import type { DbError } from "../core/errors.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { dbError, dbErrorOf } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 
 const INVALID_INPUT: ReadonlySet<string> = new Set([
   "AI_InvalidArgumentError",
@@ -133,6 +133,14 @@ function ofGateway(type: string, error: Record<string, unknown>): DbError {
       return dbError("forbidden", "The AI Gateway refused the request.", {
         code: "AI_GATEWAY_FORBIDDEN",
       });
+    }
+
+    case "access_policy_denied": {
+      return dbError(
+        "forbidden",
+        "An AI Gateway access policy does not allow this model or provider.",
+        { code: "AI_GATEWAY_ACCESS_POLICY_DENIED" },
+      );
     }
 
     case "authentication_error": {

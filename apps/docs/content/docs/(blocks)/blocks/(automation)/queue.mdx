@@ -942,7 +942,7 @@ on a Supabase queue (runs go to Vercel Queues topics that nothing reads). Any
 from [conformance kits](/docs/extending/conformance). `transportScheduler`
 takes a `BlockTransport` instead of a SQL connection. eve's dynamic schedules
 store their schedules in a scheduler through `queueScheduleProvider` (see
-[eve on Supabase](/docs/eve#dynamic-schedules)); they need the drain
+[eve on Supabase](/docs/eve/schedules#dynamic-schedules)); they need the drain
 scheduler, which returns each schedule's payload.
 
 #### Supabase Queues with Supabase Cron

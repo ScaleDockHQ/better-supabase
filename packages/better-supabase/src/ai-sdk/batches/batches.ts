@@ -7,6 +7,7 @@ import type {
   Experimental_ListBatchesResult,
   Experimental_StartBatchOptions,
   Experimental_StartBatchResult,
+  OutputInterface,
 } from "ai";
 
 import {
@@ -45,6 +46,7 @@ export interface BatchApi {
   results(options: {
     provider?: Experimental_BatchProvider;
     batch: Experimental_BatchReference;
+    output?: OutputInterface;
   }): AsyncIterable<Experimental_BatchItemResult>;
   cancel(options: {
     provider?: Experimental_BatchProvider;
@@ -78,6 +80,13 @@ export interface AiBatchesOptions {
     | ((
         reference: Experimental_BatchReference,
       ) => Experimental_BatchProvider | undefined);
+  /**
+   * The `output` specification the batch's requests were started with, such as
+   * `Output.object({ schema })`. The AI SDK then parses and validates each
+   * successful item's text, and the stored output holds `output` or
+   * `outputError` next to `text`. A failed parse does not fail the item.
+   */
+  readonly output?: OutputInterface;
   /** Seconds between two polls of a pending batch. Default 60. */
   readonly pollEvery?: number;
   /** Changes what is stored for an item, such as moving images to Storage first. */
@@ -176,6 +185,12 @@ export function batchItemOf(
         content: item.content,
         finishReason: item.finishReason,
         response: item.response,
+        ...("output" in item && item.output !== undefined
+          ? { output: item.output }
+          : {}),
+        ...("outputError" in item && item.outputError !== undefined
+          ? { outputError: item.outputError }
+          : {}),
       }),
       usage: jsonOf(item.usage),
     };
@@ -295,6 +310,7 @@ export function aiBatches(options: AiBatchesOptions): AiBatches {
           for await (const item of api.results({
             ...providerFor(reference),
             batch: reference,
+            ...(options.output === undefined ? {} : { output: options.output }),
           })) {
             page.push(
               options.onItem === undefined

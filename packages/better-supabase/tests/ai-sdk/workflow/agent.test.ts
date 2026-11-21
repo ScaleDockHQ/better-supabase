@@ -41,16 +41,12 @@ const echo = (name: string) =>
     execute: () => Promise.resolve(name),
   });
 
-const needs = async (value: unknown): Promise<boolean> => {
-  const fn = (value as { needsApproval?: unknown }).needsApproval;
-
-  return typeof fn === "function"
-    ? Boolean(await (fn as (input: unknown) => unknown)({}))
-    : Boolean(fn);
-};
+/** The agent's `toolApproval`, which `WorkflowAgent` keeps private. */
+const approvalOf = (runtime: object): unknown =>
+  (runtime as { toolApproval?: unknown }).toolApproval;
 
 describe("createWorkflowAgentRuntime", () => {
-  it("asks for the tenant's ask tools and drops denied ones", async () => {
+  it("asks for the tenant's ask tools through toolApproval and drops denied ones", () => {
     const runtime = createWorkflowAgentRuntime({
       agent,
       model: () => new MockLanguageModelV4(),
@@ -61,11 +57,11 @@ describe("createWorkflowAgentRuntime", () => {
 
     expect(runtime.id).toBe("a1");
     expect(Object.keys(runtime.tools)).toEqual(["a", "b"]);
-    expect(await needs(runtime.tools["a"])).toBe(false);
-    expect(await needs(runtime.tools["b"])).toBe(true);
+    expect(runtime.tools["b"]).not.toHaveProperty("needsApproval");
+    expect(approvalOf(runtime)).toEqual({ b: "user-approval" });
   });
 
-  it("denies a call the app's check denies and asks when it asks", async () => {
+  it("passes the app's check, composed with the permission check, as toolApproval", async () => {
     const runtime = createWorkflowAgentRuntime({
       agent,
       model: () => new MockLanguageModelV4(),
@@ -76,7 +72,14 @@ describe("createWorkflowAgentRuntime", () => {
           : "user-approval",
     });
 
-    await expect(needs(runtime.tools["a"])).rejects.toThrow("nope");
-    expect(await needs(runtime.tools["b"])).toBe(true);
+    const check = approvalOf(runtime) as (options: unknown) => Promise<unknown>;
+
+    expect(typeof check).toBe("function");
+    expect(
+      await check({ toolCall: { toolName: "a", input: {} } }),
+    ).toMatchObject({ type: "denied", reason: "nope" });
+    expect(await check({ toolCall: { toolName: "b", input: {} } })).toBe(
+      "user-approval",
+    );
   });
 });

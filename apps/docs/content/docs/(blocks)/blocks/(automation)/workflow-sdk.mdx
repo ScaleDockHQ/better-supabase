@@ -53,7 +53,11 @@ export const world = createSupabaseWorld({
 | `WORKFLOW_DELIVERY`                                                    | `delivery`                 | `poll`                                                                                      |
 | `WORKFLOW_FLOW_URL`                                                    | `flowUrl`                  | `WORKFLOW_LOCAL_BASE_URL` or `http://localhost:$PORT`, plus `/.well-known/workflow/v1/flow` |
 | `WORKFLOW_DELIVERY_SECRET`                                             | `deliverySecret`           | the Vault secret `workflow_delivery_secret`                                                 |
+| `WORKFLOW_ENCRYPTION_KEYS`                                             | `encryptionKeys`           | the Vault secret `workflow_encryption_keys` (see Encryption)                                |
+| `WORKFLOW_POSTGRES_CONNECTION`                                         | `connection`               | `transaction` on port 6543, else `session`                                                  |
 | `WORKFLOW_ENCRYPTION_KEY`                                              | `encryptionKey`            | the Vault secret `workflow_encryption_key`                                                  |
+| `WORKFLOW_DELIVERY_HEADERS`                                            | `deliveryHeaders`          | the Vault secret `workflow_delivery_headers`, else none                                     |
+| `WORKFLOW_RECOVER_AFTER_SECONDS`                                       | `recoverAfter`             | 300                                                                                         |
 | `WORKFLOW_DELIVERY_QUEUE`                                              | `queue`                    | `workflow_deliveries`                                                                       |
 | `WORKFLOW_QUEUE_NAMESPACE`                                             | `namespace`                | none                                                                                        |
 | `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`                                 | `concurrency`              | 50                                                                                          |
@@ -82,7 +86,7 @@ deliveries before the World gives up on it, the same budget as
 write).
 
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` (5.2.0 for `workflow` 5.5) and stores its tables
+`WORKFLOW_WORLD_PROTOCOL` (5.3.0 for `workflow` 5.7) and stores its tables
 in the shape of the `@workflow/world-postgres` version in
 `WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
 The `conformance` job in `.github/workflows/verify.yml` runs that suite
@@ -95,12 +99,33 @@ report as an artifact.
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `onDeadLetter(letter)`                                                 | Runs once when a message used up its 73 deliveries and moved to the dead-letter state.              |
 | `enableInvoke` / `WORKFLOW_POSTGRES_ENABLE_INVOKE`                     | Turns on the experimental `invoke()` delivery of `@workflow/world-postgres`. Off by default.        |
-| `streamFlushIntervalMs` / `WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS` | Sets the milliseconds between flushes of buffered stream writes (10 by default, 0 flushes at once). |
+| `streamFlushIntervalMs` / `WORKFLOW_POSTGRES_STREAM_FLUSH_INTERVAL_MS` | Sets the milliseconds between flushes of buffered stream writes (20 by default, 0 flushes at once). |
 
 `createWorld()` returns one World per process, so two calls share a pool and
-a poller. The World warns when `DATABASE_URL` points at a transaction pooler
-(`usesTransactionPooler`), because `LISTEN` and session settings don't
-survive one; use the direct or session-mode connection. Messages carry the
+a poller. On a serverless platform (Vercel, AWS Lambda, Netlify) the pool
+holds 2 connections by default instead of 10.
+
+### Connection modes
+
+The World runs in one of two modes, set with `connection` or
+`WORKFLOW_POSTGRES_CONNECTION`. A connection string on port 6543 (the
+Supabase transaction pooler) selects `transaction`, anything else selects
+`session`.
+
+| Mode          | Streams                                                                                        | Run status and run event feeds     |
+| ------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `session`     | `LISTEN` and `NOTIFY` wake readers at once                                                     | `LISTEN`, with a 1 second backstop |
+| `transaction` | readers poll `workflow_stream_chunks` every `streamPollInterval` milliseconds (100 by default) | the runtime polls                  |
+
+The transaction pooler accepts `LISTEN` without delivering a notification, so
+`transaction` mode never relies on it. Stream readers keep the same offsets
+in both modes: a positive start index skips chunks, a negative one counts
+back from the chunks present at the first read. Setting `connection:
+"session"` on a pooled URL logs a warning, because streams would hang. In
+`transaction` mode the underlying World still holds one idle `LISTEN`
+connection that nothing waits on.
+
+Messages carry the
 `x-vqs-message-delivery-count` and `x-vqs-message-created-at` headers that
 `@workflow/world-postgres` sends, and `queueBatch` writes a batch in one
 statement. `world.start()` calls `assertWorldMigrations()`, which compares
@@ -120,6 +145,22 @@ timestamps to `timestamptz`), then deploy the app. Runs started on
 and `capabilities.inBandFence` is on for them. Don't run old and new app
 versions against the same database for longer than one deploy.
 
+### Rolling out 5.7
+
+`workflow` 5.7 and eve 1.2 need `@workflow/world` 5.3 and
+`@workflow/world-postgres` 5.4. Upgrade the SQL module first
+(`better-supabase upgrade`), then deploy the app. `workflow-sdk` version 6 adds
+`workflow.workflow_run_delivery_leases` (world-postgres migration 0031) and
+`workflow_runs.wake_pending` (migration 0032). Runs that exist before the
+upgrade start with `wake_pending` set, so startup recovery lets their next
+completed delivery decide; new runs start clear. `assertWorldMigrations`
+throws on a `@workflow/world-postgres` older than 5.4.0.
+
+`better-supabase/workflow-sdk/world/package.json` is a stub manifest that
+carries the `@workflow/world` range. eve's startup check reads it to compare
+the Workflow line it bundles with the World's, so a mismatch fails at startup
+instead of at the first run.
+
 ### Rolling out 5.2
 
 `workflow` 5.5 needs `@workflow/world` and `@workflow/world-postgres` 5.2.
@@ -137,10 +178,11 @@ capabilities of `@workflow/world-postgres`, including `inBandFence`, so
 The SDK hands each step and each workflow turn to the queue, and the queue
 posts it to the flow route that `withWorkflow` adds.
 
-| Mode             | Who posts                                                              | Use it on                                     |
-| ---------------- | ---------------------------------------------------------------------- | --------------------------------------------- |
-| `poll` (default) | the World, in the process that queues: it claims jobs and posts them   | a server, a container, `next dev`             |
-| `pg_net`         | `dispatch_workflow_deliveries()` on a pg_cron schedule, through pg_net | serverless hosts with no long-running process |
+| Mode             | Who posts                                                              | Use it on                                              |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------ |
+| `poll` (default) | the World, in the process that queues: it claims jobs and posts them   | a server, a container, `next dev`                      |
+| `pg_net`         | `dispatch_workflow_deliveries()` on a pg_cron schedule, through pg_net | serverless hosts with no long-running process          |
+| `vercel-queue`   | Vercel Queues, which call the flow route on Vercel                     | an app on Vercel, where `pg_net` can't reach the route |
 
 For `pg_net`, set `blocks["workflow-sdk"].options.delivery` to
 `pg_net` (the data file then schedules the dispatcher every
@@ -158,6 +200,57 @@ process stopped. Call it once at startup, for example from
 `instrumentation.ts`, and only where a process stays up: on a serverless
 host every instance would start a poller, so use `pg_net` there and call
 `start()` in `next dev` only.
+
+### Extra headers
+
+A host in front of the flow route may need a header on every delivery, for
+example Vercel's `x-vercel-protection-bypass`. Pass `deliveryHeaders` (or a
+JSON object in `WORKFLOW_DELIVERY_HEADERS`), or store the JSON object in the
+Vault secret `workflow_delivery_headers`. Poll mode and the `pg_net`
+dispatcher both add these headers and never replace `x-bsb-signature` or the
+other headers the World sets. A secret that is not a JSON object makes the
+dispatcher fail with the hint `WORKFLOW_DELIVERY_UNCONFIGURED`.
+
+A route may sit below a path prefix: `registerRoute` and the default routes
+keep the part of `flowUrl` that comes before `/.well-known/workflow/v1/flow`.
+
+### Delivery on Vercel
+
+`pg_net` posts from the database, which can't reach a Vercel deployment that
+sits behind protection or has no stable URL. Set `delivery: "vercel-queue"`
+(or `WORKFLOW_DELIVERY=vercel-queue`) to send each message with
+`@vercel/queue` instead, and install it as an optional peer. The World then
+claims no jobs and starts no poller, and the cron job is not scheduled.
+
+```ts title="lib/world.ts"
+export const world = createSupabaseWorld({ delivery: "vercel-queue" });
+```
+
+- A message goes to the topic that matches its queue name, with every
+  character outside `A-Za-z0-9_-` replaced by `-`. The Workflow SDK builders
+  write the consumer trigger for the topics `__wkf_workflow_*` and
+  `__wkf_step_*`, so no extra configuration is needed.
+- The message id is the idempotency key, so a retried send doesn't queue a
+  second copy. A delay over 23 hours is split into hops: each hop is
+  delivered, sees the delay that remains, and sends the message on without
+  running the flow.
+- The flow route answers Vercel's callback. A non-2xx response retries after
+  the backoff, clamped to 5 to 900 seconds. The 73rd delivery is
+  acknowledged and the message is dead-lettered through `onDeadLetter`, as in
+  the other modes. A flow response that asks to wait sends the message again
+  with that delay and a higher attempt.
+- Vercel authenticates the callback, so there is no `x-bsb-signature` check
+  in this mode.
+- A run whose wake-up is still owed after `recoverAfter` seconds (300 by
+  default) gets a new wake-up. In every mode the World clears
+  `workflow_runs.wake_pending` when an orchestrator delivery completes, and
+  `start()` and the poller sweep for runs that stay flagged.
+- `queue` fails when the send fails, so the Workflow SDK sees the error
+  instead of losing the message.
+
+The Vercel side of this mode, that is `handleCallback` authentication, the
+wildcard topic trigger, deployment pinning and the function timeout, is
+covered by unit tests with a fake client and has not been run on Vercel yet.
 
 ### Routing a queue prefix
 
@@ -202,168 +295,43 @@ With a 32-byte master key (base64 or hex) in `encryptionKey` or the Vault
 secret `workflow_encryption_key`, the World derives an AES-256 key per run
 with HKDF-SHA256, and the SDK stores the run's inputs, outputs and step
 data encrypted. Without one, they are stored as JSON in the `workflow`
-schema. When Vault can't be read, the World doesn't fall back to
-unencrypted data: the read fails, and the next one tries Vault again.
+schema, and `world.start()` logs a warning outside development and test.
+When Vault can't be read, the World doesn't fall back to unencrypted data:
+the read fails, and the next one tries Vault again. Run attributes such as
+`$eve.title` stay plain text.
 
-## Starting runs as the user
+### Rotating the master key
 
-```ts title="app/invoices/actions.ts"
-"use server";
+`encryptionKeys` (or `WORKFLOW_ENCRYPTION_KEYS`, or the Vault secret
+`workflow_encryption_keys`) takes a JSON ring of master keys:
 
-import { startFor } from "better-supabase/workflow-sdk";
-
-import { approveInvoice } from "@/workflows/approve-invoice";
-
-export async function requestApproval(invoiceId: string) {
-  const ctx = await server.context();
-  const run = await startFor(ctx, approveInvoice, [invoiceId], {
-    idempotencyKey: `approve:${invoiceId}`,
-  });
-  return run.runId;
-}
+```json
+[
+  { "id": "2026-01", "key": "<base64>", "from": 0 },
+  { "id": "2026-11", "key": "<base64>", "from": "2026-11-20T00:00:00Z" }
+]
 ```
 
-`startFor` starts the run with the `bsb.tenant` and `bsb.actor` attributes
-of the caller, which the World copies into `workflow_runs.tenant_id` and
-`actor_id`. Pass `subject: { type: "deal", id }` to store the record the
-run belongs to (the `bsb.subject` attribute, copied into `subject_type` and
-`subject_id`; see [runs on a record](/docs/blocks/workflows#runs-on-a-record)). With `idempotencyKey`, it returns the run that already has the
-key instead of starting another (see [Starting a run once](#starting-a-run-once)). To act as the user inside a step, pass
-`workflowContext(ctx)` as an argument and call `bsb.forContext(context)` in
-the step. It keeps the actor and tenant and drops the claims, so no token
-ends up in the run's stored state. A delegated token's `client_id`,
-`scope`, `authorization_details` and `act` chain are the exception: they
-stay, so a run an OAuth or MCP client started keeps that client's scopes
-(see [Actor and tenant](/docs/blocks/queue#actor-and-tenant)).
+A run uses the last entry whose `from` is at or before the run's creation
+time, which the World reads from the run id (`wrun_<ULID>`). To rotate,
+append a key with a `from` in the future. Existing runs keep opening with
+their old key, and new runs after that moment use the new one. The first
+entry must have `from` set to `0`, and entries are in ascending order.
 
-### Tickets
+When the ring has more than one key, the World also stamps the key's `id`
+on each new run as the attribute `$bsb.key_id`, and reads that id before it
+falls back to the dates. Moving a `from` later doesn't change which key a
+stamped run opens with. Runs created before the ring had a second key carry
+no stamp and are matched by date. Keep every key until no run uses it: a
+stamped run whose key is gone falls back to the date and fails to decrypt.
+To see which keys are in use, run
+`select attributes->>'$bsb.key_id', count(*) from workflow.workflow_runs group by 1`.
 
-`startFor(ctx, workflow, args, { ticket })` stores an opaque ticket from
-your authorization provider as the `bsb.ticket` attribute. Pass
-`workflowContext(ctx, { ticket })` as an argument too: inside a step,
-`bsb.forContext` resolves the ticket through the provider's
-`tickets.subject` hook and runs as the context it returns, or fails with
-`forbidden` when the ticket is refused or nothing resolves it.
-`startOnEvent` takes `ticket: (event) => string | undefined`, and its
-`args` function gets the event's context with the ticket as a second
-argument. The ticket is stored in plain text with the run, so make it an
-id the provider looks up, never a bearer secret.
-
-### Event and schedule starts run as a publisher
-
-Nobody is signed in when an event or a schedule starts a run, so
-`startOnEvent` and the schedules of `workflowStarter` need `runAs`: the
-publisher, a user who holds the permissions the run needs, and the
-permission keys its steps may use. The context the run starts with is the
-publisher's, capped to those keys, so `bsb.forContext(context)` in a step
-runs as the publisher and refuses every other key. A publisher who loses a
-permission fails the step that needs it. The event's actor or the
-schedule's creator is recorded as `bsb.trigger` for audit and grants
-nothing; the publisher is recorded as `bsb.publisher`. The run's `actor_id`
-is the user who triggered it (none for an event without an actor), so they
-see the run they caused, and `principal_kind` and `principal_id` record the
-publisher. Set `principalKind: "service_principal"` in `runAs` when the
-publisher is a [service principal](/docs/blocks/service-accounts). The
-World records the principal only from these trusted starts: `startFor`
-drops `bsb.principal_kind` and `bsb.principal` from caller attributes.
-
-```ts title="workflows/start.ts"
-import { startOnEvent, workflowStarter } from "better-supabase/workflow-sdk";
-
-const runAs = {
-  publisher: automationUserId,
-  permissions: ["invoices.read", "invoices.approve"],
-};
-
-outbox.consume(
-  "invoice-approval",
-  startOnEvent(approveInvoice, {
-    types: ["invoice.paid"],
-    runAs,
-    args: (event, context) => [context, event.payload],
-  }),
-);
-
-await workflows.schedules
-  .tick({
-    start: workflowStarter(
-      { weeklyDigest },
-      { runAs, args: (call, context) => [context, call.input] },
-    ),
-  })
-  .orThrow();
-```
-
-`runAs` can also be a function of the event or the start call, for a
-publisher per tenant; `null` starts nothing for that event and fails that
-schedule start, which runs again once its lease ends. A schedule start
-without `runAs` throws. Admission requests run as the actor that queued
-them unless you set `runAs`. A
-[service principal](/docs/blocks/service-accounts) is the usual
-publisher for work an organization owns.
-
-| Helper                                       | Does                                                                                                              |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `workflowStarter({ name: workflow }, opts)`  | The `start` callback for `schedules.tick` and `admission.tick`; schedules run as `runAs`                          |
-| `startOnEvent(workflow, { types, runAs })`   | An outbox handler that starts the workflow as `runAs` per matching event (`invoice.paid`, `invoice.*`, `*`), once |
-| `hookMetadata(ctx, permission?)`             | Metadata for `createHook`, naming the actor and the permission a tenant member needs to resume it                 |
-| `authorizeHook(token, ctx, { can })`         | The hook, when the caller created it or holds its permission; `HookForbiddenError` (403) otherwise                |
-| `protectWebHandler(handler, key, { can })`   | Answers 401 or 403 as `application/problem+json` before a workflow UI route or a run's stream                     |
-| `approvalWaiter.create`, `.wait` and `.wake` | Pauses a run on an approval token until a deadline, and resumes it by token                                       |
-
-### Starting a run once
-
-`startOnce(ctx, workflow, args, { key })` is `startFor` with a required
-idempotency key of 1 to 500 characters. Use it for a button that can be
-clicked twice or a webhook that can arrive twice:
-
-```ts
-const run = await startOnce(ctx, chargeOrder, [orderId], {
-  key: `charge:${orderId}`,
-});
-```
-
-The Supabase World claims the key in `workflow.workflow_run_keys` before it
-starts the run, so two starts that race start one run: the second waits for
-the first one's run id (up to five seconds) and returns that run. A start
-that fails frees the key, and a claim older than five minutes with no run is
-taken over. Runs started before the key table existed are still found by
-their `bsb.key` attribute. A World without run keys looks the key up in
-`analytics` only, so two concurrent starts can both start a run there.
-
-With the [workflows](/docs/blocks/workflows) run registry, pass `registry:
-workflows.runs` and `startOnce` records a queued run under the key, lets one
-caller lease it, starts the run, and records the engine's run id. When the
-start throws, the lease ends at once, so the next caller starts the run instead
-of waiting for the lease to run out. Without a
-registry or World run keys it throws `WorkflowRunKeysMissingError` (code
-`WORKFLOW_RUN_KEYS_MISSING`) instead of starting twice.
-
-### Starting a child run
-
-`startChild(context, workflow, args, { parentSubject })` starts a run that
-carries the parent's `bsb.tenant`, `bsb.actor` and `bsb.ticket`, and the
-parent's subject, so the tenant and the actor see the child in
-`workflow_runs`. Call it from a step with the `workflowContext(...)` the parent
-received as an argument.
-
-## Cancelling runs
-
-`cancelRuns(runIds, { reason })` cancels each run a few at a time (10 by
-default, `concurrency` sets it) and records the reason on its
-`run_cancelled` event. A run that fails to cancel lands in `failed` and does
-not stop the others:
-
-```ts
-import { cancelRuns } from "better-supabase/workflow-sdk";
-
-const { cancelled, failed } = await cancelRuns(runIds, {
-  reason: "Organization deleted",
-});
-```
-
-Find the run ids with `workflow_runs_list` or `world.analytics.runs.list`,
-for example by the `bsb.tenant` attribute.
+Run attributes, including `$eve.title` and `$bsb.key_id`, are stored as
+plain text. The eve World suite (`tests/eve-world`) runs a session with a
+key and scans every table of the `workflow` schema, as text and as the hex
+of `bytea` columns, for a message sent in the session; it finds nothing.
+The same scan without a key finds the message, so the scan can see it.
 
 ## Resumable streams
 

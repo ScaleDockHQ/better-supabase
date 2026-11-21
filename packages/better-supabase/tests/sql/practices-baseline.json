@@ -41,7 +41,7 @@
     "security-definer-functions": 48
   },
   "ai-schedules": {
-    "security-definer-functions": 36
+    "security-definer-functions": 54
   },
   "announcements": {
     "security-definer-functions": 50,
@@ -593,8 +593,8 @@
   },
   "workflow-sdk": {
     "serial-column": 4,
-    "security-definer-functions": 28,
-    "row-triggers": 4
+    "security-definer-functions": 64,
+    "row-triggers": 12
   },
   "workflows": {
     "security-definer-functions": 30,

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://v2-11-11.turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tags": ["test"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build"],
+      "passThroughEnv": [
+        "SUPABASE_DB_URL",
+        "SUPABASE_RUNTIME",
+        "EVE_WORLD_LOCAL",
+        "EVE_WORLD_RETENTION",
+        "EVE_WORLD_IDLE_MS"
+      ]
+    }
+  }
+}

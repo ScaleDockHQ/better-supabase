@@ -42,6 +42,17 @@ export type VercelNetworkPolicy =
       };
     };
 
+/** How a drive mounts: `read-write`, or a read-only `snapshot` of it. */
+export type VercelDriveMountMode = "read-write" | "snapshot";
+
+/**
+ * A drive for `mounts`: a `Drive` from `@vercel/sandbox` (created with
+ * `Drive.getOrCreate`, or `drive.snapshot()`), or a drive name with a mode.
+ */
+export type VercelDriveMount =
+  | { readonly drive: string; readonly mode: VercelDriveMountMode }
+  | { readonly name: string };
+
 /**
  * The `Sandbox.create` options the adapter sets or merges. Other keys pass
  * through to `@vercel/sandbox` unchanged.
@@ -59,6 +70,11 @@ export interface VercelSandboxCreateOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly tags?: Readonly<Record<string, string>>;
   readonly region?: string;
+  /**
+   * Drives to attach, keyed by absolute mount path. Mounts of `defaults` and of
+   * a chat's `create` are merged by path, and the later one wins.
+   */
+  readonly mounts?: Readonly<Record<string, VercelDriveMount>>;
   /** `{ npm: true }` lets the sandbox install the team's private npm packages. */
   readonly credentials?: { readonly npm?: true };
   readonly [option: string]: unknown;
@@ -241,6 +257,8 @@ export function mergeSandboxOptions(
 ): VercelSandboxCreateOptions {
   const merged: Record<string, unknown> = {};
   let timeout: number | undefined;
+  const mounts: Record<string, VercelDriveMount> = {};
+  let hasMounts = false;
 
   for (const layer of layers) {
     if (layer === undefined) {
@@ -248,6 +266,11 @@ export function mergeSandboxOptions(
     }
 
     Object.assign(merged, layer);
+
+    if (layer.mounts !== undefined) {
+      Object.assign(mounts, layer.mounts);
+      hasMounts = true;
+    }
 
     if (typeof layer.timeout === "number") {
       timeout =
@@ -259,6 +282,10 @@ export function mergeSandboxOptions(
 
   if (timeout !== undefined) {
     merged["timeout"] = timeout;
+  }
+
+  if (hasMounts) {
+    merged["mounts"] = mounts;
   }
 
   // SAFETY: merged holds only keys copied from VercelSandboxCreateOptions layers.

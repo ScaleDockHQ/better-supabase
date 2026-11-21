@@ -80,7 +80,7 @@ Engine-neutral workflow runs that members read through RLS, with a Realtime ping
 
 ## workflow-sdk
 
-The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+The tables of the Workflow SDK World (@workflow/world-postgres 5.4.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 
 - Title: Workflow SDK World
 - Docs: https://bettersupabase.com/docs/blocks/workflow-sdk

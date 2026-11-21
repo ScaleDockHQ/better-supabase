@@ -176,6 +176,30 @@ const { session } = await vercel
 runs, so a resumed chat gets a fresh token. `mergeSandboxOptions(...layers)`
 combines presets left to right and keeps the shortest `timeout`.
 
+## Drive mounts
+
+The `mounts` create option attaches Vercel drives to the sandbox (needs
+`@vercel/sandbox` 4.1 or later). Keys are absolute mount paths that do not
+overlap. A value is a `Drive` from `Drive.getOrCreate`, its `drive.snapshot()`,
+or `{ drive, mode }` with the drive name and a `read-write` or `snapshot` mode.
+Mounts from `defaults` and from a chat's `create` merge by path, and the later
+layer wins.
+
+```ts
+const sandboxes = vercelSandboxes({
+  sandboxes: service.aiChat.sandboxes,
+  defaults: { mounts: { "/seed": { drive: "seed", mode: "snapshot" } } },
+});
+
+await sandboxes.forChat(organizationId, chatId, {
+  create: {
+    mounts: { "/data": { drive: `chat-${chatId}`, mode: "read-write" } },
+  },
+});
+```
+
+Drive mounts are not inherited by a fork, so set `mounts` again on it.
+
 ## Running code
 
 `codeTool()` from `better-supabase/ai-sdk` is the tool the model calls to run

@@ -177,7 +177,7 @@ export function approvalsContract(
       args: ["uuid", "uuid", "text"],
       returns: "jsonb",
     },
-    { name: "cancel_approval", args: ["uuid"], returns: "jsonb" },
+    { name: "cancel_approval", args: ["uuid", "text"], returns: "jsonb" },
     { name: "is_approved", args: ["text", "text", "text"], returns: "boolean" },
   ];
 }

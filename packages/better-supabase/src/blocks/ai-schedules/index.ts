@@ -8,7 +8,10 @@ export {
   type AiSchedules,
   type AiSchedulesOptions,
   createAiSchedules,
+  type MirroredAiTask,
+  type MirrorAiTask,
   type NewAiTask,
+  type RecordAiTaskRun,
 } from "./ai-schedules.ts";
 
 export {

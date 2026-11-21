@@ -54,6 +54,7 @@ const RULES: readonly {
       "tests/validation-recipes/",
       "tests/validation-presets/",
       "tests/validation-request-context/",
+      "tests/eve-world/",
       "supabase/",
       "scripts/",
       ".github/actions/supabase-stack/",

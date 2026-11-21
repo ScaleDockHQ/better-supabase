@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AiChat } from "../../src/blocks/ai-chat/ai-chat.ts";
 import type { Inbox } from "../../src/blocks/inbox/inbox.ts";
 import type { Knowledge } from "../../src/blocks/knowledge/knowledge.ts";
 import type { Memory } from "../../src/blocks/memory/memory.ts";
@@ -28,7 +27,6 @@ import {
   EveAuthRejection,
   MemoryDocumentConflictError,
   openApiAuth,
-  persistSessions,
   principalOf,
   routeInbox,
   stableUuid,
@@ -745,235 +743,97 @@ describe("supabaseMemory", () => {
     const tools = await provider.tools?.(memoryCtx(user, "op10"));
     expect(Object.keys(tools ?? {})).toEqual(["remember", "forget"]);
   });
-});
 
-function fakeChats(leaf: string | null = "m0") {
-  const leafId = leaf ?? undefined;
-  const calls: { fn: string; args: unknown[] }[] = [];
+  describe("scopes", () => {
+    const CONTACT = { type: "contact", id: "c1" };
 
-  const record =
-    <T>(fn: string, value: T) =>
-    (...args: unknown[]) => {
-      calls.push({ fn, args });
+    it("recalls each scope and keeps the first scope's message id", async () => {
+      const { memory } = fakeMemory();
 
-      return AsyncResult.ok(value);
-    };
+      const provider = supabaseMemory({
+        memory: memory as unknown as Memory,
+        tools: false,
+        scopes: [
+          "user",
+          "organization",
+          { scope: "record", subject: () => CONTACT },
+        ],
+      });
 
-  const chats = {
-    chats: {
-      create: record("create", { id: "c" }),
-      get: record("get", { id: "c", leafId, activeRunId: "run_1" }),
-    },
-    messages: {
-      appendUser: record("appendUser", {}),
-      saveAssistant: record("saveAssistant", {}),
-    },
-    runs: { claim: record("claim", {}), release: record("release", true) },
-  };
+      const recalled = await provider.recall["turn.started"](
+        memoryCtx(user, "scopes1"),
+      );
 
-  return { chats: chats as unknown as AiChat, calls };
-}
-
-describe("persistSessions", () => {
-  const event = <T>(type: string, data: T, turnId?: string) => ({
-    type,
-    data,
-    ...(turnId === undefined ? {} : { scope: { turnId } }),
-  });
-
-  const text = (partId: string, value: string, phase: string) =>
-    event(
-      "content.completed",
-      { partId, runId: "r1", kind: "text", value, phase },
-      "t1",
-    );
-
-  it("copies a turn into the chat tables", async () => {
-    const { chats, calls } = fakeChats();
-    const hooks = persistSessions({ chats, agentId: "a1", title: "Support" });
-    const ctx = session(user);
-    const chatId = await chatIdOf("sess_1");
-    await hooks["session.started"](event("session.started", {}), ctx);
-    await hooks["turn.started"](
-      event("turn.started", { turnId: "t1" }, "t1"),
-      ctx,
-    );
-    await hooks["delivery.consumed"](
-      event(
-        "delivery.consumed",
-        {
-          deliveryId: "d1",
-          turnId: "t1",
-          parts: [
-            { kind: "text", text: "hello" },
-            { kind: "file", mediaType: "image/png" },
-          ],
-        },
-        "t1",
-      ),
-      ctx,
-    );
-    await hooks["content.completed"](
-      text("p1", "calling a tool", "narration"),
-      ctx,
-    );
-    await hooks["content.completed"](text("p2", "hi", "reply"), ctx);
-    await hooks["content.completed"](
-      event(
-        "content.completed",
-        { partId: "p3", kind: "text", value: "from the turn", phase: "reply" },
-        "t1",
-      ),
-      ctx,
-    );
-    await hooks["turn.settled"](
-      event("turn.settled", { turnId: "t1", outcome: "completed" }, "t1"),
-      ctx,
-    );
-
-    expect(calls[0]).toEqual({
-      fn: "create",
-      args: [
-        {
-          organizationId: ORG,
-          input: { id: chatId, ownerId: USER, title: "Support", agentId: "a1" },
-        },
-      ],
+      expect(
+        recalled?.messages
+          .filter((m) => m.id?.startsWith("core"))
+          .map((m) => m.id),
+      ).toEqual(["core", "core:organization", "core:record:contact"]);
+      expect(memory.archival.search).toHaveBeenCalledTimes(3);
+      expect(memory.archival.search).toHaveBeenCalledWith(
+        expect.objectContaining({ ns: { scope: "organization" } }),
+      );
+      expect(memory.archival.search).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ns: expect.objectContaining({ scope: "record" }),
+        }),
+      );
     });
-    expect(calls.find((call) => call.fn === "claim")?.args).toEqual([
-      { chatId, streamId: "eve:sess_1:t1", engine: "eve" },
-    ]);
-    expect(calls.find((call) => call.fn === "appendUser")?.args).toEqual([
-      {
-        chatId,
-        message: {
-          id: "t1:d1",
-          role: "user",
-          parts: [{ type: "text", text: "hello" }],
-        },
-      },
-    ]);
-    const saved = calls.filter((call) => call.fn === "saveAssistant");
-    expect(
-      saved.map((call) => (call.args[0] as { message: unknown }).message),
-    ).toEqual([
-      {
-        id: "t1:p1",
-        role: "assistant",
-        parts: [{ type: "text", text: "calling a tool" }],
-        metadata: { interim: true },
-      },
-      { id: "t1:p2", role: "assistant", parts: [{ type: "text", text: "hi" }] },
-      {
-        id: "t1:p3",
-        role: "assistant",
-        parts: [{ type: "text", text: "from the turn" }],
-      },
-    ]);
-    const [first] = saved[0]!.args as [{ options: unknown }];
 
-    expect(first.options).toMatchObject({
-      parentId: "m0",
-      status: "complete",
-      format: "eve",
-      runId: "run_1",
+    it("leaves out a record scope without a subject", async () => {
+      const { memory } = fakeMemory();
+
+      const provider = supabaseMemory({
+        memory: memory as unknown as Memory,
+        tools: false,
+        scopes: ["user", { scope: "record", subject: () => undefined }],
+      });
+
+      await provider.recall["turn.started"](memoryCtx(user, "scopes2"));
+      expect(memory.archival.search).toHaveBeenCalledOnce();
     });
-    expect(calls.at(-1)).toEqual({
-      fn: "release",
-      args: [{ chatId, streamId: "eve:sess_1:t1", status: "completed" }],
+
+    it("writes shared scopes only when the entry opts in", async () => {
+      const { memory, saved } = fakeMemory();
+
+      const defineTool = vi.fn(
+        (definition: Record<string, unknown>) => definition,
+      );
+
+      type Tool = {
+        inputSchema?: unknown;
+        execute(input: Record<string, unknown>): Promise<unknown>;
+      };
+
+      const readOnly = supabaseMemory({
+        memory: memory as unknown as Memory,
+        load: () => Promise.resolve({ defineTool }),
+        scopes: ["user", "organization"],
+      });
+
+      await readOnly.tools?.(memoryCtx(user, "scopes3"));
+      await readOnly.tools?.(memoryCtx(user, "scopes3"));
+      expect(memory.archival.upsert).not.toHaveBeenCalled();
+
+      const writable = supabaseMemory({
+        memory: memory as unknown as Memory,
+        load: () => Promise.resolve({ defineTool }),
+        scopes: ["user", { scope: "organization", write: true }],
+      });
+
+      const tools = (await writable.tools?.(
+        memoryCtx(user, "scopes4"),
+      )) as unknown as Record<string, Tool>;
+
+      await tools["remember"]?.execute({
+        fact: "office closes at six",
+        scope: "organization",
+      });
+      expect(saved).toEqual(["office closes at six"]);
+      expect(memory.archival.upsert).toHaveBeenLastCalledWith(
+        expect.objectContaining({ ns: { scope: "organization" } }),
+      );
     });
-  });
-
-  it("releases failed and cancelled turns and ignores unknown outcomes", async () => {
-    const { chats, calls } = fakeChats();
-    const hooks = persistSessions({ chats });
-    const ctx = session(user);
-    await hooks["turn.settled"](
-      event("turn.settled", {
-        turnId: "t2",
-        outcome: "failed",
-        error: { code: "MODEL_ERROR", message: "boom" },
-      }),
-      ctx,
-    );
-    await hooks["turn.settled"](
-      event("turn.settled", { turnId: "t3", outcome: "cancelled" }),
-      ctx,
-    );
-    await hooks["turn.settled"](
-      event("turn.settled", { turnId: "t4", outcome: "paused" }),
-      ctx,
-    );
-    expect(
-      calls.map((call) => {
-        const { status, error } = call.args[0] as {
-          status: string;
-          error?: string;
-        };
-
-        return error === undefined ? { status } : { status, error };
-      }),
-    ).toEqual([
-      { status: "failed", error: "MODEL_ERROR: boom" },
-      { status: "cancelled" },
-    ]);
-  });
-
-  it("skips sessions without a user, empty messages, other content and chats without a leaf", async () => {
-    const { chats, calls } = fakeChats(null);
-    const hooks = persistSessions({ chats });
-    const anonymous = session(null);
-    await hooks["session.started"](event("session.started", {}), anonymous);
-    await hooks["turn.started"](
-      event("turn.started", { turnId: "t" }),
-      anonymous,
-    );
-    await hooks["delivery.consumed"](
-      event("delivery.consumed", {
-        deliveryId: "d",
-        turnId: "t",
-        parts: [{ kind: "text", text: "x" }],
-      }),
-      anonymous,
-    );
-    await hooks["content.completed"](text("p", "y", "reply"), anonymous);
-    await hooks["turn.settled"](
-      event("turn.settled", { turnId: "t", outcome: "completed" }),
-      anonymous,
-    );
-    expect(calls).toEqual([]);
-
-    const ctx = session(user);
-    await hooks["delivery.consumed"](
-      event("delivery.consumed", { deliveryId: "d", turnId: "t", parts: [] }),
-      ctx,
-    );
-    await hooks["content.completed"](
-      event(
-        "content.completed",
-        {
-          partId: "r",
-          runId: "r1",
-          kind: "reasoning",
-          value: "z",
-          phase: "reply",
-        },
-        "t1",
-      ),
-      ctx,
-    );
-    await hooks["content.completed"](
-      event("content.completed", {
-        partId: "q",
-        runId: "r1",
-        kind: "text",
-        value: "no turn",
-        phase: "reply",
-      }),
-      ctx,
-    );
-    await hooks["content.completed"](text("p", "y", "reply"), ctx);
-    expect(calls.map((call) => call.fn)).toEqual(["create", "get"]);
   });
 });
 
@@ -1078,17 +938,18 @@ describe("eve on the Supabase World", () => {
   it("runs a Workflow spec version the World supports", async () => {
     const require = createRequire(import.meta.url);
     const root = dirname(require.resolve("eve/package.json"));
-    const chunks = join(root, "dist/src/compiled/_chunks/workflow");
+    const chunks = join(root, "dist/src/compiled/_chunks");
     const versions = new Set<number>();
 
-    for (const file of await readdir(chunks)) {
+    // eve 1.2 splits the compiled chunks into node and client folders.
+    for (const file of await readdir(chunks, { recursive: true })) {
       if (!file.endsWith(".js")) {
         continue;
       }
 
       const source = await readFile(join(chunks, file), "utf-8");
 
-      // Workflow 5.5's bundle inlines the constant; its range warning for
+      // The bundle inlines the constant; its range warning for
       // WORKFLOW_SPEC_VERSION still names the highest version it runs.
       for (const match of source.matchAll(
         /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)|expected an integer from \d+ to (\d+)/g,

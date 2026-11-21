@@ -3,13 +3,24 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
+import {
+  EVE_SERVICE_FUNCTIONS,
+  eveContract,
+  eveProjectionSql,
+  eveTablesSql,
+  EVE_TABLES,
+} from "./eve.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import {
   WORLD_POSTGRES_DDL,
   WORLD_POSTGRES_VERSION,
 } from "./workflow-sdk-world-ddl.generated.ts";
 
-export const WORKFLOW_DELIVERY_MODES = ["poll", "pg_net"] as const;
+export const WORKFLOW_DELIVERY_MODES = [
+  "poll",
+  "pg_net",
+  "vercel-queue",
+] as const;
 
 export type WorkflowDeliveryMode = (typeof WORKFLOW_DELIVERY_MODES)[number];
 
@@ -17,7 +28,9 @@ export type WorkflowDeliveryMode = (typeof WORKFLOW_DELIVERY_MODES)[number];
 export const WORKFLOW_VAULT_SECRETS = {
   flowUrl: "workflow_flow_url",
   deliverySecret: "workflow_delivery_secret",
+  deliveryHeaders: "workflow_delivery_headers",
   encryptionKey: "workflow_encryption_key",
+  encryptionKeys: "workflow_encryption_keys",
 } as const;
 
 export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
@@ -25,13 +38,15 @@ export const WORKFLOW_DELIVERY_QUEUE = "workflow_deliveries";
 function deliveryModeOf(ctx: BlockSqlContext): WorkflowDeliveryMode {
   const mode = ctx.text("delivery", "poll");
 
-  if (mode !== "poll" && mode !== "pg_net") {
+  const found = WORKFLOW_DELIVERY_MODES.find((known) => known === mode);
+
+  if (found === undefined) {
     throw new TypeError(
-      `blocks["workflow-sdk"].options.delivery must be "poll" or "pg_net", got "${mode}"`,
+      `blocks["workflow-sdk"].options.delivery must be "poll", "pg_net" or "vercel-queue", got "${mode}"`,
     );
   }
 
-  return mode;
+  return found;
 }
 
 const IDENT = /^[a-z_][a-z0-9_]{0,40}$/;
@@ -50,7 +65,7 @@ function deliveryQueueOf(ctx: BlockSqlContext): string {
 
 /** The tables the World's DDL and this module create in the `workflow` schema. */
 function workflowTables(): string[] {
-  const names = new Set<string>(["workflow_run_keys"]);
+  const names = new Set<string>(["workflow_run_keys", ...EVE_TABLES]);
 
   for (const match of WORLD_POSTGRES_DDL.matchAll(
     /create table (?:if not exists )?workflow\.(\w+)/gu,
@@ -97,8 +112,9 @@ const SERVICE_FUNCTIONS: readonly (readonly [string, string])[] = [
   ["workflow_claim_run_key", "text, interval"],
   ["workflow_set_run_key", "text, text"],
   ["workflow_release_run_key", "text"],
-  ["workflow_purge_runs", "interval, text[], integer"],
+  ["workflow_purge_runs", "interval, text[], integer, boolean"],
   ["workflow_open_hooks", "text, text, integer"],
+  ...EVE_SERVICE_FUNCTIONS,
 ];
 
 function build(ctx: BlockSqlContext): string {
@@ -132,6 +148,7 @@ create table if not exists workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+${eveTablesSql()}
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 ${workflowTableAccess()}
@@ -231,6 +248,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -248,12 +266,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets ${WORKFLOW_VAULT_SECRETS.flowUrl} and ${WORKFLOW_VAULT_SECRETS.deliverySecret} before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = ${sqlString(WORKFLOW_VAULT_SECRETS.deliveryHeaders)};
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret ${WORKFLOW_VAULT_SECRETS.deliveryHeaders} must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from ${claimJobs}(${queue}, ${String(lease)}, greatest(coalesce(batch, ${String(batch)}), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := ${queue} || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -313,10 +336,15 @@ $$;
 -- their events, steps, waits, streams, snapshots and invocations; hooks whose
 -- token is still reserved (token_retention_until) stay, so a token can't be
 -- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+-- With skip_unprojected, a run of an eve session stays until the session's
+-- copy in the blocks is current (the session was synced after its last change
+-- and is no longer open).
+drop function if exists ${fn("workflow_purge_runs")}(interval, text[], integer);
 create or replace function ${fn("workflow_purge_runs")}(
   older_than interval default '30 days',
   statuses text[] default array['completed', 'failed', 'cancelled'],
-  batch integer default 500
+  batch integer default 500,
+  skip_unprojected boolean default false
 )
 returns integer
 language plpgsql
@@ -336,6 +364,12 @@ begin
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
       and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
+      and not (coalesce(skip_unprojected, false) and exists (
+        select 1 from workflow.eve_session_runs sr
+        join workflow.eve_sessions es on es.session_id = sr.session_id
+        where sr.run_id = r.id
+          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)
+      ))
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -353,6 +387,7 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
@@ -393,6 +428,7 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
+${eveProjectionSql(ctx)}
 ${SERVICE_FUNCTIONS.map(
   ([name, args]) =>
     `revoke execute on function ${fn(name)}(${args}) from public, anon, authenticated;
@@ -506,7 +542,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "workflow_release_run_key", args: ["text"], returns: "void" },
     {
       name: "workflow_purge_runs",
-      args: ["interval", "text[]", "integer"],
+      args: ["interval", "text[]", "integer", "boolean"],
       returns: "integer",
     },
     {
@@ -514,6 +550,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["text", "text", "integer"],
       returns: "record",
     },
+    ...eveContract(),
   ];
 }
 
@@ -521,12 +558,12 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   name: "workflow-sdk",
   scopes: ["tenant"],
   title: "Workflow SDK World",
-  description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.`,
+  description: `The tables of the Workflow SDK World (@workflow/world-postgres ${WORLD_POSTGRES_VERSION}) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the eve projection tables with the jobs that copy eve sessions into the blocks.`,
   requires: ["workflows", "queue", "permissions"],
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 5,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -550,6 +587,28 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
       from: 4,
       description:
         "The World tables follow @workflow/world-postgres 5.2: workflow_job_lock_holders is new (migration 0030), closed to the API roles like the other World tables.",
+      sql: () => "",
+    },
+    {
+      from: 5,
+      description:
+        "The World tables follow @workflow/world-postgres 5.4: workflow_run_delivery_leases is new (migration 0031) and workflow_runs gains wake_pending (migration 0032). Runs that exist before the upgrade start with wake_pending set, so startup recovery lets their next completed delivery decide, and new runs start clear.",
+      // Upstream adds the column with a default of true so existing rows are
+      // set, then changes the default; the module's file adds it with the
+      // final default, which would clear existing rows.
+      sql: () => `alter table workflow.workflow_runs add column if not exists "wake_pending" boolean not null default true;
+alter table workflow.workflow_runs alter column "wake_pending" set default false;`,
+    },
+    {
+      from: 6,
+      description:
+        "The eve projection: workflow.eve_sessions and workflow.eve_session_runs, triggers that wake a debounced eve_session_sync job when an eve run or one of its events changes, the eve_session_* functions syncSession uses, and workflow_purge_runs takes skip_unprojected.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        'dispatch_workflow_deliveries adds the headers in the Vault secret workflow_delivery_headers (a JSON object) to each delivery, and the delivery option accepts "vercel-queue", which sends messages through Vercel Queues and creates no cron job.',
       sql: () => "",
     },
   ],

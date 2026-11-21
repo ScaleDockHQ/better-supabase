@@ -86,6 +86,7 @@ function setup(
   options: {
     verify?: boolean;
     streams?: boolean;
+    reasoning?: "drop" | "metadata";
     download?: (file: MessageFile) => Promise<ArrayBuffer>;
   } = {},
 ) {
@@ -95,6 +96,9 @@ function setup(
     inbox: createInbox({ transport }),
     userName: "helper",
     ...(options.download === undefined ? {} : { download: options.download }),
+    ...(options.reasoning === undefined
+      ? {}
+      : { reasoning: options.reasoning }),
     ...(options.verify === undefined
       ? {}
       : { verify: () => options.verify === true }),
@@ -475,6 +479,25 @@ describe("inboxAdapter", () => {
     });
 
     expect(aborted?.id).toMatch(/^empty:/);
+  });
+
+  it("keeps reasoning chunks out of the posted reply", async () => {
+    async function* source() {
+      yield { type: "reasoning" as const, text: "think " };
+      yield { type: "reasoning" as const, text: "hard" };
+      yield "Answer";
+    }
+
+    const dropped = setup();
+    expect(dropped.adapter.supportsReasoningChunks).toBe(true);
+    const plain = await dropped.adapter.stream?.("inbox:i1:c1", source());
+    expect(plain?.raw.body).toBe("Answer");
+    expect(plain?.raw.metadata["reasoning"]).toBeUndefined();
+
+    const kept = setup({ reasoning: "metadata" });
+    const posted = await kept.adapter.stream?.("inbox:i1:c1", source());
+    expect(posted?.raw.body).toBe("Answer");
+    expect(posted?.raw.metadata["reasoning"]).toBe("think hard");
   });
 
   it("rehydrates an attachment's download", async () => {

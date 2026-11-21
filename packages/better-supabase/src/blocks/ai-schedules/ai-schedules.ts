@@ -89,6 +89,13 @@ export interface AiTask {
   readonly enabled: boolean;
   readonly nextRunAt: Temporal.Instant | undefined;
   readonly lastRunAt: Temporal.Instant | undefined;
+  /**
+   * The scheduler that runs the task. Unset or `ai-schedules` means this block
+   * runs it; any other value is a mirror (see `mirror`).
+   */
+  readonly source?: string;
+  /** The task's id in its source scheduler, for a mirror. */
+  readonly externalId?: string;
   /** Only `list` sets it. */
   readonly lastRun: AiTaskRun | undefined;
   readonly createdAt: Temporal.Instant;
@@ -109,6 +116,27 @@ export type NewAiTask = AiTaskFields & {
   readonly prompt: string;
   readonly cron: string;
 };
+
+/** Names a task in another scheduler. */
+export interface MirroredAiTask {
+  readonly organizationId: string;
+  readonly source: string;
+  readonly externalId: string;
+}
+
+export interface MirrorAiTask extends MirroredAiTask {
+  /** The task's user, who is notified and owns its runs. */
+  readonly userId: string;
+  readonly task: NewAiTask & { readonly enabled?: boolean };
+  readonly nextRunAt?: Temporal.Instant;
+}
+
+export interface RecordAiTaskRun extends MirroredAiTask {
+  readonly scheduledFor: Temporal.Instant;
+  readonly status: AiTaskRunStatus;
+  readonly error?: string;
+  readonly chatId?: string;
+}
 
 /**
  * Runs one occurrence of a task, as the task's user: sends the prompt to the
@@ -241,6 +269,21 @@ export interface AiSchedules<F extends object = Record<never, never>> {
   execute(
     input: { runId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<boolean>;
+  /**
+   * Stores a task that another scheduler runs, such as an eve schedule (service
+   * role). It is keyed by `source` and `externalId`, and `tick` never claims
+   * it, so this block does not run it twice. `source` may not be
+   * `ai-schedules`. `nextRunAt` is the source's next occurrence.
+   */
+  mirror(input: MirrorAiTask): AsyncResult<AiTask>;
+  /** Removes a mirrored task and its runs (service role). */
+  unmirror(input: MirroredAiTask): AsyncResult<boolean>;
+  /**
+   * Records one occurrence of a mirrored task (service role). Calls with the
+   * same `scheduledFor` update one run. A `not_found` error means the task is
+   * not mirrored.
+   */
+  recordRun(input: RecordAiTaskRun): AsyncResult<AiTaskRun>;
   /** The handler for the `ai_task_run` queue. */
   runJob(): JobHandler<{ readonly run_id: string }>;
   /**
@@ -295,6 +338,10 @@ function taskOf(value: unknown): AiTask {
     enabled: row["enabled"] !== false,
     nextRunAt: optionalInstant(row["next_run_at"]),
     lastRunAt: optionalInstant(row["last_run_at"]),
+    ...(typeof row["source"] === "string" ? { source: row["source"] } : {}),
+    ...(typeof row["external_id"] === "string"
+      ? { externalId: row["external_id"] }
+      : {}),
     lastRun: isRecord(row["last_run"]) ? runOf(row["last_run"]) : undefined,
     createdAt: instantOf(row["created_at"]),
     updatedAt: instantOf(row["updated_at"]),
@@ -629,6 +676,53 @@ export function createAiSchedules<
         "list_ai_task_runs",
         { task_id: taskId, max_rows: runsOptions.limit },
         (value) => recordsOf(value, "list_ai_task_runs").map(runOf),
+      ),
+    mirror: ({ organizationId, userId, source, externalId, task, nextRunAt }) =>
+      service(
+        "mirror_ai_task",
+        {
+          tenant: organizationId,
+          user_id: userId,
+          source,
+          external_id: externalId,
+          fields: { ...fieldsArg(task), enabled: task.enabled ?? true },
+          next_run_at: nextRunAt?.toString(),
+        },
+        taskOf,
+      ),
+    unmirror: ({ organizationId, source, externalId }) =>
+      service(
+        "delete_mirrored_ai_task",
+        { tenant: organizationId, source, external_id: externalId },
+        (value) => value === true,
+      ),
+    recordRun: ({
+      organizationId,
+      source,
+      externalId,
+      scheduledFor,
+      status,
+      error,
+      chatId,
+    }) =>
+      service(
+        "record_ai_task_run",
+        {
+          tenant: organizationId,
+          source,
+          external_id: externalId,
+          scheduled_for: scheduledFor.toString(),
+          status,
+          error,
+          chat_id: chatId,
+        },
+        (value) => value ?? undefined,
+      ).andThen((row) =>
+        foundOrNotFound(
+          "ai_scheduled_task",
+          row === undefined ? undefined : runOf(row),
+          externalId,
+        ),
       ),
     tick,
     execute,

@@ -70,10 +70,32 @@ const embedder = (
   };
 };
 
+describe("chunk position", () => {
+  it("records offsets, the page and the heading above a chunk", () => {
+    const text = "# Intro\nalpha beta\n\n## Rates\ngamma delta\fpage two text";
+    const chunks = chunk(text, { size: 22, overlap: 0 });
+
+    expect(chunks[0]?.position?.heading).toBe("Intro");
+    expect(chunks.at(-1)?.position?.heading).toBe("Rates");
+    expect(chunks[0]?.position?.page).toBe(1);
+
+    const [second] = chunk("one\fpage two", { size: 8, overlap: 0 }).slice(-1);
+
+    expect(second?.position?.page).toBe(2);
+    expect(chunk("no pages")[0]?.position?.page).toBeUndefined();
+
+    for (const c of chunks) {
+      expect(text.slice(c.position?.start, c.position?.end)).toBe(c.content);
+    }
+  });
+});
+
 describe("chunk", () => {
   it("breaks at paragraphs, lines, sentences and words", () => {
     expect(chunk("")).toEqual([]);
-    expect(chunk("short text")).toEqual([{ content: "short text", tokens: 3 }]);
+    expect(chunk("short text")).toEqual([
+      { content: "short text", tokens: 3, position: { start: 0, end: 10 } },
+    ]);
 
     const paragraphs = chunk("aaaa aaaa\n\nbbbb bbbb", {
       size: 12,
@@ -157,7 +179,15 @@ describe("createKnowledge", () => {
       fn: "write_knowledge_chunks",
       args: {
         document_id: "d1",
-        chunks: { items: [{ content: "hello world", tokens: 3 }] },
+        chunks: {
+          items: [
+            {
+              content: "hello world",
+              tokens: 3,
+              metadata: { position: { start: 0, end: 11 } },
+            },
+          ],
+        },
         model: "m1",
       },
     });

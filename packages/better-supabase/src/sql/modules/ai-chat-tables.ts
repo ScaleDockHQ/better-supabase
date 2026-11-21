@@ -5,7 +5,7 @@ import { AI_MESSAGE_PART_TYPES } from "../../core/contracts/ai-message.ts";
 import { FINAL_RUN_STATES as FINAL } from "../../core/run-state.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { extraFieldsJson, lockTable } from "../shared.ts";
+import { ensureCheck, extraFieldsJson, lockTable } from "../shared.ts";
 
 /** Every status an `ai_runs` row can have, as a SQL list. */
 export const AI_RUN_STATES: string = [
@@ -295,6 +295,35 @@ function participantKeys(ctx: BlockSqlContext, names: AiChatNames): string {
     .join("\n");
 }
 
+const MODE = /^[a-z][a-z0-9_-]{0,99}$/;
+
+/**
+ * `blocks.ai-chat.options.modes`: a check constraint that limits the chat
+ * `mode` to the listed names. It is added (or replaced) idempotently so an
+ * installed chats table follows a changed list. Without the option, or without
+ * a `mode` column, any text up to 100 characters is allowed.
+ */
+function modeConstraint(ctx: BlockSqlContext, names: AiChatNames): string {
+  const modes = ctx.list("modes", []);
+
+  if (modes.length === 0 || !ctx.has("chats", "mode")) {
+    return "";
+  }
+
+  for (const name of modes) {
+    if (!MODE.test(name)) {
+      throw new TypeError(
+        `blocks.ai-chat.options.modes: "${name}" is not a mode. Use lowercase names such as "support" or "deep-research"`,
+      );
+    }
+  }
+
+  const column = names.c.chats.mode;
+  const list = modes.map(sqlString).join(", ");
+
+  return `\n${ensureCheck(names.t.chats, "bsb_ai_chat_mode_check", `${column} is null or ${column} in (${list})`)}`;
+}
+
 /** The ai-chat tables, their indexes and policies. */
 export function aiChatTables(ctx: BlockSqlContext, names: AiChatNames): string {
   const id = ctx.idType;
@@ -406,7 +435,7 @@ create index if not exists ${ctx.naming.rename("ai_chats_owner_idx")} on ${t.cha
 create index if not exists ${ctx.naming.rename("ai_chats_tenant_idx")} on ${t.chats} (${ch.tenant});
 create index if not exists ${ctx.naming.rename("ai_chats_project_idx")} on ${t.chats} (${ch.project});
 create index if not exists ${ctx.naming.rename("ai_chats_expires_idx")} on ${t.chats} (${ch.expiresAt}) where ${ch.temporary};
-create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.chats} using gin (${ch.search});${nullableTenant(ctx, names, "chats")}
+create index if not exists ${ctx.naming.rename("ai_chats_search_idx")} on ${t.chats} using gin (${ch.search});${nullableTenant(ctx, names, "chats")}${modeConstraint(ctx, names)}
 ${lockTable(t.chats)}
 grant select on ${t.chats} to authenticated;
 

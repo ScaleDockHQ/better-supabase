@@ -1,6 +1,8 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
+import type { Notifier } from "../blocks/ports.ts";
 import type { ScheduleProvider } from "../blocks/queue/backends.ts";
+import type { EveScheduleMirror } from "./schedule-mirror.ts";
 import type {
   EveQueueDrainer,
   EveQueueJob,
@@ -9,12 +11,15 @@ import type {
 } from "./schedules.ts";
 import type { EveSessionAuth } from "./types.ts";
 
-import { isRecord } from "../core/block-helpers.ts";
 import { nextCronRun } from "../core/cron.ts";
 import { DbException, dbError } from "../core/errors.ts";
+import { isRecord } from "../core/guards.ts";
 import { temporal } from "../core/temporal-required.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { stableUuid } from "./ids.ts";
+import { scheduleMirror } from "./schedule-mirror.ts";
+
+export type { EveScheduleMirror } from "./schedule-mirror.ts";
 
 /** Eve's `ScheduleExpression`: a recurring cron or one local date and time. */
 export type EveScheduleExpression =
@@ -202,7 +207,39 @@ export interface QueueScheduleProviderOptions {
    * creator, so `unscheduleAll({ tenant })` removes it with the tenant.
    */
   readonly tenantOf?: (scope: string | readonly string[]) => string | undefined;
+  /**
+   * Named scopes, by the first part of the scope eve resolved for the creator
+   * (`"user"` for `["user", id]`). When set, a schedule in any other scope is
+   * rejected, and each rule can set its tenant, how many schedules one scope
+   * (one user, for example) may hold and the shortest cron interval.
+   */
+  readonly scopes?: Readonly<Record<string, EveScheduleScopeRule>>;
+  /** The shortest cron interval for scopes without a rule of their own. */
+  readonly minIntervalMs?: number;
+  /**
+   * Your own check of an expression on create and update, after the built-in
+   * ones. Throw to reject it; a thrown `DbException` passes through and any
+   * other error becomes a `validation` error.
+   */
+  readonly mirror?: EveScheduleMirror;
+  readonly validateExpression?: (
+    expression: EveScheduleExpression,
+    context: {
+      readonly collection: string;
+      readonly scope: string | readonly string[] | undefined;
+    },
+  ) => void | Promise<void>;
   readonly now?: () => Temporal.Instant;
+}
+
+/** One named scope of `queueScheduleProvider({ scopes })`. */
+export interface EveScheduleScopeRule {
+  /** The tenant from the scope's parts after its name; falls back to `tenantOf`. */
+  readonly tenantOf?: (parts: readonly string[]) => string | undefined;
+  /** Schedules one scope may hold in a collection. */
+  readonly maxSchedules?: number;
+  /** The shortest gap between two runs of a cron expression, in ms. */
+  readonly minIntervalMs?: number;
 }
 
 /** How `queueDynamicSchedules` reads and writes a provider's runs. */
@@ -215,6 +252,13 @@ interface RunStore {
   save(run: EveScheduleRun): Promise<void>;
   /** Deletes a run's schedule. */
   remove(run: EveScheduleRun): Promise<boolean>;
+  /** Records an occurrence in the mirror. Never throws. */
+  record(
+    run: EveScheduleRun,
+    scheduledAt: Temporal.Instant,
+    status: "completed" | "failed" | "running",
+    error?: string,
+  ): Promise<void>;
 }
 
 /**
@@ -280,6 +324,66 @@ function timingOf(
     }
 
     throw invalid(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+
+/** What `validateExpression` checks besides the syntax. */
+export interface ValidateExpressionOptions {
+  /** The clock; a `single` time must be after it. Default: now. */
+  readonly now?: Temporal.Instant;
+  /** The shortest gap between two runs of a cron expression. */
+  readonly minIntervalMs?: number;
+  /** Accept a `single` time that is already past. Default: false. */
+  readonly allowPast?: boolean;
+}
+
+/**
+ * Checks an eve schedule expression and throws a `validation` `DbException`
+ * naming what is wrong: a cron that does not parse, a time zone that does not
+ * exist, a `single` time that is malformed or already past, a negative jitter,
+ * or a cron that runs more often than `minIntervalMs`. `queueScheduleProvider`
+ * runs it on every create and update.
+ */
+export function validateExpression(
+  expression: EveScheduleExpression,
+  options: ValidateExpressionOptions = {},
+): void {
+  const now = options.now ?? nowInstant();
+  const timing = timingOf(expression, now);
+
+  if (expression.type === "single") {
+    if (
+      options.allowPast !== true &&
+      temporal().Instant.compare(timing.nextRun, now) <= 0
+    ) {
+      throw invalid(`"${expression.at}" is already past`);
+    }
+
+    return;
+  }
+
+  if (
+    expression.jitter !== undefined &&
+    (!Number.isFinite(expression.jitter) || expression.jitter < 0)
+  ) {
+    throw invalid("jitter must be a number of at least 0");
+  }
+
+  if (options.minIntervalMs !== undefined) {
+    const second = nextCronRun(
+      expression.cron,
+      timing.timeZone,
+      timing.nextRun,
+    );
+
+    if (
+      second.epochMilliseconds - timing.nextRun.epochMilliseconds <
+      options.minIntervalMs
+    ) {
+      throw invalid(
+        `"${expression.cron}" runs more often than every ${String(options.minIntervalMs)} ms`,
+      );
+    }
   }
 }
 
@@ -415,6 +519,17 @@ export function queueScheduleProvider(
     return run;
   };
 
+  const mirror = scheduleMirror(options.mirror, {
+    name: storedName,
+    principalOf: (run) => {
+      try {
+        return envelopeOf(run.payload).principal.principalId;
+      } catch {
+        return;
+      }
+    },
+  });
+
   const save = async (run: EveScheduleRun): Promise<void> => {
     const timing = timingOf(run.expression, now());
 
@@ -427,7 +542,20 @@ export function queueScheduleProvider(
       timing.nextRun,
       run.tenant,
     );
+
+    await mirror.save(run, timing);
   };
+
+  const unschedule = async (run: EveScheduleRun): Promise<boolean> => {
+    const removed = await scheduler.unschedule(storedName(run), run.tenant);
+
+    await mirror.remove(run);
+
+    return removed;
+  };
+
+  const record: RunStore["record"] = (run, scheduledAt, status, error) =>
+    mirror.record(run, scheduledAt, status, error);
 
   const write = async (run: EveScheduleRun): Promise<EveScheduleRecord> => {
     await save(run);
@@ -435,11 +563,65 @@ export function queueScheduleProvider(
     return recordOf(run);
   };
 
+  const ruleOf = (
+    scope: string | readonly string[] | undefined,
+  ): EveScheduleScopeRule | undefined => {
+    if (options.scopes === undefined) {
+      return undefined;
+    }
+
+    const name = typeof scope === "string" ? scope : scope?.[0];
+    const rule = name === undefined ? undefined : options.scopes[name];
+
+    if (rule === undefined) {
+      throw invalid(
+        `eve: the schedule scope "${name ?? "(none)"}" is not one of ${Object.keys(options.scopes).join(", ")}`,
+      );
+    }
+
+    return rule;
+  };
+
   const tenantFor = (payload: unknown): { readonly tenant?: string } => {
     const scope = scopeOf(payload);
-    const tenant = scope === undefined ? undefined : options.tenantOf?.(scope);
+    const rule = ruleOf(scope);
+
+    const tenant =
+      scope === undefined
+        ? undefined
+        : (rule?.tenantOf?.(typeof scope === "string" ? [] : scope.slice(1)) ??
+          options.tenantOf?.(scope));
 
     return tenant === undefined ? {} : { tenant };
+  };
+
+  /** The built-in and custom checks of an expression, for the scope's rule. */
+  const checkExpression = async (
+    collection: string,
+    expression: EveScheduleExpression,
+    payload: unknown,
+  ): Promise<void> => {
+    const scope = scopeOf(payload);
+
+    // A past `single` time is allowed: it fires at its next matching minute.
+    validateExpression(expression, {
+      now: now(),
+      allowPast: true,
+      ...((ruleOf(scope)?.minIntervalMs ?? options.minIntervalMs) === undefined
+        ? {}
+        : {
+            minIntervalMs:
+              ruleOf(scope)?.minIntervalMs ?? options.minIntervalMs,
+          }),
+    });
+
+    try {
+      await options.validateExpression?.(expression, { collection, scope });
+    } catch (cause) {
+      throw cause instanceof DbException
+        ? cause
+        : invalid(cause instanceof Error ? cause.message : String(cause));
+    }
   };
 
   const withState = async (
@@ -459,6 +641,28 @@ export function queueScheduleProvider(
     kind: `better-supabase:${scheduler.name}`,
     async create(context, schedule) {
       const at = now().epochMilliseconds;
+
+      await checkExpression(
+        context.collection,
+        schedule.expression,
+        schedule.payload,
+      );
+
+      const max = ruleOf(scopeOf(schedule.payload))?.maxSchedules;
+
+      if (
+        max !== undefined &&
+        (await listed(prefixOf(context.collection, context.namespace)))
+          .length >= max
+      ) {
+        throw new DbException(
+          dbError(
+            "conflict",
+            `eve: this scope already holds ${String(max)} schedules`,
+            { hint: "EVE_SCHEDULE_LIMIT" },
+          ),
+        );
+      }
 
       return write({
         version: 1,
@@ -499,6 +703,14 @@ export function queueScheduleProvider(
     },
     async update(context, name, patch) {
       const run = await existing(context, name);
+
+      if (patch.expression !== undefined) {
+        await checkExpression(
+          run.collection,
+          patch.expression,
+          patch.payload ?? run.payload,
+        );
+      }
 
       const timing = {
         expression: patch.expression ?? run.expression,
@@ -562,9 +774,7 @@ export function queueScheduleProvider(
     delete: async (context, name) => {
       const run = await read(context, name);
 
-      return run === null
-        ? false
-        : scheduler.unschedule(storedName(run), run.tenant);
+      return run === null ? false : unschedule(run);
     },
   };
 
@@ -572,7 +782,8 @@ export function queueScheduleProvider(
     queue,
     current: find,
     save,
-    remove: (run) => scheduler.unschedule(storedName(run), run.tenant),
+    remove: unschedule,
+    record,
   });
 
   return provider;
@@ -686,6 +897,35 @@ export interface QueueDynamicSchedulesOptions {
   /** Stop claiming after this many ms. Default: 50 000. */
   readonly budgetMs?: number;
   readonly now?: () => Temporal.Instant;
+  /**
+   * Tells the creator when an occurrence fails for good: the definition's
+   * `auth` returned null, the payload is invalid, the retries ran out or the
+   * occurrence was stale. A failing notifier is ignored, like an event
+   * handler.
+   */
+  readonly notify?: EveScheduleFailureNotice;
+  /**
+   * A cron occurrence that starts later than this after its time fails as stale
+   * instead of firing, so a backlog after an outage does not send hours old
+   * prompts. Unset, every occurrence fires.
+   */
+  readonly staleAfterMs?: number;
+}
+
+/** Where `queueDynamicSchedules` reports a failed occurrence. */
+export interface EveScheduleFailureNotice {
+  /** The `notifications` block, from `createBlocks`. */
+  readonly notifier: Notifier;
+  /**
+   * The notification type. Its data holds the schedule, occurrence and
+   * `reason`.
+   */
+  readonly type: string;
+  /** Who is told. Defaults to the schedule's creator. */
+  readonly recipients?: (
+    run: EveScheduleRun,
+    creator: EveSchedulePrincipal | undefined,
+  ) => readonly string[];
 }
 
 /** A failure retrying can't fix: the occurrence fails without a retry. */
@@ -843,6 +1083,56 @@ export function queueDynamicSchedules(
     );
   }
 
+  const tell = async (
+    run: EveScheduleRun,
+    failed: EveScheduleOccurrenceEvent,
+  ): Promise<void> => {
+    const { notify } = options;
+
+    if (notify === undefined || run.tenant === undefined) {
+      return;
+    }
+
+    let creator: EveSchedulePrincipal | undefined;
+
+    try {
+      creator = envelopeOf(run.payload).principal;
+    } catch {
+      creator = undefined;
+    }
+
+    const recipients =
+      notify.recipients?.(run, creator) ??
+      (creator === undefined ? [] : [creator.principalId]);
+
+    if (recipients.length === 0) {
+      return;
+    }
+
+    try {
+      await notify.notifier.send({
+        type: notify.type,
+        input: {
+          recipients,
+          tenant: run.tenant,
+          key: `eve-schedule-failed:${failed.executionId}`,
+          subject: { type: "eve_schedule", id: run.scheduleId },
+          data: {
+            collection: run.collection,
+            name: run.name,
+            displayName: run.displayName,
+            scheduleId: run.scheduleId,
+            executionId: failed.executionId,
+            scheduledAt: failed.scheduledAt,
+            reason: failed.reason,
+          },
+        },
+      });
+    } catch {
+      // A notification that fails must not change what the occurrence did.
+    }
+  };
+
   const fire = async (
     args: EveScheduleOptions,
     queued: EveScheduleRun,
@@ -914,8 +1204,21 @@ export function queueDynamicSchedules(
 
     const sessions: string[] = [];
 
+    await provider.record(run, scheduledAt, "running");
+
     try {
       const envelope = envelopeOf(run.payload);
+
+      if (
+        options.staleAfterMs !== undefined &&
+        run.expression.type === "cron" &&
+        now().epochMilliseconds - scheduledAt.epochMilliseconds >
+          options.staleAfterMs
+      ) {
+        throw new PermanentFailure(
+          `The occurrence for ${scheduledAt.toString()} started more than ${String(options.staleAfterMs)} ms late and was skipped.`,
+        );
+      }
 
       const payload =
         definition.preparePayload === undefined
@@ -983,6 +1286,8 @@ export function queueDynamicSchedules(
               : "Scheduled occurrence failed.",
         });
 
+        await tell(run, failed);
+        await provider.record(run, scheduledAt, "failed", failed.reason);
         // SAFETY: eve types the event by the payload; this one carries none.
         await definition.events?.["occurrence.failed"]?.(failed as never);
       }
@@ -993,6 +1298,8 @@ export function queueDynamicSchedules(
 
       throw cause;
     }
+
+    await provider.record(run, scheduledAt, "completed");
 
     if (run.expression.type === "single") {
       await provider.save({

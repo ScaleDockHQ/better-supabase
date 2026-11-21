@@ -39,6 +39,8 @@ const TASKS = {
   enabled: "enabled",
   nextRunAt: "next_run_at",
   lastRunAt: "last_run_at",
+  source: "source",
+  externalId: "external_id",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const;
@@ -72,7 +74,14 @@ const NAMES: BlockSqlNames = {
       columns: TASKS,
       lifecycle: { user: "user", tenant: "tenant" },
       app: {},
-      optional: ["chat", "agent", "lastRunAt", "updatedAt"],
+      optional: [
+        "chat",
+        "agent",
+        "lastRunAt",
+        "updatedAt",
+        "source",
+        "externalId",
+      ],
     },
     runs: {
       name: "ai_task_runs",
@@ -84,6 +93,9 @@ const NAMES: BlockSqlNames = {
     },
   },
 };
+
+/** The source of tasks this module claims and runs itself. */
+const SELF_SOURCE = "ai-schedules";
 
 const QUEUE = /^[a-z_][a-z0-9_]{0,46}$/;
 const INTERVAL = /^\d+ (second|minute|hour|day)s?$/;
@@ -153,6 +165,12 @@ function build(ctx: BlockSqlContext): string {
       'blocks["ai-schedules"].options.staleAfter must be an interval such as "30 minutes"',
     );
   }
+
+  // A mirrored task is owned by another scheduler (source is not
+  // 'ai-schedules'): this module stores it and its runs but never claims it.
+  const mirror = task("source") && task("externalId");
+
+  const owned = mirror ? `x.${t.source} = '${SELF_SOURCE}'` : "true";
 
   const agents = ctx.installed("agents") ? ctx.of("agents") : undefined;
 
@@ -242,6 +260,125 @@ function build(ctx: BlockSqlContext): string {
     "v_id",
   );
 
+  const finished = run("finishedAt")
+    ? `, ${r.finishedAt} = case when record_ai_task_run.status in ('completed', 'failed') then now() else y.${r.finishedAt} end`
+    : "";
+
+  const mirrorSql = mirror
+    ? `
+
+-- Stores a task another scheduler runs (service role), such as an eve
+-- schedule: the row is keyed by (tenant, source, external_id), claim_due_ai_tasks
+-- never claims it, and the other scheduler reports its occurrences with
+-- record_ai_task_run. source may not be '${SELF_SOURCE}'.
+create or replace function ${fn("mirror_ai_task")}(tenant ${id}, user_id uuid, source text, external_id text, fields jsonb default '{}', next_run_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${tasks}%rowtype;
+begin
+  if mirror_ai_task.source is null or mirror_ai_task.source = '${SELF_SOURCE}' or length(mirror_ai_task.source) not between 1 and 64 then
+    ${raise("source must name another scheduler", "22023", "AI_TASK_INVALID")}
+  end if;
+  if mirror_ai_task.external_id is null or length(mirror_ai_task.external_id) not between 1 and 200 then
+    ${raise("external_id is required", "22023", "AI_TASK_INVALID")}
+  end if;
+  if jsonb_typeof(mirror_ai_task.fields) is distinct from 'object' then
+    ${raise("fields must be an object", "22023", "AI_TASK_INVALID")}
+  end if;
+  select * into v_row from ${tasks} x
+  where x.${t.tenant} = mirror_ai_task.tenant and x.${t.source} = mirror_ai_task.source and x.${t.externalId} = mirror_ai_task.external_id
+  for update;
+  if not found then
+    insert into ${tasks} (${t.tenant}, ${t.user}, ${t.title}, ${t.prompt}, ${t.cron}, ${t.source}, ${t.externalId})
+    values (mirror_ai_task.tenant, mirror_ai_task.user_id, mirror_ai_task.fields ->> 'title', mirror_ai_task.fields ->> 'prompt', mirror_ai_task.fields ->> 'cron', mirror_ai_task.source, mirror_ai_task.external_id)
+    returning * into v_row;
+  end if;
+  update ${tasks} x set
+    ${t.title} = coalesce(mirror_ai_task.fields ->> 'title', x.${t.title}),
+    ${t.prompt} = coalesce(mirror_ai_task.fields ->> 'prompt', x.${t.prompt}),
+    ${t.cron} = coalesce(mirror_ai_task.fields ->> 'cron', x.${t.cron}),
+    ${t.timezone} = coalesce(mirror_ai_task.fields ->> 'timezone', x.${t.timezone}),
+    ${t.enabled} = coalesce((mirror_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}),
+    ${t.nextRunAt} = case when coalesce((mirror_ai_task.fields ->> 'enabled')::boolean, x.${t.enabled}) then mirror_ai_task.next_run_at else null end${task("updatedAt") ? `,\n    ${t.updatedAt} = now()` : ""}
+  where x.${t.id} = v_row.${t.id}
+  returning * into v_row;
+  return ${taskJson("v_row")};
+end;
+$$;
+${serviceGrant(`${fn("mirror_ai_task")}(${id}, uuid, text, text, jsonb, timestamptz)`)}
+
+-- Removes a mirrored task and its runs (service role).
+create or replace function ${fn("delete_mirrored_ai_task")}(tenant ${id}, source text, external_id text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from ${tasks} x
+  where x.${t.tenant} = delete_mirrored_ai_task.tenant and x.${t.source} = delete_mirrored_ai_task.source
+    and x.${t.externalId} = delete_mirrored_ai_task.external_id and x.${t.source} <> '${SELF_SOURCE}';
+  return found;
+end;
+$$;
+${serviceGrant(`${fn("delete_mirrored_ai_task")}(${id}, text, text)`)}
+
+-- Records one occurrence of a mirrored task (service role): one run per
+-- scheduled_for, created on first sight and updated after. status is queued,
+-- running, completed or failed. Returns null when the task is unknown.
+create or replace function ${fn("record_ai_task_run")}(tenant ${id}, source text, external_id text, scheduled_for timestamptz, status text, error text default null, chat_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_task ${tasks}%rowtype;
+  v_run ${runs}%rowtype;
+begin
+  if record_ai_task_run.status not in (${RUN_STATES}) then
+    ${raise("% is not a run status", "22023", "AI_TASK_INVALID", "record_ai_task_run.status")}
+  end if;
+  select * into v_task from ${tasks} x
+  where x.${t.tenant} = record_ai_task_run.tenant and x.${t.source} = record_ai_task_run.source
+    and x.${t.externalId} = record_ai_task_run.external_id and x.${t.source} <> '${SELF_SOURCE}'
+  for update;
+  if not found then
+    return null;
+  end if;
+  select * into v_run from ${runs} y where y.${r.task} = v_task.${t.id} and y.${r.scheduledFor} = record_ai_task_run.scheduled_for for update;
+  if not found then
+    insert into ${runs} (${r.task}, ${r.tenant}, ${r.user}, ${r.scheduledFor}, ${r.status})
+    values (v_task.${t.id}, v_task.${t.tenant}, v_task.${t.user}, record_ai_task_run.scheduled_for, ${status("record_ai_task_run.status")})
+    returning * into v_run;
+  end if;
+  update ${runs} y set ${[
+    `${r.status} = ${status("record_ai_task_run.status")}`,
+    `${r.startedAt} = case when record_ai_task_run.status = 'queued' then y.${r.startedAt} else coalesce(y.${r.startedAt}, now()) end`,
+    ...(run("error")
+      ? [`${r.error} = left(record_ai_task_run.error, 4000)`]
+      : []),
+    ...(run("chat")
+      ? [`${r.chat} = coalesce(record_ai_task_run.chat_id, y.${r.chat})`]
+      : []),
+  ].join(", ")}${finished}
+  where y.${r.id} = v_run.${r.id}
+  returning * into v_run;${
+    task("lastRunAt")
+      ? `
+  update ${tasks} x set ${t.lastRunAt} = greatest(coalesce(x.${t.lastRunAt}, record_ai_task_run.scheduled_for), record_ai_task_run.scheduled_for) where x.${t.id} = v_task.${t.id};`
+      : ""
+  }
+  return ${runJson("v_run")};
+end;
+$$;
+${serviceGrant(`${fn("record_ai_task_run")}(${id}, text, text, timestamptz, text, text, uuid)`)}`
+    : "";
+
   return `${schemaPreamble(ctx)}
 -- Prompts a user schedules to run on a cron. next_run_at is computed by the
 -- application from cron and timezone; a null next_run_at on an enabled task
@@ -255,12 +392,17 @@ create table if not exists ${tasks} (
   ${t.cron} text not null check (length(${t.cron}) between 1 and 200),
   ${t.timezone} text not null default 'UTC' check (length(${t.timezone}) between 1 and 64),
   ${t.enabled} boolean not null default true,
-  ${t.nextRunAt} timestamptz,${line(task("lastRunAt"), `${t.lastRunAt} timestamptz`)}
+  ${t.nextRunAt} timestamptz,${line(task("lastRunAt"), `${t.lastRunAt} timestamptz`)}${line(task("source"), `${t.source} text not null default '${SELF_SOURCE}' check (length(${t.source}) between 1 and 64)`)}${line(task("externalId"), `${t.externalId} text check (length(${t.externalId}) between 1 and 200)`)}
   ${t.createdAt} timestamptz not null default now()${task("updatedAt") ? `,\n  ${t.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_due_idx")} on ${tasks} (${t.nextRunAt}) where ${t.enabled};
 create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}
-alter table ${tasks} enable row level security;
+${
+  mirror
+    ? `create unique index if not exists ${ctx.naming.rename("ai_scheduled_tasks_external_idx")} on ${tasks} (${t.tenant}, ${t.source}, ${t.externalId}) where ${t.externalId} is not null;
+`
+    : ""
+}alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;
 grant all on ${tasks} to service_role;
@@ -465,11 +607,16 @@ begin
     ...(run("error") ? [`${r.error} = 'timed out'`] : []),
     ...(run("finishedAt") ? [`${r.finishedAt} = now()`] : []),
   ].join(", ")}
-  where (y.${r.status} = 'running' and y.${r.startedAt} < now() - interval '${staleAfter}')
-     or (y.${r.status} = 'queued' and y.${r.createdAt} < now() - interval '${staleAfter}');
+  where ((y.${r.status} = 'running' and y.${r.startedAt} < now() - interval '${staleAfter}')
+     or (y.${r.status} = 'queued' and y.${r.createdAt} < now() - interval '${staleAfter}'))${
+       mirror
+         ? `
+    and exists (select 1 from ${tasks} x where x.${t.id} = y.${r.task} and ${owned})`
+         : ""
+     };
   for v_task in
     select * from ${tasks} x
-    where x.${t.enabled} and x.${t.nextRunAt} <= now()
+    where x.${t.enabled} and x.${t.nextRunAt} <= now() and ${owned}
     order by x.${t.nextRunAt}
     limit least(greatest(claim_due_ai_tasks.batch, 1), 500)
     for update skip locked
@@ -482,7 +629,7 @@ begin
   end loop;
   select coalesce(jsonb_agg(jsonb_build_object('id', x.${t.id}, 'cron', x.${t.cron}, 'timezone', x.${t.timezone})), '[]')
   into v_unscheduled
-  from ${tasks} x where x.${t.enabled} and x.${t.nextRunAt} is null;
+  from ${tasks} x where x.${t.enabled} and x.${t.nextRunAt} is null and ${owned};
   return jsonb_build_object('runs', v_runs, 'unscheduled', v_unscheduled);
 end;
 $$;
@@ -501,7 +648,7 @@ declare
 begin
   update ${tasks} x set ${t.nextRunAt} = (item ->> 'next_run_at')::timestamptz
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
-  where x.${t.id} = (item ->> 'id')::uuid and x.${t.enabled} and x.${t.nextRunAt} is null;
+  where x.${t.id} = (item ->> 'id')::uuid and x.${t.enabled} and x.${t.nextRunAt} is null and ${owned};
   get diagnostics v_count = row_count;
   return v_count;
 end;
@@ -568,7 +715,7 @@ begin
   return true;
 end;
 $$;
-${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}`;
+${serviceGrant(`${fn("finish_ai_task_run")}(uuid, boolean, text, uuid)`)}${mirrorSql}`;
 }
 
 // Version 1 ended task runs succeeded; version 2 uses completed, the word
@@ -596,6 +743,24 @@ ${replaceColumnCheck({
 })}`;
 }
 
+// Version 3 adds the columns that mark a task as another scheduler's.
+function upgradeMirror(ctx: BlockSqlContext): string {
+  if (
+    !(
+      ctx.owns("tasks") &&
+      ctx.has("tasks", "source") &&
+      ctx.has("tasks", "externalId")
+    )
+  ) {
+    return "";
+  }
+
+  const tasks = ctx.table("tasks");
+
+  return `alter table ${tasks} add column if not exists ${ctx.col("tasks", "source")} text not null default '${SELF_SOURCE}' check (length(${ctx.col("tasks", "source")}) between 1 and 64);
+alter table ${tasks} add column if not exists ${ctx.col("tasks", "externalId")} text check (length(${ctx.col("tasks", "externalId")}) between 1 and 200);`;
+}
+
 export const AI_TASKS: BlockSqlDefinition = {
   name: "ai-schedules",
   scopes: ["tenant"],
@@ -605,9 +770,15 @@ export const AI_TASKS: BlockSqlDefinition = {
   requires: ["memberships", "permissions"],
   integrates: ["agents", "ai-chat", "queue"],
   target: "schema",
-  version: 2,
+  version: 3,
   names: NAMES,
   upgrades: [
+    {
+      from: 2,
+      description:
+        "Tasks gain source and external_id so another scheduler's tasks can be mirrored.",
+      sql: upgradeMirror,
+    },
     {
       from: 1,
       description: "Task runs end completed instead of succeeded.",

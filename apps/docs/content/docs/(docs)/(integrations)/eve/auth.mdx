@@ -1,0 +1,68 @@
+---
+title: Sign-in on eve routes
+description: Verify the Supabase session on eve routes, accept bearer tokens for agents and MCP clients, and check the claimed tenant against the memberships claim.
+---
+
+`supabaseAuth` is an eve route `AuthFn`. It reads the Supabase session from
+the cookie or the bearer token and verifies it locally against the
+project's keys, so it never calls the Auth server. A request without a
+session falls through to the next entry, and an invalid token gets a 401.
+
+```ts title="agent/channels/eve.ts"
+import { eveChannel } from "eve/channels/eve";
+import { localDev } from "eve/channels/auth";
+import { loadEnv } from "better-supabase/env";
+import { supabaseAuth } from "better-supabase/eve";
+
+export default eveChannel({
+  auth: [supabaseAuth({ env: loadEnv() }), localDev()],
+});
+```
+
+The principal is `{ principalType: "user", principalId: <user id> }`, and
+its attributes carry `tenantId` (the `tenant_id` claim, or the claim in
+`tenantClaim`), the user's `roles` in that tenant and `isAnonymous`. The
+roles come from the `memberships` claim, or the claim in `membershipsClaim`
+when your authorization hook writes memberships elsewhere.
+`attributes(claims)` adds your own. `principalOf(auth)` builds the same
+principal from an `AuthState` you already have.
+
+## Bearer tokens for agents and MCP clients
+
+`supabaseJwtAuth` is the `AuthFn` for callers that send a Supabase access
+token as `Authorization: Bearer`: MCP clients, other agents and mobile apps.
+It verifies the token the same way, locally against the project's keys, and
+never reads the session cookie, so a browser can't authorize a request another
+site makes it send. A request without a bearer token falls through to the next
+entry. A token that fails verification gets a 401 with
+`WWW-Authenticate: Bearer error="invalid_token"` and never reaches a later
+entry such as `none()`. It declares the `Bearer` scheme, so eve's own 401 and
+`oauthResource` advertise it:
+
+```ts title="agent/channels/mcp.ts"
+import { mcpChannel } from "eve/channels/mcp";
+import { oauthResource } from "eve/channels/auth";
+import { loadEnv } from "better-supabase/env";
+import { supabaseJwtAuth } from "better-supabase/eve";
+
+const env = loadEnv();
+
+export default mcpChannel({
+  auth: oauthResource(supabaseJwtAuth({ env }), {
+    issuer: `${env.url}/auth/v1`,
+  }),
+});
+```
+
+It takes the options of `supabaseAuth` except the cookie, `verifySession` and
+`secret` ones, and builds the same principal.
+
+## The tenant and the memberships claim
+
+The tenant is whatever the token claims. `supabaseAuth` does not look it up:
+it takes the `memberships` claim, finds the entry for the claimed tenant id and
+puts that entry's roles on the principal. A tenant that has no entry gives an
+empty `roles` list, and the request is not rejected. Access is decided by
+row-level security and by the permission keys in the token, so a user who
+claims a tenant they don't belong to reads nothing there. Check `roles` yourself
+when a route must refuse such a user before any query runs.

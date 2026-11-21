@@ -91,7 +91,12 @@ export function createMaintenance(
       for (;;) {
         const [row] = await call<{ workflow_purge_runs: number }>(
           "workflow_purge_runs",
-          [options.olderThan ?? "30 days", [...statuses], batch],
+          [
+            options.olderThan ?? "30 days",
+            [...statuses],
+            batch,
+            options.skipUnprojected === true,
+          ],
         );
 
         const deleted = row?.workflow_purge_runs ?? 0;

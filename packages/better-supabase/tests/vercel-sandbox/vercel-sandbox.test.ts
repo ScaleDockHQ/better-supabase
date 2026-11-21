@@ -404,6 +404,23 @@ describe("network presets", () => {
     );
   });
 
+  it("mergeSandboxOptions merges drive mounts by path", () => {
+    const merged = mergeSandboxOptions(
+      {
+        mounts: {
+          "/data": { drive: "shared", mode: "read-write" },
+          "/seed": { drive: "seed", mode: "snapshot" },
+        },
+      },
+      { mounts: { "/data": { drive: "chat-1", mode: "read-write" } } },
+    );
+
+    expect(merged.mounts).toEqual({
+      "/data": { drive: "chat-1", mode: "read-write" },
+      "/seed": { drive: "seed", mode: "snapshot" },
+    });
+  });
+
   it("brokered allows one domain and ends before the token expires", async () => {
     const asked: unknown[] = [];
 
