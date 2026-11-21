@@ -39,7 +39,9 @@ export type {
   EveConnectionAuthorization,
   EveConnectionPrincipal,
   EveConnectionRequest,
+  EveEvictRequest,
   EveInteractiveAuthorization,
+  EveResume,
   EveTokenAuthorization,
   EveTokenResult,
 } from "./connections.ts";
@@ -343,6 +345,18 @@ export interface EveMemoryContext extends EveMemoryToolsContext {
   readonly abortSignal?: AbortSignal;
 }
 
+/** The context eve passes to `capture["compaction.requested"]`. */
+export interface EveMemoryCompactionContext extends EveMemoryContext {
+  readonly compaction: {
+    readonly modelId: string;
+    /**
+     * The input tokens that crossed the threshold; `null` for a requested
+     * compaction.
+     */
+    readonly usageInputTokens: number | null;
+  };
+}
+
 export interface EveRecallMessage {
   readonly id?: string;
   readonly content: string;
@@ -361,6 +375,8 @@ export interface EveMemoryProvider {
     "turn.started"(ctx: EveMemoryContext): Promise<EveRecallResult | null>;
   };
   readonly capture?: {
+    /** Runs before compaction rewrites history; a throw fails the compaction. */
+    "compaction.requested"?(ctx: EveMemoryCompactionContext): Promise<void>;
     "turn.completed"?(ctx: EveMemoryContext): Promise<void>;
   };
   tools?(

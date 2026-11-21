@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { CredentialProvider } from "../../src/credentials/provider.ts";
 import type { EveSessionContext } from "../../src/eve/index.ts";
 
 import { DbException } from "../../src/core/errors.ts";
-import { tenantArgument } from "../../src/eve/index.ts";
+import { credentialAuth, tenantArgument } from "../../src/eve/index.ts";
 
 const ORG = "22222222-2222-4222-8222-222222222222";
 
@@ -36,5 +37,58 @@ describe("tenantArgument", () => {
     expect(() => resolve?.(session({}))).toThrow(
       expect.objectContaining({ kind: "forbidden", hint: "TENANT_REQUIRED" }),
     );
+  });
+});
+
+describe("credentialAuth", () => {
+  const user = { type: "user" as const, id: "user_1" };
+  const ref = { provider: "vercel-connect", connector: "github" };
+
+  const provider = (extra: Record<string, unknown> = {}) =>
+    ({
+      apiVersion: 1,
+      name: "test",
+      capabilities: () => ({ authorization: true }),
+      getToken: async () => ({ ok: true, data: { token: "t" } }),
+      startAuthorization: async () => ({
+        ok: true,
+        data: { url: "https://x.test", deviceCode: "ABCD-1234" },
+      }),
+      ...extra,
+    }) as unknown as CredentialProvider;
+
+  it("sends the device code as userCode", async () => {
+    const auth = credentialAuth({ provider: provider(), ref, owner: "user" });
+
+    const started = await auth.startAuthorization?.({
+      principal: user,
+      connection: { url: "https://mcp.test" },
+      callbackUrl: "https://app.test/cb",
+    });
+
+    expect(started?.challenge).toMatchObject({
+      url: "https://x.test",
+      userCode: "ABCD-1234",
+    });
+  });
+
+  it("evicts through a provider that caches tokens", async () => {
+    const invalidateToken = vi.fn(async () => true);
+
+    const auth = credentialAuth({
+      provider: provider({ invalidateToken }),
+      ref,
+      owner: "user",
+    });
+
+    await auth.evict?.({
+      principal: user,
+      connection: { url: "https://mcp.test" },
+    });
+
+    expect(invalidateToken).toHaveBeenCalledWith(ref, { subject: user });
+    expect(
+      credentialAuth({ provider: provider(), ref, owner: "user" }).evict,
+    ).toBeUndefined();
   });
 });

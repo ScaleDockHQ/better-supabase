@@ -7,6 +7,7 @@ export {
   type BotIdCheckOptions,
   type BotIdConfig,
   type BotIdGuardOptions,
+  type BotIdHeader,
   type BotIdVerdict,
   type CheckBotId,
   type CheckRateLimit,

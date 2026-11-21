@@ -58,6 +58,7 @@ export type VercelDriveMount =
  * through to `@vercel/sandbox` unchanged.
  */
 export interface VercelSandboxCreateOptions {
+  /** @deprecated A legacy Vercel-managed runtime; use `image`. */
   readonly runtime?: string;
   readonly image?: string;
   readonly resources?: { readonly vcpus?: number };

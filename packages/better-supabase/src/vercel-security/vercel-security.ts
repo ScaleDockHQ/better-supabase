@@ -21,6 +21,25 @@ export interface BotIdVerdict {
   readonly bypassed: boolean;
   /** The verified bot's name, such as a search engine crawler. */
   readonly verifiedBotName?: string | undefined;
+  /** The verified bot's category, such as `search-engine`. */
+  readonly verifiedBotCategory?: string | undefined;
+  /**
+   * Headers BotID asks the response to carry, set when `returnResponseHeaders`
+   * is on.
+   */
+  readonly responseHeaders?:
+    | {
+        readonly addHeaders?: readonly BotIdHeader[] | undefined;
+        readonly addValuesToHeaders?: readonly BotIdHeader[] | undefined;
+        readonly replaceHeaders?: readonly BotIdHeader[] | undefined;
+      }
+    | undefined;
+}
+
+/** One header BotID adds to or replaces on the response. */
+export interface BotIdHeader {
+  readonly key: string;
+  readonly value: string;
 }
 
 /** The `checkBotId` options from `botid/server`, typed structurally. */
@@ -47,6 +66,10 @@ export type CheckBotId = (config?: BotIdConfig) => Promise<BotIdVerdict>;
 /** The `checkRateLimit` options this module passes, typed structurally. */
 export interface FirewallRateLimitCheckOptions {
   rateLimitKey?: string;
+  /** The request's headers, for a call without a `Request`. */
+  headers?: Headers | Record<string, string | string[]>;
+  /** The host the rules are defined on, for local development. */
+  firewallHostForDevelopment?: string;
   request?: Request;
   timeout?: number;
 }
