@@ -1,0 +1,214 @@
+---
+title: Observability on Vercel
+description: Send query timings to Vercel metrics, turn Next.js server errors into events, write Workflow SDK run outcomes to the outbox, and mount the workflow web UI.
+---
+
+Each piece below is an event sink or a telemetry plugin. None of them can
+change a query result, a request or a workflow run: a failure inside them is
+caught, logged and dropped.
+
+## Query metrics with `vercelMetrics`
+
+`vercelMetrics(metric)` from `better-supabase/otel/vercel` is a plugin that
+sends the duration and the failures of every repository operation to
+[Vercel custom metrics](https://vercel.com/docs/observability). Pass it the
+`metric` function of `@vercel/functions`, so the library never imports the
+package:
+
+```ts
+import { metric } from "@vercel/functions";
+import { createSupabase } from "better-supabase";
+import { vercelMetrics } from "better-supabase/otel/vercel";
+
+export const betterSupabase = createSupabase(schema).use(
+  vercelMetrics(metric, { tags: { service: "web" } }),
+);
+```
+
+It lives in its own entry and not in `better-supabase/otel` because that entry
+imports `@opentelemetry/api`, and an app that only wants Vercel metrics should
+not have to install it. The entry is a runtime entry: it imports no Node
+built-ins.
+
+Every call sends these metrics, with the table (or function) as `target` and
+the operation as tags:
+
+| Metric                               | Value                 | Extra tag                                 |
+| ------------------------------------ | --------------------- | ----------------------------------------- |
+| `better_supabase.db.duration_ms`     | milliseconds          | `outcome`, `ok` or `error`                |
+| `better_supabase.db.errors`          | `1` for a failed call | `kind`, the `DbError` kind or `exception` |
+| `better_supabase.db.budget_exceeded` | `1`, once per request | none                                      |
+
+Query them with the Vercel CLI, for example
+`vc metrics better_supabase.db.duration_ms -a p95 --group-by target`.
+
+### The per-request budget
+
+A connection makes at most 16 `metric()` calls (`maxCalls`, the marker
+included). A connection is one request in the adapters. Every `metric()` call
+crosses into the Vercel runtime synchronously, and Vercel documents no limit of
+its own, so the cap is this plugin's guard: a page that runs hundreds of queries
+pays for 16 samples and then sends one `better_supabase.db.budget_exceeded`
+count. Failures are sent before the duration of the same call, so an error is
+not the sample that gets dropped. Set `prefix` to rename the metrics and `tags`
+to add tags to every sample. Keep tag values low in cardinality.
+
+## Server errors with `next/instrumentation`
+
+Next.js calls `onRequestError` in `instrumentation.ts` for every error in a
+Server Component, route handler, Server Action or proxy.
+`createOnRequestError(betterSupabase)` from `better-supabase/next/instrumentation`
+returns a handler that emits a `request.failed` block event, which
+`forwardBlockEvents` and `traceBlockEvents` already deliver to your sinks.
+
+```ts
+import type { Instrumentation } from "next";
+
+export const onRequestError: Instrumentation.onRequestError = async (
+  error,
+  request,
+  context,
+) => {
+  if (process.env["NEXT_RUNTIME"] !== "nodejs") {
+    return;
+  }
+
+  const { handler } = await import("./lib/request-errors");
+
+  await handler(error, request, context);
+};
+```
+
+```ts
+import { forwardBlockEvents } from "better-supabase/events";
+import { createOnRequestError } from "better-supabase/next/instrumentation";
+
+import { betterSupabase } from "@/lib/supabase";
+
+forwardBlockEvents(betterSupabase, sink, {
+  source: "https://app.example.com",
+  types: ["request.failed"],
+});
+
+export const handler = createOnRequestError(betterSupabase);
+```
+
+The event data holds the error `name`, a `message` cut to 500 characters
+(`maxMessageLength`, or `message: false` to leave it out), Next.js's `digest`,
+the request `path` without its query string, the method, and the route and
+render context. Headers, cookies, the query string and the stack are never
+recorded. The handler waits for the sinks to settle, at most `settleMs`
+milliseconds, because Next.js can end the process right after it returns.
+
+The example app wires this in
+[`apps/examples/nextjs/src/instrumentation.ts`](https://github.com/better-supabase/better-supabase/blob/main/apps/examples/nextjs/src/instrumentation.ts).
+
+## Workflow run outcomes in the outbox
+
+`registerWorkflowLifecycle` from `better-supabase/workflow-sdk` registers the
+Workflow SDK's `registerLifecycleHooks` and writes each outcome to the outbox:
+
+```ts
+export async function register() {
+  if (process.env["NEXT_RUNTIME"] === "nodejs") {
+    const { registerWorkflowLifecycle } =
+      await import("better-supabase/workflow-sdk");
+    const { betterSupabase, bsb } = await import("@/lib/supabase/server");
+
+    registerWorkflowLifecycle({
+      outbox: bsb.admin().outbox,
+      events: betterSupabase.events,
+    });
+  }
+}
+```
+
+Each row has the type `workflow_sdk.run_completed` or `workflow_sdk.run_failed`,
+the subject `workflow_runs/<runId>`, and the key `<runId>:<transition>`, so a
+retry never writes a second row. The payload carries the run id, the workflow
+name and, for a failure, the error code, name and a message cut to 500
+characters. It never carries the stack, the input or the output. The same
+events go to `events` as block events when you pass it. The prefix is
+`workflow_sdk.` because the workflows block already owns `workflow_run.*`.
+
+Two limits come from the SDK: it reports only `onRunCompleted` and
+`onRunFailed`, so there is no run-started or step event, and a run cancelled
+from the CLI or the dashboard is reported only when this process cancels it.
+The hooks are fire-and-forget, so treat the rows as best effort and the SDK's
+event log as the record. The hooks need the Node.js runtime, which is why the
+call sits behind the guard and a dynamic import.
+
+## The workflow web UI
+
+`@workflow/web` serves the Workflow SDK's run explorer from any server that
+speaks `Request` and `Response`. The package has no authentication, and
+everyone who can reach it shares the backend credentials, so mount it behind
+`protectWebHandler`, which answers 401 without a session and 403 without the
+permission:
+
+```ts
+import { protectWebHandler } from "better-supabase/workflow-sdk";
+import { createWorkflowWebHandler } from "@workflow/web/handler";
+
+import { bsb } from "@/lib/supabase/server";
+
+const ui = await createWorkflowWebHandler({ basename: "/admin/workflows" });
+
+const handler = protectWebHandler(ui, "workflows.run", {
+  can: async (request, permission) => {
+    const { db } = await bsb.context();
+    const keys = await db.permissions.permissions();
+
+    return keys.ok ? keys.data.keys.includes(permission) : undefined;
+  },
+});
+
+export { handler as GET, handler as POST };
+```
+
+Put the file at `app/admin/workflows/[[...path]]/route.ts`. `can` returns
+`undefined` for an anonymous caller and a boolean for a signed-in one. The
+handler needs a built `@workflow/web` package and throws without one.
+
+## Recipes
+
+### `@vercel/otel`
+
+`registerOTel` from `@vercel/otel` installs the global OpenTelemetry SDK. The
+`otel()` plugin and `traceBlockEvents` use the global tracer, so register the
+SDK in `instrumentation.ts` first and the spans appear in Vercel's trace view
+with no other setup. See [OpenTelemetry](/docs/standards/otel) for the spans and
+attributes.
+
+```ts
+import { registerOTel } from "@vercel/otel";
+
+export function register() {
+  registerOTel({ serviceName: "web" });
+}
+```
+
+### eve's `agentRuns()`
+
+eve deployments export to the Agent Runs view in the Vercel dashboard by
+default. To filter what leaves the process, default-export `agentRuns()` from
+`eve/instrumentation/otel` in `agent/instrumentation/agent-runs.ts`. Its
+`exportPolicy` drops spans or attributes before Agent Runs receives them, for
+example the `server.address` the `otel()` plugin puts on database spans:
+
+```ts
+import { agentRuns } from "eve/instrumentation/otel";
+
+export default agentRuns({
+  exportPolicy: {
+    attribute: ({ key }) => ({ emit: key !== "server.address" }),
+  },
+});
+```
+
+Agent Runs needs a 100 percent trace sampling rule on the project. `eve deploy`
+creates one for a new project; for an existing one, add it under Settings, then
+Tracing. To sample only the agent, use the path prefixes `/eve/v1` and
+`/.well-known/workflow`. The better-supabase tools and approvals of the
+[eve adapter](/docs/eve) run inside those spans, so their database spans nest
+under the run when the `otel()` plugin is installed.
