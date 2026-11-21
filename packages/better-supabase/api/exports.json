@@ -2115,6 +2115,7 @@
       "FrameworkOptions",
       "RefusalRedirects",
       "ResourceLoaderContext",
+      "TanStackStartFunctionMiddlewareArgs",
       "TanStackStartHandlerOptions",
       "TanStackStartOptions",
       "TanStackStartServerOptions",
@@ -5426,6 +5427,7 @@
       "botIdGuard",
       "combineGuards",
       "firewallRateLimit",
+      "firewallRateLimiter",
       "withGuards"
     ],
     "types": [
@@ -5436,10 +5438,13 @@
       "CheckBotId",
       "CheckRateLimit",
       "FirewallRateLimitCheckOptions",
+      "FirewallRateLimiterOptions",
       "FirewallRateLimitOptions",
       "FirewallRateLimitResult",
       "VercelGuard",
-      "VercelGuardErrorPolicy"
+      "VercelGuardErrorPolicy",
+      "VercelGuardOutcome",
+      "VercelVerdictHandler"
     ]
   },
   "./vercel-passport": {
@@ -5447,6 +5452,9 @@
       "PASSPORT_HEADER",
       "PASSPORT_ISSUER",
       "PASSPORT_JWKS_URL",
+      "VERCEL_OIDC_ISSUER",
+      "VERCEL_OIDC_JWKS_URL",
+      "vercelOidcResolver",
       "vercelRuntimeCache",
       "verifyPassport"
     ],
@@ -5456,8 +5464,11 @@
       "PassportPrincipal",
       "PassportResult",
       "PassportTokenSource",
+      "VercelOidcClaims",
+      "VercelOidcResolverOptions",
       "VercelRuntimeCache",
       "VercelRuntimeCacheOptions",
+      "VercelServiceAccount",
       "VerifyPassportOptions"
     ]
   },

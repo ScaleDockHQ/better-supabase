@@ -73,3 +73,18 @@ of it (a spread, `structuredClone`, a serialized loader result) gets the
 `invalid` context, so pass plain values such as the user id onward instead.
 Prefetches refresh the session too. Parallel requests with the same refresh
 token share one call to Auth, so they never race on it.
+
+## Function middleware
+
+`bsb.guard(options)` is the `.server()` callback of a function middleware. It
+runs `require` with the same options, adds the caller to `context` and sends a
+refusal as `require` does. The request middleware must run first, as it does
+for every server function once it is registered in `src/start.ts`.
+
+```ts title="src/lib/guards.ts"
+import { createMiddleware } from "@tanstack/react-start";
+
+export const tenantOnly = createMiddleware({ type: "function" }).server(
+  bsb.guard({ requireTenant: true }),
+);
+```

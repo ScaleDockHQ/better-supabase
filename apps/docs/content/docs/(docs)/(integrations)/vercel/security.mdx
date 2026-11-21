@@ -244,3 +244,36 @@ where it has no Vercel request context, which is local development.
 `key` runs before the handler, so it reads headers or the URL, not the body:
 reading the body there would leave the handler without it. A `key` that
 throws counts as a failed check.
+
+## Observe verdicts
+
+`botIdGuard` and `firewallRateLimit` take `onVerdict`, called with the outcome
+(`allowed`, `refused` or `failed`) and the check's result. Send it to your
+logs or metrics. The handler runs without being awaited, its errors are
+swallowed, and it can't change the verdict.
+
+```ts
+const guard = firewallRateLimit({
+  checkRateLimit,
+  id: "sign-in",
+  onVerdict: (outcome, result) => console.info("rate limit", outcome, result),
+});
+```
+
+## Use the Firewall as the rate limiter
+
+`firewallRateLimiter` wraps `checkRateLimit` as the `RateLimiter` port, so the
+OTP and magic-link routes, API keys and every other place that takes a
+`rateLimiter` can count in the Vercel Firewall instead of Postgres:
+
+```ts
+import { checkRateLimit } from "@vercel/firewall";
+import { firewallRateLimiter } from "better-supabase/vercel-security";
+
+const rateLimiter = firewallRateLimiter({ checkRateLimit });
+```
+
+The Firewall only says whether a key is limited, so an allowed hit reports a
+fixed `remaining` (1 by default, set with `remaining`). A refused hit carries
+`retryAfter` (60 seconds by default). A Firewall error or a `timeout` is
+returned as a `DbError`, and the caller's error policy decides what happens.

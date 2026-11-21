@@ -867,6 +867,16 @@ Pass it as `files` to the blocks; see
 upload, the confirm step and what stays Supabase-only. `testFileStore` from
 `better-supabase/testing` runs the contract against a store of your own.
 
+## Vercel Blob options
+
+`vercelBlobStore` takes `ttlDays` (the blob expires after that many days, and
+each write that sets one counts as an extra Advanced Operation),
+`cacheControlMaxAge`, `storeId` and `oidcToken` (for a token from
+`getVercelOidcToken()` instead of a read-write token; it needs `storeId` or
+`BLOB_STORE_ID`). Blob's `BlobStoreNotFoundError`, `BlobStoreSuspendedError`,
+`BlobPreconditionFailedError` and the other error classes map to `DbError`
+codes, so a misconfigured store is a `Result`, not an exception.
+
 ## Vector buckets
 
 `defineVectorBucket` declares a Storage vector bucket and its indexes. Storage
