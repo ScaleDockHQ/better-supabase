@@ -30,6 +30,13 @@ export interface DomainProviderStatus {
   readonly verified: boolean;
   /** The platform's challenges still to publish; empty once verified. */
   readonly records: readonly DomainProviderRecord[];
+  /**
+   * The platform answers for the hostname but its DNS does not point at the
+   * project yet. Set only when the provider can tell.
+   */
+  readonly misconfigured?: boolean;
+  /** Where the platform wants the hostname to point, when it says. */
+  readonly dns?: { readonly cname?: string; readonly ipv4?: readonly string[] };
 }
 
 /**
@@ -133,6 +140,31 @@ export interface VercelDomainsSdk {
       request: VercelProjectDomainRequest,
       options?: VercelRequestOptions,
     ): Promise<VercelProjectDomain>;
+  };
+  /**
+   * Optional. With it, `status` and a successful `verify` also report whether
+   * the hostname's DNS points at the project (`misconfigured`, `dns`).
+   */
+  readonly domains?: {
+    getDomainConfig(
+      request: {
+        readonly domain: string;
+        readonly projectIdOrName?: string;
+        readonly teamId?: string;
+        readonly slug?: string;
+      },
+      options?: VercelRequestOptions,
+    ): Promise<{
+      readonly misconfigured: boolean;
+      readonly recommendedCNAME: readonly {
+        readonly rank: number;
+        readonly value: string;
+      }[];
+      readonly recommendedIPv4: readonly {
+        readonly rank: number;
+        readonly value: readonly string[];
+      }[];
+    }>;
   };
 }
 
@@ -291,11 +323,12 @@ export function vercelDomainProvider(
 ): DomainProvider {
   const { projectId } = options;
 
-  const scope = {
-    idOrName: projectId,
+  const teamScope = {
     ...(options.teamId === undefined ? {} : { teamId: options.teamId }),
     ...(options.slug === undefined ? {} : { slug: options.slug }),
   };
+
+  const scope = { idOrName: projectId, ...teamScope };
 
   const run = <T>(
     call: DomainProviderCallOptions | undefined,
@@ -329,6 +362,51 @@ export function vercelDomainProvider(
         : err(vercelError(cause, signal));
     }
   };
+
+  /**
+   * The DNS verdict for a hostname. A failed lookup leaves it out: a status
+   * never fails because the config call did.
+   */
+  const dnsOf = async (
+    hostname: string,
+    request: VercelRequestOptions | undefined,
+  ): Promise<Pick<DomainProviderStatus, "misconfigured" | "dns">> => {
+    if (sdk.domains === undefined) {
+      return {};
+    }
+
+    try {
+      const config = await sdk.domains.getDomainConfig(
+        { domain: hostname, projectIdOrName: projectId, ...teamScope },
+        request,
+      );
+
+      const cname = config.recommendedCNAME.toSorted(
+        (a, b) => a.rank - b.rank,
+      )[0]?.value;
+
+      const ipv4 = config.recommendedIPv4.toSorted((a, b) => a.rank - b.rank)[0]
+        ?.value;
+
+      return {
+        misconfigured: config.misconfigured,
+        dns: {
+          ...(cname === undefined ? {} : { cname }),
+          ...(ipv4 === undefined ? {} : { ipv4 }),
+        },
+      };
+    } catch {
+      return {};
+    }
+  };
+
+  const withDns = async (
+    status: DomainProviderStatus,
+    request: VercelRequestOptions | undefined,
+  ): Promise<DomainProviderStatus> =>
+    status.verified
+      ? { ...status, ...(await dnsOf(status.hostname, request)) }
+      : status;
 
   return {
     apiVersion: 1,
@@ -377,7 +455,12 @@ export function vercelDomainProvider(
           );
 
           if (verified.verified) {
-            return ok({ hostname: verified.name, verified: true, records: [] });
+            return ok(
+              await withDns(
+                { hostname: verified.name, verified: true, records: [] },
+                request,
+              ),
+            );
           }
         } catch (cause) {
           if (statusCodeOf(cause) !== 400) {
@@ -418,9 +501,15 @@ export function vercelDomainProvider(
       run(call, async (request, signal) => {
         const found = await current(hostname, request, signal);
 
-        return found.ok
-          ? ok(found.data === undefined ? undefined : statusOf(found.data))
-          : found;
+        if (!found.ok) {
+          return found;
+        }
+
+        return ok(
+          found.data === undefined
+            ? undefined
+            : await withDns(statusOf(found.data), request),
+        );
       }),
   };
 }

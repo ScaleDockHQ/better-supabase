@@ -17,3 +17,12 @@ export {
   type VercelRuntimeCache,
   type VercelRuntimeCacheOptions,
 } from "../core/jwks-store.ts";
+
+export {
+  VERCEL_OIDC_ISSUER,
+  VERCEL_OIDC_JWKS_URL,
+  vercelOidcResolver,
+  type VercelOidcClaims,
+  type VercelOidcResolverOptions,
+  type VercelServiceAccount,
+} from "./vercel-oidc.ts";

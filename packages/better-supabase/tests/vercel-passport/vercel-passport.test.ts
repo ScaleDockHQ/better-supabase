@@ -481,3 +481,90 @@ describe("verifyPassport", () => {
     ).rejects.toMatchObject({ error: { code: "MISSING_CREDENTIALS" } });
   });
 });
+
+describe("verifyPassport from the session cookie", () => {
+  const sha256 = async (value: string): Promise<string> =>
+    [
+      ...new Uint8Array(
+        await crypto.subtle.digest("SHA-256", encoder.encode(value)),
+      ),
+    ]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+  const withCookie = (cookie: string) =>
+    new Request("https://app.test/api/me", { headers: { cookie } });
+
+  async function chunked(token: string, size = 120) {
+    const checksum = await sha256(token);
+    const generation = checksum.slice(0, 32);
+    const parts = token.match(new RegExp(`.{1,${size}}`, "g")) ?? [];
+
+    return {
+      checksum,
+      cookie: [
+        `_vercel_passport=__vc_chunked_v1:${parts.length}:${checksum}`,
+        ...parts.map(
+          (part, index) =>
+            `_vercel_passport.${index + 1}.${generation}=${part}`,
+        ),
+      ].join("; "),
+    };
+  }
+
+  it("reads a plain and a chunked cookie only when the source allows it", async () => {
+    const token = await key.sign(claims());
+    const plain = withCookie(`other=1; _vercel_passport=${token}`);
+    const { cookie } = await chunked(token);
+
+    expect(
+      (await verifyPassport(plain, optionsFor({ headers: "cookie" }))).ok,
+    ).toBe(true);
+    expect(
+      (
+        await verifyPassport(
+          withCookie(cookie),
+          optionsFor({ headers: "cookie" }),
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (await verifyPassport(withCookie(cookie), optionsFor({ headers: "all" })))
+        .ok,
+    ).toBe(true);
+    expect(await verifyPassport(plain, optionsFor())).toMatchObject({
+      ok: false,
+      error: { code: "MISSING_CREDENTIALS" },
+    });
+  });
+
+  it("refuses a chunked cookie with a missing chunk, a bad checksum or a bad manifest", async () => {
+    const token = await key.sign(claims());
+    const { cookie, checksum } = await chunked(token);
+    const options = optionsFor({ headers: "cookie" });
+
+    const missing = cookie.split("; ").slice(0, -1).join("; ");
+    const tampered = cookie.replace(/(_vercel_passport\.1\.\w+=)./, "$1x");
+
+    const manifest = `_vercel_passport=__vc_chunked_v1:0:${checksum}`;
+
+    for (const bad of [missing, tampered, manifest]) {
+      expect(await verifyPassport(withCookie(bad), options)).toMatchObject({
+        ok: false,
+        error: { kind: "unauthorized", hint: "PASSPORT_TOKEN" },
+      });
+    }
+  });
+
+  it("prefers the header over the cookie with all", async () => {
+    const token = await key.sign(claims());
+
+    const request = new Request("https://app.test/", {
+      headers: { [PASSPORT_HEADER]: token, cookie: "_vercel_passport=junk" },
+    });
+
+    expect(
+      (await verifyPassport(request, optionsFor({ headers: "all" }))).ok,
+    ).toBe(true);
+  });
+});

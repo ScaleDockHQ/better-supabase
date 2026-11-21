@@ -143,6 +143,38 @@ describe("createPostgres", () => {
     ).toThrow(TypeError);
   });
 
+  it("caps the statement timeout to the time left before the deadline", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+
+    try {
+      const fake = recordingPool();
+      let deadline: Date | number | undefined = new Date(1_000_000 + 2500);
+
+      const pg = createPostgres({
+        pool: fake.pool,
+        statementTimeout: 8000,
+        getDeadline: () => deadline,
+      });
+
+      await pg.admin.queryRaw("select 1");
+      deadline = 1_000_000 + 60_000;
+      await pg.admin.queryRaw("select 2");
+      deadline = 1_000_000 - 5;
+      await pg.admin.queryRaw("select 3");
+      deadline = undefined;
+      await pg.admin.queryRaw("select 4");
+
+      const timeouts = fake.values
+        .filter((values) => values[0] === "statement_timeout")
+        .map((values) => values[1]);
+
+      expect(timeouts).toEqual(["2000", "8000", "1", "8000"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("sets a truncated statement timeout per transaction", async () => {
     const fake = recordingPool();
 
