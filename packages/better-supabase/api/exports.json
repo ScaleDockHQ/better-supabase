@@ -2278,6 +2278,7 @@
     "values": [
       "default",
       "middlewareSource",
+      "nitroMajorOf",
       "VUE_COMPOSABLES"
     ],
     "types": [
@@ -3516,6 +3517,7 @@
   "./storage": {
     "values": [
       "avatarBucket",
+      "blobUploadRoute",
       "defineAnalyticsBucket",
       "defineBucket",
       "defineBuckets",
@@ -3542,6 +3544,11 @@
       "AnyBucket",
       "AppliedBucket",
       "AvatarBucketOptions",
+      "BlobHandleUpload",
+      "BlobHandleUploadOptions",
+      "BlobUploaded",
+      "BlobUploadGrant",
+      "BlobUploadRouteOptions",
       "Bucket",
       "BucketClient",
       "BucketConfig",

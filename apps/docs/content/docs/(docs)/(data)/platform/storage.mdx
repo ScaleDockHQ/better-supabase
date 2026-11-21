@@ -877,6 +877,32 @@ each write that sets one counts as an extra Advanced Operation),
 `BlobPreconditionFailedError` and the other error classes map to `DbError`
 codes, so a misconfigured store is a `Result`, not an exception.
 
+## Vercel Blob client uploads
+
+`blobUploadRoute` (from `better-supabase/storage`) is the route handler for
+Blob client uploads. It runs `authorize` before Vercel issues a token, then runs
+`onCompleted` when Vercel reports the finished upload. A refused `authorize`
+answers with that error's status, and an error from `onCompleted` answers 500 so
+Vercel retries the callback.
+
+```ts title="app/api/blob/route.ts"
+import { handleUpload } from "@vercel/blob/client";
+import { blobUploadRoute } from "better-supabase/storage";
+
+export const POST = blobUploadRoute({
+  handleUpload,
+  authorize: async ({ request, pathname }) => {
+    // Run your permission check, then return ok({ allowedContentTypes, tokenPayload }).
+  },
+  onCompleted: async ({ blob, tokenPayload }) => {
+    // Record the attachment from what authorize put in tokenPayload.
+  },
+});
+```
+
+Read the tenant and folder from `tokenPayload`, which `authorize` set, and never
+from the client's own payload.
+
 ## Vector buckets
 
 `defineVectorBucket` declares a Storage vector bucket and its indexes. Storage
