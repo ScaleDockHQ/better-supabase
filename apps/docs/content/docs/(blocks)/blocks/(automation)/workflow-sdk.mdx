@@ -631,6 +631,42 @@ that already ran returns the first run.
 `workflow_node_runs` for the canvas. A record that fails never fails the
 step.
 
+## Start options and bulk cancel
+
+`startFor` forwards three SDK start options. `retention: 0` deletes the run's data as soon as
+it ends, `deploymentId` pins the run to a deployment (`"latest"` picks the newest one in the
+environment) on a World with immutable deployments such as Vercel, and `hook` creates a hook
+with the run so the start is idempotent on its token. The Supabase World ignores `deploymentId`
+and logs a warning, because it has one deployment.
+
+```ts
+const run = await startFor(context, importWorkflow, [file.id], {
+  retention: 0,
+  hook: { token: `import:${file.id}`, minRetentionMs: 3_600_000 },
+});
+```
+
+A second start with the same token creates no run and resolves to the run that owns the token,
+and `resumeHook(token)` reaches the run at once. Use `idempotencyKey` when the World has no
+atomic start hooks. The hook needs a World that supports them, and `minRetentionMs` needs hook
+retention.
+
+`cancelTenantRuns` cancels every pending or running run of a tenant, for an offboarded or
+suspended organization. It lists the runs through `world.analytics`, then cancels them in
+batches of 100 with `runs.cancelMany` when the World has it and one run at a time otherwise
+(the Supabase World has no `cancelMany`, so the SDK's own fallback applies). It returns a
+`Result` and never throws for a World error: run ids that failed come back in `failed`, and
+calling it again is safe.
+
+```ts
+import { cancelTenantRuns } from "better-supabase/workflow-sdk";
+
+const { requested, cancelled, settled, failed } = await cancelTenantRuns(
+  organizationId,
+  { reason: "organization suspended" },
+).orThrow();
+```
+
 ## Analytics
 
 `world.analytics` lists runs (by workflow name, status, attributes and a

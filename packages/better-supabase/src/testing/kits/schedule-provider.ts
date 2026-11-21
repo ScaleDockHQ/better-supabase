@@ -31,8 +31,10 @@ export interface TestScheduleProviderOptions {
  * Proves a `ScheduleProvider` writes, rewrites and removes schedules by name,
  * keeps a tenant's schedules apart (with `unscheduleTenant`), keeps or refuses
  * a probe, and (with `dueSchedules` and `advanceSchedule`) leases a due
- * schedule once and advances it only from the run it claimed. It writes under
- * `options.prefix` in the scheduler's real store.
+ * schedule once and advances it only from the run it claimed. When the
+ * scheduler has them, it also checks `disableSchedule`, `enableSchedule`,
+ * `getSchedule` and `scheduleOnce`. It writes under `options.prefix` in the
+ * scheduler's real store.
  */
 export function testScheduleProvider(
   scheduler: ScheduleProvider,
@@ -236,5 +238,68 @@ export function testScheduleProvider(
           await scheduler.unschedule(due);
         },
       ],
+    scheduler.disableSchedule !== undefined &&
+      scheduler.enableSchedule !== undefined &&
+      scheduler.getSchedule !== undefined && [
+        "disables and enables a schedule, and reports a missing name",
+        async () => {
+          const paused = name("paused");
+
+          await scheduler.schedule(
+            paused,
+            "0 8 * * *",
+            queue,
+            {},
+            "UTC",
+            later,
+          );
+
+          expect(
+            await scheduler.disableSchedule?.(paused),
+            "disableSchedule must return true",
+          );
+          expect(
+            (await scheduler.getSchedule?.(paused))?.enabled !== true,
+            "a disabled schedule must not read as enabled",
+          );
+          expect(
+            await scheduler.enableSchedule?.(paused),
+            "enableSchedule must return true",
+          );
+          expect(
+            (await scheduler.getSchedule?.(paused))?.enabled !== false,
+            "an enabled schedule must not read as disabled",
+          );
+          expect(
+            !(await scheduler.disableSchedule?.(name("missing"))),
+            "disableSchedule of a missing name must return false",
+          );
+          expect(
+            (await scheduler.getSchedule?.(name("missing"))) === null,
+            "getSchedule of a missing name must return null",
+          );
+
+          await scheduler.unschedule(paused);
+        },
+      ],
+    scheduler.scheduleOnce !== undefined && [
+      "writes a one-time schedule once per name",
+      async () => {
+        const once = name("once");
+        const at = later.add({ hours: 1 });
+
+        await scheduler.scheduleOnce?.(once, at, queue, { n: 1 }, "UTC");
+        await scheduler.scheduleOnce?.(once, at, queue, { n: 2 }, "UTC");
+
+        const names = await listed();
+
+        expect(
+          names === undefined || names.filter((n) => n === once).length === 1,
+          "writing a one-time name twice must keep one schedule",
+        );
+
+        await scheduler.unschedule(once);
+      },
+    ],
   ]);
 }
