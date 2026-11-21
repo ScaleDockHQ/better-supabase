@@ -89,6 +89,8 @@ export function moduleContext(
         ? { providerActionKeys: layout.providerActionKeys.blocks }
         : {}),
       ...providerPeople(modules, layout),
+      ...(layout.foreignKeys ? { foreignKeys: layout.foreignKeys } : {}),
+      ...(layout.idTypes ? { idTypes: layout.idTypes } : {}),
       ...(layout.providerApprovals
         ? { providerApprovals: layout.providerApprovals }
         : {}),

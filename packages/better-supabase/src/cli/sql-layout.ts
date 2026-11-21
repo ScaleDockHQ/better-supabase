@@ -18,6 +18,7 @@ import {
   adoptedColumnProblems,
   auditRegistrations,
   appColumnsOf,
+  declaredForeignKeys as appForeignKeys,
   declaredIndexes,
   declaredTableColumns,
   declaredColumnTypes,
@@ -222,6 +223,8 @@ export async function moduleLayoutFor(
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
     uuidColumns: uuidColumnsOf(await appSchemaTexts(config), config.schemas),
+    idTypes: idTypesOf(await appSchemaTexts(config), config.schemas),
+    foreignKeys: appForeignKeys(await appSchemaTexts(config), config.schemas),
     ...(resolved.has("imports")
       ? { appFunctions: appFunctionsOf(await appSchemaTexts(config)) }
       : {}),
@@ -763,4 +766,26 @@ export function migrationsDir(config: ResolvedConfig): string {
   }
 
   return "supabase/migrations";
+}
+
+const ID_TYPES = new Set(["uuid", "text", "bigint", "integer", "smallint"]);
+
+/** The columns the app's files declare with an id-like type, by `schema.table`. */
+function idTypesOf(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, Readonly<Record<string, string>>>> {
+  return Object.fromEntries(
+    [...declaredColumnTypes(files, schemas)]
+      .map(
+        ([table, columns]) =>
+          [
+            table,
+            Object.fromEntries(
+              [...columns].filter(([, type]) => ID_TYPES.has(type)),
+            ),
+          ] as const,
+      )
+      .filter(([, columns]) => Object.keys(columns).length > 0),
+  );
 }

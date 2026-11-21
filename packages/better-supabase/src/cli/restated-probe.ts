@@ -15,6 +15,9 @@ const MAX_RENDERS = 400;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** The `on.<type>` keys the render infers from the schema's foreign keys. */
+const INFERRED_KEYS = ["links", "column"] as const;
+
 /** The leaf keys of `value`; arrays of entries yield one candidate per element. */
 function leaves(
   value: unknown,
@@ -46,9 +49,22 @@ function candidatesOf(config: ResolvedConfig): Candidate[] {
       return [];
     }
 
-    return (["permissions", "options"] as const).flatMap((section) =>
-      leaves(entry[section], [section]).map((keys) => ({ block, keys })),
-    );
+    const bound = isRecord(entry.on)
+      ? Object.entries(entry.on).flatMap(([type, each]) =>
+          isRecord(each)
+            ? INFERRED_KEYS.filter((key) => each[key] !== undefined).map(
+                (key) => ({ block, keys: ["on", type, key] }),
+              )
+            : [],
+        )
+      : [];
+
+    return [
+      ...(["permissions", "options"] as const).flatMap((section) =>
+        leaves(entry[section], [section]).map((keys) => ({ block, keys })),
+      ),
+      ...bound,
+    ];
   });
 }
 
@@ -160,12 +176,14 @@ const pathOf = (candidate: Candidate): string =>
   );
 
 const reasonOf = (candidate: Candidate): string =>
-  candidate.keys[0] === "permissions"
-    ? "names the key the block would use anyway"
-    : candidate.keys.at(-1) === "sameTenant" ||
-        typeof candidate.keys.at(-1) === "number"
-      ? "equals the entry the block derives from the schema"
-      : "equals the option's default";
+  candidate.keys[0] === "on"
+    ? "is the one the schema's foreign keys give"
+    : candidate.keys[0] === "permissions"
+      ? "names the key the block would use anyway"
+      : candidate.keys.at(-1) === "sameTenant" ||
+          typeof candidate.keys.at(-1) === "number"
+        ? "equals the entry the block derives from the schema"
+        : "equals the option's default";
 
 /**
  * The `permissions` and `options` entries of the installed blocks that equal

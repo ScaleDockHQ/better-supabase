@@ -23,6 +23,7 @@ pnpm better-supabase gen sql
 | [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column   |
 | [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`         |
 | [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
+| [Record types](#record-types)                                             | Run `codemod record-types`           |
 
 ## The blocks list
 
@@ -93,3 +94,36 @@ no `approverFor` or `managedUsers`.
 `actionKeys.buckets` and `actionKeys.topics` are typed and checked only. The
 storage and realtime policies are code in your schema files, so they do not
 read the map.
+
+## Record types
+
+A record type is declared once, in `recordTypes` or with `@bsb subject`, and
+the blocks read it from there.
+
+| Before                                                             | After                                                     |
+| ------------------------------------------------------------------ | --------------------------------------------------------- |
+| `on` repeats the table, id and tenant for each block               | `on: ["task"]`; the registry supplies them                |
+| `idType` on every record type                                      | read from the schema files for `uuid` and integer ids     |
+| `tags.on.<type>.links: { table, subject, tag }`                    | inferred from the foreign keys into the type and the tags |
+| `time-entries.on.<type>.column`                                    | inferred from the foreign key into the type's table       |
+| a type named `time-entry` in `on` and `time_entry` in the registry | one name; `alias` sets the name stored and sent           |
+
+An explicit `links` or `column` entry wins. When more than one foreign key or
+link table could match, the render fails and lists them, so you name the one to
+use. `codemod config --prune` removes a `links` or `column` entry that equals
+what the foreign keys give.
+
+`recordTypes.<type>.alias` is the wire name: the value stored in `subject_type`
+columns and sent to the client. The registry key stays the name in your config
+and code. An alias is lowercase letters, digits, hyphens and underscores, and
+no two types may share a wire name.
+
+`@bsb subject blocks=tags,time-entries` adds the type to the `on` of each
+installed block it names.
+
+`codemod record-types` rewrites the names in `blocks.<name>.on` that differ from
+a registered type only by `-` and `_`, or that are its alias, as the registered
+name. Doctor rule BS346 suggests it when a name matches after that change.
+
+An inferred `uuid` or integer id type casts a stored text id only when the id
+has that type's shape, so a malformed id reads as not found instead of raising.

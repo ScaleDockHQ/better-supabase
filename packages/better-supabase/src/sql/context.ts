@@ -15,6 +15,7 @@ import type { EntityNames } from "../core/entity-naming.ts";
 import type { ClaimsMeta } from "../schema/types.ts";
 import type { BlockSqlAction, BlockSqlEmit } from "./audit-actions.ts";
 import type { BlockContributions } from "./contributions.ts";
+import type { DeclaredForeignKey } from "./foreign-keys.ts";
 import type { BlockSqlAppTable, OwnView } from "./module-types.ts";
 import type { BlockSqlComposition } from "./reads.ts";
 import type { ResolvedNames } from "./resolved-names.ts";
@@ -352,6 +353,10 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   readonly providerManagedUsers: string | undefined;
   /** The provider's operation approval floors, by `<subjectType>:<action>`. */
   readonly providerApprovals: Readonly<Record<string, AuthorizationApproval>>;
+  /** The single-column foreign keys the app's schema files declare. */
+  readonly foreignKeys: readonly DeclaredForeignKey[];
+  /** The declared id-like column types of the app's tables, by `schema.table`. */
+  readonly idTypes: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The `provider` model's `can_user` answers only for the caller. */
   readonly providerCallerOnly?: boolean;
   /**
@@ -684,6 +689,8 @@ export interface BlockSqlContextSource {
   readonly providerApproverFor?: string;
   readonly providerManagedUsers?: string;
   readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
+  readonly foreignKeys?: readonly DeclaredForeignKey[];
+  readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   /** The layout applies statements in file order (`layout.rerunnable`). */
   readonly rerunnable?: boolean;
   /** The tables `expose` lists, as `schema.table`. */
@@ -1340,6 +1347,8 @@ export function createModuleContext(
     providerApproverFor: source.providerApproverFor,
     providerManagedUsers: source.providerManagedUsers,
     providerApprovals: source.providerApprovals ?? {},
+    foreignKeys: source.foreignKeys ?? [],
+    idTypes: source.idTypes ?? {},
     ...(source.providerCallerOnly === true ? { providerCallerOnly: true } : {}),
     appTables: new Set(source.appTables),
     scope,

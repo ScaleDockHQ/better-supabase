@@ -928,6 +928,7 @@ const FLAT = {
       ),
       v.strictObject({
         table: v.string(),
+        alias: v.optional(v.string()),
         id: v.optional(v.string()),
         idType: v.optional(v.string()),
         tenant: v.optional(v.union([v.string(), v.literal(false)])),

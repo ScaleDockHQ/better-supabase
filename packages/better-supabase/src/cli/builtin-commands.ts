@@ -128,6 +128,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       import("./commands/codemod.ts").then((m) => m.codemodCommand("naming")),
   ],
   [
+    "codemod record-types",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("record-types"),
+      ),
+  ],
+  [
     "codemod extra-columns",
     () =>
       import("./commands/codemod.ts").then((m) =>

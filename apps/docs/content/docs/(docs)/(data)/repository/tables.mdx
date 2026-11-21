@@ -67,6 +67,7 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | Argument                                                      | Meaning                                                                                                         |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `id`, `id-type`                                               | The id column and its type (`uuid` by default).                                                                 |
+| `blocks`                                                      | Blocks that take the type, such as `blocks=tags,time-entries`, so their `on` need not repeat it.                |
 | `tenant`                                                      | The tenant column, or `false` for a table with none.                                                            |
 | `title`, `url`                                                | The title column and the URL template, `/projects/{id}`.                                                        |
 | `scope`, `cascade`                                            | A provider scope whose ids are this subject's ids, and whether deleting the row deletes the module rows for it. |

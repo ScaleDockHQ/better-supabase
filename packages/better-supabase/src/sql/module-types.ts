@@ -378,6 +378,13 @@ export interface BlockSqlLayout {
   readonly appFunctions?: readonly string[];
   readonly uuidColumns?: Readonly<Record<string, readonly string[]>>;
   /**
+   * The declared type of each id-like column the app's schema files create
+   * (`uuid`, `text`, `bigint`, `integer`, `smallint`), by `schema.table` then
+   * column: what a record type without `idType` compares on.
+   */
+  readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+  /**
    * `schema.table` of each table the app already has, to the schema file that
    * creates it or `database`. A block leaves these tables alone and adds only
    * the columns it needs, and an app table refuses their names.

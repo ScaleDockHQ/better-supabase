@@ -41,6 +41,7 @@ import {
   normalizeBlocks,
   resolveInstances,
 } from "./instances.ts";
+import { withRecordTypeAliases } from "./record-aliases.ts";
 
 function entitlementsOf(
   config: EntitlementsConfig = {},
@@ -427,8 +428,10 @@ export function resolveConfig(
   // SAFETY: normalizeBlocks returns the keyed map or a name list.
   const keyed = listed as BlocksInput | undefined;
 
-  const config = expandFlatPreset(
-    flattenConfig(keyed === undefined ? input : { ...input, blocks: keyed }),
+  const config = withRecordTypeAliases(
+    expandFlatPreset(
+      flattenConfig(keyed === undefined ? input : { ...input, blocks: keyed }),
+    ),
   );
 
   const frameworks = frameworkRegistry(config.frameworks);

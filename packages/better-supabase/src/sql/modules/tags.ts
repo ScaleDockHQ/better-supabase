@@ -12,6 +12,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { SubjectTableBinding } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { inferredLink } from "../inferred-bindings.ts";
 import {
   filterAny,
   listBody,
@@ -143,7 +144,26 @@ const SLUG = "'^[a-z0-9]+(-[a-z0-9]+)*$'";
 const RESERVED = ["fields"] as const;
 
 function subjects(ctx: BlockSqlContext) {
-  return subjectsOption(ctx, ["links", "kinds"]);
+  const tags = ctx.table("tags");
+
+  return subjectsOption(ctx, ["links", "kinds"]).map(
+    ([type, subject]): [string, typeof subject] => {
+      if (subject.extra["links"] !== undefined) {
+        return [type, subject];
+      }
+
+      const link = inferredLink(
+        ctx,
+        subject,
+        tags,
+        `blocks.${ctx.instance}.on.${type}`,
+      );
+
+      return link === undefined
+        ? [type, subject]
+        : [type, { ...subject, extra: { ...subject.extra, links: link } }];
+    },
+  );
 }
 
 function links(ctx: BlockSqlContext) {

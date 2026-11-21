@@ -1716,6 +1716,9 @@
             "type": "string",
             "description": "`schema.table`, or a table in `public`."
           },
+          "alias": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "default": "id"

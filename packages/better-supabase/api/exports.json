@@ -10151,6 +10151,7 @@
       "dataExportPlan",
       "declaredCheckValues",
       "declaredColumnTypes",
+      "declaredForeignKeys",
       "declaredIndexes",
       "declaredPolicies",
       "declaredTableColumns",

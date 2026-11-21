@@ -17,6 +17,7 @@ import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { ownedColumnsCodemod } from "./codemod-owned-columns.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
+import { recordTypesCodemod } from "./codemod-record-types.ts";
 import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
@@ -129,6 +130,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "owned-columns": ownedColumnsCodemod(),
   config: configCodemod(),
   "blocks-list": blocksListCodemod(),
+  "record-types": recordTypesCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),

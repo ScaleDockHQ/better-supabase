@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { archiveRestoreContract } from "../archive-sql.ts";
+import { inferredColumn } from "../inferred-bindings.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -248,7 +249,25 @@ function build(ctx: BlockSqlContext): string {
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);
 
-  const subjects = subjectsOption(ctx, ["column"]);
+  const entriesTable = ctx.table("entries");
+
+  const subjects = subjectsOption(ctx, ["column"]).map(
+    ([type, subject]): [string, typeof subject] => {
+      const column =
+        subject.extra["column"] === undefined && !ctx.owns("entries")
+          ? inferredColumn(
+              ctx,
+              entriesTable,
+              subject,
+              `blocks.time-entries.on.${type}`,
+            )
+          : undefined;
+
+      return column === undefined
+        ? [type, subject]
+        : [type, { ...subject, extra: { ...subject.extra, column } }];
+    },
+  );
 
   const {
     bound,

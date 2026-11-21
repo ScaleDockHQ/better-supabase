@@ -104,6 +104,24 @@ describe("withTableTags", () => {
     });
   });
 
+  it("adds the type to the blocks a subject tag names", async () => {
+    const { name } = await first();
+
+    const config = resolveConfig(
+      { blocks: { tags: {}, comments: {} } },
+      "/tmp",
+    );
+
+    const next = withTableTags(
+      config,
+      await tagged(name, "@bsb subject blocks=tags,comments,ghost"),
+    );
+
+    expect(next.blocks["tags"]?.on).toEqual({ [name]: {} });
+    expect(next.blocks["comments"]?.on).toEqual({ [name]: {} });
+    expect(next.blocks["ghost"]).toBeUndefined();
+  });
+
   it("reads filled-by-trigger as the table's insertOptional columns", async () => {
     const { name } = await first();
 

@@ -95,7 +95,7 @@ function constraintOf(
  * constraints and `alter table ... add constraint ... foreign key`, in the
  * order they appear. Only tables in `schemas` are kept.
  */
-function declaredForeignKeys(
+export function declaredForeignKeys(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): DeclaredForeignKey[] {

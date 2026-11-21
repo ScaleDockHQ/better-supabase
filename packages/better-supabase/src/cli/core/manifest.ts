@@ -855,6 +855,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "record-types",
+        description:
+          "Write the names in blocks.<name>.on as the record types in recordTypes, where they differ by - and _ or are an alias",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",

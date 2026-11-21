@@ -169,6 +169,17 @@ export function withTableTags(
           subjects[type] = subjectFromTag(tag.args, short);
           changed = true;
         }
+
+        // `blocks=tags,time-entries` names the blocks that take the type, so
+        // the config doesn't repeat it in each block's `on`.
+        for (const name of (text(tag.args["blocks"]) ?? "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")) {
+          const next = bindOn(blocks, name, type, {});
+          changed ||= next !== blocks;
+          blocks = next;
+        }
       } else if (
         tag.name === "realtime" &&
         !realtimeTables.some((each) => names.has(each))

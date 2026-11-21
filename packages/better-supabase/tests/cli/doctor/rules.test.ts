@@ -2724,6 +2724,24 @@ describe("block on names an unknown record type (BS346)", () => {
     ]);
   });
 
+  it("suggests the codemod when the name differs only by - and _", async () => {
+    const findings = await run(
+      "BS346",
+      context(
+        base,
+        {},
+        {
+          recordTypes: { time_entry: { table: "time_entries" } },
+          blocks: { tags: { on: ["time-entry"] } },
+        },
+      ),
+    );
+
+    expect(findings[0]?.message).toContain(
+      'Did you mean "time_entry"? Run `better-supabase codemod record-types`',
+    );
+  });
+
   it("passes an inline on entry that carries its own table", async () => {
     expect(
       await run(
