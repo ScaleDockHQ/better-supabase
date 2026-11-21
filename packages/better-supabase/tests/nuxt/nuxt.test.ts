@@ -69,6 +69,32 @@ describe("better-supabase/nuxt", () => {
     });
   });
 
+  it("writes the h3 v2 bridge for Nitro 3, from either place Nuxt reports it", () => {
+    const expected = middlewareSource("~~/server/bsb", 3);
+
+    expect(expected).toBe(
+      [
+        'import { toH3 } from "better-supabase/h3";',
+        'import entries from "~~/server/bsb";',
+        "export default toH3(entries);",
+      ].join("\n"),
+    );
+
+    for (const patch of [
+      (nuxt: object & { options: object }) =>
+        Object.assign(nuxt.options, { _nitroMajor: 3 }),
+      (nuxt: object) =>
+        Object.assign(nuxt, { _nitro: { meta: { majorVersion: 3 } } }),
+    ]) {
+      const { nuxt } = fakeNuxt({ server: "~~/server/bsb" });
+      patch(nuxt);
+      betterSupabaseNuxt(undefined, nuxt);
+      expect(nuxt.options.nitro.virtual?.["#better-supabase/middleware"]).toBe(
+        expected,
+      );
+    }
+  });
+
   it("writes middleware that imports the h3 v1 bridge", () => {
     expect(middlewareSource("~~/server/bsb")).toBe(
       [

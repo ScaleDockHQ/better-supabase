@@ -17,6 +17,16 @@ export {
   type VercelBlobStoreOptions,
 } from "./file-store.ts";
 
+export { blobUploadRoute } from "./blob-upload.ts";
+
+export type {
+  BlobHandleUpload,
+  BlobHandleUploadOptions,
+  BlobUploaded,
+  BlobUploadGrant,
+  BlobUploadRouteOptions,
+} from "./blob-upload.ts";
+
 export { storageImageSrcSet, storageImageUrl } from "./image-url.ts";
 
 export type { StorageImageOptions, StorageImageSize } from "./image-url.ts";

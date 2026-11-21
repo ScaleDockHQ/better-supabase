@@ -14,6 +14,11 @@ request and response instead of a Web `Request`, so it has its own bridge:
 `toH3V1(entries)` from `better-supabase/h3/v1`. H3 2 apps use
 [`better-supabase/h3`](/docs/frameworks/h3).
 
+The module detects the Nitro major version (from `nuxt.options._nitroMajor`,
+then `nuxt._nitro.meta.majorVersion`). On Nitro 3 it writes the middleware with
+`toH3` from `better-supabase/h3`; on Nitro 2 it writes the `toH3V1` form shown
+below, so the same module works on both.
+
 ## The Nuxt module
 
 Write the entries once in a server module:
