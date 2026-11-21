@@ -63,3 +63,9 @@ table, operation, `error.type` and the server attributes when they are set. Turn
 `tracedFetch()` wraps `fetch` so every PostgREST, Auth and Storage request
 carries the W3C `traceparent` of the active span. Pass it to supabase-js as
 `global.fetch`.
+
+## On Vercel
+
+`vercelMetrics` from `better-supabase/otel/vercel` sends the same timings to
+Vercel custom metrics without `@opentelemetry/api`. See
+[Observability on Vercel](/docs/vercel/observability).

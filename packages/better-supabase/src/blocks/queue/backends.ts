@@ -191,6 +191,40 @@ export interface ScheduleProvider {
    * scheduler can't.
    */
   unscheduleTenant?(tenant: string): Promise<number>;
+  /**
+   * Writes a schedule that runs once at `at`, then ends. Rewriting a name
+   * replaces it. Absent when the scheduler has no one-time schedules.
+   */
+  scheduleOnce?(
+    name: string,
+    at: Temporal.Instant,
+    queue: string,
+    payload: unknown,
+    timeZone: string,
+    tenant?: string,
+    probe?: string,
+  ): Promise<void>;
+  /**
+   * Turns a schedule on again, optionally only until `until`. `false` when no
+   * schedule has the name. Absent when the scheduler can't pause schedules.
+   */
+  enableSchedule?(
+    name: string,
+    tenant?: string,
+    until?: Temporal.Instant,
+  ): Promise<boolean>;
+  /**
+   * Pauses a schedule without removing it. `false` when no schedule has the
+   * name. Absent when the scheduler can't pause schedules.
+   */
+  disableSchedule?(name: string, tenant?: string): Promise<boolean>;
+  /**
+   * Runs a schedule once now, outside its times, with its stored payload.
+   * `false` when no schedule has the name. Absent when the scheduler can't.
+   */
+  runScheduleNow?(name: string, tenant?: string): Promise<boolean>;
+  /** One schedule by name; `null` when none has it. */
+  getSchedule?(name: string, tenant?: string): Promise<StoredSchedule | null>;
   /** Leases due schedules (the drain scheduler); absent or empty otherwise. */
   dueSchedules?(lease: number, batch: number): Promise<readonly DueSchedule[]>;
   /**
@@ -1000,6 +1034,16 @@ export function sqlOnly(feature: string): never {
     dbError(
       "invalid_request",
       `${feature} needs a SQL connection; pgmq_public (PostgREST) does not support it`,
+    ),
+  );
+}
+
+/** Throws for a schedule feature the scheduler has no member for. */
+export function unsupportedSchedule(feature: string, scheduler: string): never {
+  throw new DbException(
+    dbError(
+      "invalid_request",
+      `${feature} is not supported by the "${scheduler}" scheduler`,
     ),
   );
 }

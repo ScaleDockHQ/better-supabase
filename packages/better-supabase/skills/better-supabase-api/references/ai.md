@@ -109,6 +109,13 @@ All from `better-supabase/ai-sdk` or its subpaths; the blocks never import the S
   `LanguageModelMiddleware` for `wrapLanguageModel`: it refuses or redacts the
   last user message, then checks the answer and holds a streamed text block
   until `text-end`. The block's text helper is `guardText`.
+  `guardTools(tools, guardrails)` checks each tool's input before `execute`
+  (a block returns the refusal) and its output after.
+- AI SDK surfaces: `createMediaRoute` (image, speech) and `createVideoRoutes`
+  (job row, the webhook only wakes a status check) in `ai-sdk/chat`;
+  `mcpResourceTools`, `mcpPrompts` and `mcpEventRoute` in `ai-sdk/mcp`;
+  `harnessRoute`, `steerRoute` and `harnessStateCipher` in `ai-sdk/agents`;
+  `tenantToolsContext` in `ai-sdk`.
 
 ## Files, cache and batches
 

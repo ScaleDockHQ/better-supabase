@@ -211,6 +211,11 @@
       "types": "./dist/next/offline/index.d.ts",
       "default": "./dist/next/offline/index.js"
     },
+    "./next/instrumentation": {
+      "@better-supabase/source": "./src/next/instrumentation/index.ts",
+      "types": "./dist/next/instrumentation/index.d.ts",
+      "default": "./dist/next/instrumentation/index.js"
+    },
     "./hono": {
       "@better-supabase/source": "./src/hono/index.ts",
       "types": "./dist/hono/index.d.ts",
@@ -600,6 +605,11 @@
       "@better-supabase/source": "./src/credentials/index.ts",
       "types": "./dist/credentials/index.d.ts",
       "default": "./dist/credentials/index.js"
+    },
+    "./vercel": {
+      "@better-supabase/source": "./src/vercel/index.ts",
+      "types": "./dist/vercel/index.d.ts",
+      "default": "./dist/vercel/index.js"
     },
     "./vercel-connect": {
       "@better-supabase/source": "./src/vercel-connect/index.ts",
@@ -1183,6 +1193,11 @@
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
+    "./otel/vercel": {
+      "@better-supabase/source": "./src/otel/vercel/index.ts",
+      "types": "./dist/otel/vercel/index.d.ts",
+      "default": "./dist/otel/vercel/index.js"
+    },
     "./lint": {
       "@better-supabase/source": "./src/lint/index.ts",
       "types": "./dist/lint/index.d.ts",
@@ -1691,6 +1706,10 @@
         "types": "./dist/next/offline/index.d.ts",
         "default": "./dist/next/offline/index.js"
       },
+      "./next/instrumentation": {
+        "types": "./dist/next/instrumentation/index.d.ts",
+        "default": "./dist/next/instrumentation/index.js"
+      },
       "./hono": {
         "types": "./dist/hono/index.d.ts",
         "default": "./dist/hono/index.js"
@@ -2002,6 +2021,10 @@
       "./credentials": {
         "types": "./dist/credentials/index.d.ts",
         "default": "./dist/credentials/index.js"
+      },
+      "./vercel": {
+        "types": "./dist/vercel/index.d.ts",
+        "default": "./dist/vercel/index.js"
       },
       "./vercel-connect": {
         "types": "./dist/vercel-connect/index.d.ts",
@@ -2469,6 +2492,10 @@
         "types": "./dist/otel/index.d.ts",
         "default": "./dist/otel/index.js"
       },
+      "./otel/vercel": {
+        "types": "./dist/otel/vercel/index.d.ts",
+        "default": "./dist/otel/vercel/index.js"
+      },
       "./lint": {
         "types": "./dist/lint/index.d.ts",
         "default": "./dist/lint/index.js"
@@ -2802,6 +2829,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/harness": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/sandbox-vercel": "catalog:",
@@ -2923,6 +2951,7 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "catalog:peers",
+    "@ai-sdk/harness": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/sandbox-vercel": "catalog:peers",
@@ -3001,6 +3030,9 @@
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/harness": {
       "optional": true
     },
     "@ai-sdk/mcp": {

@@ -75,6 +75,15 @@ export {
 } from "./identity.ts";
 
 export {
+  chatHistory,
+  chatHistoryContactKey,
+  type ChatHistoryOptions,
+  type ChatHistoryTarget,
+  chatHistoryUserKey,
+  eraseChatHistory,
+} from "./history.ts";
+
+export {
   type ChatInstallation,
   type ChatInstallations,
   type ChatInstallationsOptions,

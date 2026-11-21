@@ -12,6 +12,17 @@ export interface CliEnv {
    * is unset.
    */
   readonly SUPABASE_DB_URL?: string | undefined;
+  /**
+   * The Vercel Marketplace integration's direct connection string, read when
+   * `DATABASE_URL` and `SUPABASE_DB_URL` are unset. Commands that introspect or
+   * migrate need a session, so it comes before `POSTGRES_URL`.
+   */
+  readonly POSTGRES_URL_NON_POOLING?: string | undefined;
+  /**
+   * The Vercel Marketplace integration's pooled connection string, the last
+   * name read.
+   */
+  readonly POSTGRES_URL?: string | undefined;
   /** Personal access token for reading a hosted project. */
   readonly SUPABASE_ACCESS_TOKEN?: string | undefined;
   /** Management API base URL; defaults to https://api.supabase.com. */
@@ -102,6 +113,8 @@ export function parseEnv(
     server: {
       DATABASE_URL: optionalUrl,
       SUPABASE_DB_URL: optionalUrl,
+      POSTGRES_URL_NON_POOLING: optionalUrl,
+      POSTGRES_URL: optionalUrl,
       SUPABASE_ACCESS_TOKEN: optionalString,
       SUPABASE_API_URL: optionalUrl,
       SUPABASE_BIN: optionalString,

@@ -496,6 +496,12 @@ records them on the active span. These events are in-process: when one must
 not be lost, install the `outbox` module, and the SQL modules write the same
 event in the transaction that caused it.
 
+Two more block events come from the Vercel integrations: `request.failed`, from
+`createOnRequestError` in `better-supabase/next/instrumentation`, and
+`workflow_sdk.run_completed` and `workflow_sdk.run_failed`, from
+`registerWorkflowLifecycle` in `better-supabase/workflow-sdk`. See
+[Observability on Vercel](/docs/vercel/observability).
+
 `dataschema` sets the CloudEvents `dataschema` attribute, the URI (or `$id`)
 of the JSON Schema the event's `data` conforms to. It is accepted by
 `forwardBlockEvents`, `blockCloudEvent`, `forwardMutations` and

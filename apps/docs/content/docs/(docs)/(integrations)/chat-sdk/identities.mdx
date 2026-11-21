@@ -83,3 +83,38 @@ const emailUrl = approvalLink("https://app.example.com/approvals", request);
 ```
 
 `approvalLink` adds `kind` and `subject` as query parameters. `approvalPrompt` returns `{ markdown }` with the link, labelled `Review the request` unless you pass `label`.
+
+## History keyed by the linked user
+
+Chat SDK 4.45 keeps a per-user message history across platforms and threads,
+under a key your `identity` resolver returns. `chatHistory` builds that
+`history` option from the same `principalByIdentity` the other helpers use, so
+the key is the linked app user (`user:<id>`), not an email address or a
+platform id, and the same person on Slack and Teams shares one list. An author
+without a link gets no key and nothing is stored. A contact's history is kept
+only with `contacts: true`, under `contact:<id>`.
+
+```ts title="lib/bot.ts"
+import { Chat } from "chat";
+import { chatHistory } from "better-supabase/chat-sdk";
+
+export const bot = new Chat({
+  // adapters, state ...
+  history: chatHistory({
+    server,
+    retention: "30d",
+    maxPerUser: 100,
+    workspaceOf: ({ message }) => teamOf(message),
+  }),
+});
+```
+
+`workspaceOf` is for an app that serves several Slack workspaces: return the
+same value you pass to `chatIdentityOf`, or the link lookup misses. Set
+`retention`, since the SDK keeps history forever when you don't.
+
+`eraseChatHistory(bot.history, { userId })` deletes everything stored for a
+user and returns the count. Call it from your account deletion and data
+subject request flows (`{ contactId }` does the same for a contact). It covers
+the user scope only: the Chat SDK has no index from a user to the thread
+caches that adapters write, so those expire with `history.thread.ttlMs`.

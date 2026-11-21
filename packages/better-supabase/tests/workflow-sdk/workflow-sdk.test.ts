@@ -712,3 +712,44 @@ describe("protectWebHandler", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 });
+
+describe("startFor retention, deployment and hook", () => {
+  const flow = async (): Promise<void> => undefined;
+
+  it("forwards retention, deploymentId and the hook to start", async () => {
+    await startFor(user, flow, [], {
+      retention: 0,
+      deploymentId: "latest",
+      hook: { token: "tok", minRetentionMs: 5000, metadata: { a: 1 } },
+    });
+    expect(start.mock.calls.at(-1)?.[2]).toMatchObject({
+      experimental_retention: 0,
+      deploymentId: "latest",
+      experimental_hook: {
+        token: "tok",
+        experimental_minRetention: 5000,
+        metadata: { a: 1 },
+      },
+    });
+  });
+
+  it("returns the owner's run when the hook token is taken", async () => {
+    start.mockRejectedValueOnce(
+      Object.assign(new Error("taken"), {
+        name: "HookConflictError",
+        kind: "start",
+        conflictingRunId: "wrun_owner",
+      }),
+    );
+    const run = await startFor(user, flow, [], { hook: { token: "tok" } });
+    expect(run.runId).toBe("wrun_owner");
+  });
+
+  it("rethrows other start errors and rejects an empty token", async () => {
+    start.mockRejectedValueOnce(new Error("boom"));
+    await expect(startFor(user, flow, [])).rejects.toThrow("boom");
+    await expect(
+      startFor(user, flow, [], { hook: { token: "" } }),
+    ).rejects.toThrow("needs a token");
+  });
+});

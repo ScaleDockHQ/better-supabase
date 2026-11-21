@@ -373,7 +373,7 @@ export function mergeGatewayOptions(
 
   const tags = [
     ...new Set([
-      ...stringTags(library.gateway["tags"]),
+      ...stringTags(library.gateway.tags),
       ...stringTags(own["tags"]),
     ]),
   ];

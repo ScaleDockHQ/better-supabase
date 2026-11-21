@@ -13,6 +13,7 @@
     "mcp",
     "providers",
     "telemetry",
+    "gateway",
     "cache",
     "batches"
   ]

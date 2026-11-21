@@ -92,3 +92,51 @@ describe("cronRoute", () => {
     });
   });
 });
+
+describe("cronRoute guards", () => {
+  const ok = (): Promise<Response> => Promise.resolve(Response.json({ ok: 1 }));
+
+  const at = (time?: string): Request =>
+    new Request("https://app.test/api/cron", {
+      headers: {
+        authorization: "Bearer s",
+        ...(time === undefined ? {} : { "ce-time": time }),
+      },
+    });
+
+  it("skips a late run and runs one without ce-time", async () => {
+    const guarded = cronRoute(
+      {
+        name: "m",
+        secret: "s",
+        maxLateSeconds: 60,
+        now: () => Date.parse("2026-01-01T00:10:00Z"),
+      },
+      ok,
+    );
+
+    expect(await (await guarded(at("2026-01-01T00:00:00Z"))).json()).toEqual({
+      skipped: "late",
+    });
+    expect(await (await guarded(at("2026-01-01T00:09:30Z"))).json()).toEqual({
+      ok: 1,
+    });
+    expect(await (await guarded(at())).json()).toEqual({ ok: 1 });
+  });
+
+  it("skips an overlapping run", async () => {
+    const taken = cronRoute(
+      { name: "m", secret: "s", overlap: () => Promise.resolve(null) },
+      ok,
+    );
+
+    expect(await (await taken(at())).json()).toEqual({ skipped: "overlap" });
+
+    const free = cronRoute(
+      { name: "m", secret: "s", overlap: (run) => run() },
+      ok,
+    );
+
+    expect(await (await free(at())).json()).toEqual({ ok: 1 });
+  });
+});

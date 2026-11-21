@@ -188,3 +188,77 @@ describe("BS611", () => {
     ).toHaveLength(0);
   });
 });
+
+describe("BS640", () => {
+  const rule = NEXT_CACHE_RULES.find((candidate) => candidate.code === "BS640");
+
+  const run = (text: string) => {
+    // SAFETY: BS640 reads only `sources`.
+    const findings = rule?.check({
+      sources: [{ path: "src/data.ts", text }],
+    } as unknown as DoctorContext);
+
+    if (!Array.isArray(findings)) {
+      throw new TypeError("BS640 runs synchronously");
+    }
+
+    return findings;
+  };
+
+  it.each([
+    "cookies()",
+    "headers()",
+    "bsb.cached()",
+    "bsb.context()",
+    "bsb.user()",
+  ])("flags %s in a plain use cache function", (call) => {
+    const findings = run(
+      `export async function load() { "use cache"; const x = await ${call}; return x; }`,
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("bsb.public()");
+    expect(findings[0]?.target).toBe("src/data.ts:load");
+  });
+
+  it("flags an arrow function and reports its line", () => {
+    const findings = run(
+      'const a = 1;\nconst load = async () => {\n  "use cache";\n  return (await cookies()).get("x");\n};',
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(2);
+  });
+
+  it("allows bsb.public(), a private scope and a remote scope", () => {
+    expect(
+      run(
+        'async function a() { "use cache"; const ctx = await bsb.public(); return ctx.db.plans.list(); }',
+      ),
+    ).toHaveLength(0);
+
+    expect(
+      run(
+        'async function b() { "use cache: private"; return (await cookies()).get("x"); }',
+      ),
+    ).toHaveLength(0);
+
+    expect(
+      run('async function c() { "use cache: remote"; return bsb.cached(); }'),
+    ).toHaveLength(0);
+  });
+
+  it("ignores a read outside the cached function", () => {
+    expect(
+      run(
+        'async function a() { "use cache"; return 1; }\nasync function b() { return cookies(); }',
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("ignores a method named headers()", () => {
+    expect(
+      run('async function a() { "use cache"; return res.headers(); }'),
+    ).toHaveLength(0);
+  });
+});

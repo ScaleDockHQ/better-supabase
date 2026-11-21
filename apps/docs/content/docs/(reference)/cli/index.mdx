@@ -207,23 +207,28 @@ The same failure in a row prints once, and the watch retries every interval.
 
 ## Environment
 
-| Variable                | Used by                                                                                              |
-| ----------------------- | ---------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`          | `gen`, `doctor` and `db seed --yes`, when nothing else is set                                        |
-| `SUPABASE_DB_URL`       | The same commands, when `DATABASE_URL` is unset too                                                  |
-| `SUPABASE_ACCESS_TOKEN` | `--project-ref` and `database.source.projectRef`                                                     |
-| `SUPABASE_API_URL`      | Another Management API host                                                                          |
-| `SUPABASE_BIN`          | The Supabase CLI `dev env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH` |
-| `CI`                    | Turns prompts off, and applies the config's `ci` environment                                         |
-| `BETTER_SUPABASE_ENV`   | The config environment to apply when `--env` is not passed                                           |
-| `BETTER_SUPABASE_AGENT` | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                       |
+| Variable                   | Used by                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | `gen`, `doctor` and `db seed --yes`, when nothing else is set                                         |
+| `SUPABASE_DB_URL`          | The same commands, when `DATABASE_URL` is unset too                                                   |
+| `POSTGRES_URL_NON_POOLING` | The same commands, when both are unset: the direct connection the Vercel Marketplace integration sets |
+| `POSTGRES_URL`             | The same commands, after `POSTGRES_URL_NON_POOLING`: the pooled connection from the integration       |
+| `SUPABASE_ACCESS_TOKEN`    | `--project-ref` and `database.source.projectRef`                                                      |
+| `SUPABASE_API_URL`         | Another Management API host                                                                           |
+| `SUPABASE_BIN`             | The Supabase CLI `dev env` runs, instead of `node_modules/.bin/supabase` or `supabase` on the `PATH`  |
+| `CI`                       | Turns prompts off, and applies the config's `ci` environment                                          |
+| `BETTER_SUPABASE_ENV`      | The config environment to apply when `--env` is not passed                                            |
+| `BETTER_SUPABASE_AGENT`    | Agent mode when `--agent` is not passed: `auto`, `yes` or `no`                                        |
 
 The CLI checks these once per run; a malformed URL stops it with
 [`env_invalid`](/docs/cli/errors#env_invalid). Connection strings hold the
 database password, so no command takes one as an argument. Set
 `$DATABASE_URL`, or `$SUPABASE_DB_URL` (the name the Supabase CLI and
 `better-supabase dev env` use), or pipe one in with `--db-url-stdin`. When both
-are set, `$DATABASE_URL` wins.
+are set, `$DATABASE_URL` wins. After `vercel env pull` or under
+`vercel env run`, the integration's `$POSTGRES_URL_NON_POOLING` and
+`$POSTGRES_URL` are read last, so a shell that exports them never beats a
+`DATABASE_URL` you set on purpose. The CLI never loads `.env` files itself.
 
 ## Programmatic use
 

@@ -4,6 +4,7 @@ import type { VaultCredentials } from "../../../src/credentials/vault.ts";
 
 import {
   dedupeMcpEvents,
+  mcpEventRoute,
   postgresMcpEventStore,
 } from "../../../src/ai-sdk/mcp/events.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
@@ -180,5 +181,27 @@ describe("postgresMcpEventStore, remaining paths", () => {
     expect(await store.get("k1")).toBeUndefined();
 
     await store.delete("k1");
+  });
+});
+
+describe("mcpEventRoute", () => {
+  it("rejects an unsigned delivery without running a handler", async () => {
+    const { vault } = fakeVault();
+    const store = postgresMcpEventStore({ vault, scope: "srv:u1" });
+    let ran = false;
+
+    const route = mcpEventRoute({
+      store,
+      onEvent: async () => {
+        ran = true;
+      },
+    });
+
+    const response = await route(
+      new Request("https://x.test/hook", { method: "POST", body: "{}" }),
+    );
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(ran).toBe(false);
   });
 });

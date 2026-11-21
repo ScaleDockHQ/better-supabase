@@ -36,6 +36,13 @@ export type {
   MaintenanceTickResult,
 } from "./maintenance-tick.ts";
 
+export { leaseOverlap, maintenanceRoute } from "./maintenance-route.ts";
+
+export type {
+  LeaseOverlapOptions,
+  MaintenanceRouteOptions,
+} from "./maintenance-route.ts";
+
 export { devDrain, devDrainSecret } from "./dev.ts";
 
 export type { DevDrain, DevDrainOptions } from "./dev.ts";

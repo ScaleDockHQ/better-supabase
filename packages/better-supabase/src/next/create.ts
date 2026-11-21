@@ -566,6 +566,23 @@ export function createNext<
       return withExtra(ctx, { session: view });
     },
 
+    // `contextFor` takes the auth state it is given and never reads cookies or
+    // headers, so this runs inside a plain "use cache" scope, and the anon
+    // client carries no caller identity (tests/next/public.test.ts).
+    public(publicOptions = {}) {
+      const { tenant } = publicOptions;
+
+      const ctx = base.contextFor(
+        { kind: "none", reason: "none" },
+        tenant === undefined ? {} : { tenant },
+      );
+
+      const view = toSession(ctx.auth);
+      applyEntry(ctx, view, "remote", tenant, publicOptions);
+
+      return Promise.resolve(withExtra(ctx, { session: view }));
+    },
+
     async user() {
       const { ctx, view, scope, tenant } = await scopeOf({});
       applyEntry(ctx, view, scope, tenant, { life: { stale: 300 } });
