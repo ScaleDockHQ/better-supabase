@@ -26,7 +26,7 @@ export function cacheHook(request: Request): Promise<Response> {
   handler ??= cacheRoute({
     betterSupabase,
     caches: [cdn],
-    bearer: process.env["CACHE_HOOK_BEARER"],
+    bearer: process.env["BETTER_SUPABASE_CACHE_HOOK_BEARER"],
   });
 
   return handler(request);

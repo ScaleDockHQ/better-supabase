@@ -181,8 +181,8 @@ function cacheTargetsOfChange(meta: SchemaMeta, change: Change): CacheTarget[] {
  * export const POST = cacheRoute({
  *   betterSupabase,
  *   caches: [nextCache()],
- *   secret: process.env.CACHE_WEBHOOK_SECRET,
- *   bearer: process.env.CACHE_WEBHOOK_BEARER,
+ *   secret: process.env.BETTER_SUPABASE_CACHE_WEBHOOK_SECRET,
+ *   bearer: process.env.BETTER_SUPABASE_CACHE_WEBHOOK_BEARER,
  * });
  * ```
  */

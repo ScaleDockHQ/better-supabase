@@ -4,7 +4,7 @@
   "tags": ["example"],
   "tasks": {
     "start": {
-      "passThroughEnv": ["CACHE_HOOK_BEARER"]
+      "passThroughEnv": ["BETTER_SUPABASE_CACHE_HOOK_BEARER"]
     }
   }
 }

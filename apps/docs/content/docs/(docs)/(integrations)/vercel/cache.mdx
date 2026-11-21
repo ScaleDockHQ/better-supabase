@@ -90,8 +90,8 @@ import { betterSupabase } from "@/lib/supabase";
 export const POST = cacheRoute({
   betterSupabase,
   caches: [nextCache()],
-  bearer: process.env.CACHE_HOOK_BEARER,
-  secret: process.env.CACHE_HOOK_SECRET,
+  bearer: process.env.BETTER_SUPABASE_CACHE_HOOK_BEARER,
+  secret: process.env.BETTER_SUPABASE_CACHE_HOOK_SECRET,
 });
 ```
 
