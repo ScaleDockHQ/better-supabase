@@ -5,6 +5,8 @@ import type { Finding } from "../../../src/cli/doctor/rules.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import {
   applyBaseline,
+  groupBaseline,
+  isGroupedBaseline,
   parseBaseline,
   updatedBaseline,
 } from "../../../src/cli/doctor/baseline.ts";
@@ -57,13 +59,62 @@ describe("parseBaseline", () => {
   });
 });
 
+describe("grouped baseline", () => {
+  it("expands { code, reason, targets } next to flat entries", () => {
+    expect(
+      parseBaseline(
+        JSON.stringify([
+          { code: "BS351", reason: "migrating", targets: ["a.ts", "b.ts"] },
+          { code: "BS200", target: "public.notes", reason: "legacy" },
+        ]),
+        "b.json",
+      ),
+    ).toEqual([
+      { code: "BS351", target: "a.ts", reason: "migrating" },
+      { code: "BS351", target: "b.ts", reason: "migrating" },
+      { code: "BS200", target: "public.notes", reason: "legacy" },
+    ]);
+  });
+
+  it("groups entries by code and reason, and spots a grouped file", () => {
+    const entries = [
+      { code: "BS351", target: "a.ts", reason: "x" },
+      { code: "BS351", target: "b.ts", reason: "x" },
+      { code: "BS351", target: "c.ts", reason: "y" },
+    ];
+
+    expect(groupBaseline(entries)).toEqual([
+      { code: "BS351", reason: "x", targets: ["a.ts", "b.ts"] },
+      { code: "BS351", reason: "y", targets: ["c.ts"] },
+    ]);
+    expect(isGroupedBaseline(JSON.stringify(groupBaseline(entries)))).toBe(
+      true,
+    );
+    expect(isGroupedBaseline(JSON.stringify(entries))).toBe(false);
+  });
+
+  it("reports an accepted entry that has no reason", () => {
+    const result = applyBaseline(
+      [finding("BS351", "src/a.ts")],
+      [{ code: "BS351", target: "src/a.ts", reason: " " }],
+      new Set(["BS351"]),
+      offline,
+      "doctor-baseline.json",
+    );
+
+    expect(result.findings.map((entry) => entry.title)).toEqual([
+      "A baseline entry has no reason",
+    ]);
+  });
+});
+
 describe("applyBaseline", () => {
   const ran = new Set(["BS351", "BS200"]);
 
   it("leaves out the findings the baseline lists", () => {
     const result = applyBaseline(
       [finding("BS351", "src/a.ts"), finding("BS351", "src/b.ts")],
-      [{ code: "BS351", target: "src/a.ts", reason: "" }],
+      [{ code: "BS351", target: "src/a.ts", reason: "migrating" }],
       ran,
       offline,
       "doctor-baseline.json",

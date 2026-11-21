@@ -993,6 +993,7 @@ over the provider's.
 | `AuthorizationProvider<Key>`                                               | typed permission keys in `blocks.*.permissions`, `subjects.*.permissions` and the role lists                  | 0.58    |
 | `functions.approverFor` with `{kind}` and `{id}`, `functions.managedUsers` | leave, expenses and time entries decide and list through them                                                 | 0.82    |
 | `actionKeys`                                                               | the permission keys of block actions, record types, buckets and topics, so the config does not repeat them    | 0.82    |
+| `doctor.command`                                                           | a command doctor runs in the project root, whose JSON findings join the report as BS705 and the baseline      | 0.82    |
 | `operations[name].approval`                                                | the approval floor of an operation named `<subjectType>:<action>`                                             | 0.82    |
 | `functions.canApprove`, `approvals.distinctApprover`                       | ignored. An API 1 provider that still sets them loads                                                         | 0.58    |
 | `suspension.user` as a column name                                         | `userKey` matches that column when the provider's user is the one in use                                      | 0.58    |

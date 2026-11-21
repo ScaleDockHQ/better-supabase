@@ -9,6 +9,7 @@ import {
   functionBody,
   functionObject,
   policyHelpers,
+  withoutComments,
   withoutStrings,
 } from "./rls.ts";
 import {
@@ -29,18 +30,47 @@ const CALLER_CHECK =
 const ACCESS_CONTRACT_CHECK =
   /\bbetter_supabase"?\s*\.\s*"?(?:can|can_user|is_platform|tenant_ids_with)"?\s*\(/i;
 
-const QUALIFIED_CALL = /"?(\w+)"?\s*\.\s*"?\w+"?\s*\(/g;
+const ANY_CALL = /(?<![\w."])(?:"?(\w+)"?\s*\.\s*)?"?(\w+)"?\s*\(/g;
 
 /**
- * Whether `body` calls a function in a schema of the authorization provider's
- * functions (`authorization.requires`), which decide for the caller, or the
- * access contract's `can`, `is_platform` or `tenant_ids_with`.
+ * The `schema.name` each of the provider's function templates can produce
+ * (`centrakit.authz_{scope}_ids_with({permission})` matches
+ * `centrakit.authz_organization_ids_with`), as patterns.
  */
-function callsAccessCheck(
-  body: string,
+function providerFunctionPatterns(
+  functions: object | undefined,
+): readonly RegExp[] {
+  return Object.values(functions ?? {}).flatMap((template: unknown) => {
+    if (typeof template !== "string") {
+      return [];
+    }
+
+    const call = template.slice(
+      0,
+      template.includes("(") ? template.indexOf("(") : template.length,
+    );
+
+    if (!call.includes(".")) {
+      return [];
+    }
+
+    return [
+      new RegExp(
+        `^${call
+          .replaceAll('"', "")
+          .split(/(\{\w+\})/)
+          .map((part) => (/^\{\w+\}$/.test(part) ? "\\w+" : escape(part)))
+          .join("")}$`,
+        "i",
+      ),
+    ];
+  });
+}
+
+const requiredSchemas = (
   requires: readonly { readonly function: string }[],
-): boolean {
-  const schemas = new Set(
+): ReadonlySet<string> =>
+  new Set(
     requires.flatMap((entry) =>
       entry.function.includes(".")
         ? [entry.function.split(".")[0]!.replaceAll('"', "").toLowerCase()]
@@ -48,12 +78,82 @@ function callsAccessCheck(
     ),
   );
 
+/** The unqualified names the provider's `requires` entries give. */
+const requiredNames = (
+  requires: readonly { readonly function: string }[],
+): ReadonlySet<string> =>
+  new Set(
+    requires.map((entry) =>
+      (entry.function.split(".").at(-1) ?? "")
+        .replaceAll('"', "")
+        .toLowerCase(),
+    ),
+  );
+
+/**
+ * Whether `body` checks the caller itself: it reads the JWT or the user id, or
+ * it calls a function in a schema of the authorization provider's functions
+ * (`authorization.requires`), by schema or by an unqualified name the provider
+ * lists, or the access contract's `can`, `is_platform` or `tenant_ids_with`.
+ * Comments and string literals never count as a call.
+ */
+function checksCaller(
+  text: string,
+  requires: readonly { readonly function: string }[],
+): boolean {
+  const body = withoutComments(text);
+  const code = withoutStrings(body);
+  const schemas = requiredSchemas(requires);
+  const names = requiredNames(requires);
+
   return (
-    ACCESS_CONTRACT_CHECK.test(body) ||
-    [...body.matchAll(QUALIFIED_CALL)].some((match) =>
-      schemas.has((match[1] ?? "").toLowerCase()),
+    CALLER_CHECK.test(body) ||
+    ACCESS_CONTRACT_CHECK.test(code) ||
+    [...code.matchAll(ANY_CALL)].some((match) =>
+      match[1] === undefined
+        ? names.has((match[2] ?? "").toLowerCase())
+        : schemas.has(match[1].toLowerCase()),
     )
   );
+}
+
+/**
+ * Whether `body` checks the caller, or calls one app function whose own body
+ * does (one level, so a thin wrapper over a checked helper passes).
+ */
+function callsAccessCheck(
+  context: DoctorContext,
+  text: string,
+  requires: readonly { readonly function: string }[],
+): boolean {
+  if (checksCaller(text, requires)) {
+    return true;
+  }
+
+  const code = withoutStrings(withoutComments(text));
+  const known = context.snapshot.extras.functions ?? [];
+
+  for (const match of code.matchAll(ANY_CALL)) {
+    const name = match[2] ?? "";
+
+    for (const callee of known) {
+      if (
+        callee.name !== name ||
+        (match[1] !== undefined && callee.schema !== match[1]) ||
+        !context.config.schemas.includes(callee.schema)
+      ) {
+        continue;
+      }
+
+      const inner = functionBody(context, callee.schema, callee.name);
+
+      if (inner !== undefined && checksCaller(inner, requires)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /** Whether anon or public holds any privilege on the table or a column. */
@@ -298,8 +398,11 @@ export const POLICY_RULES: readonly Rule[] = [
 
           if (
             body === undefined ||
-            CALLER_CHECK.test(body) ||
-            callsAccessCheck(body, context.config.authorization?.requires ?? [])
+            callsAccessCheck(
+              context,
+              body,
+              context.config.authorization?.requires ?? [],
+            )
           ) {
             return [];
           }
@@ -455,10 +558,20 @@ export const POLICY_RULES: readonly Rule[] = [
         }),
       ]);
 
-      const inPolicies = new Set(
-        catalogOf(context).tables.flatMap((table) =>
+      // Helpers a policy calls only through another helper, and the functions
+      // triggers run, count as uses as well.
+      const inPolicies = new Set([
+        ...catalogOf(context).tables.flatMap((table) =>
           table.policies.flatMap((policy) => policy.functions ?? []),
         ),
+        ...policyHelpers(context).keys(),
+        ...catalogOf(context).tables.flatMap((table) =>
+          table.triggers.map((trigger) => trigger.function),
+        ),
+      ]);
+
+      const providerHelpers = providerFunctionPatterns(
+        context.config.authorization?.functions,
       );
 
       return (context.snapshot.extras.functions ?? []).flatMap(
@@ -471,7 +584,8 @@ export const POLICY_RULES: readonly Rule[] = [
             !schemas.includes(fn.schema) ||
             callers.length === 0 ||
             listed.has(name) ||
-            inPolicies.has(name)
+            inPolicies.has(name) ||
+            providerHelpers.some((pattern) => pattern.test(name))
           ) {
             return [];
           }

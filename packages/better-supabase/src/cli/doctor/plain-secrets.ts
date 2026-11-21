@@ -5,7 +5,26 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { blockTables, tableTagComments } from "../../sql/index.ts";
 import { withTableTags } from "../gen/table-tags.ts";
 import { appTablesOf } from "./app-tables.ts";
+import { functionBody, withoutComments, withoutStrings } from "./rls.ts";
 import { catalogOf, qualified, tableObject } from "./shared.ts";
+
+const FIELD_SEAL_CALL = /\bbetter_supabase"?\s*\.\s*"?field_seal"?\s*\(/i;
+
+/** Whether a trigger function's body calls the field-encryption seal. */
+function sealsFields(context: DoctorContext, name: string): boolean {
+  const dot = name.indexOf(".");
+
+  if (dot === -1) {
+    return false;
+  }
+
+  const body = functionBody(context, name.slice(0, dot), name.slice(dot + 1));
+
+  return (
+    body !== undefined &&
+    FIELD_SEAL_CALL.test(withoutStrings(withoutComments(body)))
+  );
+}
 
 /**
  * The blocks that keep a secret out of the row, in the order doctor offers
@@ -81,7 +100,8 @@ function sealedByTrigger(
     (trigger) =>
       trigger.timing === "before" &&
       trigger.level === "row" &&
-      seals.includes(trigger.function) &&
+      (seals.includes(trigger.function) ||
+        sealsFields(context, trigger.function)) &&
       (trigger.fills === undefined || trigger.fills.includes(column.name)),
   );
 }

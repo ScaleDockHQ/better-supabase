@@ -23,6 +23,8 @@ import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
 import {
   applyBaseline,
+  groupBaseline,
+  isGroupedBaseline,
   parseBaseline,
   updatedBaseline,
 } from "../doctor/baseline.ts";
@@ -147,12 +149,37 @@ const ARGS = {
   },
   "update-baseline": {
     type: "boolean",
+    alias: "update",
     description:
       "Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason",
   },
 } as const;
 
 export type DoctorValues = CliValues<typeof ARGS & typeof SOURCE_ARGS>;
+
+const LIBRARY_DIFF = /\b(?:better-supabase|bsb)\s+db\s+diff\b/;
+
+/** Whether a `package.json` script runs `better-supabase db diff` (BS239). */
+async function runsLibraryDiff(root: string): Promise<boolean> {
+  const file = await readText(root, "package.json");
+
+  if (file === undefined) {
+    return false;
+  }
+
+  try {
+    // SAFETY: a package.json is a JSON object; `scripts` values are checked as strings.
+    const { scripts } = JSON.parse(file.text) as {
+      scripts?: Record<string, unknown>;
+    };
+
+    return Object.values(scripts ?? {}).some(
+      (script) => typeof script === "string" && LIBRARY_DIFF.test(script),
+    );
+  } catch {
+    return false;
+  }
+}
 
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
@@ -262,15 +289,21 @@ async function applyFixes(
 async function readBaseline(
   root: string,
   path: string,
-): Promise<ReturnType<typeof parseBaseline>> {
+): Promise<{
+  readonly entries: ReturnType<typeof parseBaseline>;
+  readonly grouped: boolean;
+}> {
   const file = await readText(root, path);
 
   if (file === undefined) {
-    return [];
+    return { entries: [], grouped: false };
   }
 
   try {
-    return parseBaseline(file.text, path);
+    return {
+      entries: parseBaseline(file.text, path),
+      grouped: isGroupedBaseline(file.text),
+    };
   } catch (cause) {
     throw new CliError("invalid_input", errorText(cause));
   }
@@ -517,6 +550,7 @@ export async function runDoctor(
     ...(localStacks ? { localStacks } : {}),
     ...(nextConfig ? { nextConfig } : {}),
     vercel,
+    libraryDiff: await runsLibraryDiff(config.root),
     ...(vercelConfig ? { vercelConfig } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
@@ -598,7 +632,7 @@ export async function runDoctor(
   let findings: readonly Finding[] = located;
 
   if (baselinePath !== undefined) {
-    const entries = await readBaseline(config.root, baselinePath);
+    const { entries, grouped } = await readBaseline(config.root, baselinePath);
     const codes = new Set(rules.map((rule) => rule.code));
 
     if (updateBaseline) {
@@ -615,7 +649,7 @@ export async function runDoctor(
                 baselinePath,
                 "tooling.doctor.baseline",
               ),
-              contents: `${JSON.stringify(next, null, 2)}\n`,
+              contents: `${JSON.stringify(grouped ? groupBaseline(next) : next, null, 2)}\n`,
               note: `${String(next.length)} accepted findings`,
             },
           ],

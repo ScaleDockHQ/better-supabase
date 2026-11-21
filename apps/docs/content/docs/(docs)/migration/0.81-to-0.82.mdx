@@ -26,6 +26,7 @@ pnpm better-supabase gen sql
 | [Record types](#record-types)                                             | Run `codemod record-types`           |
 | [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`             |
 | [Schemas by module reference](#schemas-by-module-reference)               | None                                 |
+| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`        |
 
 ## The blocks list
 
@@ -158,7 +159,12 @@ row level security on it and the `grants` module writes the privileges.
 `codemod table-tags` writes the comments into the schema file that creates each
 table and removes the config entries. A fact whose table no schema file creates,
 or whose comment already holds the tag, stays in the config and is listed.
-`same-tenant` entries stay in the config: move them by hand. Doctor rule BS702
+`same-tenant` entries stay in the config: move them by hand. A
+`blocks.memberships.options.sameTenant` entry can carry `where`, `match`, `hops`,
+`deferrable` and `shared`, and the codemod cannot show that the one-line tag
+renders the same trigger for each of them, so it moves none. A baseline entry
+for BS315 is not moved either: the baseline lists accepted findings, not
+exemptions, so add the `audit-exempt` tag with its reason instead. Doctor rule BS702
 lists the facts a comment can hold, and BS703 reports a tag that cannot take
 effect.
 
@@ -178,3 +184,44 @@ An inline JSON Schema and a schema value still work, and `import` or `type` stil
 set a different column type. No codemod moves these: the inline form has no name
 to point at. Doctor rule BS704 reports an inline schema that an exported schema
 in a module the `standardSchema()` generator names already produces.
+
+## Doctor
+
+`tooling.doctor.baseline` accepts a grouped form next to the flat one. A group
+names the code, one reason and every target it covers, so a hundred accepted
+findings read as a few lines.
+
+```json
+[
+  {
+    "code": "BS112",
+    "reason": "Helpers the access module calls; checked in review",
+    "targets": ["public.a", "public.b"]
+  }
+]
+```
+
+An entry with an empty reason is an error, and a stale entry is still reported.
+`doctor --update` is an alias of `--update-baseline`, and it writes the grouped
+form when the file is already grouped. `codemod doctor-baseline` rewrites a
+`{ "BS112": { "reason": "...", "targets": [] } }` file into the grouped list.
+
+An authorization provider can set `doctor: { command: [...] }`. Doctor runs it in
+the project root and reports its JSON findings as BS705, so the baseline can
+accept them.
+
+Rules that were wrong now agree with the code:
+
+| Rule  | Change                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BS112 | Comments and strings never count as a call, an unqualified call to a provider function is a check, and a wrapper over a checked app function passes     |
+| BS116 | A helper a policy reaches through another helper, a trigger function and a function the provider's templates name count as uses                         |
+| BS352 | A trigger whose body calls `better_supabase.field_seal` counts as sealing, with no `sealTriggers` entry                                                 |
+| BS365 | Table names are normalized, a policy with no `for` clause is `for all`, every app file is read, and the finding targets the table                       |
+| BS239 | Fires only when a `package.json` script runs `better-supabase db diff`; a Supabase CLI declarative project never loads pg-delta's library               |
+| BS217 | A same-tenant trigger, generated or an app trigger that BS398 accepts, satisfies it; an info finding recommends the composite key where a unique exists |
+
+BS706 warns about a shim of a feature the library ships: a seal trigger beside
+`field-encryption`, a `decider` option where the provider has `approverFor`,
+`approvals: false` with `standaloneApprovals`, and an app file that redefines a
+block function.

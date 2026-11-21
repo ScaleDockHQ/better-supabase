@@ -3039,3 +3039,23 @@ a `blocks.settings.options.schemas` entry holds a JSON Schema that an exported
 Standard Schema already produces, in a module the `standardSchema()` generator
 names. Pass `"./schemas.ts#name"` instead, so the database check and the column
 type share one schema. The inline schema keeps working.
+
+### BS705
+
+**Warning: the authorization provider's doctor reports a finding.** When the
+provider sets `doctor: { command: [...] }`, doctor runs the command in the
+project root and reads `{ findings: [{ code, severity?, title?, message,
+target?, help? }] }` from its output. The exit status does not matter, only
+the JSON. Each finding is reported as BS705 with the provider's code first in
+its target, so `tooling.doctor.baseline` can accept it. A command that prints
+nothing, or JSON of another shape, is itself reported.
+
+### BS706
+
+**Warning: shim of a feature the library ships.** The project rebuilds
+something better-supabase already does. Doctor reports a seal trigger listed
+in `tooling.doctor.sealTriggers` while `field-encryption` is installed (mark
+the columns `@bsb encrypted` instead), a `decider` option on leave, expenses
+or time entries while the authorization provider has `functions.approverFor`,
+`approvals: false` next to `standaloneApprovals` on expenses, and an app
+schema file that redefines a `better_supabase` function a block creates.

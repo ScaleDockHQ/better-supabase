@@ -52,7 +52,9 @@ describe("help", () => {
             : definition.description;
 
         const line = lines.find((each) =>
-          new RegExp(`^  (?:-\\w, )?${flag}(?: |$)`).test(each),
+          new RegExp(`^  (?:-\\w, )?${flag}(?:, -{1,2}[\\w-]+)*(?: |$)`).test(
+            each,
+          ),
         );
 
         return line?.endsWith(`  ${description}`) ? [] : [`${flag}: ${line}`];

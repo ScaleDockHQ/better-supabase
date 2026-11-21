@@ -300,6 +300,7 @@ describe("authorization library contract", () => {
       // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
       approvals: { distinctApprover: true },
       permissions: [{ key: "file.read", levels: ["own", "team"] }],
+      doctor: { command: ["provider", "doctor", "--json"] },
       actionKeys: {
         blocks: { tasks: { read: "task.read" } },
         recordTypes: { invoice: { read: "invoice.read" } },

@@ -23,6 +23,10 @@ export const escape = (name: string): string =>
 export const withoutStrings = (text: string): string =>
   text.replaceAll(/'(?:[^']|'')*'/g, "''");
 
+/** SQL text without comments, which can name a call without making it. */
+export const withoutComments = (text: string): string =>
+  text.replaceAll(/--[^\n]*|\/\*[\s\S]*?\*\//g, " ");
+
 const functionName = (fn: Pick<ExtrasFunction, "schema" | "name">): string =>
   `${fn.schema}.${fn.name}`;
 

@@ -869,6 +869,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "doctor-baseline",
+        description:
+          "Rewrite a { code: { reason, targets } } baseline file as the grouped list doctor reads",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "table-modules",
         description:
           "Import schema from generated-schema and read tables in client files through the table modules",

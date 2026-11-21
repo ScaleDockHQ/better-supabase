@@ -4768,6 +4768,7 @@ describe("pg-delta packages (BS239)", () => {
       "BS239",
       context(base, {
         configToml: pgdelta,
+        libraryDiff: true,
         peers: peers({
           "@supabase/pg-delta": "1.0.0-alpha.60",
           "@supabase/pg-topo": undefined,
@@ -4788,6 +4789,19 @@ describe("pg-delta packages (BS239)", () => {
     );
   });
 
+  it("stays quiet for a Supabase CLI declarative project, where no script runs db diff through the library", async () => {
+    expect(
+      await run(
+        "BS239",
+        context(base, {
+          configToml: pgdelta,
+          libraryDiff: false,
+          peers: peers({}),
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   it("stays quiet with both installed, on migra, without a peer list or a Supabase project", async () => {
     const both = peers({
       "@supabase/pg-delta": "1.0.0-alpha.60",
@@ -4795,7 +4809,10 @@ describe("pg-delta packages (BS239)", () => {
     });
 
     expect(
-      await run("BS239", context(base, { configToml: pgdelta, peers: both })),
+      await run(
+        "BS239",
+        context(base, { configToml: pgdelta, libraryDiff: true, peers: both }),
+      ),
     ).toEqual([]);
     expect(
       await run(

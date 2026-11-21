@@ -310,6 +310,16 @@ export function testAuthorizationProvider(
         }
       },
     ],
+    provider.doctor && [
+      "doctor names a command",
+      () => {
+        expect(
+          provider.doctor!.command.length > 0 &&
+            provider.doctor!.command.every((part) => part.length > 0),
+          "doctor.command is empty",
+        );
+      },
+    ],
     provider.actionKeys && [
       "actionKeys name listed permissions",
       () => {

@@ -13,6 +13,7 @@ import { codeRanges } from "./code-ranges.ts";
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
+import { doctorBaselineCodemod } from "./codemod-doctor-baseline.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { ownedColumnsCodemod } from "./codemod-owned-columns.ts";
@@ -133,6 +134,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "blocks-list": blocksListCodemod(),
   "record-types": recordTypesCodemod(),
   "table-tags": tableTagsCodemod(),
+  "doctor-baseline": doctorBaselineCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),

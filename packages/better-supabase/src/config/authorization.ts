@@ -532,6 +532,14 @@ export interface AuthorizationProvider<Key extends string = string> {
    * buckets and topics, so the config does not repeat them.
    */
   readonly actionKeys?: AuthorizationActionKeys<Key>;
+  /**
+   * A command that runs the provider's own doctor, for example `["pnpm",
+   * "exec", "provider", "doctor", "--json"]`. `better-supabase doctor` runs it
+   * in the project root and reads `{ findings: [{ code, severity?, title?,
+   * message, target?, help? }] }` from its output. Its findings join the report
+   * as BS705 and the baseline.
+   */
+  readonly doctor?: { readonly command: readonly string[] };
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {

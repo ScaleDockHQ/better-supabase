@@ -1117,6 +1117,19 @@
                 "additionalProperties": false
               }
             },
+            "doctor": {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["command"],
+              "additionalProperties": false
+            },
             "actionKeys": {
               "type": "object",
               "properties": {
