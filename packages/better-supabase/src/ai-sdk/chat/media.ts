@@ -1,15 +1,39 @@
 import type { AiFilePart } from "../../blocks/ai-chat/message.ts";
 import type { AiFiles } from "../../blocks/ai-files/ai-files.ts";
 import type { DbError } from "../../core/errors.ts";
+import type { AsyncResult, Result } from "../../core/result.ts";
 import type { GeneratedFileLike } from "../files/files.ts";
 import type { GatewayOptions } from "../gateway-options.ts";
+import type { GatewayPolicy } from "../gateway-policy.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { problemResponse } from "../../core/problem.ts";
+import { ok } from "../../core/result.ts";
 import { aiErrorToDbError } from "../errors.ts";
 import { saveGeneratedFiles } from "../files/files.ts";
+import { governedGatewayOptions } from "../gateway-policy.ts";
 import { gatewayOptions, problem429 } from "../gateway.ts";
 import { badRequest, readJson } from "../http.ts";
+
+async function governedOptions(
+  read: ((organizationId: string) => AsyncResult<GatewayPolicy>) | undefined,
+  context: MediaContext,
+  feature: string,
+): Promise<Result<{ readonly gateway: GatewayOptions }>> {
+  const base = {
+    userId: context.userId,
+    organizationId: context.organizationId,
+    feature,
+  };
+
+  if (read === undefined) {
+    return ok(gatewayOptions(base));
+  }
+
+  const policy = await read(context.organizationId);
+
+  return policy.ok ? governedGatewayOptions(base, policy.data) : policy;
+}
 
 /** Who asks for one media generation. */
 export interface MediaContext {
@@ -40,6 +64,15 @@ export interface MediaRouteOptions {
     readonly context: MediaContext;
   }) => PromiseLike<readonly GeneratedFileLike[]>;
   readonly quota?: (organizationId: string) => Promise<DbError | undefined>;
+  /**
+   * Reads the organization's gateway policy, such as the function
+   * `gatewayPolicyReader` returns. The policy is applied to the call's gateway
+   * options, and a policy that fails to load answers with its error instead of
+   * running the call without the restriction.
+   */
+  readonly gatewayPolicy?: (
+    organizationId: string,
+  ) => AsyncResult<GatewayPolicy>;
   /** Runs after the files are stored, such as to meter one generation. */
   readonly onFinish?: (finish: {
     readonly prompt: string;
@@ -101,6 +134,16 @@ export function createMediaRoute(options: MediaRouteOptions): MediaRoute {
         return problem429(exceeded);
       }
 
+      const governed = await governedOptions(
+        options.gatewayPolicy,
+        context,
+        options.kind,
+      );
+
+      if (!governed.ok) {
+        return problemResponse(governed.error);
+      }
+
       let generated: readonly GeneratedFileLike[];
 
       try {
@@ -109,11 +152,7 @@ export function createMediaRoute(options: MediaRouteOptions): MediaRoute {
           body: read.body,
           model: options.model,
           abortSignal: request.signal,
-          providerOptions: gatewayOptions({
-            userId: context.userId,
-            organizationId: context.organizationId,
-            feature: options.kind,
-          }),
+          providerOptions: governed.data,
           context,
         });
       } catch (cause) {
@@ -186,6 +225,15 @@ export interface VideoRoutesOptions {
   readonly jobs: VideoJobStore;
   readonly authorize: MediaAuthorize;
   readonly quota?: (organizationId: string) => Promise<DbError | undefined>;
+  /**
+   * Reads the organization's gateway policy, such as the function
+   * `gatewayPolicyReader` returns. The policy is applied to the call's gateway
+   * options, and a policy that fails to load answers with its error instead of
+   * running the call without the restriction.
+   */
+  readonly gatewayPolicy?: (
+    organizationId: string,
+  ) => AsyncResult<GatewayPolicy>;
   /** Calls `experimental_startVideo` and returns the job reference. */
   readonly start: (args: {
     readonly prompt: string;
@@ -294,6 +342,16 @@ export function createVideoRoutes(options: VideoRoutesOptions): VideoRoutes {
         return problem429(exceeded);
       }
 
+      const governed = await governedOptions(
+        options.gatewayPolicy,
+        context,
+        "video",
+      );
+
+      if (!governed.ok) {
+        return problemResponse(governed.error);
+      }
+
       const jobId = crypto.randomUUID();
 
       let providerJob: unknown;
@@ -304,11 +362,7 @@ export function createVideoRoutes(options: VideoRoutesOptions): VideoRoutes {
           body: read.body,
           model: options.model,
           jobId,
-          providerOptions: gatewayOptions({
-            userId: context.userId,
-            organizationId: context.organizationId,
-            feature: "video",
-          }),
+          providerOptions: governed.data,
           context,
         });
       } catch (cause) {
