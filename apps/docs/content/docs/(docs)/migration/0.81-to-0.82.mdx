@@ -272,3 +272,10 @@ Doctor BS708 (info) lists the generated SQL of each installed block in kilobytes
 `better-supabase upgrade` adds the index and the key as `not valid`, so old rows never block the upgrade. Run
 `alter table <schema>.tax_rates validate constraint tax_rates_tenant_code_fkey` once after you have checked that
 no rate belongs to a code of another tenant.
+
+**Cancelling an approval.** `cancel_approval` now reaches expenses and time entries, as it already did for
+leave. A submitted standalone expense goes back to draft (as `withdraw_expense` does) and a submitted week kept in
+a status column is open again (as `withdraw_timesheet` does); a decided one stays as it is. Expense reports and
+weeks whose status follows the approval request already read a cancelled request as a draft or open week, so
+they need no hook. The new functions are `expense_approval_cancelled` and `timesheet_approval_cancelled`, which
+`add` and `upgrade` write into your schema files without a version bump, because `create or replace` covers them.

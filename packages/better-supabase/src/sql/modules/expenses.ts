@@ -457,6 +457,8 @@ const CONTRIBUTES: BlockContributes = {
               `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, true, ${comment}, ${approver});`,
             reject: ({ subjectId, comment, approver }) =>
               `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, false, ${comment}, ${approver});`,
+            cancel: ({ subjectId }) =>
+              `perform ${own.fn("expense_approval_cancelled")}(${subjectUuid(subjectId)});`,
             ...(own.flag("selfDecideWhenTopOfChain", false)
               ? {
                   selfDecides: ({ subjectId }) =>

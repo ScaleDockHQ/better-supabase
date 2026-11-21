@@ -438,6 +438,34 @@ $$;`,
     },
   );
 
+  it(
+    "opens the week again when its approval request is cancelled",
+    BOOT,
+    async () => {
+      await expect(
+        run(
+          `do $$
+declare
+  v_sheet jsonb;
+  v_approval uuid;
+begin
+  ${as(ALICE)}
+  perform better_supabase.log_time('${TENANT}', '2026-03-02T09:00:00Z', '2026-03-02T10:00:00Z', 'task', '${TASK}');
+  v_sheet := better_supabase.submit_timesheet('${TENANT}', '2026-03-02');
+  select id into v_approval from better_supabase.approval_requests where subject_id = v_sheet ->> 'id' and status = 'pending';
+  perform better_supabase.cancel_approval(v_approval);
+  if (select state::text from public.week_sheets where id = (v_sheet ->> 'id')::uuid) <> 'draft'
+    or (select submitted_at from public.week_sheets where id = (v_sheet ->> 'id')::uuid) is not null then
+    raise exception 'cancel_approval left the week submitted';
+  end if;
+end;
+$$;`,
+          LINKED,
+        ),
+      ).resolves.toBeUndefined();
+    },
+  );
+
   it("keys app timesheets for its upsert and puts the approval id on week events", () => {
     const sql = renderBlocks(["time-entries", "employees", "outbox"], {
       modules: LINKED,
