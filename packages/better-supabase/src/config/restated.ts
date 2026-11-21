@@ -8,6 +8,8 @@ export type RestatedKind =
   | "empty"
   | "tenant"
   | "default"
+  | "permission"
+  | "option"
   | "provider";
 
 /** One config entry the resolved defaults already supply. */

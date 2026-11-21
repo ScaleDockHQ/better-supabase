@@ -10,6 +10,7 @@ import { redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
 import { loadConfig } from "./config.ts";
+import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
 import { layoutFor } from "./sql/providers.ts";
 import { renderBlocksCached } from "./sql/render-cache.ts";
@@ -242,17 +243,22 @@ async function prune(
       ? config.authorization
       : undefined;
 
-  const entries = restatedEntries({
-    blocks: config.blocks,
-    sqlTenantColumn: config.sql.tenantColumn,
-    restatedDefaults: config.restatedDefaults,
-    provider,
-    defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
-    nulls: redundantNulls({
-      modules: config.blocks,
-      ...(await ownLayout(config).catch(() => undefined)),
+  const probed = await probeRestated(config).catch(() => []);
+
+  const entries = mergeRestated(
+    restatedEntries({
+      blocks: config.blocks,
+      sqlTenantColumn: config.sql.tenantColumn,
+      restatedDefaults: config.restatedDefaults,
+      provider,
+      defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
+      nulls: redundantNulls({
+        modules: config.blocks,
+        ...(await ownLayout(config).catch(() => undefined)),
+      }),
     }),
-  });
+    probed,
+  );
 
   if (configFile === undefined || configText === undefined) {
     return {

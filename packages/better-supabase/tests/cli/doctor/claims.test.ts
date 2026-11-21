@@ -71,7 +71,7 @@ describe("BS419", () => {
 });
 
 describe("BS427", () => {
-  it("reports config values equal to the provider's", () => {
+  it("reports config values equal to the provider's", async () => {
     const platformRoles = {
       table: "app.platform_roles",
       user: "user_id",
@@ -94,7 +94,7 @@ describe("BS427", () => {
     const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
     // SAFETY: BS427 reads only `config`.
-    const found = rule?.check({ config } as unknown as DoctorContext);
+    const found = await rule?.check({ config } as unknown as DoctorContext);
 
     expect(rule?.severity).toBe("warning");
     expect(found).toEqual([
@@ -180,7 +180,7 @@ describe("BS427", () => {
     ]);
   });
 
-  it("says nothing when the access model is not the provider", () => {
+  it("reports no provider kind when the access model is not the provider", async () => {
     const platformRoles = {
       table: "app.platform_roles",
       user: "user_id",
@@ -201,9 +201,11 @@ describe("BS427", () => {
     const rule = AUTHORIZATION_RULES.find((entry) => entry.code === "BS427");
 
     // SAFETY: BS427 reads only `config`.
-    const found = rule?.check({ config } as unknown as DoctorContext);
+    const found = await rule?.check({ config } as unknown as DoctorContext);
 
-    expect(found).toEqual([]);
+    expect(found?.some((finding) => finding.message.includes("provider"))).toBe(
+      false,
+    );
   });
 
   it("keeps userKey when the config sets its own user column", async () => {

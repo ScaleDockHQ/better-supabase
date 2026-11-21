@@ -27,6 +27,7 @@ import {
   providerLabel,
   unsafeKey,
 } from "../authorization.ts";
+import { mergeRestated, probeRestated } from "../restated-probe.ts";
 import { accessModule, adoptionContext, appViewsOf } from "./app-tables.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
@@ -399,27 +400,34 @@ function requirementProblem(
  * mappings, `null`s for columns the views lack, empty maps, a tenant column
  * that repeats `sql.tenantColumn` and values equal to the provider's.
  */
-function restatedDefaults(context: DoctorContext): FindingInput[] {
+async function restatedDefaults(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
   const provider =
     context.config.authorization && accessModule(context).kind === "provider"
       ? context.config.authorization
       : undefined;
 
-  return restatedEntries({
-    blocks: context.config.blocks,
-    sqlTenantColumn: context.config.sql.tenantColumn,
-    restatedDefaults: context.config.restatedDefaults,
-    provider,
-    defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
-    // Without a snapshot there are no views, so no `null` can be redundant.
-    nulls: Reflect.has(context, "snapshot")
-      ? redundantNulls({
-          modules: context.config.blocks,
-          ...appViewsOf(context),
-          ...adoptionContext(context),
-        })
-      : [],
-  }).map((entry) => ({
+  const probed = await probeRestated(context.config).catch(() => []);
+
+  return mergeRestated(
+    restatedEntries({
+      blocks: context.config.blocks,
+      sqlTenantColumn: context.config.sql.tenantColumn,
+      restatedDefaults: context.config.restatedDefaults,
+      provider,
+      defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
+      // Without a snapshot there are no views, so no `null` can be redundant.
+      nulls: Reflect.has(context, "snapshot")
+        ? redundantNulls({
+            modules: context.config.blocks,
+            ...appViewsOf(context),
+            ...adoptionContext(context),
+          })
+        : [],
+    }),
+    probed,
+  ).map((entry) => ({
     message: `${entry.path} ${entry.reason}. Remove it: the default is the same (\`better-supabase codemod config --prune\` removes it).`,
     target: entry.path,
   }));
@@ -431,7 +439,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Config restates its default",
     description:
-      "A config entry equals the value the render uses without it, so it is a second copy that goes stale and hides the entries that matter. Doctor reports an identity mapping for an optional column (`columns.<table>.<column>` set to the column's default name, which only a `{ column, required: true }` entry still enforces), a `null` for a column the view lacks anyway, an empty `columns`, `values` or `tables` map, `columns.<table>.tenant` equal to `sql.tenantColumn`, and a value equal to the authorization provider's (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`, `tokenHook.function` for `impersonation.options.claimsHook`). The provider kinds are reported under the provider access model only, and `disabled.userKey` only when `disabled.user` is unset or equal to the provider's. `better-supabase codemod config --prune` removes each one when the render stays the same. It replaces BS426, whose code stays reserved.",
+      "A config entry equals the value the render uses without it, so it is a second copy that goes stale and hides the entries that matter. Doctor reports an identity mapping for an optional column (`columns.<table>.<column>` set to the column's default name, which only a `{ column, required: true }` entry still enforces), a `null` for a column the view lacks anyway, an empty `columns`, `values` or `tables` map, `columns.<table>.tenant` equal to `sql.tenantColumn`, and a value equal to the authorization provider's (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`, `tokenHook.function` for `impersonation.options.claimsHook`). The provider kinds are reported under the provider access model only, and `disabled.userKey` only when `disabled.user` is unset or equal to the provider's. Doctor also renders without each `permissions` key and each `options` entry (and each `sameTenant` element) of an installed block, and reports the ones whose removal leaves every file unchanged: a permission key the block would pick anyway, an option equal to its default, a `sameTenant` entry the schema already derives. `better-supabase codemod config --prune` removes each one when the render stays the same. It replaces BS426, whose code stays reserved.",
     check: restatedDefaults,
   },
   {
