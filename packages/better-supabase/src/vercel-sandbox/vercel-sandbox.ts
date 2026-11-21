@@ -26,6 +26,13 @@ export interface VercelNetworkRule {
   readonly transform?: readonly {
     readonly headers?: Readonly<Record<string, string>>;
   }[];
+  /** Answers a matching request at the firewall without contacting the host. */
+  readonly response?: {
+    readonly statusCode: number;
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly body?: string;
+    readonly contentType?: string;
+  };
 }
 
 /** The egress firewall of a sandbox, as `@vercel/sandbox` takes it. */

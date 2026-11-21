@@ -24,7 +24,7 @@ function jsonOf(value: unknown): JSONValue {
 export function byokOptions(
   keys: readonly ResolvedProviderKey[],
 ): GatewayOptions {
-  const byok: Record<string, JSONValue[]> = {};
+  const byok: Record<string, Record<string, JSONValue>[]> = {};
 
   for (const key of keys) {
     const { [BYOK_FIELD]: field, ...settings } = key.settings;

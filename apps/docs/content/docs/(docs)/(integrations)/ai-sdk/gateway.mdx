@@ -1,0 +1,188 @@
+---
+title: Gateway per organization
+description: Give each organization its own AI Gateway policy and budget, record the full cost of every call, and attribute virtual model spend to organizations.
+---
+
+The Vercel AI Gateway scopes its controls to a team, a project, an API key or
+a member. It has no organization scope, so an app with tenants keeps that
+layer itself. `better-supabase/ai-sdk` does it with the blocks you already
+have: a policy in the [settings block](/docs/blocks/settings), a budget on a
+[usage](/docs/blocks/usage) meter, and cost rows from the gateway's own
+figures. None of it needs a new table.
+
+## Typed gateway options
+
+`GatewayOptions`, the `providerOptions.gateway` object that
+[`gatewayOptions`](/docs/ai-sdk#ai-gateway) builds, is typed after the SDK's
+`GatewayProviderOptions`. A misspelled key or a wrong value type is now a
+compile error. The type is a structural copy, so `@ai-sdk/gateway` stays an
+optional peer. The regional inference options (`inferenceRegion`), `sessionId`
+and `sessionAffinity` are typed too, although the SDK's own type doesn't
+list them yet.
+
+## A policy per organization
+
+A policy says what an organization's calls may do:
+
+| Key                      | Effect on the call                                              |
+| ------------------------ | --------------------------------------------------------------- |
+| `zeroDataRetention`      | `zeroDataRetention: true`, only providers that keep no data     |
+| `disallowPromptTraining` | `disallowPromptTraining: true`                                  |
+| `allowedProviders`       | `only` becomes the intersection with the list                   |
+| `region`                 | `inferenceRegion: { scope: "zone", geoRegion }` (beta)          |
+| `promptCaching`          | `caching: "auto"`                                               |
+| `headquarters`           | provider headquarters as country codes, or `!` codes to exclude |
+
+Store it as one settings row per organization, read it, and build the options:
+
+```ts title="lib/ai/policy.ts"
+import {
+  GATEWAY_POLICY_KEY,
+  gatewayPolicyReader,
+  gatewayPolicySetting,
+  governedGatewayOptions,
+} from "better-supabase/ai-sdk";
+
+// In the settings block's entries: { [GATEWAY_POLICY_KEY]: gatewayPolicySetting }
+export const readPolicy = gatewayPolicyReader((organizationId) =>
+  settings.getOrganization({ organizationId, key: GATEWAY_POLICY_KEY }),
+);
+
+export async function providerOptions(context: GatewayContext) {
+  const policy = await readPolicy(context.organizationId).orThrow();
+  const options = governedGatewayOptions(context, policy);
+
+  return options.orThrow();
+}
+```
+
+`governedGatewayOptions` returns a `Result`. A policy that leaves no provider
+for the call (`only` has no overlap with `allowedProviders`) is an
+`invalid_input` error, so the call never runs without the restriction. A call's
+own options can add restrictions but never remove one: `zeroDataRetention:
+false` in the extra options is overridden. A stored value that fails
+validation is an error too, not the empty policy.
+
+Use `mergeGatewayPolicies(base, organization)` to combine an app-wide baseline
+with an organization's policy. The result is never looser than either.
+
+## A budget per organization
+
+The gateway's budgets can't do this: they have team, project, key and member
+scopes, and they don't count calls that use a bring-your-own key. Set the
+organization's quota on the `ai.cost` meter of the usage block, in micro-USD,
+and use the budget around each call:
+
+```ts title="lib/ai/budget.ts"
+import { createGatewayBudget, gatewayCostOf } from "better-supabase/ai-sdk";
+
+const budget = createGatewayBudget({ usage: serviceUsage });
+
+export async function run(organizationId: string) {
+  (await budget.check({ organizationId, estimateMicroUsd: 20_000 })).orThrow();
+
+  const result = await generateText({ model, prompt });
+  const cost = gatewayCostOf(result);
+
+  const settled = (await budget.settle({ organizationId, cost })).orThrow();
+
+  if (settled.pending && cost.generationId) {
+    await queue.enqueue("gateway-cost", { generationId: cost.generationId, organizationId });
+  }
+
+  return result;
+}
+```
+
+`check` returns `quota_exceeded` with the meter, the limit and `retryAfter`
+(seconds until the quota's period resets). `settle` records the cost once per
+generation. The budget is soft: calls that run at the same time can each pass
+`check` and together go past the limit by what they cost. Use
+`estimateMicroUsd` to leave headroom. By default a call a tenant's own key
+served is not counted, because the tenant pays that provider; pass
+`countByok: true` to count it.
+
+## Cost rows
+
+`gatewayCostOf` reads a finished `generateText` or `streamText` result. It keeps
+what `usageOf` leaves out:
+
+| Field                                                | Source                                                              |
+| ---------------------------------------------------- | ------------------------------------------------------------------- |
+| `costMicroUsd`, `marketCostMicroUsd`, `generationId` | `providerMetadata.gateway`                                          |
+| `cacheReadTokens`, `cacheWriteTokens`                | `usage.inputTokenDetails`                                           |
+| `reasoningTokens`                                    | `usage.outputTokenDetails`                                          |
+| `byok`, `provider`                                   | the successful attempt in `providerMetadata.gateway.routing`        |
+
+`gatewayRunRelease` gives the argument for `runs.release` of the
+[chat block](/docs/blocks/ai-chat), with the extra token kinds in the run's
+`usage`. `gatewayCostEntries` gives the entries for `usage.recordMany`:
+`ai.cost`, `ai.market_cost` and one meter per token kind.
+
+The gateway doesn't always have a cost in the response. `gatewayCostBackfill`
+is a queue handler that looks the generation up with `getGenerationInfo` and
+writes the run and the money meters. The gateway ingests a generation after
+the response, so a lookup can answer 404 for a short while: the handler throws
+`GatewayCostPendingError` and the queue retries. After `giveUpAfterSeconds`
+(24 hours by default) it returns with `gaveUp: true` instead of retrying forever.
+It uses the same idempotency key as `settle`, so a cost counts once.
+
+```ts title="jobs/gateway-cost.ts"
+import { gateway } from "ai";
+import { gatewayCostBackfill } from "better-supabase/ai-sdk";
+
+export const handler = gatewayCostBackfill({
+  chats: serviceChats,
+  gateway,
+  usage: serviceUsage,
+});
+```
+
+### Credits
+
+The gateway's credit balance belongs to the whole team. `checkGatewayCredits`
+fails with `quota_exceeded` (meter `gateway_credits`) at or below a minimum
+balance, and `creditsMonitor` is a scheduled handler that calls `onLow`:
+
+```ts title="lib/ai/credits.ts"
+import { gateway } from "ai";
+import { checkGatewayCredits, creditsMonitor } from "better-supabase/ai-sdk";
+
+(await checkGatewayCredits({ gateway, minimumMicroUsd: 5_000_000 })).orThrow();
+
+export const monitor = creditsMonitor({
+  gateway,
+  minimumMicroUsd: 5_000_000,
+  onLow: (credits) => notify(`AI Gateway balance is ${credits.balanceMicroUsd} micro-USD`),
+});
+```
+
+## Virtual models
+
+A virtual model (`vmc/<slug>`) is a routing rule you define in the Vercel
+dashboard. `virtualModelCatalogRefresh` adds the team's virtual models to the
+chat block's model catalog next to the provider models that
+`modelCatalogRefresh` writes, marked `capabilities.virtual`.
+
+A call to a virtual model replaces the request's `tags` with the tags the rule
+sets, so the `org:` tag that [`spendReconciliation`](/docs/ai-sdk/telemetry)
+groups by never reaches the spend report. The `user` is kept.
+`virtualModelSpendReconciliation` reads the day's spend grouped by user and
+maps each user to an organization with your `organizationOf` function. Send
+`user: "<organizationId>:<userId>"` for users in several organizations and split
+it there. Spend of users it can't map is returned as `unattributedMicroUsd`.
+
+```ts title="jobs/virtual-spend.ts"
+import { gateway } from "ai";
+import { virtualModelSpendReconciliation } from "better-supabase/ai-sdk";
+
+export const handler = virtualModelSpendReconciliation({
+  gateway,
+  usage: serviceUsage,
+  organizationOf: (user) => user.split(":")[0],
+});
+```
+
+Per-call metering through [`meterTelemetry`](/docs/ai-sdk/telemetry) keeps
+working for virtual models, because it reads the tags of the request your app
+sent, not the ones the gateway applied.
