@@ -1,4 +1,4 @@
-import { cacheLife, cacheTag, io } from "next/cache.js";
+import { cacheLife, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
 import { cookies } from "next/headers.js";
 import { cache } from "react";
@@ -75,6 +75,7 @@ import {
   validateBound,
   withReadSetTables,
 } from "./action-bound.ts";
+import { applyCacheTags } from "./cache-tags.ts";
 import {
   invalidateAll,
   nextCache,
@@ -1068,10 +1069,10 @@ export function createNext<
     ...flows,
 
     tag(table, id, tagOptions = {}) {
-      cacheTag(
+      applyCacheTags([
         ...tableTags(table, tagOptions),
         ...(id === undefined ? [] : [tagFor(table, id)]),
-      );
+      ]);
     },
 
     tags(target, tagOptions = {}) {
@@ -1120,7 +1121,7 @@ export function createNext<
         }
       }
 
-      cacheTag(...tags);
+      applyCacheTags(tags);
     },
 
     blockAction: (client, method, blockOptions) =>
