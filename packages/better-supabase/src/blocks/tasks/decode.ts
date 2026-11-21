@@ -25,7 +25,7 @@ export const num = (value: unknown): number | undefined => {
   return undefined;
 };
 
-export const date = (value: unknown): Temporal.PlainDate | undefined =>
+const date = (value: unknown): Temporal.PlainDate | undefined =>
   typeof value === "string"
     ? temporal().PlainDate.from(value.slice(0, 10))
     : undefined;
