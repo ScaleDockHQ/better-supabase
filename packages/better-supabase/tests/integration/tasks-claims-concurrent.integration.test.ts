@@ -1,9 +1,12 @@
 import type { PoolClient } from "pg";
 
 import { Pool } from "pg";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { dbUrl, reachable } from "./block-session.ts";
+import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
+
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
+import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
@@ -11,27 +14,65 @@ const live = await reachable();
  * Claims across real connections. The harness in
  * `tasks-coordination.integration.test.ts` runs one rolled-back transaction, so
  * it can't show two workers racing. This file commits its own organization and
- * work items (the stack's `work_items` noun carries the same SQL as the tasks
- * block), runs each worker in a transaction of its own as the service role, and
- * deletes everything it made. Workers are told apart by profile name, because a
- * holder that claims again keeps its token (ADR 1112) and the service role has
- * no user id. Nothing here reads memberships, so suites that commit other
- * module renders into the shared stack can't change the outcome.
+ * tasks (it renders the tasks block), runs each worker in a transaction of its
+ * own as the service role, and deletes everything it made. Workers are told
+ * apart by profile name, because a holder that claims again keeps its token
+ * (ADR 1112) and the service role has no user id.
  */
 describe.skipIf(!live)("concurrent task claims", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 12 });
   const orgs: string[] = [];
 
+  // Other files commit renders of the pipelines module with their own
+  // subjects, so this file commits the tasks render it claims against.
+  beforeAll(async () => {
+    const layout: BlockSqlLayout = {
+      subjects: withBlockSubjects({}, ["tasks"], {}),
+      modules: {
+        tasks: {
+          tables: { projects: "work_projects" },
+          options: {
+            needs: { kind: "blocks" },
+            claims: { lease: 60, maxLease: 600 },
+          },
+        },
+      },
+    };
+
+    const session = await BlockSession.open(pool);
+
+    try {
+      await session.install(
+        [
+          "organizations",
+          "outbox",
+          "notifications",
+          "subjects",
+          "rank",
+          "relations",
+          "pipelines",
+          "messaging",
+          "tasks",
+        ],
+        layout,
+      );
+
+      await session.client.query("commit");
+    } finally {
+      session.client.release();
+    }
+  });
+
   afterAll(async () => {
     try {
       for (const org of orgs) {
         await pool.query(
-          "delete from better_supabase.work_item_claims where tenant_id = $1",
+          "delete from better_supabase.task_claims where tenant_id = $1",
           [org],
         );
 
         await pool.query(
-          "delete from better_supabase.work_items where tenant_id = $1",
+          "delete from better_supabase.tasks where tenant_id = $1",
           [org],
         );
 
@@ -73,7 +114,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
         const {
           rows: [row],
         } = await client.query<{ task: { id: string } }>(
-          "select better_supabase.create_work_item($1, $2, null) as task",
+          "select better_supabase.create_task($1, $2, null) as task",
           [org, { title: `Task ${String(index)}`, teamId: team }],
         );
 
@@ -108,7 +149,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
         const {
           rows: [row],
         } = await client.query<{ claimed: { task: { id: string } } }>(
-          "select better_supabase.claim_next_work_item($1, null, null, $2::jsonb) as claimed",
+          "select better_supabase.claim_next_task($1, null, null, $2::jsonb) as claimed",
           [org, worker(index)],
         );
 
@@ -143,7 +184,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
     expect(new Set(won)).toEqual(new Set(tasks));
 
     const { rows } = await pool.query(
-      "select 1 from better_supabase.work_item_claims where tenant_id = $1",
+      "select 1 from better_supabase.task_claims where tenant_id = $1",
       [org],
     );
 
@@ -161,7 +202,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
       const {
         rows: [row],
       } = await holder.query<{ claimed: { task: { id: string } } }>(
-        "select better_supabase.claim_next_work_item($1, null, null, $2::jsonb) as claimed",
+        "select better_supabase.claim_next_task($1, null, null, $2::jsonb) as claimed",
         [org, worker(0)],
       );
 
@@ -200,7 +241,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
 
         try {
           await client.query(
-            "select better_supabase.claim_work_item($1, null, $2::jsonb)",
+            "select better_supabase.claim_task($1, null, $2::jsonb)",
             [tasks[0], worker(index)],
           );
 
@@ -222,7 +263,7 @@ describe.skipIf(!live)("concurrent task claims", () => {
     expect(results.toSorted()).toEqual(["TASK_CLAIMED", "won"]);
 
     const { rows } = await pool.query(
-      "select 1 from better_supabase.work_item_claims where tenant_id = $1",
+      "select 1 from better_supabase.task_claims where tenant_id = $1",
       [org],
     );
 

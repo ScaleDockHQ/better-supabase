@@ -23,9 +23,11 @@ describe.skipIf(!live)("permission escalation", () => {
     try {
       const owner = await s.user("owner");
       const admin = await s.user("admin");
-      await s.install(["organizations", "permissions"], {
-        modules: { permissions: { model: "catalog" } },
-      });
+      await s.install(
+        ["organizations", "permissions"],
+        { modules: { permissions: { model: "catalog" } } },
+        { freshMemberships: true },
+      );
       const org = await s.organization(owner, { admin });
       const permissions = createPermissions({ transport: sqlTransport(s.sql) });
       await s.as(admin);

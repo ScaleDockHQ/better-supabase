@@ -76,6 +76,7 @@ export class BlockSession {
   async install(
     names: readonly string[],
     layout: BlockSqlLayout = {},
+    options: { freshMemberships?: boolean } = {},
   ): Promise<void> {
     // The seed's team members belong to the fixture's `public.memberships`,
     // which a render over another memberships table can't reference. The
@@ -102,9 +103,10 @@ export class BlockSession {
     // catalog keys (uuid) under the catalog model. The catalog's
     // memberships_role_fkey can't be added over text names, and a render can't
     // convert the names, so a render that changes the model starts from a new
-    // table. A real app that switches the model migrates its roles first
+    // table. Only a test that opts in drops it, because the drop cascades
+    // to the policies that read the table and a committing suite would keep that. A real app that switches the model migrates its roles first
     // (ADR 1160).
-    if (names.includes("permissions")) {
+    if (options.freshMemberships === true && names.includes("permissions")) {
       const wanted =
         layout.modules?.permissions?.model === "catalog" ? "uuid" : "text";
 
@@ -114,7 +116,7 @@ export class BlockSession {
           if to_regclass('better_supabase.memberships') is not null
             and exists (
               select 1 from pg_attribute
-              where attrelid = 'better_supabase.memberships'::regclass
+              where attrelid = to_regclass('better_supabase.memberships')
                 and attname = 'role' and not attisdropped
                 and atttypid <> $1::regtype
             ) then
@@ -268,7 +270,7 @@ export class BlockSession {
       const { rows } = await this.client.query<{ catalog: boolean }>(
         `select exists (
           select 1 from pg_attribute
-          where attrelid = 'better_supabase.memberships'::regclass
+          where attrelid = to_regclass('better_supabase.memberships')
             and attname = 'role' and atttypid = 'uuid'::regtype
         ) as catalog`,
       );
