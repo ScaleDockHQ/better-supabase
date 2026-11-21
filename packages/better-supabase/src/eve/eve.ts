@@ -25,6 +25,14 @@ export {
 
 export type { SupabaseAuthOptions, SupabaseJwtAuthOptions } from "./auth.ts";
 
+export { connectAuth } from "./connect-auth.ts";
+
+export type {
+  ConnectAuthOptions,
+  ConnectEveFunction,
+  ConnectEveOptions,
+} from "./connect-auth.ts";
+
 export {
   ConnectionAuthorizationFailedError,
   ConnectionAuthorizationRequiredError,

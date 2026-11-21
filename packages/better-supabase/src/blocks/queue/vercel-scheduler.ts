@@ -33,13 +33,15 @@ export interface VercelSchedule {
   readonly target: { readonly type: string; readonly topic?: string };
   readonly source: string;
   readonly createdAt: number;
+  /** Absent in clients that predate `enable` and `disable`. */
+  readonly state?: "active" | "inactive";
 }
 
 /** The arguments of `create` and `update`, as `@vercel/schedules` takes them. */
 export interface VercelScheduleWrite {
   readonly name: string;
   readonly namespace?: string;
-  readonly expression: { readonly type: "cron"; readonly cron: string };
+  readonly expression: VercelScheduleExpression;
   readonly timezone?: string;
   readonly jitter?: number;
   readonly target: { readonly topic: string };
@@ -54,6 +56,24 @@ export interface VercelSchedulesClient {
   create(params: VercelScheduleWrite): PromiseLike<VercelSchedule>;
   update(params: VercelScheduleWrite): PromiseLike<VercelSchedule>;
   delete(params: {
+    readonly name: string;
+    readonly namespace?: string;
+  }): PromiseLike<unknown>;
+  /** The next four are optional so a client without them still fits. */
+  get?(params: {
+    readonly name: string;
+    readonly namespace?: string;
+  }): PromiseLike<VercelSchedule>;
+  enable?(params: {
+    readonly name: string;
+    readonly namespace?: string;
+    readonly until?: number;
+  }): PromiseLike<unknown>;
+  disable?(params: {
+    readonly name: string;
+    readonly namespace?: string;
+  }): PromiseLike<unknown>;
+  invoke?(params: {
     readonly name: string;
     readonly namespace?: string;
   }): PromiseLike<unknown>;
@@ -185,6 +205,39 @@ export function vercelSchedulesErrorOf(cause: unknown): DbError | undefined {
   );
 }
 
+/** The wall-clock minute of `at` in `timeZone`, rounded up: `YYYY-MM-DDTHH:mm`. */
+function localMinute(at: Temporal.Instant, timeZone: string): string {
+  const exact = at.toZonedDateTimeISO(timeZone);
+
+  const whole =
+    exact.second === 0 &&
+    exact.millisecond === 0 &&
+    exact.microsecond === 0 &&
+    exact.nanosecond === 0;
+
+  return (whole ? exact : exact.add({ minutes: 1 }))
+    .toPlainDateTime()
+    .toString({ smallestUnit: "minute" });
+}
+
+function instantOfLocal(at: string, timeZone: string): Temporal.Instant {
+  return temporal()
+    .PlainDateTime.from(at)
+    .toZonedDateTime(timeZone)
+    .toInstant();
+}
+
+/** A client method the scheduler needs, or an `invalid_request`. */
+function need<F>(feature: string, method: F | undefined): F {
+  if (method === undefined) {
+    throw invalid(
+      `${feature} needs a @vercel/schedules client with get, enable, disable and invoke`,
+    );
+  }
+
+  return method;
+}
+
 /** Rethrows a `SchedulesApiError` as a `DbException`, anything else as it is. */
 function rethrow(cause: unknown): never {
   const error = vercelSchedulesErrorOf(cause);
@@ -283,13 +336,18 @@ export function vercelScheduler(
     name: string,
     tenant: string | undefined,
   ): StoredSchedule => {
+    const once = schedule.expression.type === "single";
+
     const cron =
       schedule.expression.type === "cron" ? schedule.expression.cron : "";
 
     let nextRun: Temporal.Instant | null = null;
 
     try {
-      nextRun = nextCronRun(cron, schedule.timezone, now());
+      nextRun =
+        schedule.expression.type === "single"
+          ? instantOfLocal(schedule.expression.at, schedule.timezone)
+          : nextCronRun(cron, schedule.timezone, now());
     } catch {
       nextRun = null;
     }
@@ -307,7 +365,71 @@ export function vercelScheduler(
       leasedUntil: null,
       createdAt: temporal().Instant.fromEpochMilliseconds(schedule.createdAt),
       probe: null,
+      once,
+      ...(schedule.state === undefined
+        ? {}
+        : { enabled: schedule.state === "active" }),
     };
+  };
+
+  const identity = async (name: string, tenant: string | undefined) => ({
+    name: await vercelScheduleNameOf(name),
+    namespace: await namespaceOf(tenant),
+  });
+
+  /** `false` for a missing schedule, `true` once `call` returned. */
+  const found = async (call: () => Promise<void>): Promise<boolean> => {
+    try {
+      await call();
+
+      return true;
+    } catch (cause) {
+      if (codeOf(cause) === "not_found") {
+        return false;
+      }
+
+      return rethrow(cause);
+    }
+  };
+
+  const writeSchedule = async (
+    name: string,
+    expression: VercelScheduleExpression,
+    queue: string,
+    payload: unknown,
+    timeZone: string,
+    tenant: string | undefined,
+    probe: string | undefined,
+  ): Promise<void> => {
+    if (probe !== undefined && options.bridge === undefined) {
+      throw invalid(
+        `The schedule "${name}" names the probe ${probe}, but a Vercel schedule that publishes to the job's topic runs without asking the database. Pass vercelScheduler(client, { bridge }) with vercelScheduleBridgeRoute, or use the drain scheduler`,
+      );
+    }
+
+    const body: VercelScheduleBody = {
+      payload: payload ?? {},
+      max_attempts: 5,
+      name,
+      queue,
+      ...(probe === undefined ? {} : { probe }),
+    };
+
+    if (new TextEncoder().encode(JSON.stringify(body)).length > MAX_PAYLOAD) {
+      throw invalid(
+        `The payload of the schedule "${name}" is larger than the 16 KB Vercel Schedules keeps`,
+      );
+    }
+
+    await write({
+      name: await vercelScheduleNameOf(name),
+      namespace: await namespaceOf(tenant),
+      expression,
+      timezone: timeZone,
+      ...(options.jitter === undefined ? {} : { jitter: options.jitter }),
+      target: { topic: options.bridge ?? vercelTopicOf(queue) },
+      payload: body,
+    });
   };
 
   return {
@@ -329,12 +451,6 @@ export function vercelScheduler(
       tenant,
       probe,
     ) {
-      if (probe !== undefined && options.bridge === undefined) {
-        throw invalid(
-          `The schedule "${name}" names the probe ${probe}, but a Vercel schedule that publishes to the job's topic runs without asking the database. Pass vercelScheduler(client, { bridge }) with vercelScheduleBridgeRoute, or use the drain scheduler`,
-        );
-      }
-
       let expression: string;
 
       try {
@@ -343,28 +459,64 @@ export function vercelScheduler(
         throw invalid(errorText(cause));
       }
 
-      const body: VercelScheduleBody = {
-        payload: payload ?? {},
-        max_attempts: 5,
+      await writeSchedule(
         name,
+        { type: "cron", cron: expression },
         queue,
-        ...(probe === undefined ? {} : { probe }),
-      };
+        payload,
+        timeZone,
+        tenant,
+        probe,
+      );
+    },
+    async scheduleOnce(name, at, queue, payload, timeZone, tenant, probe) {
+      await writeSchedule(
+        name,
+        { type: "single", at: localMinute(at, timeZone) },
+        queue,
+        payload,
+        timeZone,
+        tenant,
+        probe,
+      );
+    },
+    async getSchedule(name, tenant) {
+      const get = need("getSchedule", client.get?.bind(client));
 
-      if (new TextEncoder().encode(JSON.stringify(body)).length > MAX_PAYLOAD) {
-        throw invalid(
-          `The payload of the schedule "${name}" is larger than the 16 KB Vercel Schedules keeps`,
-        );
+      try {
+        const schedule = await get(await identity(name, tenant));
+
+        return storedOf(schedule, name, tenant);
+      } catch (cause) {
+        if (codeOf(cause) === "not_found") {
+          return null;
+        }
+
+        return rethrow(cause);
       }
+    },
+    async enableSchedule(name, tenant, until) {
+      const enable = need("enableSchedule", client.enable?.bind(client));
 
-      await write({
-        name: await vercelScheduleNameOf(name),
-        namespace: await namespaceOf(tenant),
-        expression: { type: "cron", cron: expression },
-        timezone: timeZone,
-        ...(options.jitter === undefined ? {} : { jitter: options.jitter }),
-        target: { topic: options.bridge ?? vercelTopicOf(queue) },
-        payload: body,
+      return found(async () => {
+        await enable({
+          ...(await identity(name, tenant)),
+          ...(until === undefined ? {} : { until: until.epochMilliseconds }),
+        });
+      });
+    },
+    async disableSchedule(name, tenant) {
+      const disable = need("disableSchedule", client.disable?.bind(client));
+
+      return found(async () => {
+        await disable(await identity(name, tenant));
+      });
+    },
+    async runScheduleNow(name, tenant) {
+      const invoke = need("runScheduleNow", client.invoke?.bind(client));
+
+      return found(async () => {
+        await invoke(await identity(name, tenant));
       });
     },
     async unschedule(name, tenant) {

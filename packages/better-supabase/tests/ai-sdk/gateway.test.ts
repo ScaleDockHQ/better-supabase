@@ -40,6 +40,7 @@ describe("gatewayOptions", () => {
     expect(
       gatewayOptions(
         { userId: "u", organizationId: "o", chatId: "c", feature: "chat" },
+        // @ts-expect-error a non-string tag is dropped at runtime
         { order: ["anthropic"], tags: ["team:x", 1] },
       ),
     ).toEqual({

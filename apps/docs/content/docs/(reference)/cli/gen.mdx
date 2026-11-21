@@ -380,7 +380,11 @@ In order:
 5. `$DATABASE_URL`;
 6. `$SUPABASE_DB_URL`, the name the Supabase CLI and `better-supabase dev env`
    use;
-7. the local stack, on the `[db] port` from `supabase/config.toml`. When
+7. `$POSTGRES_URL_NON_POOLING`, then `$POSTGRES_URL`: the direct and pooled
+   strings the Vercel Marketplace integration sets, which `vercel env pull` or
+   `vercel env run -- better-supabase gen` puts in the environment (the direct
+   one comes first, because introspection needs a session);
+8. the local stack, on the `[db] port` from `supabase/config.toml`. When
    `config.toml` sets no port, as on the CLI's stack engine
    (`[experimental] stack = true`), the `DB_URL` from `supabase status`. When
    neither answers, the command fails with `not_found` and names both, instead

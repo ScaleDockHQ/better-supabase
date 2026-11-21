@@ -1,4 +1,4 @@
-import type { JSONValue } from "ai";
+import type { GatewayProviderOptions } from "./gateway-provider-options.ts";
 
 /** Who a generation is for, as the AI Gateway reports spend. */
 export interface GatewayContext {
@@ -11,8 +11,11 @@ export interface GatewayContext {
   readonly tags?: readonly string[];
 }
 
-/** The AI Gateway's own options (`providerOptions.gateway`). */
-export type GatewayOptions = { readonly [key: string]: JSONValue | undefined };
+/**
+ * The AI Gateway's own options (`providerOptions.gateway`), typed like the
+ * SDK's `GatewayProviderOptions` (`gateway-provider-options.ts`).
+ */
+export type GatewayOptions = GatewayProviderOptions;
 
 /**
  * `providerOptions` for `streamText` and agents that attribute the spend in the
@@ -44,7 +47,7 @@ export function gatewayOptions(
     tags.push(...context.tags);
   }
 
-  const more = extra["tags"];
+  const more = extra.tags;
 
   if (Array.isArray(more)) {
     for (const tag of more) {

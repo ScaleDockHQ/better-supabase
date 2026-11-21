@@ -809,17 +809,21 @@ entry. Tag your cached reads to match:
 ```ts
 async function publicPlans() {
   "use cache";
-  bsb.tag("plans");
-  return bsb
-    .admin()
-    .plans.list({ where: { public: true } })
-    .orThrow();
+  const { db } = await bsb.public({ tables: ["plans"] });
+
+  return db.plans.list({ where: { public: true } }).orThrow();
 }
 ```
 
+`bsb.public()` reads as the `anon` role, so Row Level Security decides what the
+cache may hold, and it tags the entry itself. Use `bsb.admin()` only for data no
+policy describes. [BS640](/docs/cli/doctor#bs640) reports a plain `"use cache"`
+function that reads cookies, headers or `bsb.cached()`. Writes from outside the
+process expire these tags through [a signed route](/docs/vercel/cache).
+
 <Callout title="Caching user data">
-  `"use cache"` functions cannot read cookies or headers. Cache public or
-  service-level reads there. Per-user reads stay on `bsb.context()`, which is
+  `"use cache"` functions cannot read cookies or headers. Cache public reads
+  there with `bsb.public()`. Per-user reads stay on `bsb.context()`, which is
   already deduplicated per request; with Cache Components, wrap them in `"use
   cache: private"`
   ([how](/docs/frameworks/next-cache-components#6-data-derived-from-the-session)).

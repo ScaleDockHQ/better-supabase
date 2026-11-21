@@ -1,3 +1,10 @@
+export { cancelTenantRuns } from "./cancel.ts";
+
+export type {
+  CancelTenantRunsOptions,
+  CancelTenantRunsResult,
+} from "./cancel.ts";
+
 export {
   APPROVAL_OUTCOME_EVENTS,
   approvalWaiter,
@@ -10,6 +17,14 @@ export {
 } from "./approval-waiter.ts";
 
 export { WORKFLOW_ATTRIBUTES } from "./attributes.ts";
+
+export {
+  registerWorkflowLifecycle,
+  workflowSdkEvents,
+  type WorkflowLifecycleOptions,
+  type WorkflowSdkEvents,
+  type WorkflowSdkRunEventData,
+} from "./lifecycle.ts";
 
 export type {
   OpenHooksOptions,
@@ -49,6 +64,7 @@ export {
   workflowStarter,
   type AuthorizeHookOptions,
   type ProtectWebHandlerOptions,
+  type StartForHook,
   type StartForOptions,
   type StartOnceOptions,
   type StartOnEventOptions,

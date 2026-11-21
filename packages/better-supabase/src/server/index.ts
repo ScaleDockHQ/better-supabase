@@ -390,6 +390,25 @@ export type { ServerTiming } from "./entries/timing.ts";
 
 export { cacheTagsOf, tagCache, tagFor } from "../core/tags.ts";
 
+export { cacheRoute } from "../core/cache-route.ts";
+
+export type { CacheRouteOptions } from "../core/cache-route.ts";
+
+export {
+  encodeCacheTag,
+  vercelCdnCache,
+  vercelRuntimeCacheAdapter,
+} from "../core/cache-vercel.ts";
+
+export type {
+  RuntimeCacheEntryOptions,
+  VercelCdnCache,
+  VercelCdnFunctions,
+  VercelRuntimeCacheAdapter,
+  VercelRuntimeCacheAdapterOptions,
+  VercelRuntimeCacheTags,
+} from "../core/cache-vercel.ts";
+
 export { sessionIdTag, sessionTag, tableTags } from "./cache-tags.ts";
 
 export type {

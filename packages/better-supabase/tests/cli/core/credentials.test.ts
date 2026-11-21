@@ -51,4 +51,25 @@ describe("credentials", () => {
       from: "--db-url-stdin",
     });
   });
+
+  it("falls back to the Vercel integration's direct, then pooled string", () => {
+    expect(
+      databaseUrlCredential(bare, {
+        POSTGRES_URL: "postgres://pooled",
+        POSTGRES_URL_NON_POOLING: "postgres://direct",
+      }),
+    ).toEqual({
+      value: "postgres://direct",
+      from: "$POSTGRES_URL_NON_POOLING",
+    });
+    expect(
+      databaseUrlCredential(bare, { POSTGRES_URL: "postgres://pooled" })?.from,
+    ).toBe("$POSTGRES_URL");
+    expect(
+      databaseUrlCredential(bare, {
+        SUPABASE_DB_URL: "postgres://supabase",
+        POSTGRES_URL_NON_POOLING: "postgres://direct",
+      })?.from,
+    ).toBe("$SUPABASE_DB_URL");
+  });
 });

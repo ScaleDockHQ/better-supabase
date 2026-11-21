@@ -1,10 +1,13 @@
+import type { Instrumentation } from "next";
+
 /**
  * Meters AI SDK calls on the usage block, syncs the workflow builder's step
- * library and the rule fields, logs failed workflow runs through the Workflow
- * SDK's lifecycle hooks, then, in `next dev`, seeds each new organization with
- * demo rows and starts the Supabase World's poller, which delivers queued
- * workflow steps to this server. Deployments use pg_net delivery
- * (`WORKFLOW_DELIVERY=pg_net`) or their own worker instead.
+ * library and the rule fields, writes finished workflow runs to the outbox
+ * through the Workflow SDK's lifecycle hooks, bridges Next.js's
+ * `onRequestError` to the event sinks, then, in `next dev`, seeds each new
+ * organization with demo rows and starts the Supabase World's poller, which
+ * delivers queued workflow steps to this server. Deployments use pg_net
+ * delivery (`WORKFLOW_DELIVERY=pg_net`) or their own worker instead.
  */
 let unregisterHooks: (() => void) | undefined;
 
@@ -29,15 +32,11 @@ export async function register(): Promise<void> {
   await Promise.all([syncStepLibrary(), syncRuleFields()]);
   startEventTriggers();
 
-  const { registerLifecycleHooks } = await import("workflow/api");
+  const { registerWorkflowReports } =
+    await import("./features/observability/observability");
+
   unregisterHooks?.();
-  unregisterHooks = registerLifecycleHooks({
-    onRunFailed: ({ workflowName, run, error }) => {
-      console.error(
-        `Workflow run ${run.runId} (${workflowName}) failed: ${error.message}`,
-      );
-    },
-  });
+  unregisterHooks = registerWorkflowReports();
 
   if (process.env.NODE_ENV === "development") {
     const { seedNewTenants } =
@@ -58,3 +57,23 @@ export async function register(): Promise<void> {
   const world = await getWorld();
   await world.start?.();
 }
+
+/**
+ * Turns every server error into a `request.failed` event on the event sinks.
+ * The handler loads on first use, so the edge build of this file stays free of
+ * the server client.
+ */
+export const onRequestError: Instrumentation.onRequestError = async (
+  error,
+  request,
+  context,
+) => {
+  if (process.env["NEXT_RUNTIME"] !== "nodejs") {
+    return;
+  }
+
+  const { requestErrorHandler } =
+    await import("./features/observability/observability");
+
+  await requestErrorHandler()(error, request, context);
+};

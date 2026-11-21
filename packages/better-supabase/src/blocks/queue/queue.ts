@@ -63,6 +63,7 @@ import {
   millis,
   pgmqPublicBackend,
   sqlOnly,
+  unsupportedSchedule,
   sqlQueueProvider,
   transportQueueProvider,
 } from "./backends.ts";
@@ -919,6 +920,76 @@ export function createQueue<const Q extends QueueSchemas>(
     },
     unschedule: (name, unscheduleOptions = {}) =>
       run(() => scheduler.unschedule(name, unscheduleOptions.tenant)),
+    scheduleOnce({ name, at, queue, payload, ...scheduleOptions }) {
+      return AsyncResult.from(async () => {
+        const valid = await validate(schemaOf(queue), payload, "payload");
+
+        if (!valid.ok) {
+          return valid;
+        }
+
+        const wrapped = wrapPayload(valid.data, scheduleOptions.context);
+
+        if (!wrapped.ok) {
+          return wrapped;
+        }
+
+        return run(async () => {
+          if (!scheduler.scheduleOnce) {
+            unsupportedSchedule("scheduleOnce", scheduler.name);
+          }
+
+          await scheduler.scheduleOnce(
+            name,
+            at,
+            queue,
+            wrapped.data,
+            scheduleOptions.timeZone ?? "UTC",
+            scheduleOptions.tenant ??
+              (scheduleOptions.context
+                ? tenantFrom(scheduleOptions.context, tenantPathsFor(undefined))
+                : undefined),
+            scheduleOptions.probe,
+          );
+        });
+      });
+    },
+    getSchedule: (name, getOptions = {}) =>
+      run(async () => {
+        if (!scheduler.getSchedule) {
+          unsupportedSchedule("getSchedule", scheduler.name);
+        }
+
+        return (await scheduler.getSchedule(name, getOptions.tenant)) ?? null;
+      }),
+    enableSchedule: (name, enableOptions = {}) =>
+      run(async () => {
+        if (!scheduler.enableSchedule) {
+          unsupportedSchedule("enableSchedule", scheduler.name);
+        }
+
+        return scheduler.enableSchedule(
+          name,
+          enableOptions.tenant,
+          enableOptions.until,
+        );
+      }),
+    disableSchedule: (name, disableOptions = {}) =>
+      run(async () => {
+        if (!scheduler.disableSchedule) {
+          unsupportedSchedule("disableSchedule", scheduler.name);
+        }
+
+        return scheduler.disableSchedule(name, disableOptions.tenant);
+      }),
+    runSchedule: (name, runOptions = {}) =>
+      run(async () => {
+        if (!scheduler.runScheduleNow) {
+          unsupportedSchedule("runSchedule", scheduler.name);
+        }
+
+        return scheduler.runScheduleNow(name, runOptions.tenant);
+      }),
     ensureSchedules({ definitions, options: ensureOptions }) {
       return AsyncResult.from(async () => {
         const { prefix, tenant } = ensureOptions;

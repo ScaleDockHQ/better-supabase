@@ -199,6 +199,7 @@ const PURE_BARRELS = [
   "streams",
   "streams/redis",
   "credentials",
+  "vercel",
   "vercel-connect",
   "vercel-sandbox",
   "vercel-security",

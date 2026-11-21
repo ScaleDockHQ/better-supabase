@@ -322,6 +322,7 @@ const NODE_LOADED = [
   "./next",
   "./next/client",
   "./next/offline",
+  "./next/instrumentation",
   "./next/image",
   "./next/proxy",
   "./next/auth-gate",

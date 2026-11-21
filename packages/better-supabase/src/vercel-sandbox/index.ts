@@ -25,3 +25,16 @@ export {
   VERCEL_SANDBOX_PROVIDER,
   vercelSandboxes,
 } from "./vercel-sandbox.ts";
+
+export type {
+  SupabaseAccessFromOptions,
+  SupabaseAccessOptions,
+  SupabaseAccessService,
+  SupabaseAccessToken,
+} from "./supabase-access.ts";
+
+export {
+  DEFAULT_SUPABASE_ACCESS_SERVICES,
+  supabaseAccess,
+  supabaseAccessFrom,
+} from "./supabase-access.ts";

@@ -59,6 +59,13 @@ export type EnvSource = Readonly<Record<string, string | undefined>>;
 export interface EnvOptions {
   /** Settings that must be present. `url` and `publishableKey` always are. */
   readonly require?: readonly ("secretKey" | "dbUrl")[];
+  /**
+   * The custom prefix a Vercel Marketplace integration was connected with
+   * (`DB1` reads `DB1_SUPABASE_URL`, `DB1_POSTGRES_URL` and so on). Prefixed
+   * names win over the plain ones. Letters, digits and underscores, starting
+   * with a letter; Vercel adds the underscore.
+   */
+  readonly prefix?: string;
 }
 
 export type EnvResult =
@@ -111,6 +118,69 @@ export const ENV_VARIABLES: {
 };
 
 const HOSTED = /^([a-z0-9]{20})\.supabase\.co$/;
+
+const PREFIX_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/**
+ * The project ref of a hosted project URL (`https://<ref>.supabase.co`), or
+ * `undefined` for a local, custom-domain or malformed URL.
+ */
+export function projectRefOf(url: string): string | undefined {
+  try {
+    return HOSTED.exec(new URL(url).hostname)?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `source` with each `<prefix>_NAME` also set as `NAME`, the way Vercel names
+ * the variables of an integration connected with a custom prefix. A prefixed
+ * name replaces the plain one; empty values are skipped. The prefix may end
+ * with the underscore Vercel adds.
+ */
+export function withEnvPrefix(source: EnvSource, prefix: string): EnvSource {
+  const bare = prefix.replace(/_+$/, "");
+
+  if (!PREFIX_NAME.test(bare)) {
+    throw new TypeError(
+      `better-supabase: the env prefix must start with a letter and hold only letters, digits and underscores, got "${prefix}"`,
+    );
+  }
+
+  const start = `${bare}_`;
+  const merged: Record<string, string | undefined> = { ...source };
+
+  for (const [name, value] of Object.entries(source)) {
+    if (name.startsWith(start) && name.length > start.length && value) {
+      merged[name.slice(start.length)] = value;
+    }
+  }
+
+  return merged;
+}
+
+const LEGACY_PUBLISHABLE = [
+  "SUPABASE_ANON_KEY",
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  "VITE_SUPABASE_ANON_KEY",
+  "PUBLIC_SUPABASE_ANON_KEY",
+  "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+  "NUXT_PUBLIC_SUPABASE_ANON_KEY",
+] as const;
+
+/** The legacy names in `names` that `source` sets, for a "not set" message. */
+function legacyNote(
+  source: EnvSource,
+  names: readonly string[],
+  replacement: string,
+): string {
+  const found = names.find((name) => source[name]?.trim());
+
+  return found === undefined
+    ? "is not set"
+    : `is not set. ${found} is the legacy name and is not read; set ${replacement} to an sb_ key (Project Settings > API Keys)`;
+}
 
 function first(
   source: EnvSource,
@@ -244,9 +314,14 @@ function checkJwks(raw: string, issues: EnvIssue[]): InlineJwks | undefined {
  * spellings. Issues name variables, never values.
  */
 export function parseEnv(
-  source: EnvSource,
+  rawSource: EnvSource,
   options: EnvOptions = {},
 ): EnvResult {
+  const source =
+    options.prefix === undefined
+      ? rawSource
+      : withEnvPrefix(rawSource, options.prefix);
+
   const issues: EnvIssue[] = [];
   const required = new Set(options.require);
 
@@ -270,7 +345,11 @@ export function parseEnv(
   if (!publishableKey) {
     issues.push({
       variables: ENV_VARIABLES.publishableKey,
-      message: "is not set",
+      message: legacyNote(
+        source,
+        LEGACY_PUBLISHABLE,
+        "SUPABASE_PUBLISHABLE_KEY",
+      ),
     });
   } else if (singlePublishable) {
     checkKey(
@@ -288,7 +367,14 @@ export function parseEnv(
   if (singleSecret) {
     checkKey(singleSecret, "secret", ENV_VARIABLES.secretKey, issues);
   } else if (!secretKey && required.has("secretKey")) {
-    issues.push({ variables: ENV_VARIABLES.secretKey, message: "is not set" });
+    issues.push({
+      variables: ENV_VARIABLES.secretKey,
+      message: legacyNote(
+        source,
+        ["SUPABASE_SERVICE_ROLE_KEY"],
+        "SUPABASE_SECRET_KEY",
+      ),
+    });
   }
 
   const dbUrl = first(source, ENV_VARIABLES.dbUrl);

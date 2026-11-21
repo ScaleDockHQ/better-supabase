@@ -1,0 +1,16 @@
+export {
+  PROTECTION_BYPASS_HEADER,
+  PROTECTION_BYPASS_VARIABLE,
+  assertDeployment,
+  deploymentIssues,
+  deploymentUrl,
+  protectionBypassHeaders,
+  protectionBypassUrl,
+  vercelEnvironment,
+  type DeploymentCheckOptions,
+  type DeploymentUrlOptions,
+  type DeploymentUrlTarget,
+  type EnvIssue,
+  type EnvSource,
+  type ProtectionBypassOptions,
+} from "./vercel.ts";

@@ -167,6 +167,48 @@ function adminInPrivateScope(context: DoctorContext): FindingInput[] {
   );
 }
 
+/** A function whose first statement is the plain `"use cache"` directive. */
+const PLAIN_FUNCTION =
+  /(?:function\s+(\w+)\s*\([^)]*\)[^{=]*|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(?:function\s*)?\([^)]*\)[^{=]*(?:=>)?\s*)\{\s*["']use cache["']/g;
+
+/** A read of the request, or a better-supabase call that makes one. */
+const REQUEST_READ =
+  /(?<![.\w$])(?:cookies|headers)\s*\(|\bbsb\.(?:cached|context|user)\s*\(/;
+
+/**
+ * A plain `"use cache"` function that reads the request (BS640): Next.js
+ * rejects `cookies()` and `headers()` there, and `bsb.cached()` reads both. Use
+ * `bsb.public()` for data every visitor may read, or a `: private` scope for
+ * the user's own.
+ */
+function requestInPlainCache(context: DoctorContext): FindingInput[] {
+  return context.sources.flatMap((source) =>
+    [...source.text.matchAll(PLAIN_FUNCTION)].flatMap((match) => {
+      const name = match[1] ?? match[2];
+
+      if (
+        name === undefined ||
+        !REQUEST_READ.test(
+          blockAt(source.text, match.index + match[0].lastIndexOf("{")),
+        )
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          message: `${source.path}: ${name} runs in \`"use cache"\` and reads the request (\`cookies()\`, \`headers()\`, \`bsb.cached()\`, \`bsb.context()\` or \`bsb.user()\`). Next.js rejects that in a shared scope. Call \`bsb.public()\` for data every visitor may read, or use \`"use cache: private"\` for the user's own.`,
+          target: `${source.path}:${name}`,
+          location: {
+            file: source.path,
+            line: source.text.slice(0, match.index).split("\n").length,
+          },
+        },
+      ];
+    }),
+  );
+}
+
 export const NEXT_CACHE_RULES: readonly Rule[] = [
   {
     code: "BS608",
@@ -191,6 +233,14 @@ export const NEXT_CACHE_RULES: readonly Rule[] = [
     description:
       "A function with `\"use cache: private\"` calls `bsb.admin()` or `createAdminClient`. The service role ignores the user's policies, so the cached result is not the user's data. Read as the user, or move the admin read out of the scope.",
     check: adminInPrivateScope,
+  },
+  {
+    code: "BS640",
+    severity: "warning",
+    title: "Request read inside a plain use cache scope",
+    description:
+      'A function with `"use cache"` calls `cookies()`, `headers()`, `bsb.cached()`, `bsb.context()` or `bsb.user()`. Next.js rejects request reads in a shared cache scope, and a per-user result must not be shared. Use `bsb.public()` for data every visitor may read, or `"use cache: private"` for the user\'s own.',
+    check: requestInPlainCache,
   },
   ...CLIENT_BARREL_RULES,
 ];

@@ -50,6 +50,28 @@ database that has both never runs a job twice. Pass `{ force: true }` to run it 
 config installs the `housekeeping` module and neither `maintenance_schedule()` nor a
 `maintenanceTick` call appears in the project.
 
+## A cron route for maintenance
+
+`maintenanceRoute` runs the same tick from a cron caller such as Vercel Cron or a Vercel
+schedule, with a guard against late runs and a lease against overlapping ones.
+
+```ts title="app/api/maintenance/route.ts"
+import { maintenanceRoute, rpcTransport } from "better-supabase/blocks/queue";
+
+export const GET = maintenanceRoute({
+  secret: process.env.CRON_SECRET,
+  transport: rpcTransport(admin),
+});
+```
+
+A run that arrives more than `maxLateSeconds` (default 600) after the time its schedule named
+for it is skipped with `{ "skipped": "late" }`. The time is the `ce-vssscheduledat` header of a
+Vercel schedule, else `ce-time`; Vercel Cron sends neither, so it always runs. Keep the value
+above the schedule's jitter. A run that finds the lease taken answers `{ "skipped": "overlap" }`;
+the lease lasts `leaseSeconds` (default 300) and `leaseSeconds: false` turns it off. A failure
+answers 500 with the `DbError` so the platform retries. `leaseOverlap(source)` and the `overlap`
+and `maxLateSeconds` guards also fit any other `cronRoute`.
+
 ## Jobs a block does not register
 
 `audit` (`purge_audit_log`) and `queue` (`purge_job_archive`) stay out of the dispatcher.
