@@ -7,6 +7,7 @@ import { isRecord } from "../core/block-helpers.ts";
 import { dbError, dbErrorOf } from "../core/errors.ts";
 import { methodNotAllowed, problemResponse } from "../core/problem.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
+import { temporal } from "../core/temporal-required.ts";
 
 /** Where Connect stands on a subscription, as `@vercel/connect/mcp` names it. */
 export type ConnectEventStatus =
@@ -144,11 +145,11 @@ const isStatus = (value: unknown): value is ConnectEventStatus =>
 
 const instantOf = (value: unknown): Temporal.Instant | undefined => {
   if (value instanceof Date) {
-    return Temporal.Instant.fromEpochMilliseconds(value.getTime());
+    return temporal().Instant.fromEpochMilliseconds(value.getTime());
   }
 
   return typeof value === "string"
-    ? Temporal.Instant.from(new Date(value).toISOString())
+    ? temporal().Instant.from(new Date(value).toISOString())
     : undefined;
 };
 
