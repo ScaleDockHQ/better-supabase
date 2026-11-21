@@ -192,6 +192,9 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  permissions: {
+    explain: "members.read",
+  },
   settings: {
     read: "settings.read",
     update: "settings.update",

@@ -193,6 +193,9 @@ export const permissions = {
     manage: "passes.manage",
     checkIn: "passes.check_in",
   },
+  permissions: {
+    explain: "members.read",
+  },
   product: {
     read: "catalog.read",
     write: "catalog.manage",

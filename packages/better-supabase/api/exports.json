@@ -2621,10 +2621,12 @@
       "answerMessage",
       "createMcp",
       "defineTool",
+      "explainPermissionTool",
       "MCP_PROTOCOL_VERSION"
     ],
     "types": [
       "BetterMcp",
+      "ExplainPermissionToolOptions",
       "GuardOptions",
       "McpOptions",
       "McpTool",
@@ -4144,7 +4146,6 @@
       "createPermissions",
       "createPermissionsController",
       "dbTransport",
-      "explainPermissionTool",
       "permissionFlags",
       "permissionMatches",
       "permissionsAuthorizer",
@@ -4156,7 +4157,6 @@
       "AccessCallOptions",
       "BlockTransport",
       "CatalogRole",
-      "ExplainPermissionToolOptions",
       "PermissionExplanation",
       "PermissionFlags",
       "PermissionMap",

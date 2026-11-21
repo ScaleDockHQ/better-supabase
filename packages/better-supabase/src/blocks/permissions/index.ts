@@ -43,8 +43,3 @@ export type {
   PermissionSource,
   PermissionsSnapshot,
 } from "./client.ts";
-
-export {
-  explainPermissionTool,
-  type ExplainPermissionToolOptions,
-} from "./mcp.ts";

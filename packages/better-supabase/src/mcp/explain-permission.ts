@@ -1,7 +1,7 @@
-import type { McpTool } from "../../mcp/mcp.ts";
-import type { Permissions } from "./permissions.ts";
+import type { Permissions } from "../blocks/permissions/permissions.ts";
+import type { McpTool } from "./mcp.ts";
 
-import { defineTool } from "../../mcp/mcp.ts";
+import { defineTool } from "./mcp.ts";
 
 export interface ExplainPermissionToolOptions {
   /** The permissions client the tool asks. */

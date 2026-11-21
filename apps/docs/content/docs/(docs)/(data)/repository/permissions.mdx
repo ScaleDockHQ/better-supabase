@@ -733,7 +733,7 @@ const why = await db.permissions
 
 `reason` is one of `granted_by_role`, `granted_by_override`, `member_disabled`, `organization_disabled`, `not_a_member`, `denied_by_override`, `not_in_scope` (a delegated token's cap or scope excludes the key) or `role_lacks_key`. `override` is `null` unless the catalog model has an override for the key.
 
-`explainPermissionTool({ permissions })` from `better-supabase/blocks/permissions` is a read-only MCP tool with the same answer, for an agent that has to say why it was refused. Pass it in `createMcp({ tools })`.
+`explainPermissionTool({ permissions })` from `better-supabase/mcp` is a read-only MCP tool with the same answer, for an agent that has to say why it was refused. Pass it in `createMcp({ tools })`.
 
 The access model already stops a member from granting what they don't hold: `set_permission_override` and `can_assign` refuse a grant above the caller's own keys, and `tests/integration/permissions-explain.integration.test.ts` covers both.
 
