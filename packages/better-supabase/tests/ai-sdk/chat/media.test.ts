@@ -11,6 +11,7 @@ import {
   createMediaRoute,
   createVideoRoutes,
 } from "../../../src/ai-sdk/chat/media.ts";
+import { gatewayPolicyReader } from "../../../src/ai-sdk/gateway-policy.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const files = {
@@ -200,5 +201,89 @@ describe("createVideoRoutes", () => {
     const unknown = await t.routes.webhook(post({ jobId: "nope" }));
 
     expect(unknown.status).toBe(200);
+  });
+});
+
+describe("the organization gateway policy on media routes", () => {
+  const policy = { zeroDataRetention: true, allowedProviders: ["openai"] };
+
+  const read = (organizationId: string) =>
+    AsyncResult.ok(organizationId === "o1" ? policy : {});
+
+  const gatewayOf = (options: unknown) =>
+    (options as { gateway: Record<string, unknown> }).gateway;
+
+  it("applies the policy to an image call", async () => {
+    let seen: unknown;
+
+    const route = createMediaRoute({
+      kind: "image",
+      model: "openai/gpt-image",
+      files,
+      authorize: () => undefined,
+      gatewayPolicy: read,
+      run: async ({ providerOptions }) => {
+        seen = providerOptions;
+
+        return [png];
+      },
+    });
+
+    const response = await route.respond(post({ prompt: "a cat" }), ctx);
+
+    expect(response.status).toBe(200);
+    expect(gatewayOf(seen)["zeroDataRetention"]).toBe(true);
+    expect(gatewayOf(seen)["only"]).toEqual(["openai"]);
+  });
+
+  it("answers with the error when the policy does not load", async () => {
+    let ran = false;
+
+    const route = createMediaRoute({
+      kind: "image",
+      model: "openai/gpt-image",
+      files,
+      authorize: () => undefined,
+      gatewayPolicy: gatewayPolicyReader(() =>
+        AsyncResult.ok({ region: "mars" }),
+      ),
+      run: async () => {
+        ran = true;
+
+        return [png];
+      },
+    });
+
+    const response = await route.respond(post({ prompt: "a cat" }), ctx);
+
+    expect(response.status).toBe(400);
+    expect(ran).toBe(false);
+  });
+
+  it("applies the policy to a video start", async () => {
+    let seen: unknown;
+
+    const routes = createVideoRoutes({
+      model: "google/veo",
+      files,
+      jobs: {
+        create: async () => undefined,
+        get: async () => undefined,
+        update: async () => undefined,
+      },
+      authorize: () => undefined,
+      gatewayPolicy: read,
+      start: async ({ providerOptions }) => {
+        seen = providerOptions;
+
+        return {};
+      },
+      status: async () => ({ status: "pending" as const }),
+    });
+
+    const response = await routes.start(post({ prompt: "waves" }), ctx);
+
+    expect(response.status).toBe(202);
+    expect(gatewayOf(seen)["zeroDataRetention"]).toBe(true);
   });
 });

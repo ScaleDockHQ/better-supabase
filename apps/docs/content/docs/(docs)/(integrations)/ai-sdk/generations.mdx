@@ -161,5 +161,7 @@ the webhook route treats a delivery only as a wake-up: it reads the `jobId`, ask
 the real status through `status` (your `experimental_getVideoStatus` call) and stores the finished
 video in Storage. A forged body cannot mark a job done.
 
-The org gateway policy check is not part of these routes yet; `authorize` is where the access check
-runs today.
+Both routes take a `gatewayPolicy` option, the reader that `gatewayPolicyReader` returns (see
+[a policy per organization](/docs/ai-sdk/gateway#a-policy-per-organization)). It runs after the
+quota check, and the policy is applied to the `providerOptions` that `run` and `start` receive. A
+policy that fails to load answers with its error, so a call never runs without the restriction.
