@@ -18,6 +18,7 @@ const manifest: {
  */
 const INTEGRATIONS = [
   "@ai-sdk/anthropic",
+  "@ai-sdk/harness",
   "@ai-sdk/sandbox-vercel",
   "@chat-adapter/catalog",
   "@chat-adapter/whatsapp",

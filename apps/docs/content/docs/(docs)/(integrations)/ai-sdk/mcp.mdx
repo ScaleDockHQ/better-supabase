@@ -185,3 +185,37 @@ delivery that the server sent twice run once, keyed on the subscription id and t
 
 `toolSearchFrom({ catalog })` is the SDK's `toolSearch` with your catalog's ranking, for example a
 pgvector search over a tools table under the caller's RLS. A catalog error throws a `DbException`.
+
+## Event webhook
+
+`mcpEventRoute({ store, onEvent, claim })` wraps the SDK's `experimental_createMCPEventWebhook` as a Fetch
+handler. Pass `claim` and a delivery the server sent twice runs once (the same rule as
+`dedupeMcpEvents`). Keep the subscription state in `postgresMcpEventStore`.
+
+```ts title="app/api/mcp/events/route.ts"
+import { mcpEventRoute } from "better-supabase/ai-sdk/mcp";
+
+export const POST = mcpEventRoute({
+  store,
+  onEvent: async (event) => refresh(event),
+  claim: (key) => claimDelivery(key),
+});
+```
+
+## Resources and prompts
+
+`mcpResourceTools({ client, maxChars })` gives the model two tools, `list_resources` and
+`read_resource`. The model can only read a URI that the server listed, text longer than `maxChars`
+is cut, and a binary resource is reported by its size instead of its bytes.
+
+```ts
+import { mcpResourceTools } from "better-supabase/ai-sdk/mcp";
+
+const tools = {
+  ...serverTools,
+  ...mcpResourceTools({ client, maxChars: 20_000 }),
+};
+```
+
+`mcpPrompts(client)` lists the server's prompts and `mcpPromptMessages(client, name, args)` returns
+the messages of one prompt, both as an `AsyncResult`.
