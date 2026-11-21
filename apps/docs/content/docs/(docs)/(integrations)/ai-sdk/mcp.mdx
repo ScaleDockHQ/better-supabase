@@ -117,9 +117,10 @@ await connectAll(servers, {
 ```
 
 `maxRetries` retries a tool call after a transient transport failure (default
-0). `askUnlessReadOnly: true` makes every tool wait for the user's approval
-unless the server marks it `readOnlyHint: true`. The annotation is the server's
-own claim, so use the option only for a server you trust.
+0). `askUnlessReadOnly: true` fills `toolApproval` on the result with every tool
+the server doesn't mark `readOnlyHint: true`. Pass it to the agent's
+`toolApproval` (`connectAll` returns the merged map). The annotation is the
+server's own claim, so use the option only for a server you trust.
 
 ## Supabase's MCP server
 

@@ -391,10 +391,26 @@ describe("createSupabaseWorld", () => {
     expect(headers.get("x-vqs-message-attempt")).toBe("1");
     expect(headers.get("x-h")).toBe("v");
     expect(headers.get("x-bsb-signature")).toMatch(/^t=\d+,v1=/);
-    // timeoutSeconds re-queues the message as its next attempt.
+    // timeoutSeconds re-queues the message with `attempt` started over, so
+    // core's 48-delivery cap counts retries, not hops.
     expect(jobs).toHaveLength(1);
-    expect(jobs[0]).toMatchObject({ attempt: 2 });
+    expect(jobs[0]).toMatchObject({ attempt: 1 });
     expect(queries.map((query) => query.fn)).toContain("complete_job");
+  });
+
+  it("declares no run serialization and mints spec 8 even when spec 9 is requested", async () => {
+    vi.stubEnv("WORKFLOW_SPEC_VERSION", "9");
+    const world = createSupabaseWorld({ pool: fakePool({}).pool });
+
+    expect(world.specVersion).toBe(8);
+
+    expect(world.capabilities).toMatchObject({
+      maxConcurrency: false,
+      inBandFence: false,
+    });
+
+    await world.close();
+    vi.unstubAllEnvs();
   });
 
   it("delivers a prefix to its registered handler or route", async () => {

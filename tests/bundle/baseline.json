@@ -4,7 +4,7 @@
   "./ai-sdk/agents": 36468,
   "./ai-sdk/batches": 11353,
   "./ai-sdk/cache": 25656,
-  "./ai-sdk/chat": 29650,
+  "./ai-sdk/chat": 31290,
   "./ai-sdk/embeddings": 28275,
   "./ai-sdk/files": 39408,
   "./ai-sdk/mcp": 28329,

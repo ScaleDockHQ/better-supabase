@@ -73,12 +73,37 @@ export interface EveTokenResult {
   readonly providerSubject?: string;
 }
 
+/**
+ * A JSON value eve journals from `startAuthorization` to
+ * `completeAuthorization`.
+ */
+export type EveResume =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly EveResume[]
+  | { readonly [key: string]: EveResume };
+
 export interface EveAuthorizationChallenge {
   readonly challenge: {
     readonly url?: string;
+    /** The short code shown next to `url` in a device code flow. */
+    readonly userCode?: string;
     readonly displayName?: string;
     readonly instructions?: string;
   };
+  /**
+   * Carried to `completeAuthorization`; omit it when the provider keeps the
+   * flow state.
+   */
+  readonly resume?: EveResume;
+}
+
+/** What eve passes to `evict` after it drops its own cached token. */
+export interface EveEvictRequest {
+  readonly principal: EveConnectionPrincipal;
+  readonly connection: { readonly url: string };
 }
 
 /** A `getToken`-only connection `auth`: eve never runs a consent flow. */
@@ -86,6 +111,8 @@ export interface EveTokenAuthorization {
   readonly principalType: "app" | "user";
   readonly displayName?: string;
   getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
+  /** Purges a token cache below eve's own, after a downstream 401. */
+  evict?(request: EveEvictRequest): Promise<void>;
   readonly startAuthorization?: undefined;
   readonly completeAuthorization?: undefined;
 }
@@ -95,12 +122,15 @@ export interface EveInteractiveAuthorization {
   readonly principalType: "user";
   readonly displayName?: string;
   getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
+  /** Purges a token cache below eve's own, after a downstream 401. */
+  evict?(request: EveEvictRequest): Promise<void>;
   startAuthorization(
     request: EveConnectionRequest & { readonly callbackUrl: string },
   ): Promise<EveAuthorizationChallenge>;
   completeAuthorization(
     request: EveConnectionRequest & {
       readonly callbackUrl: string;
+      readonly resume?: EveResume;
       readonly callback: {
         readonly params: Readonly<Record<string, string>>;
         readonly method: string;
@@ -128,6 +158,19 @@ export interface CredentialAuthOptions {
    */
   readonly interactive?: boolean;
 }
+
+interface InvalidatingProvider extends CredentialProvider {
+  invalidateToken(
+    ref: CredentialRef,
+    options: { readonly subject: CredentialSubject },
+  ): PromiseLike<unknown>;
+}
+
+const isInvalidating = (
+  provider: CredentialProvider,
+): provider is InvalidatingProvider =>
+  "invalidateToken" in provider &&
+  typeof provider.invalidateToken === "function";
 
 const AUTHORIZATION_HINTS = new Set([
   "CREDENTIAL_AUTHORIZATION_REQUIRED",
@@ -211,6 +254,16 @@ export function credentialAuth(
 
   const { provider, ref } = options;
 
+  // Only Vercel Connect keeps a token cache below eve's; a provider without
+  // `invalidateToken` has nothing to purge.
+  const evict = isInvalidating(provider)
+    ? async ({ principal }: EveEvictRequest): Promise<void> => {
+        await provider.invalidateToken(ref, { subject: subjectOf(principal) });
+      }
+    : undefined;
+
+  const evicting = evict === undefined ? {} : { evict };
+
   if (
     options.owner === "app" ||
     options.interactive === false ||
@@ -220,6 +273,7 @@ export function credentialAuth(
     return {
       principalType: options.owner,
       ...displayName,
+      ...evicting,
       getToken: (request) => getToken(request),
     };
   }
@@ -230,6 +284,7 @@ export function credentialAuth(
   return {
     principalType: "user",
     ...displayName,
+    ...evicting,
     getToken: (request) => getToken(request),
     startAuthorization: async ({ principal, callbackUrl }) => {
       const result = await start(ref, {
@@ -248,7 +303,11 @@ export function credentialAuth(
         challenge:
           deviceCode === undefined
             ? { url }
-            : { url, instructions: `Enter the code ${deviceCode}` },
+            : {
+                url,
+                userCode: deviceCode,
+                instructions: `Enter the code ${deviceCode}`,
+              },
       };
     },
     completeAuthorization: async (request) => {

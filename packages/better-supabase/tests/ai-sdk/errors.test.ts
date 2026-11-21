@@ -81,7 +81,7 @@ describe("aiErrorToDbError", () => {
       "rate_limited",
       "AI_PROVIDER_RATE_LIMITED",
     ]);
-    expect(pick(gateway("timeout"))).toEqual([
+    expect(pick(gateway("timeout_error", 408))).toEqual([
       "timeout",
       "AI_PROVIDER_TIMEOUT",
     ]);
@@ -123,7 +123,52 @@ describe("aiErrorToDbError", () => {
     ]);
   });
 
+  it("maps a gateway 402 to a payment error, not an outage", () => {
+    const gateway = (type: string, extra: Record<string, unknown>) =>
+      named("GatewayInternalServerError", { type, ...extra });
+
+    const mapped = aiErrorToDbError(
+      gateway("internal_server_error", {
+        statusCode: 402,
+        generationId: "gen_1",
+      }),
+    );
+
+    expect(mapped).toEqual(
+      expect.objectContaining({
+        kind: "quota_exceeded",
+        code: "AI_GATEWAY_PAYMENT_REQUIRED",
+        status: 402,
+        details: "generationId=gen_1",
+      }),
+    );
+    expect(pick(gateway("response_error", { statusCode: 402 }))).toEqual([
+      "quota_exceeded",
+      "AI_GATEWAY_PAYMENT_REQUIRED",
+    ]);
+    expect(
+      aiErrorToDbError(
+        gateway("forbidden", { statusCode: 403, ruleId: "rule_9" }),
+      ),
+    ).toEqual(expect.objectContaining({ details: "ruleId=rule_9" }));
+    expect(pick(gateway("internal_server_error", { statusCode: 500 }))).toEqual(
+      ["network", "AI_PROVIDER_UNAVAILABLE"],
+    );
+  });
+
   it("maps the other AI SDK errors by name", () => {
+    expect(pick(named("AI_StreamProviderError", { statusCode: 429 }))).toEqual([
+      "rate_limited",
+      "AI_PROVIDER_RATE_LIMITED",
+    ]);
+    expect(pick(named("AI_ToolChoiceViolationError"))).toEqual([
+      "invalid_request",
+      "AI_INVALID_REQUEST",
+    ]);
+    expect(pick(named("AI_NoTranslationGeneratedError"))).toEqual([
+      "unexpected",
+      "AI_GENERATION_FAILED",
+    ]);
     expect(
       pick(new TypeValidationError({ value: 1, cause: new Error("x") })),
     ).toEqual(["validation", "AI_TYPE_VALIDATION"]);

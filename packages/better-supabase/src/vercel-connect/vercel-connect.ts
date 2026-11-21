@@ -46,6 +46,8 @@ interface ConnectAuthorizationOptions {
   teamId?: string;
   orgId?: string;
   callbackUrl?: string;
+  webhook?: string;
+  expiresInMs?: number;
   deviceCode?: boolean;
   prompt?: string;
   region?: string;
@@ -100,7 +102,11 @@ export interface VercelConnectModule {
     params: ConnectTokenParams,
     options?: ConnectAuthorizationOptions,
   ): Promise<ConnectAuthorization>;
-  deleteTokenCacheEntry?(connector: string, params: ConnectTokenParams): void;
+  deleteTokenCacheEntry?(
+    connector: string,
+    params: ConnectTokenParams,
+    options?: Pick<ConnectOptions, "teamId" | "orgId" | "vercelToken">,
+  ): void;
   getConnectorMetadata?(
     connector: string,
     options?: ConnectOptions,
@@ -654,6 +660,12 @@ export function vercelConnectCredentials(
             undefined,
             invalidateOptions.installationId,
           ),
+          // The cache key holds the team and organization scope, so a scoped
+          // token stays cached unless the same scope is named here.
+          {
+            ...(options.teamId === undefined ? {} : { teamId: options.teamId }),
+            ...(options.orgId === undefined ? {} : { orgId: options.orgId }),
+          },
         );
 
         return Promise.resolve(true);
@@ -764,6 +776,12 @@ export function vercelConnectCredentials(
               ...(startOptions.prompt === undefined
                 ? {}
                 : { prompt: startOptions.prompt }),
+              ...(startOptions.webhook === undefined
+                ? {}
+                : { webhook: startOptions.webhook }),
+              ...(startOptions.expiresInMs === undefined
+                ? {}
+                : { expiresInMs: startOptions.expiresInMs }),
             },
           );
 

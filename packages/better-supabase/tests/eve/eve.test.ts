@@ -388,6 +388,7 @@ describe("credentialAuth", () => {
     ).toEqual({
       challenge: {
         url: "https://vercel.com/connect/device",
+        userCode: "ABCD-1234",
         instructions: "Enter the code ABCD-1234",
       },
     });

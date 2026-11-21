@@ -1,5 +1,4 @@
 import { atomicStartHookConformance } from "@workflow/world/test-support/atomic-start-hook-conformance.js";
-import { inBandFenceConformance } from "@workflow/world/test-support/in-band-fence-conformance.js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe } from "vitest";
 
@@ -30,7 +29,7 @@ function ulid(): string {
 const MODES = ["poll", "pg_net"] as const;
 
 // Every delivery mode shares the storage, so the contract eve relies on
-// (atomic start hooks, the spec 9 fence) has to hold through each one.
+// (atomic start hooks; the World declares no spec 9 fence, ADR 1106) has to hold through each one.
 describe.skipIf(!live).each(MODES)(
   "eve's World requirements in %s mode",
   (delivery) => {
@@ -96,15 +95,6 @@ describe.skipIf(!live).each(MODES)(
           [until],
         );
       },
-    });
-
-    inBandFenceConformance({
-      name: `better-supabase World (${delivery})`,
-      events: () => world.events,
-      capabilities: () => world.capabilities,
-      newRunId: () => `wrun_${ulid()}`,
-      atRunCreation: 1,
-      secondEvents: () => second.events,
     });
   },
 );

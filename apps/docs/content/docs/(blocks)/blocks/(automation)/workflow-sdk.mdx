@@ -150,8 +150,7 @@ otherwise. Payloads sealed for another recipient stay closed.
 
 Upgrade the SQL module first (`workflow-sdk` version 4 converts the World
 timestamps to `timestamptz`), then deploy the app. Runs started on
-`workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8,
-and `capabilities.inBandFence` is on for them. Don't run old and new app
+`workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8. Don't run old and new app
 versions against the same database for longer than one deploy.
 
 ### Rolling out 5.7
@@ -187,10 +186,11 @@ Upgrade the SQL module first (`workflow-sdk` version 5 adds the
 `workflow.workflow_job_lock_holders` table of world-postgres migration 0030,
 closed to the API roles), then deploy the app. The World declares
 `queueAuthMode: "skip"`: the flow route checks the HMAC signature of every
-delivery itself, so the runtime adds no queue key check. It keeps the
-capabilities of `@workflow/world-postgres`, including `inBandFence`, so
-`WORKFLOW_SPEC_VERSION=9` creates spec 9 runs once every process runs
-`workflow` 5.5; without it, new runs stay on spec 8.
+delivery itself, so the runtime adds no queue key check. The World
+creates spec 8 runs and ignores `WORKFLOW_SPEC_VERSION=9`: the pgmq queue
+runs a run's messages in parallel and takes no run delivery lease, so it
+declares neither `capabilities.maxConcurrency` nor `capabilities.inBandFence`
+(ADR 1106).
 
 ## Delivery
 
@@ -247,10 +247,12 @@ export const world = createSupabaseWorld({ delivery: "vercel-queue" });
 
 - A message goes to the topic that matches its queue name, with every
   character outside `A-Za-z0-9_-` replaced by `-`. The Workflow SDK builders
-  write the consumer trigger for the topics `__wkf_workflow_*` and
-  `__wkf_step_*`, so no extra configuration is needed.
+  write the consumer trigger for the topics `__wkf_workflow_*` (steps share
+  the workflow topic since `workflow` 5), so no extra configuration is needed.
 - The message id is the idempotency key, so a retried send doesn't queue a
-  second copy. A delay over 23 hours is split into hops: each hop is
+  second copy. A continuation (the flow asked to wait) is a new message with
+  no key, because Vercel drops a send whose key it saw in the last 24 hours.
+  A delay over 23 hours is split into hops: each hop is
   delivered, sees the delay that remains, and sends the message on without
   running the flow.
 - The flow route answers Vercel's callback. A non-2xx response retries after

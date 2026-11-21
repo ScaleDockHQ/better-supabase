@@ -10,6 +10,7 @@ import type {
 
 import {
   getQueueTopicPrefix,
+  mintedSpecVersion,
   parseQueueRoute,
   reenqueueActiveRuns,
 } from "@workflow/world";
@@ -520,7 +521,10 @@ export function createSupabaseWorld(
     const timeoutSeconds = timeoutOf(text);
 
     if (timeoutSeconds !== undefined) {
-      await store({ ...message, attempt: attempt + 1 }, timeoutSeconds);
+      // A continuation starts `attempt` over, as world-postgres does for
+      // everything but a spec 9 orchestrator message: core fails a run past
+      // 48 deliveries of one message, and a long run hops far more often.
+      await store({ ...message, attempt: 1 }, timeoutSeconds);
     }
 
     await complete(job.id, job.attempts);
@@ -1040,6 +1044,16 @@ export function createSupabaseWorld(
       create: createEvent,
     },
     analytics: createAnalytics(pool),
+    // The queue is a pgmq table that runs any number of a run's messages at
+    // once and takes no run delivery lease, so the World declares neither
+    // `maxConcurrency` nor `inBandFence` and mints spec 8 runs whatever
+    // `WORKFLOW_SPEC_VERSION` says (ADR 1106).
+    capabilities: {
+      ...base.capabilities,
+      maxConcurrency: false,
+      inBandFence: false,
+    },
+    specVersion: mintedSpecVersion(),
     // Every delivery carries the HMAC that createQueueHandler checks before the
     // runtime sees it, so the runtime's loopback key check has nothing to add.
     queueAuthMode: "skip",

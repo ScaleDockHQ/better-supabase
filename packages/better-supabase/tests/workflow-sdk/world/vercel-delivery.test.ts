@@ -265,11 +265,17 @@ describe('delivery: "vercel-queue"', () => {
 
     const route = world.createQueueHandler("__wkf_workflow_", vi.fn() as never);
 
-    const response = await deliver(route, storedMessage());
+    const response = await deliver(
+      route,
+      storedMessage({ attempt: 5, idempotencyKey: "run:wrun_1" }),
+    );
+
     expect(response.status).toBe(200);
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.payload["attempt"]).toBe(2);
+    expect(sent[0]!.payload["attempt"]).toBe(1);
     expect(sent[0]!.options).toMatchObject({ delaySeconds: 45 });
+    // Vercel drops a send whose key it saw within 24 hours.
+    expect(sent[0]!.options).not.toHaveProperty("idempotencyKey");
     expect(queries.some((text) => text.includes("wake_pending = false"))).toBe(
       false,
     );
@@ -346,7 +352,12 @@ describe('delivery: "vercel-queue"', () => {
         return [
           { status: "sent", messageId: "a" },
           { status: "failed", statusCode: 503, error: "busy" },
-          { status: "deferred", messageId: null },
+          {
+            status: "failed",
+            statusCode: 400,
+            error: "bad key",
+            retryable: false,
+          },
         ];
       },
     });
@@ -371,7 +382,11 @@ describe('delivery: "vercel-queue"', () => {
       error: "busy",
       retryable: true,
     });
-    expect(results[2]).toEqual({ messageId: expect.stringMatching(/^msg_/) });
+    expect(results[2]).toEqual({
+      messageId: null,
+      error: "bad key",
+      retryable: false,
+    });
     await world.close();
   });
 
