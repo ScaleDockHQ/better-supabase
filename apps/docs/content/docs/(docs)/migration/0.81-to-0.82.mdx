@@ -250,7 +250,10 @@ their eleven client functions), and `gen` reads them after the function's own `@
 Every block slice exports `fields`, built from the block's columns plus the `@bsb fields` and adopted extra
 columns, so a `not null default` column is optional on insert. The new `tests/cli/gen/block-fields.test.ts` covers
 expenses, leave, catalog, tasks, time-entries, teams and flags. The "configured schema generator" is the Standard
-Schema one `columnsSchema` builds, so no separate generator option exists.
+Schema one `columnsSchema` builds, so no separate generator option exists. `tests/blocks/generated-fields.test-d.ts`
+checks the insert types: a `not null` column without a default is required, any other column is optional. Delete
+your hand-written field schemas and `insertableFields` helper, and `blocks.<name>.using((options) => ...)` receives
+the generated `fields` in `options`.
 
 A disabled feature renders no SQL. `blocks.inventory.tables.allocations: null` drops the stock allocation table,
 its eleven functions, the import target and the contract entries (599 fewer lines). `blocks.accounting.tables.budgets: null`

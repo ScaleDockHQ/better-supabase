@@ -58,3 +58,14 @@ describe.each(Object.keys(TABLES))("block slice fields of %s", (name) => {
     );
   });
 });
+
+describe("block slices without app columns", () => {
+  it("pass no fields", () => {
+    const bare = blockConfigEntries(config, undefined, appColumnsOf([]));
+
+    for (const name of Object.keys(TABLES)) {
+      expect(bare[name]?.columns).toBeUndefined();
+      expect(generatedOptions(bare[name]!)).not.toHaveProperty("fields");
+    }
+  });
+});
