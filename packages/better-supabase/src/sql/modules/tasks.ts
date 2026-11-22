@@ -23,6 +23,7 @@ import {
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
+import { stageRef } from "./tasks-coordination-shared.ts";
 import {
   actorPayload,
   coordinationColumns,
@@ -569,7 +570,7 @@ function guard(ctx: BlockSqlContext, n: TaskNames): string {
       ? `
   if tg_op = 'UPDATE' and old.${w("heldAt")} is not null and new.${w("heldAt")} is not distinct from old.${w("heldAt")}
     and new.${w("stage")} is distinct from old.${w("stage")}
-    and old.${w("stage")} is not distinct from (select s.${ctx.of("pipelines").col("stages", "id")} from ${ctx.of("pipelines").table("stages")} s where s.${ctx.of("pipelines").col("stages", "pipeline")} = old.${w("pipeline")} and s.${ctx.of("pipelines").col("stages", "key")} = ${sqlString(n.co.holdStage)}) then
+    and old.${w("stage")} is not distinct from ${stageRef(ctx, `old.${w("pipeline")}`, n.co.holdStage)} then
     new.${w("heldAt")} := null;
 ${ctx.has("items", "holdKind") ? `    new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `    new.${w("holdReturnStage")} := null;\n` : ""}    ${ctx.record({ type: "task.hold_released", row: "new", payload: payload(`, 'returnStageId', new.${w("stage")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
   end if;`

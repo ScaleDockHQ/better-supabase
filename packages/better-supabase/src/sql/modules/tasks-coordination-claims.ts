@@ -6,7 +6,8 @@ import { fail, serviceGrant, userGrant } from "../shared.ts";
 import {
   load,
   stageByCategory,
-  stageByKey,
+  stageRef,
+  stageRefLabel,
   taskRecord,
 } from "./tasks-coordination-shared.ts";
 import { HOLD_SUBJECT } from "./tasks-hold-approvals.ts";
@@ -41,9 +42,9 @@ export function claimsSql(
       ? ""
       : `
   if v_row.${w("pipeline")} is not null then
-    update ${t("items")} x set ${w("stage")} = ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.startStage)}
-    where x.${w("id")} = v_row.${w("id")} and x.${w("stage")} is distinct from ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.startStage)}
-      and ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.startStage)} is not null;
+    update ${t("items")} x set ${w("stage")} = ${stageRef(ctx, `v_row.${w("pipeline")}`, co.startStage)}
+    where x.${w("id")} = v_row.${w("id")} and x.${w("stage")} is distinct from ${stageRef(ctx, `v_row.${w("pipeline")}`, co.startStage)}
+      and ${stageRef(ctx, `v_row.${w("pipeline")}`, co.startStage)} is not null;
   end if;`;
 
   const needsGuard =
@@ -67,6 +68,26 @@ export function claimsSql(
       and (claim_next_task.filter ->> 'parentId' is null or ${alias}.${w("parent")} = (claim_next_task.filter ->> 'parentId')::uuid)
       and (claim_next_task.filter ->> 'stageId' is null or ${alias}.${w("stage")} = (claim_next_task.filter ->> 'stageId')::uuid)
       and (claim_next_task.filter ->> 'assigneeId' is null or exists (select 1 from ${t("assignees")} y where y.${a("item")} = ${alias}.${w("id")} and y.${a("user")} = (claim_next_task.filter ->> 'assigneeId')::uuid))`;
+
+  const isAgent = `coalesce(auth.jwt() -> 'act' ->> 'kind' = 'agent', false)`;
+  const restricted = `(${isAgent}${co.next === "assigned" ? " or auth.uid() is not null" : ""})`;
+
+  // An agent acts with a member's access, so it never picks beyond that
+  // member's own tasks, whatever claims.next says.
+  const mine = (alias: string): string =>
+    `exists (select 1 from ${t("assignees")} y where y.${a("item")} = ${alias}.${w("id")} and y.${a("user")} = auth.uid())`;
+
+  const agentGuard = `
+  if ${isAgent} and not ${mine("v_row")} then
+    ${fail("TASK_NOT_ASSIGNED", "an agent session claims only tasks assigned to its user", "42501")}
+  end if;`;
+
+  const assignedOnly = `
+  if ${restricted} then
+    if claim_next_task.filter ->> 'assigneeId' is not null and (claim_next_task.filter ->> 'assigneeId')::uuid is distinct from auth.uid() then
+      ${fail("TASK_FILTER_FORBIDDEN", "this session picks only its own tasks", "42501")}
+    end if;
+  end if;`;
 
   const leaseOf = (lease: string): string =>
     `least(${String(co.maxLease)}, greatest(1, coalesce(${lease}, ${String(co.lease)})))`;
@@ -96,7 +117,7 @@ begin
   ${load(ctx, n, "claim_task", co.claim)}
   if v_row.${w("closedAt")} is not null then
     ${fail("TASK_CLOSED", "a closed task can't be claimed", "55000")}
-  end if;${heldGuard}${needsGuard}
+  end if;${agentGuard}${heldGuard}${needsGuard}
   insert into ${t("claims")} as c (${k("task")}, ${k("tenant")}, ${k("holder")}, ${k("profile")}, ${k("expiresAt")})
   values (v_row.${w("id")}, v_row.${w("tenant")}, auth.uid(), v_actor, now() + make_interval(secs => ${leaseOf("claim_task.lease")}))
   on conflict (${k("task")}) do update set
@@ -120,7 +141,8 @@ $$;
 ${userGrant(`${fn("claim_task")}(uuid, integer, jsonb)`)}
 
 -- Claims the next ready task of a tenant: assigned to you first, then the
--- oldest. filter narrows the pick: teamId, ${e("projectId")}, parentId, stageId,
+-- lowest number. With claims.next "assigned" (the default) and for an agent
+-- session, only tasks assigned to you qualify. filter narrows the pick: teamId, ${e("projectId")}, parentId, stageId,
 -- assigneeId. Concurrent callers skip each other's rows. Raises
 -- TASK_NOTHING_READY when no task qualifies.
 create or replace function ${fn("claim_next_task")}(tenant ${ctx.idType}, filter jsonb default null, lease integer default null, profile jsonb default null)
@@ -135,11 +157,13 @@ begin
   if not (better_supabase.actor_may_write()) then
     ${fail("ACTOR_READ_ONLY", "This session is read-only")}
   end if;
+${assignedOnly}
   if not (${n.service} or ${ctx.scope.can("claim_next_task.tenant", co.claim)}) then
     ${fail("TASK_FORBIDDEN", "not allowed to claim work items")}
   end if;
   select x.${w("id")} into v_id from ${t("items")} x
   where x.${w("tenant")} = claim_next_task.tenant and x.${w("archivedAt")} is null and x.${w("closedAt")} is null${n.templates ? `\n    and x.${w("template")} is null` : ""}${has("heldAt") ? `\n    and x.${w("heldAt")} is null` : ""}${co.needs === null ? "" : `\n    and x.${w("waitingOn")} = 0`}
+    and (not ${restricted} or ${mine("x")})
     and not exists (select 1 from ${t("claims")} c where c.${k("task")} = x.${w("id")} and ${live("c")})${filter("x")}
   order by (case when exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and y.${a("user")} = auth.uid()) then 0 else 1 end), x.${w("number")}
   limit 1
@@ -257,8 +281,8 @@ begin
       co.expiredStage === null
         ? ""
         : `
-      if v_row.${w("pipeline")} is not null and ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.expiredStage)} is not null then
-        update ${t("items")} x set ${w("stage")} = ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.expiredStage)} where x.${w("id")} = v_row.${w("id")} and x.${w("stage")} is distinct from ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.expiredStage)}
+      if v_row.${w("pipeline")} is not null and ${stageRef(ctx, `v_row.${w("pipeline")}`, co.expiredStage)} is not null then
+        update ${t("items")} x set ${w("stage")} = ${stageRef(ctx, `v_row.${w("pipeline")}`, co.expiredStage)} where x.${w("id")} = v_row.${w("id")} and x.${w("stage")} is distinct from ${stageRef(ctx, `v_row.${w("pipeline")}`, co.expiredStage)}
         returning * into v_row;
       end if;`
     }
@@ -343,9 +367,9 @@ ${userGrant(`${fn("release_task_hold")}(uuid)`)}
     co.holdStage === null
       ? ""
       : `
-  v_stage := ${stageByKey(ctx, `v_row.${w("pipeline")}`, co.holdStage)};
+  v_stage := ${stageRef(ctx, `v_row.${w("pipeline")}`, co.holdStage)};
   if v_stage is null then
-    ${fail("TASK_HOLD_STAGE_MISSING", `the task's pipeline has no ${co.holdStage} stage`, "22023")}
+    ${fail("TASK_HOLD_STAGE_MISSING", `the task's pipeline has no ${stageRefLabel(co.holdStage)}`, "22023")}
   end if;`;
 
   const sets = [

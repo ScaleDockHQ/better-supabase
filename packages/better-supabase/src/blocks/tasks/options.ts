@@ -2,6 +2,13 @@ import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
+/**
+ * A stage of the task's pipeline: its key, or `{ category }` for the first live
+ * stage of that category by rank. A category can be a custom one the pipelines
+ * block allows. ADR 1181.
+ */
+export type TaskStageRef = string | { readonly category: string };
+
 /** `blocks.tasks.options`. */
 export type TasksSqlOptions = {
   readonly prefix?: string;
@@ -41,8 +48,16 @@ export type TasksSqlOptions = {
   readonly claims?: {
     readonly lease?: number;
     readonly maxLease?: number;
-    readonly startStage?: string;
-    readonly expiredStage?: string;
+    /**
+     * What `claimNext` picks from. `assigned` (default) takes only tasks
+     * assigned to the caller and refuses a `filter.assigneeId` naming someone
+     * else; `any` also takes the oldest unassigned ready task. A session whose
+     * act claim is of kind `agent` always picks as `assigned`, and claims by id
+     * only tasks assigned to it. ADR 1180.
+     */
+    readonly next?: "assigned" | "any";
+    readonly startStage?: TaskStageRef;
+    readonly expiredStage?: TaskStageRef;
   };
   /**
    * `stage` is the stage key of the task's pipeline a hold moves the task to.
@@ -55,7 +70,7 @@ export type TasksSqlOptions = {
    * "keep"` leaves it on hold. ADR 1161.
    */
   readonly hold?: {
-    readonly stage?: string;
+    readonly stage?: TaskStageRef;
     readonly approval?:
       | boolean
       | { readonly policy?: unknown; readonly onReject?: "cancel" | "keep" };
