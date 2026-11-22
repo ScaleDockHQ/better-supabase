@@ -14,10 +14,11 @@ import {
   rmSync,
   symlinkSync,
   statSync,
+  writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { argv, exit } from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -947,6 +948,16 @@ function main(): number {
     console.log(`Rendering with the baseline at ${ref.slice(0, 10)}`);
     run("node", [cli(base), "upgrade", ...CLI_FLAGS, "--no-cache"], app);
     const baselineSql = snapshotSql(app);
+
+    if (options.keep) {
+      // The baseline render stays next to the app so a changed file can be diffed by hand.
+      for (const [file, text] of baselineSql.files) {
+        const target = join(work, "baseline", file);
+
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, text);
+      }
+    }
 
     const codemods = [
       ["blocks-list"],
