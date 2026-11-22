@@ -13,6 +13,7 @@ import {
   restatedEntries,
 } from "../../config/index.ts";
 import {
+  listActions,
   modulePermissionKeys,
   redundantNulls,
   sameTemplateFunction,
@@ -493,6 +494,47 @@ async function restatedDefaults(
   }));
 }
 
+/**
+ * Counts the action keys the config writes that the provider's `actionKeys`
+ * could supply, per kind, next to the keys it already supplies.
+ */
+function providerKeyCount(context: DoctorContext): FindingInput[] {
+  const { config } = context;
+
+  if (
+    config.authorization === undefined ||
+    accessModule(context).kind !== "provider"
+  ) {
+    return [];
+  }
+
+  const actions = listActions(config);
+  const written = actions.filter((entry) => entry.source === "config");
+
+  if (written.length === 0) {
+    return [];
+  }
+
+  const byKind = new Map<string, number>();
+
+  for (const entry of written) {
+    byKind.set(entry.kind, (byKind.get(entry.kind) ?? 0) + 1);
+  }
+
+  const supplied = actions.filter((entry) => entry.source === "provider");
+
+  const kinds = [...byKind]
+    .map(([kind, count]) => `${String(count)} ${kind}`)
+    .join(", ");
+
+  return [
+    {
+      message: `The config writes ${String(written.length)} of ${String(actions.length)} action keys (${kinds}) that the authorization provider "${config.authorization.name}" could supply through actionKeys, which already supplies ${String(supplied.length)}. Run \`better-supabase config actions --json\` to list them, and move each key into the provider's actionKeys so one place names the keys the provider checks.`,
+      target: "authorization.actionKeys",
+    },
+  ];
+}
+
 export const AUTHORIZATION_RULES: readonly Rule[] = [
   {
     code: "BS427",
@@ -501,6 +543,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     description:
       "A config entry equals the value the render uses without it, so it is a second copy that goes stale and hides the entries that matter. Doctor reports an identity mapping for an optional column (`columns.<table>.<column>` set to the column's default name, which only a `{ column, required: true }` entry still enforces), a `null` for a column the view lacks anyway, an empty `columns`, `values` or `tables` map, `columns.<table>.tenant` equal to `sql.tenantColumn`, and a value equal to the authorization provider's (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`, `tokenHook.function` for `impersonation.options.claimsHook`). The provider kinds are reported under the provider access model only, and `disabled.userKey` only when `disabled.user` is unset or equal to the provider's. Doctor also renders without each `permissions` key and each `options` entry (and each `sameTenant` element) of an installed block, and reports the ones whose removal leaves every file unchanged: a permission key the block would pick anyway, an option equal to its default, a `sameTenant` entry the schema already derives. `better-supabase codemod config --prune` removes each one when the render stays the same. It replaces BS426, whose code stays reserved.",
     check: restatedDefaults,
+  },
+  {
+    code: "BS715",
+    severity: "info",
+    title: "Action keys the provider could supply",
+    description:
+      "Under the provider access model, the config writes action keys (`blocks.<name>.permissions`, `recordTypes.<type>.permissions`, a bucket's `policy.access`) that the authorization provider's `actionKeys` could name instead. Doctor counts them by kind and counts the keys `actionKeys` already supplies. `better-supabase config actions --json` lists every action with the key it resolves to and whether the config, the provider or the block's default named it. An entry equal to the provider's key is BS427; this count is about keys the provider does not name yet.",
+    check: providerKeyCount,
   },
   {
     code: "BS214",
