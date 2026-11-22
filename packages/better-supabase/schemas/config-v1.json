@@ -7294,6 +7294,10 @@
               "createdEvent": {
                 "type": "string"
               },
+              "externalRecipients": {
+                "type": "boolean",
+                "default": false
+              },
               "maxRecipients": {
                 "type": "number",
                 "default": 1000

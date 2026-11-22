@@ -1,6 +1,6 @@
 import type { FindingInput, Rule } from "./rules.ts";
 
-import { moduleFileVersion } from "../../sql/markers.ts";
+import { moduleFileVersion } from "../../sql/index.ts";
 import { catalogOf, exposedSchemas } from "./shared.ts";
 
 /** A literal above this many characters is parsed again on every call. */
