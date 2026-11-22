@@ -359,3 +359,51 @@ export function topLevelValue(
 
   return { start: colon + 1, end: found.to };
 }
+
+/**
+ * Splits `groups` (a key and the config paths under it) into the groups whose
+ * paths can all go and the keys that must stay. `unchanged` says whether the
+ * config without a set of paths still renders the same. All groups go together
+ * first; a failing set is halved until the groups something still needs are
+ * alone, so a few bad groups cost a few renders, not one per group.
+ */
+export async function settleGroups(
+  groups: readonly (readonly [string, readonly string[]])[],
+  unchanged: (paths: readonly string[]) => Promise<boolean>,
+): Promise<{ kept: string[]; refused: string[] }> {
+  const kept: string[] = [];
+  const refused: string[] = [];
+
+  const settle = async (
+    batch: readonly (readonly [string, readonly string[]])[],
+  ): Promise<void> => {
+    const paths = batch.flatMap(([, entries]) => entries);
+
+    if (batch.length === 0) {
+      return;
+    }
+
+    if (await unchanged([...kept, ...paths])) {
+      kept.push(...paths);
+
+      return;
+    }
+
+    const [only] = batch;
+
+    if (batch.length === 1 && only !== undefined) {
+      refused.push(only[0]);
+
+      return;
+    }
+
+    const middle = Math.ceil(batch.length / 2);
+
+    await settle(batch.slice(0, middle));
+    await settle(batch.slice(middle));
+  };
+
+  await settle(groups);
+
+  return { kept, refused };
+}

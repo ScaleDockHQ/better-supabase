@@ -8,7 +8,7 @@ import type { PlannedFile } from "./core/files.ts";
 import { restatedEntries } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
-import { withoutConfigPaths } from "./codemod-prune.ts";
+import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
@@ -277,12 +277,10 @@ async function prune(
     };
   }
 
-  const pruned = withoutConfigPaths(
-    configText,
-    entries.map((entry) => entry.path),
-  );
+  const allPaths = entries.map((entry) => entry.path);
+  const first = withoutConfigPaths(configText, allPaths);
 
-  const review = pruned.missed
+  const review: { message: string }[] = first.missed
     .filter(
       (path) => entries.find((entry) => entry.path === path)?.kind !== "empty",
     )
@@ -290,7 +288,7 @@ async function prune(
       message: `${path} repeats its default, but the codemod could not find it in ${configFile}; remove it by hand.`,
     }));
 
-  if (pruned.text === configText) {
+  if (first.text === configText) {
     return { files: [], review };
   }
 
@@ -299,29 +297,51 @@ async function prune(
     `.${basename(configFile, extname(configFile))}.prune-${String(process.pid)}${extname(configFile)}`,
   );
 
-  try {
-    await writeFile(copy, pruned.text);
+  const before = await renderedFiles(config);
 
-    const after = await loadConfig(dirname(configFile), copy);
+  // Whether the config without these paths renders the same files. A config that no longer
+  // renders at all counts as a difference, because an option may need the entry it restates.
+  const renderUnchanged = async (
+    paths: readonly string[],
+  ): Promise<boolean> => {
+    try {
+      await writeFile(copy, withoutConfigPaths(configText, paths).text);
 
-    const differs = firstDifference(
-      await renderedFiles(config),
-      await renderedFiles(after),
-    );
+      const after = await loadConfig(dirname(configFile), copy);
 
-    if (differs !== undefined) {
-      return {
-        files: [],
-        review: [
-          ...review,
-          {
-            message: `Pruning changes the render of ${differs}, so nothing was written. Review the entries by hand: ${entries.map((entry) => entry.path).join(", ")}.`,
-          },
-        ],
-      };
+      return firstDifference(before, await renderedFiles(after)) === undefined;
+    } catch {
+      return false;
     }
+  };
+
+  const groups = new Map<string, string[]>();
+
+  for (const path of allPaths) {
+    const key = path.split(".").slice(0, 2).join(".");
+    groups.set(key, [...(groups.get(key) ?? []), path]);
+  }
+
+  let settled: Awaited<ReturnType<typeof settleGroups>>;
+
+  try {
+    settled = await settleGroups([...groups], renderUnchanged);
   } finally {
     await rm(copy, { force: true });
+  }
+
+  const { kept, refused } = settled;
+
+  for (const key of refused) {
+    review.push({
+      message: `Pruning the entries of ${key} changes the render or leaves a config that does not render, so they stay: ${(groups.get(key) ?? []).join(", ")}.`,
+    });
+  }
+
+  const pruned = withoutConfigPaths(configText, kept);
+
+  if (pruned.text === configText) {
+    return { files: [], review };
   }
 
   return {
