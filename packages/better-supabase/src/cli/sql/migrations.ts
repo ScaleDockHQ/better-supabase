@@ -11,10 +11,11 @@ import {
   splitStatements,
   SQL_MODULES,
 } from "../../sql/index.ts";
-import { applyPlan, changeLines } from "../core/files.ts";
-import { migrationsDir, sqlPlan } from "../sql-layout.ts";
+import { changeLines } from "../core/files.ts";
+import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
-import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
+import { hasMigrationSuffix } from "./migration-names.ts";
+import { writeMigration } from "./migration-write.ts";
 import { layoutFor } from "./providers.ts";
 import { renderBlocksCached } from "./render-cache.ts";
 
@@ -65,7 +66,7 @@ export async function writeExtensionsMigration(
   dryRun: boolean,
   now: Now,
 ): Promise<string[]> {
-  const { dir, existing, missing } = await unmigratedExtensions(config, files);
+  const { dir, missing } = await unmigratedExtensions(config, files);
 
   if (missing.length === 0) {
     return [];
@@ -73,22 +74,14 @@ export async function writeExtensionsMigration(
 
   const contents = `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`;
 
-  const path = `${dir}/${
-    migrationFile(
-      existing,
-      new Date(now().getTime() - 1000),
-      EXTENSIONS_SUFFIX,
-      contents,
-    ).name
-  }`;
-
-  const applied = await applyPlan(
-    sqlPlan(config, {
-      regenerate: "better-supabase upgrade",
-      files: [{ path, contents }],
-    }),
-    { "dry-run": dryRun },
-  );
+  const { applied } = await writeMigration(config, {
+    dir,
+    now: () => new Date(now().getTime() - 1000),
+    suffix: EXTENSIONS_SUFFIX,
+    contents,
+    regenerate: "better-supabase upgrade",
+    flags: { "dry-run": dryRun },
+  });
 
   return [
     ...changeLines(applied),
@@ -291,15 +284,14 @@ export async function dataMigration(
 
   const contents = `-- better-supabase add --adopt: the rows and settings of ${pending.map((part) => part.module).join(", ")} that no data migration holds yet.\n\n${LOCK_TIMEOUT}\n\n${pending.map((part) => `-- ${part.module}\n${part.statements.map((statement) => `${statement};`).join("\n\n")}`).join("\n\n")}\n`;
 
-  const path = `${dir}/${migrationFile(existing, now(), DATA_SUFFIX, contents).name}`;
-
-  const applied = await applyPlan(
-    sqlPlan(config, {
-      regenerate: "better-supabase add --adopt",
-      files: [{ path, contents }],
-    }),
-    { "dry-run": args["dry-run"] },
-  );
+  const { path, applied } = await writeMigration(config, {
+    dir,
+    now,
+    suffix: DATA_SUFFIX,
+    contents,
+    regenerate: "better-supabase add --adopt",
+    flags: { "dry-run": args["dry-run"] },
+  });
 
   return {
     code: 0,

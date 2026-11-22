@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -25,13 +25,13 @@ import {
   SQL_MODULES,
   upgradePlan,
 } from "../../sql/index.ts";
-import { applyPlan, changeLines } from "../core/files.ts";
+import { changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
-import { migrationsDir, sqlPlan } from "../sql-layout.ts";
+import { migrationsDir } from "../sql-layout.ts";
 import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { migrationFile } from "./migration-names.ts";
+import { writeMigration } from "./migration-write.ts";
 import {
   latestMigration,
   migrationInstances,
@@ -206,19 +206,14 @@ export async function upgrade(
       ? `${REVIEWED_HEADER}\n\n${steps.join("\n\n")}\n`
       : `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
-    const existing: string[] = await readdir(resolve(config.root, dir)).catch(
-      () => [],
-    );
-
-    const path = `${dir}/${migrationFile(existing, now(), reviewed ? REVIEWED_SUFFIX : "_better_supabase_block_upgrade.sql", contents).name}`;
-
-    const applied = await applyPlan(
-      sqlPlan(config, {
-        regenerate: "better-supabase upgrade",
-        files: [{ path, contents }],
-      }),
-      { "dry-run": dryRun },
-    );
+    const { applied } = await writeMigration(config, {
+      dir,
+      now,
+      suffix: reviewed ? REVIEWED_SUFFIX : "_better_supabase_block_upgrade.sql",
+      contents,
+      regenerate: "better-supabase upgrade",
+      flags: { "dry-run": dryRun },
+    });
 
     lines.push(...changeLines(applied));
   }

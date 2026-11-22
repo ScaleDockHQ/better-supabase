@@ -12,8 +12,10 @@ import { defineCliCommand } from "../core/command.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { supabaseCli } from "../exec.ts";
+import { requirePgDelta } from "../pg-delta-only.ts";
 import { migrationsDir } from "../sql-layout.ts";
 import { migrationStamp, stampAfter } from "../sql/migration-names.ts";
+import { readSupabaseConfig, sqlWorkflow } from "../supabase-config.ts";
 
 const EXTENSIONS = "better_supabase_extensions";
 
@@ -64,6 +66,42 @@ const DEFAULT_DEPS: SquashDeps = {
 const migrationName = (file: string): string =>
   file.replace(/^\d{14}_?/, "").replace(/\.sql$/, "");
 
+const NO_TRANSACTION = /^--\s*pg-delta:\s*transaction=false\s*$/m;
+
+/**
+ * Whether `file` is the migration `wanted` names: the same name, with the
+ * content hash `migrationFile` adds, or with the `_1`, `_2` suffix pg-delta
+ * gives each file of a multi-file migration.
+ */
+const isMigrationNamed = (file: string, wanted: string): boolean => {
+  const name = migrationName(file).replace(/_[0-9a-f]{8}$/, "");
+
+  return name === wanted || new RegExp(`^${wanted}_\\d+$`).test(name);
+};
+
+/**
+ * The parts of one migration in order (`_2` before `_10`), joined into one
+ * text. A `-- pg-delta: transaction=false` marker only holds for the whole
+ * file, so parts that disagree about it can't be joined.
+ */
+function joinParts(wanted: string, parts: readonly string[]): string {
+  const outside = parts.filter((part) => NO_TRANSACTION.test(part)).length;
+
+  if (outside !== 0 && outside !== parts.length) {
+    throw new CliError(
+      "usage",
+      `${wanted} has files with and without \`-- pg-delta: transaction=false\`, and squash would join them into one file. Make them agree, or leave ${wanted} out of --keep.`,
+      { flag: "--keep" },
+    );
+  }
+
+  return outside === 0
+    ? parts.join("\n")
+    : `-- pg-delta: transaction=false\n${parts
+        .map((part) => part.replace(NO_TRANSACTION, "").trim())
+        .join("\n")}`;
+}
+
 /** The names `--keep` lists, trimmed and without empties. */
 function keepNames(flag: string | undefined): string[] {
   return (flag ?? "")
@@ -87,6 +125,11 @@ export async function runSquash(
 ): Promise<CommandResult> {
   const { supabase, now, requireConsent } = { ...DEFAULT_DEPS, ...deps };
   const dir = migrationsDir(config);
+  requirePgDelta(
+    "db squash (it plans the baseline with `supabase db schema declarative sync --strict-coverage`)",
+    sqlWorkflow(config, await readSupabaseConfig(config.root)),
+  );
+
   const folder = resolve(config.root, dir);
   const name = args.name ?? "init";
   const keep = keepNames(args.keep);
@@ -118,9 +161,8 @@ export async function runSquash(
 
   for (const wanted of [EXTENSIONS, ...keep]) {
     const parts = files
-      .filter(
-        (file) => migrationName(file).replace(/_[0-9a-f]{8}$/, "") === wanted,
-      )
+      .filter((file) => isMigrationNamed(file, wanted))
+      .toSorted((a, b) => a.localeCompare(b, "en", { numeric: true }))
       .map((file) => texts.get(file) ?? "");
 
     if (parts.length === 0) {
@@ -135,7 +177,7 @@ export async function runSquash(
       );
     }
 
-    carried.set(wanted, parts.join("\n"));
+    carried.set(wanted, joinParts(wanted, parts));
   }
 
   const summary = {
