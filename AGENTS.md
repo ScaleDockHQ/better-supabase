@@ -53,7 +53,7 @@ every lint and format rule; each workspace config extends the root one.
 
 The full text is in `.agents/rules/architecture.mdc`.
 
-1. The core depends only on `@standard-schema/spec` and the Supabase packages; only the CLI and Node entries add `oxc-parser`, `@supabase/pg-parser`, `@supabase/pg-delta` and `@supabase/pg-topo` (ADR 1171).
+1. The core depends only on `@standard-schema/spec` and the Supabase packages; the CLI and Node entries add four pinned parsers and planners (ADR 1171).
 2. Generated code never uses `declare module`; it calls inferring functions.
 3. Rows keep the configured casing; `$client` and `queryRaw` use database names.
 4. Repository methods return a `Result` with plain `DbError`s; only `.orThrow()` throws.
@@ -130,17 +130,16 @@ fails on an ADR the index does not link.
 
 ## Pre-release pins
 
-| Package                           | Version        | Why                                                                           |
-| --------------------------------- | -------------- | ----------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.50  | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.50  | move with `@orpc/server`                                                      |
-| `c12`                             | 4.0.0-rc.4     | loads a `.ts` config through Node type stripping (ADR 0003)                   |
-| `@supabase/pg-delta`              | 1.0.0-alpha.61 | `db diff` plans with its library; a CLI dependency (ADR 1171)                 |
-| `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer; a CLI dependency (ADR 1171)                                  |
-| `@supabase/pg-parser`             | 0.1.7          | reads SQL; a 0.x CLI dependency (ADR 1171)                                    |
-| `oxc-parser`                      | 0.159.0        | reads TypeScript; a 0.x CLI dependency (ADR 1171)                             |
-| `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |
-| `typescript/sync` (`ts71`)        | 7.1.0-beta     | the CLI's optional symbol tier, tested in `tests/types/ts-7.1` (ADR 1182)     |
+| Package                           | Version        | Why                                                         |
+| --------------------------------- | -------------- | ----------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.50  | `better-supabase/orpc` targets oRPC 2, which has no stable  |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.50  | move with `@orpc/server`                                    |
+| `c12`                             | 4.0.0-rc.4     | loads a `.ts` config through Node type stripping (ADR 0003) |
+| `@supabase/pg-delta`              | 1.0.0-alpha.61 | `db diff` plans with its library (ADR 1171)                 |
+| `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer (ADR 1171)                                  |
+| `@supabase/pg-parser`             | 0.1.7          | reads SQL, 0.x (ADR 1171)                                   |
+| `oxc-parser`                      | 0.159.0        | reads TypeScript, 0.x (ADR 1171)                            |
+| `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark (ADR 0097)      |
 
 Move each to its stable release when it ships, and update this list.
 
