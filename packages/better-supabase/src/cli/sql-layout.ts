@@ -356,7 +356,11 @@ export async function moduleLayoutFor(
 
 type AppScans = Pick<
   BlockSqlLayout,
-  "uuidColumns" | "idTypes" | "foreignKeys" | "sameTenantTags"
+  | "uuidColumns"
+  | "idTypes"
+  | "foreignKeys"
+  | "sameTenantTags"
+  | "notNullColumns"
 >;
 
 /**
@@ -375,17 +379,26 @@ function appScans(
   if (lastScans?.key !== key) {
     const foreignKeys = appForeignKeys(files, schemas);
 
+    const sameTenantTags = sameTenantTagsOf(
+      files.map((file) => file.text),
+      schemas,
+      foreignKeys,
+    );
+
     lastScans = {
       key,
       scans: {
         uuidColumns: uuidColumnsOf(files, schemas),
         idTypes: idTypesOf(files, schemas),
         foreignKeys,
-        sameTenantTags: sameTenantTagsOf(
-          files.map((file) => file.text),
-          schemas,
-          foreignKeys,
-        ),
+        sameTenantTags,
+        // A tag that doesn't say `shared` follows the nullability of the
+        // referenced tenant column, which only the scan of the files knows.
+        ...(sameTenantTags.entries.length === 0
+          ? {}
+          : {
+              notNullColumns: sameTenantLayout(files, schemas).notNullColumns,
+            }),
       },
     };
   }

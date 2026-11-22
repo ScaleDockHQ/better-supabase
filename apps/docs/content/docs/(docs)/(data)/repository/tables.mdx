@@ -63,11 +63,16 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | `events`            | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`.                                                                 |
 | `embedding`         | Keeps a vector column current from text columns, `embedding content=title,body dimensions=1536`.                                                                         |
 
-A column comment can carry `same-tenant`, on a column with a single-column
-foreign key to another tenant table: `comment on column tasks.project_id is
-'@bsb same-tenant match=region=region'`. It replaces the check
-`sameTenant.auto` derives for that column. `match`, `through` and `where` take
-the forms of the `sameTenant` entries, and `same-tenant=false` drops the check.
+A column comment can carry `same-tenant`, on a column a foreign key to another
+tenant table holds: `comment on column tasks.project_id is '@bsb same-tenant
+match=region=region'`. It replaces the check `sameTenant.auto` derives for that
+column. `match`, `through` and `where` take the forms of the `sameTenant`
+entries, `tenant` and `parent-tenant` name the tenant columns when they are not
+the memberships one, `shared=true` or `shared=false` decides whether a
+referenced row with no tenant passes, and `same-tenant=false` drops the check.
+Without `shared`, the check follows the referenced tenant column: a column that
+may be null holds shared rows and passes them. On a composite foreign key, the
+tagged column leads and the other columns are checked as `match` pairs.
 A tag replaces every entry for its column, derived or listed in
 `blocks.memberships.options.sameTenant`. A config entry for the same table wins
 over a `data-lifecycle` or `grant` tag, and

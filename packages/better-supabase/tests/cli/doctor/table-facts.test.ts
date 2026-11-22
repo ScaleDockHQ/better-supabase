@@ -150,7 +150,7 @@ describe("table tags that cannot take effect (BS703)", () => {
     expect(await messages("@bsb grant authenticated=select")).toEqual([]);
   });
 
-  it("reports same-tenant on a column without a single-column foreign key", async () => {
+  it("reports same-tenant on a column no foreign key holds", async () => {
     const name = publicTable();
 
     const column = toCatalog(base).tables.find(

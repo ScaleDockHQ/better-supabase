@@ -250,14 +250,38 @@ row level security on it and the `grants` module writes the privileges.
 `codemod table-tags` writes the comments into the schema file that creates each
 table and removes the config entries. A fact whose table no schema file creates,
 or whose comment already holds the tag, stays in the config and is listed.
-`same-tenant` entries stay in the config: move them by hand. A
-`blocks.memberships.options.sameTenant` entry can carry `where`, `match`, `hops`,
-`deferrable` and `shared`, and the codemod cannot show that the one-line tag
-renders the same trigger for each of them, so it moves none. A baseline entry
+The codemod also moves a `blocks.memberships.options.sameTenant` entry into a
+`@bsb same-tenant` tag on its column, but only when it can show that the tag
+renders the same trigger statement. It renders the memberships module with the
+entry and again with the tag, compares the statement of that column, and moves
+the entry when the two are the same string. An entry that equals what the block
+derives from the foreign keys stays, and `codemod config --prune` removes it.
+An entry that does not move is listed with the reason: no foreign key holds the
+column, a `through` hop has its own key column, or the statement would change.
+A baseline entry
 for BS315 is not moved either: the baseline lists accepted findings, not
 exemptions, so add the `audit-exempt` tag with its reason instead. Doctor rule BS702
 lists the facts a comment can hold, and BS703 reports a tag that cannot take
 effect.
+
+### Same-tenant checks from every foreign key
+
+Without a `sameTenant` option, the block now derives a check from every foreign
+key between two tenant tables, not only the single-column ones. A composite key
+leads with its first column and checks the others as `match` pairs. A key with a
+nullable column besides the first is left to the database, because a foreign key
+does not check a row where one of its columns is null. A key that pairs the
+tenant column on both sides stays unchecked, as before.
+
+| Before                                                              | After                                                                                    |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| A `same-tenant` tag always let a referenced row with no tenant pass | The tag follows the referenced tenant column; `shared=true` or `shared=false` decides it |
+| A `same-tenant` tag needed a single-column foreign key              | A tag works on any foreign key that holds the column                                     |
+| `sameTenant` entries stayed in the config                           | `codemod table-tags` moves the ones a tag renders byte for byte                          |
+
+A tagged column whose referenced tenant column is `not null` now refuses a row
+with no tenant. Before, the tag wrote `shared` whatever the column said, so it
+let such a row pass. Add `shared=true` to the tag to keep the old behaviour.
 
 ## Optional columns
 

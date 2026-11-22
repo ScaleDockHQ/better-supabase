@@ -3,6 +3,7 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { withTableTag } from "./codemod-extra-columns.ts";
 import { withoutConfigPaths } from "./codemod-prune.ts";
+import { projectSameTenantMoves } from "./codemod-same-tenant.ts";
 import { declarationsOfText, primeSchemaFacts } from "./sql-facts.ts";
 
 /** One table fact the config holds, as the tag line that replaces it. */
@@ -289,7 +290,7 @@ export function tableTagsCodemod(): Codemod {
   return {
     name: "table-tags",
     description:
-      "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
+      "Move audit exemptions, data-lifecycle tables, expose entries and same-tenant entries into comment tags",
     project: async (project: CodemodProject) => {
       // A pgTAP file with psql commands (\gset) does not parse; it is skipped and reported.
       const unread = await primeSchemaFacts(project.sql, project.config.root, {
@@ -298,10 +299,33 @@ export function tableTagsCodemod(): Codemod {
 
       const result = tableTagFiles(project);
 
+      // The same-tenant step reads the files and the config the first step
+      // wrote, so a table tag and a column tag land in the same text.
+      const written = new Map(result.files.map((file) => [file.path, file]));
+
+      const sameTenant = await projectSameTenantMoves({
+        ...project,
+        sql: project.sql.map((file) => ({
+          ...file,
+          text: written.get(file.path)?.contents ?? file.text,
+        })),
+        ...(project.configFile === undefined
+          ? {}
+          : {
+              configText:
+                written.get(project.configFile)?.contents ?? project.configText,
+            }),
+      });
+
+      for (const file of sameTenant.files) {
+        written.set(file.path, file);
+      }
+
       return {
-        ...result,
+        files: [...written.values()],
         review: [
           ...result.review,
+          ...sameTenant.review,
           ...unread.map((error) => ({
             message: `${error.path}:${String(error.line)}: ${error.message}; the codemod did not read this file.`,
           })),

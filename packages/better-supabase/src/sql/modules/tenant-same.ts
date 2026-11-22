@@ -40,7 +40,9 @@ const WHERE = "blocks.memberships.options.sameTenant";
 /**
  * One entry per declared foreign key from a table with the tenant column to
  * another table with it, when the key doesn't already include the tenant
- * column. Keys over more than one column are left to explicit entries.
+ * column. A key over more than one column leads with its first column and
+ * checks the others as `match` pairs, so the referenced row must agree on all
+ * of them.
  */
 function autoEntries(
   layout: BlockSqlLayout,
@@ -85,29 +87,52 @@ function autoEntries(
     }),
   );
 
+  const seen = new Set<string>();
+
   return keys.flatMap((key) => {
-    const [column] = key.columns;
-    const [referenced] = key.referencedColumns;
+    const pairs = key.columns.map(
+      (column, index) => [column, key.referencedColumns[index]] as const,
+    );
+
+    const [lead, ...rest] = pairs;
+    const [column, referenced] = lead ?? [];
 
     if (
-      key.columns.length !== 1 ||
-      key.referencedColumns.length !== 1 ||
       column === undefined ||
       referenced === undefined ||
-      column === tenant ||
-      guarded[key.table]?.includes(column) === true ||
+      key.referencedColumns.length !== key.columns.length ||
+      pairs.some(([own]) => own === tenant) ||
+      pairs.some(([own]) => guarded[key.table]?.includes(own) === true) ||
+      // A composite key with a nullable column is not enforced when it is
+      // null (MATCH SIMPLE), so a trigger on the other columns would refuse
+      // rows the database accepts.
+      rest.some(
+        ([own]) => layout.notNullColumns?.[key.table]?.includes(own) !== true,
+      ) ||
       covered.has(`${key.table}.${column}>${key.references}`) ||
       !hasTenant(key.table) ||
-      !hasTenant(key.references)
+      !hasTenant(key.references) ||
+      seen.has(`${key.table}.${column}`)
     ) {
       return [];
     }
+
+    seen.add(`${key.table}.${column}`);
 
     return [
       {
         table: key.table,
         column,
         references: { table: key.references, column: referenced },
+        ...(rest.length === 0
+          ? {}
+          : {
+              match: Object.fromEntries(
+                rest.flatMap(([own, other]) =>
+                  other === undefined ? [] : [[own, other]],
+                ),
+              ),
+            }),
         ...(key.deferrable === true ? { deferrable: true } : {}),
         shared: !notNull(key.references),
       },
@@ -131,21 +156,61 @@ function entriesOf(
   }
 
   const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
-  const tagged = parseEntries(tags.entries, fallback, "@bsb same-tenant");
 
-  const own = new Set([
-    ...tagged.map((entry) => `${entry.table}.${entry.column}`),
-    ...tags.skip.map((name) => {
+  // A tag that does not say `shared` follows the referenced tenant column: a
+  // column that may be null holds rows every tenant may reference.
+  const nullable = (entry: Record<string, unknown>): boolean => {
+    const references = isRecord(entry["references"])
+      ? entry["references"]
+      : undefined;
+
+    const parent = references?.["table"];
+    const own = entry["tenant"];
+
+    const column =
+      typeof references?.["tenant"] === "string"
+        ? references["tenant"]
+        : typeof own === "string"
+          ? own
+          : fallback;
+
+    return (
+      typeof parent === "string" &&
+      layout.notNullColumns?.[parent]?.includes(column) !== true
+    );
+  };
+
+  const tagged = parseEntries(
+    tags.entries.map((entry) =>
+      "shared" in entry ? entry : { ...entry, shared: nullable(entry) },
+    ),
+    fallback,
+    "@bsb same-tenant",
+  );
+
+  const skipped = new Set(
+    tags.skip.map((name) => {
       const dot = name.lastIndexOf(".");
 
       return `${quotedTable(name.slice(0, dot))}.${name.slice(dot + 1)}`;
     }),
-  ]);
+  );
 
-  return [
-    ...fromConfig.filter((entry) => !own.has(`${entry.table}.${entry.column}`)),
-    ...tagged,
-  ];
+  const byColumn = new Map<string, SameTenant>(
+    tagged.map((entry) => [`${entry.table}.${entry.column}`, entry]),
+  );
+
+  // A tag takes the place of the entry it replaces, so moving an entry into a
+  // tag leaves the module's statements in the same order.
+  const kept = fromConfig.flatMap((entry) => {
+    const key = `${entry.table}.${entry.column}`;
+
+    return skipped.has(key) ? [] : [byColumn.get(key) ?? entry];
+  });
+
+  const placed = new Set(kept);
+
+  return [...kept, ...tagged.filter((entry) => !placed.has(entry))];
 }
 
 function configEntries(
@@ -374,6 +439,73 @@ export function sameTenantColumn(layout: BlockSqlLayout): string {
   return moduleContext("memberships", layout).colName("memberships", "tenant");
 }
 
+/** The trigger statement of each entry, by `table.column`. */
+function sameTenantTriggers(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): ReadonlyMap<string, string> {
+  const entries = entriesOf(ctx, layout);
+
+  return new Map(
+    entries.map((entry) => {
+      const conditions = [
+        ...(entry.where === undefined
+          ? []
+          : [entry.where.replaceAll("{row}", "p")]),
+        ...entry.hops.map(
+          (hop) =>
+            `p.${sqlIdent(hop.referenced)} is not distinct from (select h.${sqlIdent(hop.column)} from ${hop.table} h where h.${sqlIdent(hop.key)} = ($1).${sqlIdent(hop.via)})`,
+        ),
+      ];
+
+      const condition =
+        conditions.length > 1
+          ? conditions.map((part) => `(${part})`).join(" and ")
+          : conditions[0];
+
+      const tail =
+        condition === undefined && entry.match.length === 0
+          ? []
+          : [condition ?? "", ...entry.match.flat()];
+
+      const args = [
+        entry.column,
+        entry.tenant,
+        entry.parent,
+        entry.key,
+        entry.parentTenant,
+        ...(entry.shared ? ["shared", ...tail] : tail),
+      ].map(sqlString);
+
+      const name = triggerName(entry.column);
+
+      const columns = [
+        ...new Set([
+          entry.column,
+          entry.tenant,
+          ...entry.match.map(([own]) => own),
+          ...entry.hops.map((hop) => hop.via),
+        ]),
+      ]
+        .map(sqlIdent)
+        .join(", ");
+
+      // A deferrable key may point at a row inserted later in the transaction, so
+      // the check waits for the commit; the other keys check before the write.
+      const statement = entry.deferrable
+        ? `drop trigger if exists ${name} on ${entry.table};
+create constraint trigger ${name} after insert or update of ${columns} on ${entry.table}
+  deferrable initially deferred
+  for each row execute function better_supabase.same_tenant(${args.join(", ")});`
+        : `drop trigger if exists ${name} on ${entry.table};
+create trigger ${name} before insert or update of ${columns} on ${entry.table}
+  for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
+
+      return [`${entry.table}.${entry.column}`, statement] as const;
+    }),
+  );
+}
+
 /**
  * `blocks.memberships.options.sameTenant`: one `same_tenant()` trigger per
  * entry, listed or derived with `auto`, so a reference to a row of another
@@ -383,66 +515,11 @@ export function sameTenantSql(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): string {
-  const entries = entriesOf(ctx, layout);
+  const triggers = [...sameTenantTriggers(ctx, layout).values()];
 
-  if (entries.length === 0) {
+  if (triggers.length === 0) {
     return "";
   }
-
-  const triggers = entries.map((entry) => {
-    const conditions = [
-      ...(entry.where === undefined
-        ? []
-        : [entry.where.replaceAll("{row}", "p")]),
-      ...entry.hops.map(
-        (hop) =>
-          `p.${sqlIdent(hop.referenced)} is not distinct from (select h.${sqlIdent(hop.column)} from ${hop.table} h where h.${sqlIdent(hop.key)} = ($1).${sqlIdent(hop.via)})`,
-      ),
-    ];
-
-    const condition =
-      conditions.length > 1
-        ? conditions.map((part) => `(${part})`).join(" and ")
-        : conditions[0];
-
-    const tail =
-      condition === undefined && entry.match.length === 0
-        ? []
-        : [condition ?? "", ...entry.match.flat()];
-
-    const args = [
-      entry.column,
-      entry.tenant,
-      entry.parent,
-      entry.key,
-      entry.parentTenant,
-      ...(entry.shared ? ["shared", ...tail] : tail),
-    ].map(sqlString);
-
-    const name = triggerName(entry.column);
-
-    const columns = [
-      ...new Set([
-        entry.column,
-        entry.tenant,
-        ...entry.match.map(([own]) => own),
-        ...entry.hops.map((hop) => hop.via),
-      ]),
-    ]
-      .map(sqlIdent)
-      .join(", ");
-
-    // A deferrable key may point at a row inserted later in the transaction, so
-    // the check waits for the commit; the other keys check before the write.
-    return entry.deferrable
-      ? `drop trigger if exists ${name} on ${entry.table};
-create constraint trigger ${name} after insert or update of ${columns} on ${entry.table}
-  deferrable initially deferred
-  for each row execute function better_supabase.same_tenant(${args.join(", ")});`
-      : `drop trigger if exists ${name} on ${entry.table};
-create trigger ${name} before insert or update of ${columns} on ${entry.table}
-  for each row execute function better_supabase.same_tenant(${args.join(", ")});`;
-  });
 
   return `
 -- blocks.memberships.options.sameTenant: a row may reference only a row of
