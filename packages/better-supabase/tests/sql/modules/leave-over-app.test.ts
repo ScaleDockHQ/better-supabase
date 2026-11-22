@@ -7,6 +7,11 @@ import { declaredTableColumns } from "../../../src/sql/schema-scan.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 import { renderBlocks } from "../app-columns.ts";
 
+const contentsOf = (
+  files: readonly { readonly kind: string; readonly contents: string }[],
+  kind: string,
+) => files.filter((file) => file.kind === kind).map((file) => file.contents);
+
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
 const DECIDER = "88888888-8888-4888-8888-888888888888";
@@ -135,20 +140,8 @@ async function run(
 
   await using stack = await liteStack({
     driver: "pglite",
-    migrations: [
-      ROLES,
-      app,
-      ...files
-        .filter((file) => file.kind === "schema")
-        .map((file) => file.contents),
-    ],
-    seed: [
-      ...files
-        .filter((file) => file.kind === "data")
-        .map((file) => file.contents),
-      ALLOW,
-      check,
-    ],
+    migrations: [ROLES, app, ...contentsOf(files, "schema")],
+    seed: [...contentsOf(files, "data"), ALLOW, check],
   });
 
   expect(stack.url).not.toBe("");
@@ -805,21 +798,8 @@ async function runEmployees(
 
   await using stack = await liteStack({
     driver: "pglite",
-    migrations: [
-      ROLES,
-      app,
-      ...files
-        .filter((file) => file.kind === "schema")
-        .map((file) => file.contents),
-    ],
-    seed: [
-      ...files
-        .filter((file) => file.kind === "data")
-        .map((file) => file.contents),
-      ALLOW,
-      STAFF,
-      check,
-    ],
+    migrations: [ROLES, app, ...contentsOf(files, "schema")],
+    seed: [...contentsOf(files, "data"), ALLOW, STAFF, check],
   });
 
   expect(stack.url).not.toBe("");
@@ -1019,14 +999,10 @@ create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
+        ...contentsOf(files, "schema"),
       ],
       seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
+        ...contentsOf(files, "data"),
         ALLOW,
         STAFF,
         `insert into better_supabase.teams (id, tenant_id, name, slug) values ('88888888-8888-4888-8888-888888888888', '${TENANT}', 'Support', 'support');
@@ -1196,14 +1172,10 @@ create or replace function extensions.gen_random_bytes(n integer) returns bytea
 language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
 create or replace function extensions.digest(data bytea, type text) returns bytea
 language sql immutable as $$ select sha256(data) $$;`,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
+        ...contentsOf(files, "schema"),
       ],
       seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
+        ...contentsOf(files, "data"),
         ALLOW,
         STAFF,
         `insert into public.orgs values ('${TENANT}', 'Acme');

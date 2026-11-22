@@ -6,6 +6,11 @@ import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 
+const contentsOf = (
+  files: readonly { readonly kind: string; readonly contents: string }[],
+  kind: string,
+) => files.filter((file) => file.kind === kind).map((file) => file.contents);
+
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const OWNER = "22222222-2222-4222-8222-222222222222";
 const ALICE = "33333333-3333-4333-8333-333333333333";
@@ -499,20 +504,8 @@ describe("calendar over an app's tables with per-calendar access", () => {
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          ROLES,
-          APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
-        seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
-          KEYS,
-          CHECK,
-        ],
+        migrations: [ROLES, APP, ...contentsOf(files, "schema")],
+        seed: [...contentsOf(files, "data"), KEYS, CHECK],
       });
 
       expect(stack.url).not.toBe("");
@@ -561,14 +554,10 @@ describe("calendar over an app's tables with per-calendar access", () => {
   minutes_before integer not null,
   action text not null default 'display'
 );`,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
+          ...contentsOf(files, "schema"),
         ],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           KEYS,
           `do $$
 declare
@@ -620,20 +609,8 @@ $$;`,
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          ROLES,
-          APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
-        seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
-          KEYS,
-          MANAGED_CHECK,
-        ],
+        migrations: [ROLES, APP, ...contentsOf(files, "schema")],
+        seed: [...contentsOf(files, "data"), KEYS, MANAGED_CHECK],
       });
 
       expect(stack.url).not.toBe("");
@@ -673,17 +650,9 @@ $$;`,
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          ROLES,
-          APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
+        migrations: [ROLES, APP, ...contentsOf(files, "schema")],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           KEYS,
           `do $$
 declare
@@ -786,17 +755,9 @@ $$;`,
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          ROLES,
-          app,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
+        migrations: [ROLES, app, ...contentsOf(files, "schema")],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           KEYS,
           `do $$
 declare

@@ -5,6 +5,11 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
 import { renderBlocks } from "../app-columns.ts";
 
+const contentsOf = (
+  files: readonly { readonly kind: string; readonly contents: string }[],
+  kind: string,
+) => files.filter((file) => file.kind === kind).map((file) => file.contents);
+
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
 const APP = `
@@ -169,16 +174,9 @@ describe("catalog over the app's products", () => {
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
+        migrations: [APP, ...contentsOf(files, "schema")],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `do $$
 declare
   v_product jsonb;
@@ -228,16 +226,9 @@ $$;`,
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          VARIANT_APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
+        migrations: [VARIANT_APP, ...contentsOf(files, "schema")],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `do $$
 declare
   v_product uuid;
@@ -338,16 +329,9 @@ $$;`,
 
       await using stack = await liteStack({
         driver: "pglite",
-        migrations: [
-          VARIANT_APP,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
-        ],
+        migrations: [VARIANT_APP, ...contentsOf(files, "schema")],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `do $$
 declare
   v_product uuid;
@@ -433,14 +417,10 @@ create table public.pinned_variants (variant_id uuid primary key);
 create function public.variant_in_use(variant uuid) returns boolean language sql stable as $$
   select exists (select 1 from public.pinned_variants p where p.variant_id = variant);
 $$;`,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
+          ...contentsOf(files, "schema"),
         ],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `do $$
 declare
   v_digital uuid;
@@ -585,14 +565,10 @@ $$;`,
         migrations: [
           `${VARIANT_APP}
 alter table public.item_variants add column status public.item_status not null default 'active';`,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
+          ...contentsOf(files, "schema"),
         ],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `create table public.denied (permission text primary key);
 insert into public.denied values ('category.delete');
 create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
@@ -706,14 +682,10 @@ alter table public.item_variants add column ean text;
 create unique index item_variants_org_ean_key on public.item_variants (org_id, lower(ean));
 alter table public.item_categories alter column description set default '' ;
 alter table public.item_categories alter column description set not null;`,
-          ...files
-            .filter((file) => file.kind === "schema")
-            .map((file) => file.contents),
+          ...contentsOf(files, "schema"),
         ],
         seed: [
-          ...files
-            .filter((file) => file.kind === "data")
-            .map((file) => file.contents),
+          ...contentsOf(files, "data"),
           `do $$
 declare
   v_product uuid;

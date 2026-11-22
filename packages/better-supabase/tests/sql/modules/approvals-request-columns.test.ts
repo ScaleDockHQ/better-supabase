@@ -55,6 +55,16 @@ const COLUMNS = {
   },
 };
 
+const kindOf = (files: ReturnType<typeof renderBlocks>, kind: string) =>
+  files.filter((file) => file.kind === kind).map((file) => file.contents);
+
+const stackFor = (files: ReturnType<typeof renderBlocks>, script: string) =>
+  liteStack({
+    driver: "pglite",
+    migrations: [ROLES, ...kindOf(files, "schema"), ADDED],
+    seed: [...kindOf(files, "data"), ALLOW, script],
+  });
+
 describe("approvals requestColumns", { timeout: 180_000 }, () => {
   it("fills the app's columns of a request a block files", async () => {
     const files = renderBlocks(["employees", "leave"], {
@@ -62,21 +72,9 @@ describe("approvals requestColumns", { timeout: 180_000 }, () => {
       modules: { approvals: { options: { requestColumns: COLUMNS } } },
     });
 
-    await using stack = await liteStack({
-      driver: "pglite",
-      migrations: [
-        ROLES,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
-        ADDED,
-      ],
-      seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
-        ALLOW,
-        `do $$
+    await using stack = await stackFor(
+      files,
+      `do $$
 declare
   v_type uuid;
   v_id uuid;
@@ -92,8 +90,7 @@ begin
   end if;
 end;
 $$;`,
-      ],
-    });
+    );
 
     expect(stack.url).not.toBe("");
   });
@@ -117,21 +114,9 @@ $$;`,
       },
     });
 
-    await using stack = await liteStack({
-      driver: "pglite",
-      migrations: [
-        ROLES,
-        ...files
-          .filter((file) => file.kind === "schema")
-          .map((file) => file.contents),
-        ADDED,
-      ],
-      seed: [
-        ...files
-          .filter((file) => file.kind === "data")
-          .map((file) => file.contents),
-        ALLOW,
-        `do $$
+    await using stack = await stackFor(
+      files,
+      `do $$
 declare
   v_id uuid;
   v_request better_supabase.approval_requests%rowtype;
@@ -144,8 +129,7 @@ begin
   end if;
 end;
 $$;`,
-      ],
-    });
+    );
 
     expect(stack.url).not.toBe("");
   });
