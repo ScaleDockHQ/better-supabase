@@ -244,6 +244,8 @@ const entries = [
   "blocks/waitlist/index",
   "streams/index",
   "streams/redis/index",
+  "cache-postgres/index",
+  "cache-postgres/astro/index",
   "streams/resumable/index",
   "json-render/index",
   "credentials/index",

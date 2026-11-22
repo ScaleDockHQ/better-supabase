@@ -5406,6 +5406,38 @@
       "RedisStreamSubscriber"
     ]
   },
+  "./cache-postgres": {
+    "values": [
+      "astroPostgresCache",
+      "postgresCacheHandler",
+      "postgresCacheSql",
+      "postgresCacheStore"
+    ],
+    "types": [
+      "AstroCacheProviderLike",
+      "AstroPostgresCacheConfig",
+      "AstroPostgresCacheOptions",
+      "NextCacheEntry",
+      "NextCacheHandler",
+      "PostgresCacheHandlerOptions",
+      "PostgresCacheSqlOptions",
+      "PostgresCacheStore",
+      "PostgresCacheStoreOptions",
+      "StoredCacheEntry",
+      "TagState"
+    ]
+  },
+  "./cache-postgres/astro": {
+    "values": [
+      "astroPostgresCache",
+      "default"
+    ],
+    "types": [
+      "AstroCacheProviderLike",
+      "AstroPostgresCacheConfig",
+      "AstroPostgresCacheOptions"
+    ]
+  },
   "./credentials": {
     "values": [
       "credentialRefInTenant",

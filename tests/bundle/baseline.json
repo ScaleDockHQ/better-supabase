@@ -204,6 +204,8 @@
   "./blocks/webhooks": 73115,
   "./blocks/workflow-editor": 67011,
   "./blocks/workflows": 35943,
+  "./cache-postgres": 14518,
+  "./cache-postgres/astro": 10608,
   "./chat-sdk": 45171,
   "./claims": 18421,
   "./cli": 896639,
