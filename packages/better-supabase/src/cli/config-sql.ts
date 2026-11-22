@@ -1,4 +1,3 @@
-import type { EventPayloadColumns } from "../config/blocks.ts";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { CommandResult } from "./core/io.ts";
 
@@ -35,14 +34,10 @@ export function configSqlFragments(
   }
 
   for (const [block, options] of Object.entries(config.blocks)) {
-    if (options === undefined || !("eventPayload" in options)) {
-      continue;
-    }
+    const events = options?.events;
+    const payload = typeof events === "object" ? events.payload : undefined;
 
-    // SAFETY: a resolved block's `eventPayload` is `EventPayloadColumns`.
-    const payload = options.eventPayload as EventPayloadColumns;
-
-    for (const [event, columns] of Object.entries(payload)) {
+    for (const [event, columns] of Object.entries(payload ?? {})) {
       for (const [key, column] of Object.entries(columns)) {
         if (typeof column !== "string") {
           fragments.push({
