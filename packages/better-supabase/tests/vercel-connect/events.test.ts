@@ -309,6 +309,110 @@ describe("postgresConnectEventSubscriptions", () => {
     expect(!result.ok && result.error.kind).toBe("network");
   });
 
+  it("saves, lists and removes subscriptions in the named table", async () => {
+    const { sql, calls } = sqlFake([
+      {
+        id: "sub_2",
+        tenant_id: "org_1",
+        connector_id: "scl_linear",
+        user_id: null,
+        name: "issue.created",
+        status: "paused",
+        status_reason: "token revoked",
+        expires_at: "2026-11-01T00:00:00Z",
+        created_at: null,
+      },
+    ]);
+
+    const store = postgresConnectEventSubscriptions(sql, {
+      schema: "connect",
+      table: "subs",
+    });
+
+    await store
+      .save({
+        id: "sub_1",
+        tenantId: "org_1",
+        connectorId: "scl_linear",
+        name: "issue.created",
+        status: "active",
+        expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      })
+      .orThrow();
+    await store
+      .save({
+        id: "sub_1",
+        tenantId: "org_1",
+        connectorId: "scl_linear",
+        userId: "user_1",
+        name: "issue.created",
+        status: "needs_auth",
+        statusReason: "reauthorize",
+      })
+      .orThrow();
+
+    const listed = await store
+      .listByTenant("org_1", { status: "failed" })
+      .orThrow();
+
+    await store.listByTenant("org_1").orThrow();
+    expect(await store.setStatus("sub_2", "stopped", "done").orThrow()).toBe(
+      true,
+    );
+    expect(await store.remove("sub_2").orThrow()).toBe(true);
+
+    expect(listed).toEqual([
+      {
+        id: "sub_2",
+        tenantId: "org_1",
+        connectorId: "scl_linear",
+        name: "issue.created",
+        status: "failed",
+        statusReason: "token revoked",
+        expiresAt: Temporal.Instant.from("2026-11-01T00:00:00Z"),
+      },
+    ]);
+    expect(calls.every((call) => call.text.includes('"connect"."subs"'))).toBe(
+      true,
+    );
+    expect(calls.map((call) => call.params)).toEqual([
+      [
+        "sub_1",
+        "org_1",
+        "scl_linear",
+        null,
+        "issue.created",
+        "active",
+        null,
+        new Date("2026-11-01T00:00:00Z"),
+      ],
+      [
+        "sub_1",
+        "org_1",
+        "scl_linear",
+        "user_1",
+        "issue.created",
+        "needs_auth",
+        "reauthorize",
+        null,
+      ],
+      ["org_1", "failed"],
+      ["org_1", null],
+      ["sub_2", "stopped", "done"],
+      ["sub_2"],
+    ]);
+  });
+
+  it("keeps a database error the query raised", async () => {
+    const store = postgresConnectEventSubscriptions({
+      queryRaw: () => Promise.reject(dbError("conflict", "taken")),
+    });
+
+    const result = await store.get("sub_1");
+
+    expect(!result.ok && result.error.kind).toBe("conflict");
+  });
+
   it("refuses a table name that is not an identifier", () => {
     expect(() =>
       postgresConnectEventSubscriptions(sqlFake([]).sql, { table: 'x"; drop' }),

@@ -17,11 +17,17 @@ const baseClose = vi.fn(async () => undefined);
 const created: Record<string, unknown>[] = [];
 const reenqueue = vi.fn(async () => undefined);
 
+const createEvent = vi.fn(
+  async (runId: unknown, _data: unknown): Promise<unknown> => ({
+    run: { runId },
+  }),
+);
+
 vi.mock("@workflow/world-postgres", () => ({
   createWorld: (config: Record<string, unknown>) => ({
     ...(created.push(config), {}),
     runs: { waitForTerminalStatus: async () => undefined },
-    events: { subscribe: () => () => undefined },
+    events: { subscribe: () => () => undefined, create: createEvent },
     streams: { get: async () => new ReadableStream(), list: async () => [] },
     createQueueHandler: () => inner,
     close: baseClose,
@@ -1531,5 +1537,72 @@ describe("delivery in poll and pg_net mode", () => {
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('delivery: "vercel-queue"'),
     );
+  });
+});
+
+describe("run key stamps", () => {
+  const ring = JSON.stringify([
+    { id: "a", key: Buffer.alloc(32, 1).toString("base64") },
+  ]);
+
+  const stamps = (queries: Query[]) =>
+    queries.filter((query) => query.params[1] === "$bsb.key_id");
+
+  it("stores the ring key id on a created run, and only on a created run", async () => {
+    const { pool, queries } = fakePool({});
+    const world = createSupabaseWorld({ pool, encryptionKeys: ring });
+
+    await world.events.create("wrun_1", { eventType: "run_created" } as never);
+    await world.events.create("wrun_1", { eventType: "step_started" } as never);
+    createEvent.mockResolvedValueOnce({ run: { runId: 7 } });
+    await world.events.create("wrun_2", { eventType: "run_created" } as never);
+    createEvent.mockResolvedValueOnce(null);
+    await world.events.create("wrun_3", { eventType: "run_created" } as never);
+    await world.events.create("wrun_4", null as never);
+
+    expect(stamps(queries).map((query) => query.params)).toEqual([
+      ["wrun_1", "$bsb.key_id", "a"],
+    ]);
+    await world.close();
+  });
+
+  it("stamps nothing without a key ring", async () => {
+    const { pool, queries } = fakePool({});
+    const world = createSupabaseWorld({ pool });
+
+    await world.events.create("wrun_1", { eventType: "run_created" } as never);
+
+    expect(stamps(queries)).toEqual([]);
+    await world.close();
+  });
+
+  it("logs a stamp that fails and still returns the event", async () => {
+    const error = vi.fn();
+
+    const query = vi.fn(async (text: string) => {
+      if (text.includes("jsonb_build_object")) {
+        throw new Error("down");
+      }
+
+      return { rows: [] };
+    });
+
+    // SAFETY: the World only calls query and end on its pool.
+    const pool = { query, end: async () => undefined } as unknown as Pool;
+
+    const world = createSupabaseWorld({
+      pool,
+      encryptionKeys: ring,
+      logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error },
+    });
+
+    await expect(
+      world.events.create("wrun_1", { eventType: "run_created" } as never),
+    ).resolves.toEqual({ run: { runId: "wrun_1" } });
+    expect(error).toHaveBeenCalledWith(
+      "The run's encryption key id could not be stored",
+      expect.anything(),
+    );
+    await world.close();
   });
 });

@@ -60,4 +60,35 @@ describe("tasks hold approvals", () => {
       sql("tasks", layout({ policy: { steps: [], run: 1 } }), ["approvals"]),
     ).toThrow(/run is not allowed|steps/u);
   });
+
+  it("refuses a malformed option", () => {
+    expect(() => sql("tasks", layout("yes"), ["approvals"])).toThrow(
+      /must be true or an object/u,
+    );
+    expect(() => sql("tasks", layout({ when: 1 }), ["approvals"])).toThrow(
+      /has no key "when"/u,
+    );
+    expect(() =>
+      sql(
+        "tasks",
+        layout({
+          policy: {
+            steps: [{ approvers: { permission: "tasks.manage" } }],
+            run: { queue: "jobs" },
+          },
+        }),
+        ["approvals"],
+      ),
+    ).toThrow(/run is not allowed/u);
+    expect(() =>
+      renderBlocks(["tasks", "approvals"], {
+        modules: {
+          tasks: {
+            options: { hold: { approval: true } },
+            columns: { items: { heldAt: null } },
+          },
+        },
+      }),
+    ).toThrow(/needs the held_at column/u);
+  });
 });

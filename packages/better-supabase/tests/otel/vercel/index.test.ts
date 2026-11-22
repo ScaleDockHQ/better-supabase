@@ -164,4 +164,62 @@ describe("vercelMetrics", () => {
       operation: "rpc",
     });
   });
+
+  it("names upserts and counts, and measures rpc and batch outcomes", async () => {
+    const { calls, metric } = recorder();
+    const fail = { ok: false, error: { kind: "conflict" } };
+
+    const wrapped = vercelMetrics(metric).wrapExecutor?.({
+      name: "postgrest",
+      execute: async () => ({ ok: true, data: [] }),
+      rpc: async () => fail,
+      batch: async (ops: readonly unknown[]) =>
+        ops.length > 1
+          ? [{ ok: true, data: [] }, fail]
+          : [{ ok: true, data: [] }],
+    } as never);
+
+    const table = { name: "customers" };
+    const context = { schema: "public", errorMappers: [] } as never;
+
+    await wrapped?.execute(
+      { kind: "insert", table, onConflict: { action: "update" } } as never,
+      context,
+    );
+    await wrapped?.execute(
+      { kind: "select", table, head: true } as never,
+      context,
+    );
+    await wrapped?.execute({ kind: "delete", table } as never, context);
+    await wrapped?.rpc?.("refresh_totals", {}, context);
+    await wrapped?.batch?.([{}, {}] as never, context);
+    await wrapped?.batch?.([{}] as never, context);
+
+    const durations = calls
+      .filter(([name]) => name.endsWith("duration_ms"))
+      .map(([, , tags]) => [
+        tags?.["target"],
+        tags?.["operation"],
+        tags?.["outcome"],
+      ]);
+
+    expect(durations).toEqual([
+      ["customers", "upsert", "ok"],
+      ["customers", "count", "ok"],
+      ["customers", "delete", "ok"],
+      ["refresh_totals", "rpc", "error"],
+      ["batch", "batch", "error"],
+      ["batch", "batch", "ok"],
+    ]);
+  });
+
+  it("leaves rpc and batch out when the executor has neither", () => {
+    const wrapped = vercelMetrics(() => undefined).wrapExecutor?.({
+      name: "postgrest",
+      execute: async () => ({ ok: true, data: [] }),
+    } as never);
+
+    expect(wrapped && "rpc" in wrapped).toBe(false);
+    expect(wrapped && "batch" in wrapped).toBe(false);
+  });
 });

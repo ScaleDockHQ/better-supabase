@@ -316,3 +316,146 @@ describe("credits", () => {
     });
   });
 });
+
+describe("gateway cost edges", () => {
+  it("reads no byok flag from routing without a recorded success", () => {
+    const routed = (routing: unknown) =>
+      gatewayCostOf({
+        totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        finalStep: { providerMetadata: { gateway: { routing } } },
+      }).byok;
+
+    expect(routed({})).toBeUndefined();
+    expect(
+      routed({
+        modelAttempts: [
+          "x",
+          { providerAttempts: "x" },
+          { providerAttempts: [{ success: true }, "x"] },
+        ],
+      }),
+    ).toBeUndefined();
+  });
+
+  it("names the meters the caller picked", () => {
+    const meters = gatewayCostEntries(gatewayCostOf(recorded), {
+      input: "in",
+      output: "out",
+      cacheRead: "cr",
+      cacheWrite: "cw",
+      reasoning: "rs",
+      cost: "usd",
+      marketCost: "market",
+    }).map((entry) => entry.meter);
+
+    expect(meters.toSorted()).toEqual([
+      "cr",
+      "cw",
+      "in",
+      "market",
+      "out",
+      "rs",
+      "usd",
+    ]);
+  });
+
+  it("backfills the run only, with the gateway fee, without a tenant", async () => {
+    const setCost = vi.fn(() => new AsyncResult(Promise.resolve(ok(true))));
+    const recordMany = vi.fn();
+
+    const handler = gatewayCostBackfill({
+      chats: { runs: { setCost } } as unknown as Pick<AiChat, "runs">,
+      gateway: {
+        getGenerationInfo: async () => ({
+          totalCost: 0.001,
+          gatewayCost: 0.0002,
+        }),
+      },
+      usage: { recordMany },
+    });
+
+    const result = await handler(
+      { generationId: "gen_2" },
+      job(Temporal.Now.instant()),
+      signal,
+    );
+
+    expect(result).toMatchObject({ costMicroUsd: 1000, gaveUp: false });
+    expect(setCost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        usage: expect.objectContaining({ gatewayCostMicroUsd: 200 }),
+      }),
+    );
+    expect(recordMany).not.toHaveBeenCalled();
+  });
+
+  it("writes no meters for a free byok generation, or counts it when asked", async () => {
+    const setCost = vi.fn(() => new AsyncResult(Promise.resolve(ok(true))));
+
+    const recordMany = vi.fn(
+      () =>
+        new AsyncResult(
+          Promise.resolve(ok({ recorded: true, today: {}, used: {} })),
+        ),
+    );
+
+    const handlerFor = (countByok?: boolean) =>
+      gatewayCostBackfill({
+        chats: { runs: { setCost } } as unknown as Pick<AiChat, "runs">,
+        gateway: {
+          getGenerationInfo: async () => ({ totalCost: 0.002, isByok: true }),
+        },
+        usage: { recordMany },
+        meters: { cost: "usd", marketCost: "market" },
+        ...(countByok === undefined ? {} : { countByok }),
+      });
+
+    await handlerFor()(
+      { generationId: "gen_3", organizationId: "org" },
+      job(Temporal.Now.instant()),
+      signal,
+    );
+    expect(recordMany).not.toHaveBeenCalled();
+
+    await handlerFor(true)(
+      { generationId: "gen_3", organizationId: "org" },
+      job(Temporal.Now.instant()),
+      signal,
+    );
+    expect(recordMany).toHaveBeenCalledWith(
+      expect.objectContaining({ entries: [{ meter: "usd", quantity: 2000 }] }),
+    );
+  });
+
+  it("fails the credits lookup on an error or a balance that is not a number", async () => {
+    const failing = await checkGatewayCredits({
+      gateway: {
+        getCredits: async () => {
+          throw new Error("timeout");
+        },
+      },
+    });
+
+    expect(failing.error).toMatchObject({
+      kind: "network",
+      message: "timeout",
+    });
+
+    const nan = await checkGatewayCredits({
+      gateway: { getCredits: async () => ({ balance: "x", totalUsed: "1" }) },
+    });
+
+    expect(nan.error?.kind).toBe("unexpected");
+  });
+
+  it("leaves onLow alone while credits are left", async () => {
+    const onLow = vi.fn();
+
+    await creditsMonitor({
+      gateway: { getCredits: async () => ({ balance: "5", totalUsed: "1" }) },
+      onLow,
+    })(undefined, job(Temporal.Now.instant()), signal);
+
+    expect(onLow).not.toHaveBeenCalled();
+  });
+});

@@ -106,3 +106,39 @@ describe("virtualModelSpendReconciliation", () => {
     );
   });
 });
+
+describe("virtualModelSpendReconciliation defaults", () => {
+  it("reconciles yesterday, skips a free tenant and passes the credential type", async () => {
+    const recordMany = vi.fn();
+    const reports: unknown[] = [];
+
+    const handler = virtualModelSpendReconciliation({
+      gateway: {
+        getSpendReport: async (params) => {
+          reports.push(params);
+
+          return {
+            results: [{ user: "o1:a", totalCost: -1 }, { totalCost: 0.2 }],
+          };
+        },
+      },
+      usage: { recordMany },
+      organizationOf: (user) => user.split(":")[0],
+      credentialType: "byok",
+      now: () => Temporal.Instant.from("2026-11-21T10:00:00Z"),
+    });
+
+    const result = await handler(undefined, job, signal);
+
+    expect(result).toEqual({
+      day: "2026-11-20",
+      tenants: [{ organizationId: "o1", costMicroUsd: 0, requests: 0 }],
+      unattributedMicroUsd: 200_000,
+    });
+    expect(reports[0]).toMatchObject({
+      startDate: "2026-11-20",
+      credentialType: "byok",
+    });
+    expect(recordMany).not.toHaveBeenCalled();
+  });
+});

@@ -170,3 +170,72 @@ describe("registerWorkflowLifecycle", () => {
     expect(() => registerWorkflowLifecycle({})).toThrow(TypeError);
   });
 });
+
+describe("registerWorkflowLifecycle failures and sinks", () => {
+  it("reads a failure from a plain cause object, or from the error itself", async () => {
+    const { hooks, written } = setup({});
+
+    await hooks().onRunFailed?.({
+      run,
+      workflowName: name,
+      error: { cause: { name: "Timeout", message: "slow" } } as never,
+    });
+    await hooks().onRunFailed?.({
+      run,
+      workflowName: name,
+      error: { name: "WorkflowError", message: 3, cause: "text" } as never,
+    });
+
+    expect(written.map((each) => each["payload"])).toEqual([
+      {
+        runId: "wrun_1",
+        workflowName: name,
+        errorName: "Timeout",
+        errorMessage: "slow",
+      },
+      { runId: "wrun_1", workflowName: name, errorName: "WorkflowError" },
+    ]);
+  });
+
+  it("logs a throwing block event and still writes the outbox", async () => {
+    const logger = silent();
+
+    const events = {
+      logger,
+      emit: () => {
+        throw new Error("listener");
+      },
+    } as unknown as EventHub;
+
+    const { hooks, written } = setup({ events, logger });
+
+    await hooks().onRunCompleted?.({ run, workflowName: name });
+
+    expect(written).toHaveLength(1);
+    expect(String(logger.errors[0]?.[0])).toContain("block event threw");
+  });
+
+  it("emits block events without an outbox", async () => {
+    const events = new EventHub(silent());
+    const seen: string[] = [];
+    let hooks: Hooks | undefined;
+
+    events.on("block", (event) => seen.push(event.type));
+    registerWorkflowLifecycle({
+      events,
+      register: (given) => {
+        hooks = given;
+
+        return () => undefined;
+      },
+    });
+
+    await hooks?.onRunFailed?.({
+      run,
+      workflowName: name,
+      error: { cause: new Error("x") } as never,
+    });
+
+    expect(seen).toEqual(["workflow_sdk.run_failed"]);
+  });
+});

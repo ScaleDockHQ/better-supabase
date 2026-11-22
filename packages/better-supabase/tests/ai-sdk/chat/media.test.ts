@@ -12,6 +12,7 @@ import {
   createVideoRoutes,
 } from "../../../src/ai-sdk/chat/media.ts";
 import { gatewayPolicyReader } from "../../../src/ai-sdk/gateway-policy.ts";
+import { dbError } from "../../../src/core/errors.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
 const files = {
@@ -285,5 +286,170 @@ describe("the organization gateway policy on media routes", () => {
 
     expect(response.status).toBe(202);
     expect(gatewayOf(seen)["zeroDataRetention"]).toBe(true);
+  });
+});
+
+describe("media route failures", () => {
+  const refusing = {
+    files: { store: () => AsyncResult.err(dbError("network", "storage down")) },
+  } as unknown as AiFiles;
+
+  it("answers 400 for a body that is not an object, and the model's error", async () => {
+    const route = createMediaRoute({
+      kind: "image",
+      model: "openai/gpt-image",
+      files,
+      authorize: () => undefined,
+      run: async () => {
+        throw new Error("model down");
+      },
+    });
+
+    expect((await route.respond(post([1]), ctx)).status).toBe(400);
+    expect(
+      (await route.respond(post({ prompt: "x" }), ctx)).status,
+    ).toBeGreaterThanOrEqual(400);
+  });
+
+  it("answers the storage error when the output can't be saved", async () => {
+    const route = createMediaRoute({
+      kind: "speech",
+      model: "openai/tts",
+      files: refusing,
+      authorize: () => undefined,
+      run: async () => [png],
+    });
+
+    expect(
+      (await route.respond(post({ prompt: "x" }), ctx)).status,
+    ).toBeGreaterThanOrEqual(500);
+  });
+
+  function videoRoutes(overrides: Record<string, unknown> = {}) {
+    const rows = new Map<string, VideoJob>();
+
+    const routes = createVideoRoutes({
+      model: "google/veo",
+      files,
+      jobs: {
+        create: async (job) => void rows.set(job.id, job),
+        get: async (id) => rows.get(id),
+        update: async (id, patch) => {
+          const row = rows.get(id);
+
+          if (row) {
+            rows.set(id, { ...row, ...patch });
+          }
+        },
+      },
+      authorize: () => undefined,
+      start: async () => ({}),
+      status: async () => ({ status: "failed" as const }),
+      ...overrides,
+    });
+
+    return { routes, rows };
+  }
+
+  it("refuses a bad body, a denied caller, a quota and a policy that fails", async () => {
+    expect((await videoRoutes().routes.start(post("x"), ctx)).status).toBe(400);
+    expect(
+      (
+        await videoRoutes({
+          authorize: () => ({ kind: "forbidden", message: "no", status: 403 }),
+        }).routes.start(post({ prompt: "x" }), ctx)
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await videoRoutes({
+          quota: async () => ({
+            kind: "quota_exceeded",
+            message: "used up",
+            status: 429,
+          }),
+        }).routes.start(post({ prompt: "x" }), ctx)
+      ).status,
+    ).toBe(429);
+    expect(
+      (
+        await videoRoutes({
+          gatewayPolicy: gatewayPolicyReader(() =>
+            AsyncResult.ok({ region: "mars" }),
+          ),
+        }).routes.start(post({ prompt: "x" }), ctx)
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await videoRoutes({
+          start: async () => {
+            throw new Error("provider down");
+          },
+        }).routes.start(post({ prompt: "x" }), ctx)
+      ).status,
+    ).toBeGreaterThanOrEqual(400);
+  });
+
+  it("fails a job with the default message and keeps a finished job as it is", async () => {
+    const t = videoRoutes();
+    const started = await t.routes.start(post({ prompt: "x" }), ctx);
+    const { jobId } = (await started.json()) as { jobId: string };
+
+    const first = (await (await t.routes.poll(jobId, ctx)).json()) as {
+      error: string;
+    };
+
+    const again = (await (await t.routes.poll(jobId, ctx)).json()) as {
+      status: string;
+    };
+
+    expect(first.error).toBe("The video failed.");
+    expect(again.status).toBe("failed");
+  });
+
+  it("keeps a job pending when its video can't be saved, and survives a throwing sink", async () => {
+    const saving = videoRoutes({
+      files: refusing,
+      status: async () => ({ status: "succeeded" as const, videos: [png] }),
+    });
+
+    const started = await saving.routes.start(post({ prompt: "x" }), ctx);
+    const { jobId } = (await started.json()) as { jobId: string };
+
+    const view = (await (await saving.routes.poll(jobId, ctx)).json()) as {
+      status: string;
+    };
+
+    expect(view.status).toBe("pending");
+
+    const sinking = videoRoutes({
+      status: async () => ({ status: "succeeded" as const, videos: [png] }),
+      onFinish: () => {
+        throw new Error("sink");
+      },
+    });
+
+    const second = await sinking.routes.start(post({ prompt: "x" }), ctx);
+    const next = (await second.json()) as { jobId: string };
+
+    expect((await sinking.routes.poll(next.jobId, ctx)).status).toBe(200);
+  });
+
+  it("answers the provider's error on poll and ignores it on the webhook", async () => {
+    const t = videoRoutes({
+      status: async () => {
+        throw new Error("provider down");
+      },
+    });
+
+    const started = await t.routes.start(post({ prompt: "x" }), ctx);
+    const { jobId } = (await started.json()) as { jobId: string };
+
+    expect((await t.routes.poll(jobId, ctx)).status).toBeGreaterThanOrEqual(
+      400,
+    );
+    expect((await t.routes.webhook(post({ jobId }))).status).toBe(200);
+    expect((await t.routes.webhook(post("x"))).status).toBe(200);
   });
 });
