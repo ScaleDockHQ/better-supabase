@@ -1,3 +1,4 @@
+// oxlint-disable anti-slop/require-safety-comment-for-type-assertion, anti-slop/no-unsafe-dictionary-type, anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- the report walks an ESTree it only reads: nodes are checked by `type` before use (6 findings, all in the AstNode helpers)
 // Copies an adopter project (CentraKit) to a temporary directory, renders its SQL with the baseline
 // release, runs the 0.82 codemods, renders again and prints what the cutover changed. The source
 // project is never written to. Usage: node scripts/cutover-report.ts [--source <dir>]
@@ -14,12 +15,24 @@ import {
   symlinkSync,
   statSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { argv, exit } from "node:process";
 import { fileURLToPath } from "node:url";
 
-export const CONFIG_LINE_TARGET = 3000;
+// oxc-parser is a dependency of the library, not of the repo root, so it resolves from there.
+const { parseSync } = createRequire(
+  new URL("../packages/better-supabase/package.json", import.meta.url),
+)("oxc-parser") as {
+  parseSync: (
+    file: string,
+    text: string,
+    options: { sourceType: "module" },
+  ) => { program: unknown };
+};
+
+export const CONFIG_LINE_TARGET = 2500;
 
 export type SectionCounts = Map<string, number>;
 
@@ -64,99 +77,423 @@ export const ALLOWLIST: AllowlistEntry[] = [
   },
 ];
 
-const CONFIG_START = /^export default defineConfig\(\{\s*$/;
-const SECTION_KEY = /^ {2}("[^"]+"|[A-Za-z_$][\w$]*)\s*[:(]/;
-const ENTRY_KEY = /^ {4}("[^"]+"|[A-Za-z_$][\w$]*)\s*[:(]/;
+interface AstNode {
+  readonly type: string;
+  readonly start: number;
+  readonly end: number;
+  readonly [key: string]: unknown;
+}
 
-// Lines per top-level key of defineConfig; the lines before it count as "preamble".
-export function configSections(source: string): SectionCounts {
-  const lines = source.split("\n");
+const isNode = (value: unknown): value is AstNode =>
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as { type?: unknown }).type === "string";
 
-  if (lines.at(-1) === "") {
-    lines.pop();
+const nodes = (value: unknown): AstNode[] =>
+  Array.isArray(value) ? value.filter(isNode) : [];
+
+const callee = (node: AstNode): string | undefined => {
+  const target = node["callee"];
+
+  return isNode(target) && target.type === "Identifier"
+    ? String(target["name"])
+    : undefined;
+};
+
+// The object literal of `export default defineConfig({ ... })` (or `export default { ... }`).
+function configObject(program: AstNode): AstNode | undefined {
+  for (const statement of nodes(program["body"])) {
+    const declaration = statement["declaration"];
+
+    if (statement.type !== "ExportDefaultDeclaration" || !isNode(declaration)) {
+      continue;
+    }
+
+    if (declaration.type === "ObjectExpression") {
+      return declaration;
+    }
+
+    if (
+      declaration.type === "CallExpression" &&
+      callee(declaration) === "defineConfig"
+    ) {
+      return nodes(declaration["arguments"]).find(
+        (each) => each.type === "ObjectExpression",
+      );
+    }
   }
 
-  const start = lines.findIndex((line) => CONFIG_START.test(line));
+  return undefined;
+}
+
+interface Parsed {
+  readonly lines: number;
+  readonly object: AstNode | undefined;
+  readonly lineOf: (offset: number) => number;
+}
+
+function parseConfigSource(source: string): Parsed {
+  const result = parseSync("better-supabase.config.ts", source, {
+    sourceType: "module",
+  });
+
+  // SAFETY: oxc's Program is an ESTree node with a type and offsets.
+  const program = result.program as AstNode;
+  const starts = [0];
+
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === "\n") {
+      starts.push(index + 1);
+    }
+  }
+
+  const lines = source.endsWith("\n") ? starts.length - 1 : starts.length;
+
+  const lineOf = (offset: number): number => {
+    let low = 0;
+    let high = starts.length - 1;
+
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+
+      if ((starts[mid] ?? 0) <= offset) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return low + 1;
+  };
+
+  return { lines, object: configObject(program), lineOf };
+}
+
+const keyOf = (property: AstNode): string | undefined => {
+  const key = property["key"];
+
+  if (!isNode(key)) {
+    return undefined;
+  }
+
+  return key.type === "Identifier"
+    ? String(key["name"])
+    : key.type === "Literal"
+      ? String(key["value"])
+      : undefined;
+};
+
+const properties = (object: AstNode): AstNode[] =>
+  nodes(object["properties"]).filter((each) => each.type === "Property");
+
+const propertyValue = (
+  object: AstNode,
+  name: string,
+): { property: AstNode; value: AstNode } | undefined => {
+  for (const property of properties(object)) {
+    const value = property["value"];
+
+    if (keyOf(property) === name && isNode(value)) {
+      return { property, value };
+    }
+  }
+
+  return undefined;
+};
+
+// Lines per top-level key of defineConfig, found in the syntax tree. A key owns the lines from
+// its first line to the line before the next key; the last one owns the rest of the file, and the
+// lines up to the opening of the object count as "preamble".
+export function configSections(source: string): SectionCounts {
+  const { lines, object, lineOf } = parseConfigSource(source);
   const counts: SectionCounts = new Map();
 
-  if (start === -1) {
-    counts.set("(whole file)", lines.length);
+  if (object === undefined) {
+    counts.set("(whole file)", lines);
 
     return counts;
   }
 
-  counts.set("preamble", start + 1);
-  let current: string | null = null;
+  const keys = properties(object);
+  const first = keys[0];
 
-  for (const line of lines.slice(start + 1)) {
-    const key = SECTION_KEY.exec(line)?.[1];
+  counts.set(
+    "preamble",
+    (first === undefined ? lines : lineOf(first.start)) - 1,
+  );
 
-    if (key !== undefined) {
-      current = key.replaceAll('"', "");
-    }
+  for (const [index, key] of keys.entries()) {
+    const next = keys[index + 1];
+    const end = next === undefined ? lines + 1 : lineOf(next.start);
+    const name = keyOf(key) ?? "(computed)";
 
-    const name = current ?? "preamble";
-    counts.set(name, (counts.get(name) ?? 0) + 1);
+    counts.set(name, (counts.get(name) ?? 0) + end - lineOf(key.start));
   }
 
   return counts;
 }
 
-const ARRAY_ENTRY = /^ {4}\{/;
-const BLOCK_NAME = /\bblock:\s*"([^"]+)"/;
+// The entries of `blocks` (a list, or the 0.81 object keyed by name) and of `instances`.
+interface BlockEntry {
+  readonly name: string;
+  readonly node: AstNode;
+  // Where the sub-keys live: the entry itself, or an instance's `config`.
+  readonly body: AstNode | undefined;
+}
 
-// Lines per block of the `blocks` section (an object keyed by name or a list), for the
-// largest-entries list. Several instances of one block add up.
-export function blockEntrySizes(source: string): SectionCounts {
-  const entries: { name: string; lines: number }[] = [];
-  let inBlocks = false;
-  let open = false;
+function blockEntries(object: AstNode): BlockEntry[] {
+  const entries: BlockEntry[] = [];
+  const blocks = propertyValue(object, "blocks")?.value;
 
-  for (const line of source.split("\n")) {
-    const section = SECTION_KEY.exec(line)?.[1];
+  if (blocks?.type === "ArrayExpression") {
+    for (const element of nodes(blocks["elements"])) {
+      if (element.type === "ObjectExpression") {
+        const named = propertyValue(element, "block")?.value;
 
-    if (section !== undefined) {
-      inBlocks = section === "blocks";
-      open = false;
-      continue;
-    }
-
-    if (!inBlocks) {
-      continue;
-    }
-
-    if (/^ {2}\S/.test(line)) {
-      open = false;
-      continue;
-    }
-
-    const key = ENTRY_KEY.exec(line)?.[1];
-
-    if (key !== undefined || ARRAY_ENTRY.test(line)) {
-      entries.push({ name: key?.replaceAll('"', "") ?? "(unnamed)", lines: 0 });
-      open = true;
-    }
-
-    const entry = entries.at(-1);
-
-    if (open && entry !== undefined) {
-      const named = BLOCK_NAME.exec(line)?.[1];
-
-      if (named !== undefined && entry.name === "(unnamed)") {
-        entry.name = named;
+        entries.push({
+          name:
+            named?.type === "Literal" ? String(named["value"]) : "(unnamed)",
+          node: element,
+          body: element,
+        });
+      } else if (element.type === "Literal") {
+        entries.push({
+          name: String(element["value"]),
+          node: element,
+          body: undefined,
+        });
       }
+    }
+  } else if (blocks?.type === "ObjectExpression") {
+    for (const property of properties(blocks)) {
+      const value = property["value"];
 
-      entry.lines += 1;
+      entries.push({
+        name: keyOf(property) ?? "(computed)",
+        node: property,
+        body:
+          isNode(value) && value.type === "ObjectExpression"
+            ? value
+            : undefined,
+      });
     }
   }
 
+  const instances = propertyValue(object, "instances")?.value;
+
+  if (instances?.type === "ObjectExpression") {
+    for (const property of properties(instances)) {
+      const value = property["value"];
+
+      const block = isNode(value)
+        ? propertyValue(value, "block")?.value
+        : undefined;
+
+      const config = isNode(value)
+        ? propertyValue(value, "config")?.value
+        : undefined;
+
+      entries.push({
+        name:
+          block?.type === "Literal"
+            ? String(block["value"])
+            : (keyOf(property) ?? "(computed)"),
+        node: property,
+        body: config?.type === "ObjectExpression" ? config : undefined,
+      });
+    }
+  }
+
+  return entries;
+}
+
+const spanLines = (node: AstNode, lineOf: (offset: number) => number): number =>
+  lineOf(Math.max(node.start, node.end - 1)) - lineOf(node.start) + 1;
+
+// Lines per block, for the largest-entries list. Several instances of one block add up.
+export function blockEntrySizes(source: string): SectionCounts {
+  const { object, lineOf } = parseConfigSource(source);
   const sizes: SectionCounts = new Map();
 
-  for (const entry of entries) {
-    sizes.set(entry.name, (sizes.get(entry.name) ?? 0) + entry.lines);
+  if (object === undefined) {
+    return sizes;
+  }
+
+  for (const entry of blockEntries(object)) {
+    sizes.set(
+      entry.name,
+      (sizes.get(entry.name) ?? 0) + spanLines(entry.node, lineOf),
+    );
   }
 
   return sizes;
+}
+
+// Lines per block sub-key (columns, tables, hooks, api, ...), summed over every block and
+// instance. The lines of an entry that no sub-key owns (its `block` name and braces) count as
+// "(entry)".
+export function subKeyLines(source: string): SectionCounts {
+  const { object, lineOf } = parseConfigSource(source);
+  const counts: SectionCounts = new Map();
+
+  if (object === undefined) {
+    return counts;
+  }
+
+  for (const entry of blockEntries(object)) {
+    let owned = 0;
+
+    for (const property of entry.body === undefined
+      ? []
+      : properties(entry.body)) {
+      const name = keyOf(property) ?? "(computed)";
+
+      if (name === "block" || name === "name") {
+        continue;
+      }
+
+      const lines = spanLines(property, lineOf);
+
+      owned += lines;
+      counts.set(name, (counts.get(name) ?? 0) + lines);
+    }
+
+    counts.set(
+      "(entry)",
+      (counts.get("(entry)") ?? 0) + spanLines(entry.node, lineOf) - owned,
+    );
+  }
+
+  return counts;
+}
+
+export interface KeptEntry {
+  readonly path: string;
+  readonly reason: string;
+}
+
+// Why an entry that the codemods and the prune leave in the config still has to be there. The
+// prune removes an entry equal to its default, so what remains differs from the convention.
+function reasonFor(subKey: string, value: AstNode, nested: boolean): string {
+  const kind =
+    value.type === "Literal" && value["value"] === null
+      ? "null"
+      : value.type === "Literal" && typeof value["value"] === "boolean"
+        ? "boolean"
+        : value.type === "Literal"
+          ? "name"
+          : "code";
+
+  switch (subKey) {
+    case "columns": {
+      return kind === "null"
+        ? "drops a generated column the database lacks"
+        : kind === "name"
+          ? "the database column differs from the convention's name"
+          : "a computed column mapping the AST cannot reduce";
+    }
+
+    case "tables": {
+      return kind === "null"
+        ? "the block has no table here"
+        : kind === "name"
+          ? "the database table differs from the block's default"
+          : "a computed table mapping";
+    }
+
+    case "hooks": {
+      return kind === "name"
+        ? "the hook function differs from the block's default name"
+        : "a hook a trigger scan cannot derive";
+    }
+
+    case "api": {
+      return kind === "boolean" || kind === "name"
+        ? "the api schema or exposure differs from the preset"
+        : "an api object with an explicit function list";
+    }
+
+    case "options":
+    case "permissions":
+    case "audit":
+    case "on": {
+      return "a choice the SQL does not declare: it exists only in the config";
+    }
+
+    default: {
+      return nested
+        ? "a value the SQL does not declare"
+        : "a block setting the convention does not cover";
+    }
+  }
+}
+
+// Every entry still in the config: a column, table or hook line, or a block setting.
+export function keptEntries(source: string): KeptEntry[] {
+  const { object } = parseConfigSource(source);
+  const kept: KeptEntry[] = [];
+
+  if (object === undefined) {
+    return kept;
+  }
+
+  for (const entry of blockEntries(object)) {
+    for (const property of entry.body === undefined
+      ? []
+      : properties(entry.body)) {
+      const subKey = keyOf(property) ?? "(computed)";
+      const value = property["value"];
+
+      if (subKey === "block" || subKey === "name" || !isNode(value)) {
+        continue;
+      }
+
+      const base = `${entry.name}.${subKey}`;
+
+      if (subKey === "columns" && value.type === "ObjectExpression") {
+        for (const table of properties(value)) {
+          const inner = table["value"];
+
+          if (!isNode(inner) || inner.type !== "ObjectExpression") {
+            kept.push({
+              path: `${base}.${keyOf(table) ?? "?"}`,
+              reason: reasonFor(subKey, value, true),
+            });
+            continue;
+          }
+
+          for (const column of properties(inner)) {
+            const cell = column["value"];
+
+            if (isNode(cell)) {
+              kept.push({
+                path: `${base}.${keyOf(table) ?? "?"}.${keyOf(column) ?? "?"}`,
+                reason: reasonFor(subKey, cell, true),
+              });
+            }
+          }
+        }
+      } else if (
+        (subKey === "tables" || subKey === "hooks") &&
+        value.type === "ObjectExpression"
+      ) {
+        for (const item of properties(value)) {
+          const cell = item["value"];
+
+          if (isNode(cell)) {
+            kept.push({
+              path: `${base}.${keyOf(item) ?? "?"}`,
+              reason: reasonFor(subKey, cell, true),
+            });
+          }
+        }
+      } else {
+        kept.push({ path: base, reason: reasonFor(subKey, value, false) });
+      }
+    }
+  }
+
+  return kept;
 }
 
 export function totalLines(counts: SectionCounts): number {
@@ -550,6 +887,40 @@ function printSections(
   );
 }
 
+// The commit the source project is at. The report is evidence only for a clean checkout, so a
+// modified tree is refused: the numbers must be reproducible from the printed commit.
+export function pinnedCommit(source: string): string {
+  const head = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd: source,
+    encoding: "utf-8",
+  });
+
+  const dirty = spawnSync("git", ["status", "--porcelain"], {
+    cwd: source,
+    encoding: "utf-8",
+  });
+
+  if (head.status !== 0 || dirty.status !== 0) {
+    throw new Error(`${source} is not a git checkout, so it cannot be pinned`);
+  }
+
+  if (dirty.stdout.trim() !== "") {
+    throw new Error(`${source} has uncommitted changes; pin a clean checkout`);
+  }
+
+  return head.stdout.trim();
+}
+
+export function keptByReason(kept: KeptEntry[]): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const entry of kept) {
+    counts.set(entry.reason, (counts.get(entry.reason) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
 function main(): number {
   const options = parseArgs(argv.slice(2));
   const repo = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -558,6 +929,9 @@ function main(): number {
   const base = join(work, "base");
 
   try {
+    const pin = pinnedCommit(options.source);
+
+    console.log(`Source ${options.source} at ${pin} (read only)`);
     console.log(`Copying ${options.source} to ${app}`);
     copyProject(options.source, app);
 
@@ -605,6 +979,22 @@ function main(): number {
       `\nTarget under ${String(CONFIG_LINE_TARGET)} lines: ${total < CONFIG_LINE_TARGET ? "met" : `not met (${String(total - CONFIG_LINE_TARGET + 1)} lines over)`}`,
     );
 
+    printSections(
+      "Config lines per block sub-key (before -> after)",
+      subKeyLines(before),
+      subKeyLines(after),
+    );
+
+    const kept = keptEntries(after);
+
+    console.log(`\nKept entries after the codemods: ${String(kept.length)}`);
+
+    for (const [reason, count] of [...keptByReason(kept)].toSorted(
+      (a, b) => b[1] - a[1],
+    )) {
+      console.log(`  ${String(count).padStart(5)}  ${reason}`);
+    }
+
     const largest = [...blockEntrySizes(after)]
       .toSorted((a, b) => b[1] - a[1])
       .slice(0, 10);
@@ -647,7 +1037,17 @@ function main(): number {
     if (options.json) {
       console.log(
         JSON.stringify(
-          { sectionsBefore, sectionsAfter, classified, deletable },
+          {
+            pin,
+            sectionsBefore: Object.fromEntries(sectionsBefore),
+            sectionsAfter: Object.fromEntries(sectionsAfter),
+            subKeysBefore: Object.fromEntries(subKeyLines(before)),
+            subKeysAfter: Object.fromEntries(subKeyLines(after)),
+            target: CONFIG_LINE_TARGET,
+            kept,
+            classified,
+            deletable,
+          },
           null,
           2,
         ),
