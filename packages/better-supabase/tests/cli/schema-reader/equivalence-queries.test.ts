@@ -1,5 +1,3 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { readFileFacts } from "../../../src/cli/schema-reader/index.ts";
@@ -8,44 +6,7 @@ import { withoutComments } from "../../../src/sql/audit-registrations.ts";
 import * as keys from "../../../src/sql/foreign-keys.ts";
 import { parseDeclared } from "../../../src/sql/pipeline/model.ts";
 import * as scan from "../../../src/sql/schema-scan.ts";
-
-const REPO = join(import.meta.dirname, "../../../../..");
-
-const CORPUS = [
-  "packages/better-supabase/tests/sql/__golden__",
-  "supabase/schemas",
-  "tests/validation-centrakit/supabase/schemas",
-];
-
-const SCHEMAS = [
-  "public",
-  "better_supabase",
-  "auth",
-  "storage",
-  "api",
-  "_better_supabase",
-  "rbac",
-  "extensions",
-  "workflow",
-];
-
-function walk(directory: string, found: string[] = []): string[] {
-  for (const entry of readdirSync(directory)) {
-    const path = join(directory, entry);
-
-    if (statSync(path).isDirectory()) {
-      walk(path, found);
-    } else if (path.endsWith(".sql")) {
-      found.push(path);
-    }
-  }
-
-  return found;
-}
-
-const files = CORPUS.flatMap((directory) => walk(join(REPO, directory))).map(
-  (path) => ({ name: relative(REPO, path), text: readFileSync(path, "utf-8") }),
-);
+import { SCHEMAS, files } from "./corpus.ts";
 
 const read = await Promise.all(
   files.map((file) => readFileFacts(file.text, { path: file.name })),
