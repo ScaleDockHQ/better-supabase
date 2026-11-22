@@ -4,12 +4,16 @@ import {
   addBlocksToConfig,
   addBlocksToJson,
   addBlocksToWiring,
+  cutRange,
+  mask,
+  properties,
   setBlockInConfig,
   setBlockInJson,
   setPresetInConfig,
   setPathInConfig,
   setPathInJson,
   setPresetInJson,
+  tidyInline,
 } from "../../../src/cli/sql/config-edit.ts";
 
 const edited = (source: string, names: readonly string[]): string => {
@@ -568,5 +572,131 @@ describe("setPathInJson", () => {
       ],
     });
     expect(setPathInJson("[]", ["casing"], "camel").ok).toBe(false);
+  });
+});
+
+describe("setPathInJson edges", () => {
+  const json =
+    '{\n  "blocks": ["tags", { "block": "files", "options": { "a": 1 } }]\n}\n';
+
+  const parsed = (path: readonly [string, ...string[]], value: unknown) => {
+    const result = setPathInJson(json, path, value);
+
+    return result.ok ? JSON.parse(result.text) : result.reason;
+  };
+
+  it("rejects text that is not JSON", () => {
+    expect(setPathInJson("{", ["casing"], "camel")).toEqual({
+      ok: false,
+      reason: "it isn't valid JSON",
+    });
+  });
+
+  it("merges into a listed entry and keeps the list order", () => {
+    expect(parsed(["blocks", "files", "options", "b"], 2)).toEqual({
+      blocks: ["tags", { block: "files", options: { a: 1, b: 2 } }],
+    });
+    expect(parsed(["blocks", "tags", "options", "x"], true)).toEqual({
+      blocks: [
+        { block: "tags", options: { x: true } },
+        { block: "files", options: { a: 1 } },
+      ],
+    });
+  });
+
+  it("replaces a listed entry with a whole value", () => {
+    expect(parsed(["blocks", "files"], "files")).toEqual({
+      blocks: ["tags", "files"],
+    });
+    expect(parsed(["blocks", "files"], { options: {} })).toEqual({
+      blocks: ["tags", { block: "files", options: {} }],
+    });
+  });
+
+  it("creates objects on the way over a scalar", () => {
+    const result = setPathInJson('{ "sql": 1 }', ["sql", "dir"], "db");
+
+    expect(result.ok && JSON.parse(result.text)).toEqual({
+      sql: { dir: "db" },
+    });
+  });
+});
+
+describe("setPathInConfig edges", () => {
+  it("refuses a path through a value that is not an object literal", () => {
+    expect(
+      setPathInConfig(
+        "export default defineConfig({ appTables: shared });\n",
+        ["appTables", "notes"],
+        {},
+      ),
+    ).toEqual({
+      ok: false,
+      reason: "its appTables key isn't a literal object",
+    });
+  });
+});
+
+describe("cutRange", () => {
+  const range = (source: string, index: number, multiline: boolean) => {
+    const code = mask(source);
+    const open = source.indexOf("{");
+
+    return cutRange(
+      source,
+      code,
+      open,
+      properties(source, code, open)!,
+      index,
+      multiline,
+    );
+  };
+
+  it("cuts an inline property with its comma", () => {
+    const source = "{ a: 1, b: 2 }";
+    const cut = range(source, 0, false);
+
+    expect(cut.text).toBe("a: 1");
+    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe("{ b: 2 }");
+    expect(range(source, 1, false).text).toBe("b: 2");
+  });
+
+  it("cuts a whole line with its trailing comment", () => {
+    const source = "{\n  a: 1,\n  b: 2, // note\n  c: 3\n}";
+    const cut = range(source, 1, true);
+
+    expect(cut.text).toBe("  b: 2, // note");
+    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe(
+      "{\n  a: 1,\n  c: 3\n}",
+    );
+  });
+
+  it("stops at the comma when code follows on the line", () => {
+    const source = "{ a: 1, b: 2 }";
+    const cut = range(source, 0, true);
+
+    expect(cut.text).toBe(" a: 1,");
+    expect(cut.end).toBe(source.indexOf(",") + 1);
+  });
+});
+
+describe("tidyInline", () => {
+  it("empties a blank object and drops a dangling comma", () => {
+    expect(tidyInline("x = {  }", 4)).toBe("x = {}");
+    expect(tidyInline("x = { a: 1, }", 4)).toBe("x = { a: 1 }");
+    expect(tidyInline("x = [1, ]", 4)).toBe("x = [1]");
+  });
+});
+
+describe("addBlocksToJson with a blocks object", () => {
+  it("adds the missing names as empty entries and keeps the others", () => {
+    const result = addBlocksToJson(
+      '{\n  "blocks": { "tags": { "a": 1 } }\n}\n',
+      ["tags", "files"],
+    );
+
+    expect(result.ok && JSON.parse(result.text)).toEqual({
+      blocks: { tags: { a: 1 }, files: {} },
+    });
   });
 });

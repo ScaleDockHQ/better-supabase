@@ -7,8 +7,11 @@ import {
   entitlementsMode,
   keyStatus,
   catalogKeyProblems,
+  claimMarkerOverrides,
   moduleKeyProblems,
+  providerKeyUses,
   providerLabel,
+  tagKeyProblem,
   unsafeKey,
   sqlCompleteKeys,
 } from "../../src/cli/authorization.ts";
@@ -488,5 +491,180 @@ describe("requirements", () => {
         role: "supabase_auth_admin",
       },
     ]);
+  });
+});
+
+describe("derived member templates", () => {
+  const {
+    memberIds: _ids,
+    memberIdsFor: _for,
+    ...functions
+  } = stubProvider.functions;
+
+  const mode = (provider: object) =>
+    entitlementsMode({
+      entitlements: { memberships: "provider" },
+      authorization: { ...stubProvider, functions, ...provider },
+    } as unknown as Parameters<typeof entitlementsMode>[0]);
+
+  it("reads memberIds off the membership rows of the tenant scope", () => {
+    const result = mode({
+      memberships: [
+        {
+          table: 'authz.team"s',
+          userColumn: "profile_id",
+          userKey: "user_id",
+          scope: { value: "organization" },
+          idColumn: "org_id",
+          disabledAt: "disabled_at",
+        },
+        {
+          table: "authz.other",
+          userColumn: "u",
+          scope: { value: "project" },
+          idColumn: "p",
+        },
+        {
+          table: "authz.memberships",
+          userColumn: "user_id",
+          scope: { column: "kind" },
+          idColumn: "scope_id",
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      kind: "provider",
+      provider: {
+        memberIds:
+          '(select m."org_id" as id from "authz"."team""s" m where m."user_id" = (select auth.uid()) and m."disabled_at" is null union select m."scope_id" as id from "authz"."memberships" m where m."user_id" = (select auth.uid()) and m."kind" = \'{scope}\')',
+        memberIdsFor: expect.stringContaining(
+          'm."user_id" = {user} and m."disabled_at" is null',
+        ),
+      },
+    });
+  });
+
+  it("keeps a template the provider sets over the derived one", () => {
+    const result = mode({
+      functions: { ...functions, memberIds: "authz.mine()" },
+    });
+
+    expect(result).toMatchObject({
+      kind: "provider",
+      provider: {
+        memberIds: "authz.mine()",
+        memberIdsFor: expect.stringContaining("{user}"),
+      },
+    });
+  });
+
+  it("is invalid without templates or memberships", () => {
+    expect(mode({ memberships: [] })).toEqual(
+      invalid(
+        /no authorization\.functions\.memberIds and no authorization\.memberships/,
+      ),
+    );
+    expect(
+      mode({ memberships: [], functions: { ...functions, memberIds: "x()" } }),
+    ).toEqual(invalid(/functions\.memberIdsFor/));
+  });
+
+  it("is invalid for a tenant scope without an id type or with one it can't render", () => {
+    expect(mode({ scopes: [{ name: "organization" }] })).toEqual(
+      invalid(/are inconsistent: tenant scope "organization" has no idType/),
+    );
+    expect(
+      mode({ scopes: [{ name: "organization", idType: "jsonb" }] }),
+    ).toEqual(invalid(/has idType "jsonb"; use uuid/));
+  });
+});
+
+describe("tagKeyProblem", () => {
+  const { permissions: _, ...unlisted } = stubProvider;
+
+  it("is undefined without a provider permission list", () => {
+    expect(tagKeyProblem(undefined)).toBeUndefined();
+    expect(tagKeyProblem(unlisted)).toBeUndefined();
+  });
+
+  it("explains a key the provider does not list", () => {
+    const check = tagKeyProblem({
+      ...stubProvider,
+      permissions: [{ key: "notes.read", sqlComplete: true }],
+    });
+
+    expect(check?.("notes.read")).toBeUndefined();
+    expect(check?.("notes.write")).toMatch(
+      /^The @bsb access tag checks "notes\.write" .+ is not in authorization\.permissions/,
+    );
+  });
+});
+
+describe("providerKeyUses", () => {
+  it("lists operation, bucket and topic keys with their settings", () => {
+    expect(
+      providerKeyUses({
+        ...stubProvider,
+        operations: { search: { permission: "notes.read" } },
+        actionKeys: {
+          buckets: { avatars: { upload: "files.write" } },
+          topics: { chat: { read: "chat.read" } },
+        },
+      }),
+    ).toEqual([
+      {
+        key: "notes.read",
+        target: "authorization.operations.search.permission",
+        checker: "The search operation",
+      },
+      {
+        key: "files.write",
+        target: "authorization.actionKeys.buckets.avatars.upload",
+        checker: "The avatars bucket (upload)",
+      },
+      {
+        key: "chat.read",
+        target: "authorization.actionKeys.topics.chat.read",
+        checker: "The chat topic (read)",
+      },
+    ]);
+  });
+
+  it("is empty for a provider without operations or action keys", () => {
+    expect(providerKeyUses(stubProvider)).toEqual([]);
+  });
+});
+
+describe("claimMarkerOverrides", () => {
+  const overrides = (authorization: object | undefined, hook?: unknown) =>
+    claimMarkerOverrides({
+      authorization,
+      blocks: hook === undefined ? {} : { sessions: { options: { hook } } },
+    } as unknown as Parameters<typeof claimMarkerOverrides>[0]);
+
+  it("records markers that differ from the defaults", () => {
+    expect(
+      overrides({
+        tokenHook: {
+          ownedClaims: [],
+          budget: { truncatedClaim: "perm_cut" },
+          teamIdsTruncatedClaim: "teams_cut",
+        },
+      }),
+    ).toEqual({
+      permissionsTruncated: "perm_cut",
+      teamIdsTruncated: "teams_cut",
+    });
+  });
+
+  it("lets the sessions hook option win and drops the default team marker", () => {
+    expect(overrides(undefined, { teamIdsTruncatedClaim: "hook_cut" })).toEqual(
+      { teamIdsTruncated: "hook_cut" },
+    );
+    expect(
+      overrides(undefined, { teamIdsTruncatedClaim: "team_ids_truncated" }),
+    ).toEqual({});
+    expect(overrides(undefined, "not a record")).toEqual({});
   });
 });

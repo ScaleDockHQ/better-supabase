@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { astroPostgresCache } from "../../src/cache-postgres/astro/index.ts";
+import astroPostgresCacheProvider, {
+  astroPostgresCache,
+} from "../../src/cache-postgres/astro/index.ts";
+import { dbError } from "../../src/core/errors.ts";
+import { err } from "../../src/core/result.ts";
 import { memoryStore } from "./memory-store.ts";
 
 const logger = { warn: vi.fn() };
@@ -90,5 +94,190 @@ describe("astroPostgresCache", () => {
     );
 
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("serves a stale entry and refreshes it in the background", async () => {
+    const store = memoryStore();
+    const provider = astroPostgresCache({ client: store });
+    const waitUntil = vi.fn();
+    const now = Date.now();
+
+    store.entries.set("astro:https://example.com/s", {
+      key: "astro:https://example.com/s",
+      value: new TextEncoder().encode("old"),
+      tags: [],
+      storedAt: now - 120_000,
+      expiresAt: now + 60_000,
+      meta: {
+        status: 200,
+        headers: [["content-type", "text/plain"]],
+        maxAge: 60,
+      },
+    });
+
+    const url = new URL("https://example.com/s");
+
+    const response = await provider.onRequest(
+      { request: new Request(url), url, logger, waitUntil },
+      cacheable("new"),
+    );
+
+    expect(response.headers.get("X-Astro-Cache")).toBe("STALE");
+    expect(await response.text()).toBe("old");
+    expect(waitUntil).toHaveBeenCalledOnce();
+
+    await waitUntil.mock.calls[0]?.[0];
+
+    expect(
+      new TextDecoder().decode(
+        store.entries.get("astro:https://example.com/s")?.value,
+      ),
+    ).toBe("new");
+  });
+
+  it("logs a refresh that fails instead of throwing", async () => {
+    const store = memoryStore();
+    const provider = astroPostgresCache({ client: store });
+    const warn = vi.fn();
+    const waitUntil = vi.fn();
+    const now = Date.now();
+
+    store.entries.set("astro:https://example.com/s", {
+      key: "astro:https://example.com/s",
+      value: new Uint8Array(),
+      tags: [],
+      storedAt: now - 120_000,
+      expiresAt: now + 60_000,
+      meta: { status: 200, headers: [], maxAge: 60 },
+    });
+
+    const url = new URL("https://example.com/s");
+
+    await provider.onRequest(
+      { request: new Request(url), url, logger: { warn }, waitUntil },
+      () => Promise.reject(new Error("render failed")),
+    );
+    await waitUntil.mock.calls[0]?.[0];
+
+    expect(warn).toHaveBeenCalledWith("Error: render failed");
+  });
+
+  it("treats a store read error as a miss and logs it", async () => {
+    const store = memoryStore();
+    const warn = vi.fn();
+
+    const provider = astroPostgresCache({
+      client: {
+        ...store,
+        get: () => Promise.resolve(err(dbError("unexpected", "read down"))),
+      },
+    });
+
+    const url = new URL("https://example.com/x");
+
+    const response = await provider.onRequest(
+      { request: new Request(url), url, logger: { warn } },
+      cacheable("fresh"),
+    );
+
+    expect(await response.text()).toBe("fresh");
+    expect(response.headers.get("X-Astro-Cache")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("read down");
+  });
+
+  it("still answers when the write fails", async () => {
+    const store = memoryStore();
+    const warn = vi.fn();
+
+    const provider = astroPostgresCache({
+      client: {
+        ...store,
+        set: () => Promise.resolve(err(dbError("unexpected", "write down"))),
+      },
+    });
+
+    const url = new URL("https://example.com/x");
+
+    const response = await provider.onRequest(
+      { request: new Request(url), url, logger: { warn } },
+      cacheable("fresh"),
+    );
+
+    expect(response.headers.get("X-Astro-Cache")).toBe("MISS");
+    expect(warn).toHaveBeenCalledWith("write down");
+  });
+
+  it("never stores a bodiless redirect or Vary: *", async () => {
+    const store = memoryStore();
+    const provider = astroPostgresCache({ client: store });
+
+    await run(provider, "/r", () =>
+      Promise.resolve(
+        new Response(null, {
+          status: 302,
+          headers: { "CDN-Cache-Control": "max-age=60", Location: "/x" },
+        }),
+      ),
+    );
+    await run(provider, "/v", cacheable("v", { Vary: "*" }));
+
+    expect(store.entries.size).toBe(0);
+  });
+
+  it("throws the store message when invalidation fails", async () => {
+    const store = memoryStore();
+
+    const provider = astroPostgresCache({
+      client: {
+        ...store,
+        deletePath: () => Promise.resolve(err(dbError("unexpected", "del"))),
+        markTags: () => Promise.resolve(err(dbError("unexpected", "mark"))),
+      },
+    });
+
+    await expect(provider.invalidate({ path: "/x" })).rejects.toThrow("del");
+    await expect(provider.invalidate({ tags: ["a"] })).rejects.toThrow("mark");
+  });
+});
+
+describe("astroPostgresCacheProvider", () => {
+  it("needs the URL and key in the env", () => {
+    vi.stubEnv("BSB_TEST_URL", "");
+
+    const provider = astroPostgresCacheProvider({
+      urlEnv: "BSB_TEST_URL",
+      keyEnv: "BSB_TEST_KEY",
+    });
+
+    expect(() => provider.invalidate({ path: "/" })).toThrow(
+      "The Postgres Astro cache needs the project URL and the service role key in the env",
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("builds the provider once from the env", async () => {
+    vi.stubEnv("BSB_TEST_URL", "http://127.0.0.1:1");
+    vi.stubEnv("BSB_TEST_KEY", "key");
+
+    const provider = astroPostgresCacheProvider({
+      urlEnv: "BSB_TEST_URL",
+      keyEnv: "BSB_TEST_KEY",
+    });
+
+    const url = new URL("https://example.com/x");
+    const next = vi.fn(() => Promise.resolve(new Response("posted")));
+    const request = () => new Request(url, { method: "POST" });
+
+    const first = await provider.onRequest(
+      { request: request(), url, logger },
+      next,
+    );
+
+    await provider.onRequest({ request: request(), url, logger }, next);
+
+    expect(provider.name).toBe("better-supabase-postgres");
+    expect(await first.text()).toBe("posted");
+    expect(next).toHaveBeenCalledTimes(2);
+    vi.unstubAllEnvs();
   });
 });

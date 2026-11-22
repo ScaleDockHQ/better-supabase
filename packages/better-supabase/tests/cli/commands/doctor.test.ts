@@ -12,13 +12,18 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DoctorValues } from "../../../src/cli/commands/doctor.ts";
-import type { CommandResult } from "../../../src/cli/core/io.ts";
+import type { CliIo, CommandResult } from "../../../src/cli/core/io.ts";
 import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { doctorCommand, runDoctor } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { runSql } from "../../../src/cli/commands/sql.ts";
-import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import {
+  completionValues,
+  parseCommandArgs,
+} from "../../../src/cli/core/command.ts";
+import { run } from "../../../src/cli/core/run.ts";
+import { serializeGenerator } from "../../../src/cli/introspect/typegen.ts";
 import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
@@ -684,5 +689,108 @@ describe("doctor command", () => {
     expect(findings(result)).toEqual([
       expect.objectContaining({ code: "BS607", target: "pnpm-lock.yaml" }),
     ]);
+  });
+
+  it("rejects --args without --explain, --args that is not JSON and --update-baseline without a baseline", async () => {
+    expect(await usageError(() => doctor(["--args", "[]"]))).toBe(
+      "--args passes arguments to a function, so it needs --explain <function>.",
+    );
+    expect(
+      await usageError(() => doctor(["--explain", "notes", "--args", "{nope"])),
+    ).toMatch(/^--args is not valid JSON: /);
+    expect(await usageError(() => doctor(["--update-baseline"]))).toMatch(
+      /^--update-baseline rewrites tooling\.doctor\.baseline/,
+    );
+  });
+
+  it("reads the pulled Vercel env files with --vercel even when --only leaves them out", async () => {
+    await write(".vercel/.env.development.local", "OTHER=1\n");
+
+    const result = await doctor(["--only", "BS607", "--vercel", "--json"], {
+      snapshot: await parseSnapshot(fixture),
+    });
+
+    expect(findings(result)).toContainEqual(
+      expect.objectContaining({
+        code: "BS513",
+        message: expect.stringContaining("development"),
+      }),
+    );
+  });
+
+  it("completes formats and rule codes, live ones included", () => {
+    const completions = completionValues(doctorCommand);
+    const codes = completions["only"]?.();
+
+    expect(completions["format"]?.()).toEqual(["text", "sarif", "github"]);
+    expect(codes).toEqual(expect.arrayContaining(["BS217", "BS209"]));
+    expect(new Set(codes).size).toBe(codes?.length);
+    expect(completions["ignore"]?.()).toEqual(codes);
+  });
+});
+
+describe("doctor --metadata", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "better-supabase-doctor-meta-"));
+    await writeFile(
+      join(root, "better-supabase.config.ts"),
+      "export default {};\n",
+    );
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  const doctorMeta = async (args: readonly string[], stdin: string) => {
+    const out: string[] = [];
+    const err: string[] = [];
+
+    const io: CliIo = {
+      stdout: (text) => {
+        out.push(text);
+      },
+      stderr: (text) => {
+        err.push(text);
+      },
+      stdin: () => Promise.resolve(stdin),
+    };
+
+    const result = await run(
+      ["doctor", "--metadata", "-", ...args, "--cwd", root],
+      { io },
+    );
+
+    return { code: result.code, stdout: out.join(""), stderr: err.join("") };
+  };
+
+  it("checks a GeneratorMetadata document without a database", async () => {
+    const document = await serializeGenerator(
+      (await parseSnapshot(fixture)).generator,
+    );
+
+    const result = await doctorMeta(["--only", "BS208", "--json"], document);
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      status: "success",
+      data: { findings: [] },
+    });
+  });
+
+  it("exits 65 for a document it rejects", async () => {
+    const result = await doctorMeta([], "{ not json");
+
+    expect(result.code).toBe(65);
+    expect(result.stderr).toMatch(/is not JSON/);
+  });
+
+  it("refuses flags that need a database", async () => {
+    const result = await doctorMeta(["--stats"], "{}");
+
+    expect(result.code).not.toBe(0);
+    expect(result.stderr).toContain("--stats");
   });
 });

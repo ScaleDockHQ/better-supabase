@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import type { BetterSupabaseConfig } from "../../src/config/index.ts";
+
 import {
+  extraColumnsCodemod,
   extraColumnsFiles,
   extraColumnsOptions,
   schemasDirOf,
   withoutOptionKeys,
 } from "../../src/cli/codemod-extra-columns.ts";
+import { resolveConfig } from "../../src/config/index.ts";
 
 const tableOf = (block: string, key: string): string | undefined => {
   if (block !== "tags") {
@@ -203,5 +207,64 @@ describe("extraColumnsFiles over a table the app creates", () => {
     expect(files[0]?.contents).toContain(
       `comment on table "better_supabase"."tags" is '@bsb fields region, weight';`,
     );
+  });
+});
+
+describe("extra-columns codemod", () => {
+  const run = (input: BetterSupabaseConfig, configText?: string) =>
+    extraColumnsCodemod().project!({
+      config: resolveConfig(input, "/project"),
+      sql: [],
+      ...(configText === undefined
+        ? {}
+        : { configFile: "/project/better-supabase.config.ts", configText }),
+    });
+
+  it("does nothing without an extraColumns option", async () => {
+    expect(await run({ blocks: { tags: {} } })).toEqual({
+      files: [],
+      review: [],
+    });
+  });
+
+  it("writes the columns to an app file and drops the option", async () => {
+    const { files, review } = await run(
+      {
+        blocks: { tags: { options: { extraColumns: { region: "text" } } } },
+      } as BetterSupabaseConfig,
+      'export default { blocks: { tags: { options: { extraColumns: { region: "text" } } } } };\n',
+    );
+
+    expect(review).toEqual([]);
+    expect(files.map((file) => [file.path, file.policy])).toEqual([
+      ["/project/supabase/schemas/tags.ext.sql", "create"],
+      ["/project/better-supabase.config.ts", "edit"],
+    ]);
+    expect(files[0]!.contents).toContain(
+      'alter table "better_supabase"."tags"\n  add column "region" text;',
+    );
+    expect(files[1]!.contents).toBe(
+      "export default { blocks: { tags: { options: { } } } };\n",
+    );
+  });
+
+  it("keeps an option whose block has no table for it", async () => {
+    const { files, review } = await run({
+      blocks: { nope: { options: { extraColumns: { region: "text" } } } },
+      instances: {
+        second: {
+          block: "tags",
+          config: { options: { calendarExtraColumns: { a: "int" } } },
+        },
+      },
+    } as BetterSupabaseConfig);
+
+    expect(files).toEqual([]);
+    expect(review).toEqual([
+      {
+        message:
+          "blocks.nope.options.extraColumns.region: this release has no table for the option, so it stays in the config.",
+      },
+    ]);
   });
 });

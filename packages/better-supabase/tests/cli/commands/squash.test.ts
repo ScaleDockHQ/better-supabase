@@ -125,3 +125,81 @@ describe("db squash", () => {
     ).rejects.toMatchObject({ code: "not_found" });
   });
 });
+
+describe("db squash edges", () => {
+  const config = (root: string) =>
+    resolveConfig({ database: { sql: { dir: "supabase" } } }, root);
+
+  it("rejects a bad --name and an empty migrations folder", async () => {
+    const root = await mkdtemp(join(tmpdir(), "squash-empty-"));
+
+    await expect(
+      runSquash(config(root), args(["--name", "bad-name"]), {}),
+    ).rejects.toMatchObject({ code: "invalid_value" });
+    await expect(runSquash(config(root), args([]), {})).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it("carries nothing over without an extensions migration", async () => {
+    const root = await mkdtemp(join(tmpdir(), "squash-plain-"));
+    const dir = join(root, "supabase", "migrations");
+
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "20260102000000_init.sql"), "create table t();");
+
+    const dry = await runSquash(config(root), args(["--dry-run"]), {});
+
+    expect(dry.output).toBe(
+      "Would replace 1 migrations in supabase/migrations with init and carry over nothing.",
+    );
+
+    const result = await runSquash(
+      config(root),
+      args(["--name", "base"]),
+      {},
+      { supabase: async () => ok },
+    );
+
+    expect(result.output).toBe(
+      "Replaced 1 migrations in supabase/migrations with base. Reset the database to apply it.",
+    );
+  });
+
+  it("names stdout when the CLI fails without stderr", async () => {
+    const { root } = await project();
+
+    await expect(
+      runSquash(
+        config(root),
+        args([]),
+        {},
+        { supabase: async () => ({ code: 2, stdout: "out ", stderr: " " }) },
+      ),
+    ).rejects.toThrow("supabase db schema declarative sync failed (2): out");
+  });
+
+  it("restores the migrations and returns a failure for an unexpected error", async () => {
+    const { root, dir } = await project();
+
+    await writeFile(join(dir, "README.md"), "notes");
+
+    const result = await runSquash(
+      config(root),
+      args([]),
+      {},
+      {
+        supabase: async () => {
+          throw new Error("spawn failed");
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      code: 1,
+      errorCode: "failed",
+      error: "db squash failed and restored the migrations: spawn failed",
+    });
+    expect(await readdir(dir)).toHaveLength(6);
+  });
+});

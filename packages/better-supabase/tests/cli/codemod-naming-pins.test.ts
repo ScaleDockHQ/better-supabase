@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   columnPins,
+  pinReview,
   renameSqlColumns,
   withColumnPins,
   withHistoryPins,
@@ -434,5 +435,158 @@ describe("renameSqlColumns", () => {
         ],
       ),
     ).toContain("deleted_at");
+  });
+});
+
+describe("pinReview", () => {
+  it("names the config line that keeps the old column name", () => {
+    expect(
+      pinReview({
+        block: "drive",
+        module: "drive",
+        table: "nodes",
+        column: "tenant",
+        name: "tenant_id",
+        physical: "public.drive_nodes",
+      }),
+    ).toBe(
+      'Your table keeps "tenant_id", which 0.58 names differently. Add `columns: { nodes: { tenant: "tenant_id" } }` to blocks.drive.',
+    );
+  });
+});
+
+describe("withColumnPins search edges", () => {
+  const pin = {
+    block: "drive",
+    module: "drive",
+    table: "nodes",
+    column: "deletedAt",
+    name: "deleted_at",
+    physical: "public.drive_nodes",
+  };
+
+  it("skips keys in strings, before blocks and after it, and finds an instance", () => {
+    const text = [
+      'const note = "drive: { columns: {} }";',
+      "const drive = { other: 1 };",
+      "export default {",
+      "  blocks: { tags: {} },",
+      "  instances: { drive: { block: 'drive' } },",
+      "};",
+    ].join("\n");
+
+    const { text: out, missed } = withColumnPins(text, [pin]);
+
+    expect(missed).toEqual([]);
+    expect(out).toContain('const note = "drive: { columns: {} }";');
+    expect(out).toMatch(
+      /instances: \{ drive: \{\n\s*columns: \{\n\s*nodes: \{\n\s*deletedAt: "deleted_at",/u,
+    );
+  });
+
+  it("misses a block with no object or an unclosed one", () => {
+    expect(
+      withColumnPins("export default { blocks: {} };", [pin]).missed,
+    ).toEqual([pin]);
+    expect(
+      withColumnPins("export default { blocks: { drive: { x: 1 }", [pin])
+        .missed,
+    ).toEqual([pin]);
+  });
+});
+
+describe("columnPins skips", () => {
+  it("pins nothing when the live database lacks the table", () => {
+    expect(
+      columnPins({ blocks: { drive } }, NAMING_RENAMES, driveTable, {}).pins,
+    ).toEqual([]);
+  });
+});
+
+describe("renameSqlColumns edges", () => {
+  it("renames up to an unclosed dollar sign and keeps a closing dollar body", () => {
+    expect(
+      renameSqlColumns(
+        "update better_supabase.drive_nodes set deleted_at = $1",
+        NAMING_RENAMES,
+      ),
+    ).toBe("update better_supabase.drive_nodes set archived_at = $1");
+
+    const body =
+      "update better_supabase.drive_nodes set deleted_at = now();\nselect $$ deleted_at $$";
+
+    expect(renameSqlColumns(body, NAMING_RENAMES)).toBe(
+      "update better_supabase.drive_nodes set archived_at = now();\nselect $$ deleted_at $$",
+    );
+  });
+
+  it("leaves an audit call for another table and skips a rename without a schema", () => {
+    const other =
+      "select better_supabase.audit('public.notes', ignore => '{deleted_at}');\n";
+
+    expect(renameSqlColumns(other, NAMING_RENAMES)).toBe(other);
+
+    const bare = "update better_supabase.drive_nodes set deleted_at = now();";
+
+    expect(
+      renameSqlColumns(bare, [
+        {
+          kind: "column",
+          from: "deleted_at",
+          to: "archived_at",
+          table: "drive_nodes",
+        },
+      ] as unknown as typeof NAMING_RENAMES),
+    ).toBe(bare);
+  });
+
+  it("reads a table without an alias", () => {
+    expect(
+      renameSqlColumns(
+        "select drive_nodes.deleted_at from better_supabase.drive_nodes where true;",
+        NAMING_RENAMES,
+      ),
+    ).toContain("drive_nodes.archived_at");
+  });
+});
+
+describe("withColumnPins without blocks", () => {
+  it("misses every pin in a config without blocks or instances", () => {
+    const pin = {
+      block: "drive",
+      module: "drive",
+      table: "nodes",
+      column: "deletedAt",
+      name: "deleted_at",
+      physical: "public.drive_nodes",
+    };
+
+    expect(withColumnPins("export default {};", [pin]).missed).toEqual([pin]);
+  });
+});
+
+describe("columnPins history tables", () => {
+  it("reads an unqualified history table as public", () => {
+    const report = columnPins(
+      {
+        blocks: {
+          "state-machine": {
+            options: {
+              machines: {
+                quote: { history: { table: "quote_history" } },
+                order: { history: { table: "order_history", actor: "x" } },
+              },
+            },
+          },
+        },
+      },
+      NAMING_RENAMES,
+      {},
+      { "public.quote_history": ["id", "actor_user_id"] },
+    );
+
+    expect(report.history).toEqual([
+      { block: "state-machine", machine: "quote", actor: "actor_user_id" },
+    ]);
   });
 });

@@ -463,6 +463,77 @@ describe("policy security rules", () => {
     } as unknown as DoctorContext;
 
     expect(await run(named, "BS116")).toEqual([]);
+
+    const unqualified = {
+      ...provided,
+      config: {
+        ...provided.config,
+        authorization: { functions: { idsWith: "wipe", isPlatform: 1 } },
+      },
+    } as unknown as DoctorContext;
+
+    expect(await run(unqualified, "BS116")).toHaveLength(1);
+  });
+
+  it("reads public and role-less update policies as anon and authenticated (BS110)", async () => {
+    for (const roles of [["public"], []]) {
+      const open = snapshot((tables) => {
+        table(tables, "notes").policies = [
+          policy({ command: "update", roles, check: "true" }),
+          policy({
+            name: "notes_strict",
+            command: "update",
+            permissive: false,
+          }),
+        ];
+      });
+
+      expect(await run(context(open), "BS110")).toMatchObject([
+        {
+          message: expect.stringContaining(
+            "allows update for anon, authenticated",
+          ),
+        },
+      ]);
+    }
+
+    const checked = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy({ name: "notes_read" }),
+        policy({ command: "update", check: "true" }),
+      ];
+    });
+
+    expect(await run(context(checked), "BS110")).toEqual([]);
+  });
+
+  it("keeps the first storage policy of a name and reads one without for as all (BS113)", async () => {
+    const text = [
+      `create policy "logos write" on storage.objects for insert to authenticated with check (bucket_id = 'logos');`,
+      `create policy "logos write" on storage.objects for select using (true);`,
+    ].join("\n");
+
+    expect(
+      await run(
+        context(base, {
+          sqlFiles: [{ path: "supabase/schemas/storage.sql", text }],
+        }),
+        "BS113",
+      ),
+    ).toMatchObject([
+      { message: expect.stringContaining("no select or update policy") },
+    ]);
+
+    const all = `${text}\ncreate policy logos_all on storage.objects to authenticated using (true);`;
+
+    expect(
+      await run(
+        context(base, {
+          sqlFiles: [{ path: "supabase/schemas/storage.sql", text: all }],
+        }),
+        "BS113",
+      ),
+    ).toEqual([]);
   });
 
   it("flags storage inserts without the upsert policies (BS113)", async () => {

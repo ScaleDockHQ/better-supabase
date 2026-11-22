@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   settleGroups,
+  topLevelValue,
   withoutConfigPaths,
 } from "../../src/cli/codemod-prune.ts";
 
@@ -86,5 +87,65 @@ describe("settleGroups", () => {
       "blocks.b.y",
       "blocks.d.x",
     ]);
+  });
+});
+
+describe("withoutConfigPaths misses", () => {
+  const missed = (text: string, path: string) =>
+    withoutConfigPaths(text, [path]).missed;
+
+  it("misses every path without a closed config object", () => {
+    expect(missed("const x = 1;\n", "sql.dir")).toEqual(["sql.dir"]);
+    expect(missed("export default defineConfig({ sql: {", "sql")).toEqual([
+      "sql",
+    ]);
+  });
+
+  it("misses a path through a listed name, a scalar or an unclosed object", () => {
+    expect(
+      missed(
+        'export default defineConfig({ blocks: ["tags"] });',
+        "blocks.tags.columns",
+      ),
+    ).toEqual(["blocks.tags.columns"]);
+    expect(
+      missed('export default defineConfig({ sql: "x" });', "sql.dir"),
+    ).toEqual(["sql.dir"]);
+    expect(
+      missed("export default defineConfig({ a: { b: { c: 1 } });", "a.b.c"),
+    ).toEqual(["a.b.c"]);
+  });
+
+  it("removes a last property on the closing line", () => {
+    expect(
+      withoutConfigPaths("export default defineConfig({ a: 1, b: 2 })", ["b"])
+        .text,
+    ).toBe("export default defineConfig({ a: 1})");
+  });
+});
+
+describe("topLevelValue", () => {
+  it("finds the value text of a top-level key", () => {
+    const text = 'export default defineConfig({ sql: { dir: "db" } });';
+    const range = topLevelValue(text, "sql")!;
+
+    expect(text.slice(range.start, range.end).trim()).toBe('{ dir: "db" }');
+    expect(topLevelValue(text, "casing")).toBeUndefined();
+    expect(topLevelValue("const x = 1;", "sql")).toBeUndefined();
+  });
+});
+
+describe("settleGroups with nothing to settle", () => {
+  it("renders nothing for no groups", async () => {
+    let renders = 0;
+
+    expect(
+      await settleGroups([], async () => {
+        renders += 1;
+
+        return true;
+      }),
+    ).toEqual({ kept: [], refused: [] });
+    expect(renders).toBe(0);
   });
 });

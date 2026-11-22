@@ -7,6 +7,7 @@ import { withTableTag } from "../../src/cli/codemod-extra-columns.ts";
 import {
   tableFactMoves,
   tableTagFiles,
+  tableTagsCodemod,
   withoutExemptEntry,
 } from "../../src/cli/codemod-table-tags.ts";
 import { CODEMODS } from "../../src/cli/codemod.ts";
@@ -200,6 +201,119 @@ describe("table-tags codemod", () => {
     expect(review.map((line) => line.message)).toEqual([
       expect.stringContaining("already holds data-lifecycle"),
       expect.stringContaining("already holds grant"),
+    ]);
+  });
+});
+
+describe("tableFactMoves edges", () => {
+  it("skips wildcard and unqualified exemptions and keeps odd lifecycle entries", () => {
+    const { moves, review } = tableFactMoves(
+      resolveConfig(
+        {
+          database: {
+            expose: {
+              "app.notes": { authenticated: ["select"] },
+              logs: { authenticated: [], serviceRole: ["select"] },
+            },
+          },
+          blocks: {
+            audit: {
+              options: {
+                exempt: ["public.raw", "nodot", "public.*", { table: 1 }],
+              },
+            },
+            "data-lifecycle": {
+              options: {
+                tables: {
+                  "app.items": { user: "owner_id" },
+                  bad: "nope",
+                  extra: { user: "u", other: 1 },
+                  people: { tenant: "org id", purge: 3 },
+                },
+              },
+            },
+          },
+        } as BetterSupabaseConfig,
+        "/project",
+      ),
+    );
+
+    expect(moves.map((move) => [move.table, move.line])).toEqual([
+      ["public.raw", "@bsb audit-exempt"],
+      ["public.people", '@bsb data-lifecycle tenant="org id"'],
+      ["public.logs", "@bsb grant service-role=select"],
+    ]);
+    expect(review.map((line) => line.message)).toEqual([
+      expect.stringContaining("tables.app.items stays in the config"),
+      expect.stringContaining("tables.bad stays in the config"),
+      expect.stringContaining("tables.extra stays in the config"),
+      expect.stringContaining("expose.app.notes stays in the config"),
+    ]);
+  });
+});
+
+describe("withoutExemptEntry edges", () => {
+  it("returns undefined without a list or with an unclosed one", () => {
+    expect(
+      withoutExemptEntry("export default {};", "public.a"),
+    ).toBeUndefined();
+    expect(
+      withoutExemptEntry("exempt: ['public.a',", "public.a"),
+    ).toBeUndefined();
+  });
+
+  it("cuts a bare string element", () => {
+    expect(
+      withoutExemptEntry("exempt: ['public.a', 'public.b']", "public.a"),
+    ).toBe("exempt: ['public.b']");
+  });
+});
+
+describe("tableTagFiles edges", () => {
+  const exemptOnly: BetterSupabaseConfig = {
+    blocks: { audit: { options: { exempt: ["public.scratch"] } } },
+  };
+
+  it("asks for a manual cut when no config file was found", async () => {
+    const { files, review } = await tableTagsCodemod().project!({
+      config: resolveConfig(exemptOnly, "/project"),
+      sql: [
+        {
+          path: "/project/supabase/migrations/1_init.sql",
+          text: "create table public.scratch (id int);\n",
+        },
+        schema("scratch"),
+      ],
+    });
+
+    expect(files.map((file) => file.path)).toEqual([
+      "/project/supabase/schemas/scratch.sql",
+    ]);
+    expect(review).toEqual([
+      {
+        message: "No config file was found; remove the moved entries by hand.",
+      },
+    ]);
+  });
+
+  it("names entries it cannot find in the config text", () => {
+    const { files, review } = tableTagFiles({
+      config: resolveConfig(
+        {
+          ...exemptOnly,
+          database: { expose: { scratch: { authenticated: ["select"] } } },
+        },
+        "/project",
+      ),
+      sql: [schema("scratch")],
+      configFile: "/project/better-supabase.config.ts",
+      configText: "export default defineConfig({});\n",
+    });
+
+    expect(files).toHaveLength(1);
+    expect(review.map((line) => line.message)).toEqual([
+      expect.stringContaining("expose.scratch moved to a comment"),
+      expect.stringContaining("could not find its exempt entry"),
     ]);
   });
 });

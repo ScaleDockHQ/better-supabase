@@ -542,4 +542,178 @@ describe("testAuthorizationProvider", () => {
       `operations name listed permissions: operation "ai.tool.delete" needs "documents.delete", which permissions doesn't list`,
     ]);
   });
+
+  it("checks approvals, the doctor command and action keys", async () => {
+    expect(
+      await failures(
+        withProvider({
+          operations: {
+            "quote:send": {
+              permission: "documents.write",
+              approval: { steps: [] },
+            },
+          },
+          doctor: { command: ["pnpm", ""] },
+          actionKeys: { buckets: { files: { upload: "files.upload" } } },
+        }),
+      ),
+    ).toEqual([
+      'operation approvals list steps: operation "quote:send" has an approval without steps',
+      "doctor names a command: doctor.command is empty",
+      'actionKeys name listed permissions: actionKeys.buckets.files.upload needs "files.upload", which permissions doesn\'t list',
+    ]);
+    expect(
+      await failures(
+        withProvider({
+          actionKeys: {
+            blocks: { notes: { read: "documents.read", write: "" } },
+          },
+        }),
+      ),
+    ).toEqual([
+      "actionKeys name listed permissions: actionKeys.blocks.notes.write names no permission",
+    ]);
+  });
+
+  it("accepts any action key when permissions are unlisted", async () => {
+    const report = await testAuthorizationProvider(
+      withProvider({
+        permissions: undefined,
+        operations: {
+          "mcp.tool.x": {
+            permission: "anything",
+            approval: { steps: [{ role: "manager" }] },
+          },
+        },
+        actionKeys: { topics: { chat: { listen: "anything" } } },
+        doctor: { command: ["pnpm", "doctor"] },
+      }),
+    );
+
+    expect(report.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining([
+        "actionKeys name listed permissions",
+        "doctor names a command",
+        "operation approvals list steps",
+      ]),
+    );
+  });
+
+  it("refuses memberships with an unknown scope value", async () => {
+    expect(
+      await failures(
+        withProvider({
+          memberships: [
+            {
+              table: "authz.memberships",
+              userColumn: "user_id",
+              scope: { value: "galaxy" },
+              idColumn: "scope_id",
+            },
+          ],
+        }),
+      ),
+    ).toEqual([
+      'memberships name known scopes: authz.memberships names unknown scope "galaxy"',
+    ]);
+  });
+
+  it("checks suspension columns and rows field by field", async () => {
+    const cases = [
+      [
+        { user: "authz.users" },
+        'suspension.user "authz.users" is not schema.table.column',
+      ],
+      [
+        {
+          tenant: {
+            table: "authz.orgs",
+            id: "org id",
+            status: "s",
+            active: ["a"],
+          },
+        },
+        'suspension.tenant.id "org id" is not a column',
+      ],
+      [
+        { tenant: { table: "authz.orgs", id: "id" } },
+        "suspension.tenant sets neither disabledAt nor status",
+      ],
+      [
+        {
+          tenant: { table: "authz.orgs", id: "id", disabledAt: "disabled at" },
+        },
+        'suspension.tenant column "disabled at" is not a column',
+      ],
+      [
+        { tenant: { table: "authz.orgs", id: "id", status: "status" } },
+        "suspension.tenant needs status and active together",
+      ],
+    ] as const;
+
+    for (const [suspension, message] of cases) {
+      expect(await failures(withProvider({ suspension }))).toEqual([
+        `suspension rows name a table, an id and a state column: ${message}`,
+      ]);
+    }
+  });
+
+  it("needs a sqlComplete key when the hook writes permissions", async () => {
+    expect(
+      await failures(
+        withProvider({
+          permissions: [{ key: "documents.read", sqlComplete: false }],
+          tokenHook: {
+            ...stubProvider.tokenHook,
+            ownedClaims: ["memberships", "tenant_id", "permissions"],
+          },
+        }),
+      ),
+    ).toEqual([expect.stringMatching(/permissions marks no key sqlComplete/)]);
+  });
+
+  it("skips the version claim check without a token hook", async () => {
+    const report = await testAuthorizationProvider(
+      withProvider({
+        versions: { function: "stub.authz_version" },
+        tokenHook: undefined,
+      }),
+    ).catch((error: unknown) => (error as ConformanceError).report);
+
+    expect(
+      report.checks.find(
+        (check) => check.name === 'writes "authz_ver" from its versions',
+      )?.ok,
+    ).toBe(true);
+  });
+
+  it("passes the database checks when a user can't read the version", async () => {
+    const postgres = {
+      admin: {
+        queryRaw: <R>(text: string): Promise<R[]> =>
+          // SAFETY: the kit reads only the column this stub fills.
+          Promise.resolve([
+            (text.includes("pg_proc")
+              ? { returns: "bigint" }
+              : { name: "receive" }) as R,
+          ]),
+      },
+      asUser: () => ({
+        queryRaw: (): Promise<never> => Promise.reject(new Error("denied")),
+      }),
+    };
+
+    const report = await testAuthorizationProvider(
+      withProvider({
+        versions: { function: "stub.authz_version" },
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          ownedClaims: [...stubProvider.tokenHook.ownedClaims, "authz_ver"],
+        },
+      }),
+      { postgres },
+    );
+
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+  });
 });

@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../src/sql/context.ts";
 import type { Subject } from "../../src/sql/subjects.ts";
 
-import { subjectReadable, subjectRowReadable } from "../../src/sql/subjects.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
+import {
+  subjectIdMatches,
+  subjectReadable,
+  subjectRowReadable,
+} from "../../src/sql/subjects.ts";
 
 const ctx = {
   scope: {
@@ -135,6 +140,175 @@ describe("subjectRowReadable", () => {
   it("needs the subjects block", () => {
     expect(() => subjectRowReadable(withSubjects(false), "c")).toThrow(
       /needs the subjects block/u,
+    );
+  });
+});
+
+describe("subjectIdMatches", () => {
+  it("casts the value to the id column's type", () => {
+    expect(subjectIdMatches({ table: "t", extra: {} }, "$1")).toBe(
+      's."id"::text = $1',
+    );
+    expect(
+      subjectIdMatches(
+        { table: "t", id: "key", idType: "text", extra: {} },
+        "$1",
+      ),
+    ).toBe('s."key" = ($1)::text');
+  });
+
+  it("guards an inferred uuid or integer id against values that do not cast", () => {
+    expect(
+      subjectIdMatches(
+        { table: "t", idType: "uuid", idInferred: true, extra: {} },
+        "$1",
+      ),
+    ).toContain("case when $1 ~* '^[0-9a-f]{8}-");
+    expect(
+      subjectIdMatches(
+        { table: "t", idType: "bigint", idInferred: true, extra: {} },
+        "$1",
+      ),
+    ).toBe(
+      "s.\"id\" = (case when $1 ~ '^-?[0-9]{1,18}$' then ($1)::bigint end)",
+    );
+    expect(
+      subjectIdMatches(
+        { table: "t", idType: "integer", idInferred: true, extra: {} },
+        "$1",
+      ),
+    ).toContain("{1,9}$' then ($1)::integer");
+    expect(
+      subjectIdMatches(
+        { table: "t", idType: "smallint", idInferred: true, extra: {} },
+        "$1",
+      ),
+    ).toContain("{1,4}$' then ($1)::smallint");
+  });
+});
+
+describe("blocks.<instance>.on errors", () => {
+  const subjects = {
+    order: { table: "public.orders" },
+    note: { table: "public.notes", tenant: false as const },
+  };
+
+  const render = (module: string, on: unknown): unknown =>
+    renderBlocks([module], {
+      subjects,
+      modules: { [module]: { on } } as never,
+    });
+
+  it.each([
+    [
+      "tags",
+      [],
+      /blocks\.tags\.on: list at least one config\.recordTypes type/u,
+    ],
+    [
+      "tags",
+      ["nope"],
+      /"nope" is not a subject type in config\.recordTypes\. Types: order, note/u,
+    ],
+    ["tags", 3, /blocks\.tags\.on: pass a list of config\.recordTypes types/u],
+    ["tags", { Bad: { table: "x" } }, /"Bad" must be lowercase letters/u],
+    [
+      "tags",
+      { order: { table: "x", foo: 1 } },
+      /on\.order\.foo is not an option\. Options: table, id/u,
+    ],
+    ["tags", { order: { table: 3 } }, /blocks\.tags\.on\.order needs a table/u],
+    [
+      "tags",
+      { order: { idType: "1" } },
+      /on\.order\.idType must be a type name/u,
+    ],
+    [
+      "tags",
+      { order: { id: 3 } },
+      /blocks\.tags\.on\.order\.id must be a string/u,
+    ],
+    [
+      "tags",
+      { order: { cascade: "y" } },
+      /on\.order\.cascade must be true or false/u,
+    ],
+    ["relations", { note: {} }, /on\.note\.tenant can't be false/u],
+    [
+      "attachments",
+      { order: { permissions: 3 } },
+      /on\.order\.permissions must be \{ read\?, upload\?, manage\? \}/u,
+    ],
+    [
+      "attachments",
+      { order: { permissions: { nope: "a" } } },
+      /permissions\.nope: use read, upload and manage with a permission key/u,
+    ],
+    [
+      "attachments",
+      { order: { scope: 3 } },
+      /on\.order\.scope must be the name of a provider scope/u,
+    ],
+    [
+      "attachments",
+      { order: { scope: "x" } },
+      /on\.order\.scope needs blocks\.permissions\.model "provider"/u,
+    ],
+  ])("%s rejects on %j", (module, on, message) => {
+    expect(() => render(module, on)).toThrow(message);
+  });
+
+  it.each([
+    [3, /on\.order\.links needs \{ table, subject, tag \}/u],
+    [
+      { table: "a.b.c" },
+      /on\.order\.links\.table must be "table" or "schema\.table"/u,
+    ],
+    [
+      { table: "Bad" },
+      /on\.order\.links\.table must be "table" or "schema\.table"/u,
+    ],
+    [
+      { table: "order_tags", nope: "x" },
+      /links\.nope is not a column\. Columns: subject, tag, tenant, createdAt/u,
+    ],
+    [
+      { table: "order_tags" },
+      /on\.order\.links\.subject must be a column name/u,
+    ],
+    [
+      { table: "order_tags", subject: "order_id", tag: "tag_id", tenant: 3 },
+      /on\.order\.links\.tenant must be a column name/u,
+    ],
+  ])("tags rejects the link table %j", (links, message) => {
+    expect(() => render("tags", { order: { links } })).toThrow(message);
+  });
+
+  it("writes tags straight into a bound link table", () => {
+    const sql = renderBlocks(["tags"], {
+      subjects,
+      modules: {
+        tags: {
+          on: {
+            order: {
+              links: {
+                table: "order_tags",
+                subject: "order_id",
+                tag: "tag_id",
+              },
+            },
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      'insert into "public"."order_tags" ("order_id", "tag_id")',
+    );
+    expect(sql).toContain(
+      'delete from "public"."order_tags" l where l."order_id"::text = untag.subject_id',
     );
   });
 });

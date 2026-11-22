@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -159,5 +162,109 @@ describe("configCodemod", () => {
     });
 
     expect(result).toEqual({ files: [], review: [] });
+  });
+});
+
+describe("config codemod --prune without a rewrite", () => {
+  const config = resolveConfig(
+    { blocks: { tags: { columns: { tags: {} } } } },
+    "/project",
+  );
+
+  it("lists the restated entries when there is no config file", async () => {
+    const { files, review } = await configCodemod().project!({
+      config,
+      sql: [],
+      prune: true,
+    });
+
+    expect(files).toEqual([]);
+    expect(review).toContainEqual({
+      message: expect.stringMatching(
+        /^blocks\.tags\.columns\.tags .+; remove it from the config\.$/u,
+      ),
+    });
+  });
+
+  it("writes nothing when the config text lacks an empty entry", async () => {
+    const { files, review } = await configCodemod().project!({
+      config,
+      sql: [],
+      prune: true,
+      configFile: "/project/better-supabase.config.ts",
+      configText: "export default {};\n",
+    });
+
+    expect(files).toEqual([]);
+    expect(review).toEqual([]);
+  });
+});
+
+describe("config codemod --prune with a restated notNull", () => {
+  it("names a restated entry it cannot find in the config text", async () => {
+    const config = resolveConfig(
+      {
+        blocks: { announcements: {} },
+        functions: { "public.list_announcements": { notNull: true } },
+      } as Parameters<typeof resolveConfig>[0],
+      "/project",
+    );
+
+    const { files, review } = await configCodemod().project!({
+      config,
+      sql: [],
+      prune: true,
+      configFile: "/project/better-supabase.config.ts",
+      configText: "export default {};\n",
+    });
+
+    expect(files).toEqual([]);
+    expect(review).toContainEqual({
+      message:
+        "gen.functions.public.list_announcements.notNull repeats its default, but the codemod could not find it in /project/better-supabase.config.ts; remove it by hand.",
+    });
+  });
+});
+
+describe("config codemod --prune for a config that does not render", () => {
+  it("still lists the static entries", async () => {
+    const root = mkdtempSync(join(tmpdir(), "bsb-config-broken-"));
+
+    writeFileSync(join(root, "broken.json"), "not json");
+
+    const config = resolveConfig(
+      { blocks: { "not-a-block": { columns: { x: {} } } } },
+      root,
+    );
+
+    const { review } = await configCodemod().project!({
+      config: {
+        ...config,
+        source: { ...config.source, snapshot: "broken.json" },
+      },
+      sql: [],
+      prune: true,
+    });
+
+    expect(review).toEqual([
+      {
+        message:
+          "blocks.not-a-block.columns.x is empty; remove it from the config.",
+      },
+    ]);
+  });
+});
+
+describe("withoutColumnEntries leaves", () => {
+  it("leaves a table the columns object lacks and an unclosed block", () => {
+    expect(
+      withoutColumnEntries(CONFIG, [entry("teams", "members", "name")]),
+    ).toBe(CONFIG);
+
+    const unclosed = "export default { tags: { columns: { tags: { rank: null";
+
+    expect(
+      withoutColumnEntries(unclosed, [entry("tags", "tags", "rank")]),
+    ).toBe(unclosed);
   });
 });

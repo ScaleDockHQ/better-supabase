@@ -199,4 +199,31 @@ describe("createFakeClient", () => {
       error: null,
     });
   });
+
+  it("writes range and pattern-list filters as PostgREST parameters", async () => {
+    const client = createFakeClient(() => ({ data: [] }));
+    const query = () => client.from("t").select("id");
+
+    await query().rangeGt("a", "[1,2)");
+    await query().rangeGte("a", "[1,2)");
+    await query().rangeLt("a", "[1,2)");
+    await query().rangeLte("a", "[1,2)");
+    await query().rangeAdjacent("a", "[1,2)");
+    await query().likeAllOf("a", ["x%", "%y"]);
+    await query().likeAnyOf("a", ["x%", "%y"]);
+    await query().ilikeAllOf("a", ["x%"]);
+    await query().ilikeAnyOf("a", ["x%"]);
+
+    expect(client.requests.map((request) => request.query["a"])).toEqual([
+      "sr.[1,2)",
+      "nxl.[1,2)",
+      "sl.[1,2)",
+      "nxr.[1,2)",
+      "adj.[1,2)",
+      "like(all).{x%,%y}",
+      "like(any).{x%,%y}",
+      "ilike(all).{x%}",
+      "ilike(any).{x%}",
+    ]);
+  });
 });

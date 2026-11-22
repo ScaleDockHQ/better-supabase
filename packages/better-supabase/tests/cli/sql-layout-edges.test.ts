@@ -1,9 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  moduleLayoutFor,
   ownLayout,
   snapshotColumnTypes,
   sqlPlan,
@@ -165,5 +166,28 @@ describe("sql layout edges", () => {
     expect(indexes.map((index) => index.name)).not.toContain(
       "coverage_collate_idx",
     );
+  });
+});
+
+describe("moduleLayoutFor with the imports block", () => {
+  it("lists the functions the app's schema files create, once each", async () => {
+    const root = mkdtempSync(join(tmpdir(), "bsb-fns-"));
+
+    mkdirSync(join(root, "supabase", "schemas"), { recursive: true });
+    writeFileSync(
+      join(root, "supabase", "schemas", "app.sql"),
+      [
+        "create function Rank_Rows() returns int language sql as $$ select 1 $$;",
+        'create or replace function "app"."score"(n int) returns int language sql as $$ select n $$;',
+        "create function public.rank_rows() returns int language sql as $$ select 2 $$;",
+      ].join("\n"),
+    );
+
+    const layout = await moduleLayoutFor(
+      resolveConfig({ blocks: { imports: {} } }, root),
+      { names: ["imports"] },
+    );
+
+    expect(layout.appFunctions).toEqual(["public.rank_rows", "app.score"]);
   });
 });
