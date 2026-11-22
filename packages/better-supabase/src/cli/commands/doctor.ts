@@ -51,6 +51,7 @@ import {
   FLAG_FORMATS,
   reportFormat,
 } from "../doctor/options.ts";
+import { RECEIVER_RULES } from "../doctor/receiver-types.ts";
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
@@ -75,6 +76,7 @@ import {
   readSupabaseConfig,
   sqlWorkflow,
 } from "../supabase-config.ts";
+import { openSymbolTier } from "../typescript-symbols/index.ts";
 import { VERSION } from "../version.ts";
 import { loadSnapshot } from "./snapshot.ts";
 import { SOURCE_ARGS, sourceFlags } from "./source-args.ts";
@@ -544,8 +546,26 @@ export async function runDoctor(
       }
     : opened;
 
+  const symbolTier = rules.some((rule) => RECEIVER_RULES.has(rule.code))
+    ? await openSymbolTier(config.root)
+    : undefined;
+
+  const symbols =
+    symbolTier === undefined
+      ? undefined
+      : symbolTier.ok
+        ? { tier: symbolTier.tier, root: config.root }
+        : { skipped: symbolTier.reason };
+
+  const closeSymbols = (): void => {
+    if (symbolTier?.ok) {
+      symbolTier.tier.close();
+    }
+  };
+
   const context: DoctorContext = {
     config,
+    ...(symbols ? { symbols } : {}),
     snapshot,
     sqlFiles: sql,
     seedFiles: await seedFiles(config.root, configToml),
@@ -586,6 +606,7 @@ export async function runDoctor(
   };
 
   if (fixGrants) {
+    closeSymbols();
     await opened.close();
 
     return {
@@ -613,6 +634,18 @@ export async function runDoctor(
       });
     }
 
+    const byName = ran.find((finding) => RECEIVER_RULES.has(finding.code));
+
+    if (symbols !== undefined && "skipped" in symbols && byName !== undefined) {
+      ran.push({
+        code: byName.code,
+        severity: "info",
+        title: byName.title,
+        help: `${DOCS_URL}#${byName.code.toLowerCase()}`,
+        message: `Matched reads by receiver name only, so a receiver named like a client but typed as something else is still reported (${symbols.skipped}). Install typescript 7.1 or later to check receiver types.`,
+      });
+    }
+
     if (args.yes === true) {
       const count = ran.filter((finding) => finding.fix !== undefined).length;
 
@@ -633,6 +666,7 @@ export async function runDoctor(
       ));
     }
   } finally {
+    closeSymbols();
     await opened.close();
   }
 

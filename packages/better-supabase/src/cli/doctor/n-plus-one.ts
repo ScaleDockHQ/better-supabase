@@ -9,6 +9,7 @@ import type {
   SourceModel,
 } from "./source-scan.ts";
 
+import { provablyNotClient } from "./receiver-types.ts";
 import {
   bindingNames,
   sourceModel,
@@ -1087,7 +1088,11 @@ function skipScope(scope: Scope, writes: readonly number[]): boolean {
 }
 
 /** Both checks share one pass over each file. */
-function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
+function analyze(
+  file: TextFile,
+  snapshot: Snapshot,
+  symbols: DoctorContext["symbols"],
+): FileAnalysis {
   const perItem: FindingInput[] = [];
   const waterfalls: FindingInput[] = [];
 
@@ -1099,7 +1104,10 @@ function analyze(file: TextFile, snapshot: Snapshot): FileAnalysis {
   const { code } = model;
   const services = serviceNames(model);
   const writes = writesIn(model, services);
-  const reads = readsIn(model, services, writes);
+
+  const reads = readsIn(model, services, writes).filter(
+    (read) => provablyNotClient(symbols, file.path, read.start) !== true,
+  );
 
   if (reads.length === 0) {
     return { perItem, waterfalls };
@@ -1250,7 +1258,9 @@ function analyzeAll(context: DoctorContext): FileAnalysis[] {
   let result = analyses.get(context.sources);
 
   if (!result) {
-    result = context.sources.map((file) => analyze(file, context.snapshot));
+    result = context.sources.map((file) =>
+      analyze(file, context.snapshot, context.symbols),
+    );
     analyses.set(context.sources, result);
   }
 

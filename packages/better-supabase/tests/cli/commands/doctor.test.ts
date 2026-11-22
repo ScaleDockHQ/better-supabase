@@ -557,6 +557,11 @@ describe("doctor command", () => {
           "Ran without the schema (connection refused)",
         ),
       }),
+      expect.objectContaining({
+        code: "BS634",
+        severity: "info",
+        message: expect.stringContaining("by receiver name only"),
+      }),
     ]);
 
     await expect(

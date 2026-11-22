@@ -8,9 +8,15 @@ import type { FilePlan, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 import type { Paint } from "../style.ts";
+import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
 import { appCheckNames } from "../codemod-naming.ts";
+import {
+  applySplices,
+  followReexports,
+  reexportsIn,
+} from "../codemod-reexports.ts";
 import { applyCodemod, CODEMODS } from "../codemod.ts";
 import { databaseUrl, loadConfig } from "../config.ts";
 import { defineCliCommand } from "../core/command.ts";
@@ -26,6 +32,7 @@ import { connect } from "../db.ts";
 import { migrationsDir, writtenByBlocks } from "../sql-layout.ts";
 import { migrationFile } from "../sql/migration-names.ts";
 import { plain } from "../style.ts";
+import { openSymbolTier } from "../typescript-symbols/index.ts";
 
 const CODEMOD_ARGS = {
   path: {
@@ -308,6 +315,9 @@ export async function liveColumns(
   }
 }
 
+/** The codemods that follow a name into another file when the tier is on. */
+const FOLLOWING = new Set(["naming", "config"]);
+
 export async function runCodemod(
   loadedConfig: ResolvedConfig,
   args: CodemodOptions,
@@ -315,6 +325,43 @@ export async function runCodemod(
   configFile?: string,
   loadError?: CliError,
   env?: CliEnv,
+): Promise<CommandResult> {
+  const opened = FOLLOWING.has(args._?.[0] ?? "")
+    ? await openSymbolTier(loadedConfig.root)
+    : undefined;
+
+  const symbols: ProjectSymbols | undefined =
+    opened === undefined
+      ? undefined
+      : opened.ok
+        ? { tier: opened.tier, root: loadedConfig.root }
+        : { skipped: opened.reason };
+
+  try {
+    return await runWithSymbols(
+      loadedConfig,
+      args,
+      paint,
+      configFile,
+      loadError,
+      env,
+      symbols,
+    );
+  } finally {
+    if (opened?.ok) {
+      opened.tier.close();
+    }
+  }
+}
+
+async function runWithSymbols(
+  loadedConfig: ResolvedConfig,
+  args: CodemodOptions,
+  paint: Paint,
+  configFile: string | undefined,
+  loadError: CliError | undefined,
+  env: CliEnv | undefined,
+  symbols: ProjectSymbols | undefined,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
 
@@ -375,6 +422,7 @@ export async function runCodemod(
 
   const projectInput = {
     config,
+    ...(symbols === undefined ? {} : { symbols }),
     configLoaded: configError === undefined,
     ...(args.prune === true ? { prune: true } : {}),
     sql: await projectSqlFiles(config.root),
@@ -391,11 +439,35 @@ export async function runCodemod(
 
   const rewrite = await codemod.files?.(projectInput);
 
+  const texts = new Map(
+    await Promise.all(
+      files.map(async (file) => [file, await readFile(file, "utf-8")] as const),
+    ),
+  );
+
+  const followed = codemod.imports
+    ? followReexports(
+        files.flatMap((file) =>
+          reexportsIn(file, texts.get(file)!, codemod.imports!),
+        ),
+        symbols,
+        files,
+        (file) => texts.get(file),
+      )
+    : undefined;
+
   for (const file of files) {
-    const source = await readFile(file, "utf-8");
-    const result = applyCodemod(codemod, source, rewrite, file);
+    const source = texts.get(file)!;
+
+    const crossed = applySplices(source, followed?.splices.get(file) ?? []);
+    const result = applyCodemod(codemod, crossed, rewrite, file);
     const path = relative(config.root, file);
-    review.push(...result.review.map((hint) => ({ file: path, ...hint })));
+
+    review.push(
+      ...[...(followed?.review.get(file) ?? []), ...result.review].map(
+        (hint) => ({ file: path, ...hint }),
+      ),
+    );
 
     if (result.text !== source) {
       edits.push({ path: file, contents: result.text, policy: "edit" });

@@ -1,14 +1,16 @@
+import { readFileSync } from "node:fs";
 import { rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 
 import type { ResolvedConfig } from "../config/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
+import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import { restatedEntries } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
-import { ConfigDocument } from "./config-document/index.ts";
+import { ConfigDocument, followImports } from "./config-document/index.ts";
 import { loadConfig } from "./config.ts";
 import { mergeRestated, probeRestated } from "./restated-probe.ts";
 import { ownLayout } from "./sql-layout.ts";
@@ -83,6 +85,14 @@ export function tenantEntries(
 export interface ColumnEntryEdit {
   readonly text: string;
   readonly review: readonly string[];
+  /** Files that declare a value the config imports, with their edited text. */
+  readonly others: readonly { readonly file: string; readonly text: string }[];
+}
+
+/** What lets an edit follow a value the config imports from another file. */
+export interface ImportFollow {
+  readonly symbols: ProjectSymbols | undefined;
+  readonly configFile: string;
 }
 
 /**
@@ -94,41 +104,92 @@ export interface ColumnEntryEdit {
 export function withoutColumnEntries(
   text: string,
   entries: readonly ColumnEntry[],
+  follow?: ImportFollow,
 ): ColumnEntryEdit {
   const document = ConfigDocument.parse(text);
   const review: string[] = [];
+
+  const imports =
+    follow === undefined
+      ? undefined
+      : followImports(follow.symbols, follow.configFile, document);
 
   for (const entry of entries) {
     const path = ["blocks", entry.block, "columns", entry.table, entry.column];
     const result = document.remove(path);
 
-    if (result.status === "absent") {
-      review.push(
-        `${path.join(".")}: ${entry.why}, but the codemod could not find it in the config file (it may come from another file); remove it by hand.`,
-      );
+    if (result.status !== "absent") {
+      continue;
     }
+
+    const owner = imports?.followed.find(
+      ({ prefix }) =>
+        prefix.length <= path.length &&
+        prefix.every((segment, index) => segment === path[index]),
+    );
+
+    if (
+      owner?.document.remove(path.slice(owner.prefix.length)).status === "done"
+    ) {
+      continue;
+    }
+
+    review.push(
+      `${path.join(".")}: ${entry.why}, but the codemod could not find it in the config file${
+        imports === undefined ? " (it may come from another file)" : ""
+      }; remove it by hand.`,
+    );
   }
 
-  return { text: document.text, review: [...review, ...document.review] };
+  const others = (imports?.followed ?? [])
+    .filter(
+      ({ document: followed, file }) =>
+        followed.text !== readFileSync(file, "utf-8"),
+    )
+    .map(({ file, document: followed }) => ({ file, text: followed.text }));
+
+  return {
+    text: document.text,
+    review: [
+      ...(imports?.review ?? []),
+      ...review,
+      ...document.review,
+      ...(imports?.followed.flatMap(
+        ({ document: followed }) => followed.review,
+      ) ?? []),
+    ],
+    others,
+  };
 }
 
 /** The files that drop the config entries the render refuses. */
 export function configFiles(
   entries: readonly ColumnEntry[],
   config: { readonly path: string; readonly text: string },
+  symbols?: ProjectSymbols,
 ): {
   readonly files: readonly PlannedFile[];
   readonly review: readonly { readonly message: string }[];
 } {
-  const edit = withoutColumnEntries(config.text, entries);
+  const edit = withoutColumnEntries(config.text, entries, {
+    symbols,
+    configFile: config.path,
+  });
+
   const review = edit.review.map((message) => ({ message }));
 
-  return edit.text === config.text
-    ? { files: [], review }
-    : {
-        files: [{ path: config.path, contents: edit.text, policy: "edit" }],
-        review,
-      };
+  const files: PlannedFile[] = [
+    ...(edit.text === config.text
+      ? []
+      : [{ path: config.path, contents: edit.text, policy: "edit" as const }]),
+    ...edit.others.map(({ file, text }) => ({
+      path: file,
+      contents: text,
+      policy: "edit" as const,
+    })),
+  ];
+
+  return { files, review };
 }
 
 /** The rendered files of `config`, by path. */
@@ -327,10 +388,11 @@ export function configCodemod(): Codemod {
         };
       }
 
-      return configFiles(entries, {
-        path: project.configFile,
-        text: project.configText ?? "",
-      });
+      return configFiles(
+        entries,
+        { path: project.configFile, text: project.configText ?? "" },
+        project.symbols,
+      );
     },
   };
 }

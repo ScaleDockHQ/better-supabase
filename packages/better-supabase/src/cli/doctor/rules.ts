@@ -8,6 +8,7 @@ import type { CatalogPolicy, Snapshot } from "../introspect/types.ts";
 import type { PackageInstall } from "../lockfile.ts";
 import type { PeerVersion } from "../peers.ts";
 import type { SupabaseConfig, TomlValue } from "../supabase-config.ts";
+import type { ProjectSymbols } from "../typescript-symbols/index.ts";
 import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
@@ -151,6 +152,11 @@ export interface DoctorContext {
   readonly ignoredEnvFiles?: ReadonlySet<string>;
   /** App source files matched by `doctor.sources`. */
   readonly sources: readonly TextFile[];
+  /**
+   * The optional TypeScript 7.1 symbol tier (ADR 1182), or why it is off. The
+   * source rules use it to rule out a receiver that only looks like a client.
+   */
+  readonly symbols?: ProjectSymbols;
   /** `config.readSets`, compiled, or why they could not be loaded. */
   readonly readSets?: BlockSqlLayout["readSets"] | { readonly skipped: string };
   /**

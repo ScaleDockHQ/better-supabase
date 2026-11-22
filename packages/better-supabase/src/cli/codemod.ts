@@ -13,6 +13,7 @@ import { ScopeTracker, isReferenceIdentifier, walk } from "oxc-walker";
 import type { ResolvedConfig } from "../config/index.ts";
 import type { TenantColumnSkip } from "./codemod-naming-pins.ts";
 import type { PlannedFile } from "./core/files.ts";
+import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
@@ -38,6 +39,12 @@ export interface CodemodProject {
   /** The config file, when one was found, and its text. */
   readonly configFile?: string;
   readonly configText?: string;
+  /**
+   * The optional TypeScript 7.1 tier, or why it is off. A codemod that edits a
+   * value another file declares follows it with the tier and otherwise
+   * reports.
+   */
+  readonly symbols?: ProjectSymbols;
   /** False when the config did not load and `config` is the default one. */
   readonly configLoaded?: boolean;
   /** `config --prune`: remove every entry that equals its default. */

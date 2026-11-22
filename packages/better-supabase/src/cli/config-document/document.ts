@@ -15,6 +15,7 @@ import { walk } from "oxc-walker";
 
 import type { ParsedModule } from "./parse.ts";
 
+import { propertyName, text, unwrap } from "./nodes.ts";
 import { parseModule } from "./parse.ts";
 import { referencedBindings } from "./scopes.ts";
 
@@ -53,59 +54,6 @@ const DEFINE_CONFIG = "defineConfig";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
-/** `a.b` for a non-computed member expression of identifiers, else undefined. */
-function text(node: Node): string | undefined {
-  if (node.type === "Identifier") {
-    return node.name;
-  }
-
-  if (
-    node.type === "MemberExpression" &&
-    !node.computed &&
-    node.property.type === "Identifier"
-  ) {
-    const object = text(node.object);
-
-    return object === undefined ? undefined : `${object}.${node.property.name}`;
-  }
-
-  return undefined;
-}
-
-/** `node` without the wrappers that only carry a type or parentheses. */
-function unwrap(node: Node): Node {
-  if (
-    node.type === "TSSatisfiesExpression" ||
-    node.type === "TSAsExpression" ||
-    node.type === "TSNonNullExpression" ||
-    node.type === "TSTypeAssertion" ||
-    node.type === "ParenthesizedExpression"
-  ) {
-    return unwrap(node.expression);
-  }
-
-  return node;
-}
-
-/** The name an object key or a member names, when it is not computed. */
-export function propertyName(property: Node): string | undefined {
-  if (property.type !== "Property" || property.computed) {
-    return undefined;
-  }
-
-  const { key } = property;
-
-  if (key.type === "Identifier") {
-    return key.name;
-  }
-
-  if (key.type === "Literal") {
-    return String(key.value);
-  }
-
-  return undefined;
-}
-
 const lineStartOf = (text: string, at: number): number =>
   text.lastIndexOf("\n", at - 1) + 1;
 
@@ -121,11 +69,20 @@ export class ConfigDocument {
   readonly #before: ReadonlySet<string>;
   readonly #review: string[] = [];
   readonly #wiring: boolean;
+  readonly #declared:
+    | { readonly start: number; readonly end: number }
+    | undefined;
 
-  private constructor(module: ParsedModule, path: string, wiring: boolean) {
+  private constructor(
+    module: ParsedModule,
+    path: string,
+    wiring: boolean,
+    declared?: { readonly start: number; readonly end: number },
+  ) {
     this.#module = module;
     this.#path = path;
     this.#wiring = wiring;
+    this.#declared = declared;
     this.#before = referencedBindings(module.program);
   }
 
@@ -140,6 +97,24 @@ export class ConfigDocument {
    */
   static parseWiring(text: string, path = "blocks.ts"): ConfigDocument {
     return new ConfigDocument(parseModule(text, path), path, true);
+  }
+
+  /**
+   * Parses a file that holds part of another file's config: the root is the
+   * object literal of the top-level declaration inside `within`, a range the
+   * symbol tier reports for an imported value.
+   */
+  static parseDeclared(
+    text: string,
+    path: string,
+    within: { readonly start: number; readonly end: number },
+  ): ConfigDocument {
+    return new ConfigDocument(parseModule(text, path), path, false, within);
+  }
+
+  /** The parsed program of the text as it stands. */
+  get program(): Program {
+    return this.#module.program;
   }
 
   /** The text with every edit applied. */
@@ -189,6 +164,10 @@ export class ConfigDocument {
       return this.#wiredObject();
     }
 
+    if (this.#declared !== undefined) {
+      return this.#declaredObject(this.#declared);
+    }
+
     const local = this.#defineConfigNames(program);
 
     for (const statement of program.body) {
@@ -209,6 +188,35 @@ export class ConfigDocument {
 
     // A file that calls `defineConfig(...)` without exporting it.
     return this.defineConfigCalls()[0];
+  }
+
+  /** The object literal of the top-level declarator inside `within`. */
+  #declaredObject(within: {
+    readonly start: number;
+    readonly end: number;
+  }): ObjectExpression | undefined {
+    for (const statement of this.#module.program.body) {
+      const declaration =
+        statement.type === "ExportNamedDeclaration"
+          ? statement.declaration
+          : statement;
+
+      if (declaration?.type !== "VariableDeclaration") {
+        continue;
+      }
+
+      for (const each of declaration.declarations) {
+        if (
+          each.init !== null &&
+          each.start >= within.start &&
+          each.end <= within.end
+        ) {
+          return this.#asConfig(each.init, new Set(), new Set());
+        }
+      }
+    }
+
+    return undefined;
   }
 
   /**

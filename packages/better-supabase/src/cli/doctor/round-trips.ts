@@ -1,12 +1,15 @@
 import type { FindingInput, Rule } from "./rules.ts";
 import type { SourceModel } from "./source-scan.ts";
 
+import { provablyNotClient } from "./receiver-types.ts";
 import { sourceModel, targetKeys } from "./source-scan.ts";
 
 /** A `Promise.all([...])` call and the source of each entry of its array. */
 export interface Wave {
   readonly start: number;
   readonly entries: readonly string[];
+  /** Where each entry starts in the file, in the order of `entries`. */
+  readonly entryStarts: readonly number[];
 }
 
 /** Every `Promise.all` over an array literal in `model`. */
@@ -18,14 +21,15 @@ export function waves(model: SourceModel): Wave[] {
       return [];
     }
 
+    const elements = list.elements.filter((element) => element !== null);
+
     return [
       {
         start: call.start,
-        entries: list.elements.flatMap((element) =>
-          element === null
-            ? []
-            : [model.text.slice(element.start, element.end)],
+        entries: elements.map((element) =>
+          model.text.slice(element.start, element.end),
         ),
+        entryStarts: elements.map((element) => element.start),
       },
     ];
   });
@@ -43,7 +47,25 @@ function parallelReads(context: Parameters<Rule["check"]>[0]): FindingInput[] {
     const found: { start: number; callee: string; reads: number }[] = [];
 
     for (const wave of waves(model)) {
-      const reads = wave.entries.filter((entry) => DATABASE_READ.test(entry));
+      const reads = wave.entries.filter((entry, index) => {
+        const match = DATABASE_READ.exec(entry);
+
+        if (!match) {
+          return false;
+        }
+
+        // The receiver is the first name before the call: `db`, or `db` in `ctx.db`.
+        const at = match[0].search(/\bdb\b/);
+
+        return (
+          at === -1 ||
+          provablyNotClient(
+            context.symbols,
+            file.path,
+            wave.entryStarts[index]! + match.index + at,
+          ) !== true
+        );
+      });
 
       if (reads.length >= context.config.doctor.parallelReads) {
         found.push({

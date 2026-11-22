@@ -35,6 +35,14 @@ export interface SymbolTier {
   close(): void;
 }
 
+/**
+ * What a command passes to the code that uses the tier: the open tier and the
+ * root its paths are relative to, or the reason the tier is off.
+ */
+export type ProjectSymbols =
+  | { readonly tier: SymbolTier; readonly root: string }
+  | { readonly skipped: string };
+
 export type SymbolTierResult =
   | { readonly ok: true; readonly tier: SymbolTier }
   | { readonly ok: false; readonly reason: string };

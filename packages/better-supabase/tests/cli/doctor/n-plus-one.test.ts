@@ -48,6 +48,7 @@ function check(
   code: "BS634" | "BS635",
   text: string,
   views: readonly { schema: string; name: string }[] = [],
+  symbols?: DoctorContext["symbols"],
 ): readonly {
   message: string;
   target?: string;
@@ -60,6 +61,7 @@ function check(
   // SAFETY: both rules read only `sources` and the snapshot's relationships.
   const findings = rule?.check({
     sources,
+    ...(symbols ? { symbols } : {}),
     snapshot: { generator: { relationships, views, materializedViews: [] } },
   } as unknown as DoctorContext);
 
@@ -630,5 +632,37 @@ describe("parse tree", () => {
 
     expect(findings).toHaveLength(1);
     expect(findings[0]?.location?.line).toBe(3);
+  });
+});
+
+describe("receiver types", () => {
+  const text = [
+    "export async function load(db: Map<string, string>, ids: string[]) {",
+    "  for (const id of ids) {",
+    "    await db.customers.get(id);",
+    "  }",
+    "}",
+  ].join("\n");
+
+  const tier = (type: string): DoctorContext["symbols"] => ({
+    root: "/app",
+    tier: {
+      version: "7.1.0",
+      references: () => [],
+      declaration: () => undefined,
+      typeOf: () => type,
+      close: () => {},
+    },
+  });
+
+  it("drops a loop read whose receiver is not a client", () => {
+    expect(check("BS634", text, [], tier("Map<string, string>"))).toEqual([]);
+  });
+
+  it("keeps it for a client type and when the tier is off", () => {
+    expect(check("BS634", text, [], tier("Db<Database>"))).toHaveLength(1);
+    expect(check("BS634", text, [], { skipped: "not installed" })).toHaveLength(
+      1,
+    );
   });
 });

@@ -6,6 +6,7 @@ import { ROUND_TRIP_RULES } from "../../../src/cli/doctor/round-trips.ts";
 
 function check(
   sources: readonly TextFile[],
+  symbols?: DoctorContext["symbols"],
 ): readonly {
   message: string;
   target?: string;
@@ -16,6 +17,7 @@ function check(
   // SAFETY: BS609 reads only `sources` and `doctor.parallelReads`.
   const findings = rule?.check({
     sources,
+    ...(symbols ? { symbols } : {}),
     config: { doctor: { parallelReads: 3 } },
   } as unknown as DoctorContext);
 
@@ -104,5 +106,44 @@ describe("BS609", () => {
     ].join("\n");
 
     expect(check([{ path: "src/app/page.tsx", text }])).toEqual([]);
+  });
+});
+
+describe("BS609 receiver types", () => {
+  const text = [
+    "export default async function Page() {",
+    "  const [a, b, c] = await Promise.all([",
+    "    db.customers.list().orThrow(),",
+    "    db.orders.list().orThrow(),",
+    "    db.notes.list().orThrow(),",
+    "  ]);",
+    "}",
+  ].join("\n");
+
+  const tier = (type: string | undefined): DoctorContext["symbols"] => ({
+    root: "/app",
+    tier: {
+      version: "7.1.0",
+      references: () => [],
+      declaration: () => undefined,
+      typeOf: () => type,
+      close: () => {},
+    },
+  });
+
+  it("drops reads on a receiver that TypeScript types as a Map", () => {
+    expect(
+      check([{ path: "src/app/page.tsx", text }], tier("Map<string, string>")),
+    ).toEqual([]);
+  });
+
+  it("keeps reads on a client type or an unresolved receiver", () => {
+    const sources = [{ path: "src/app/page.tsx", text }];
+
+    expect(check(sources, tier("Db<Database>"))).toHaveLength(1);
+    expect(check(sources, tier(undefined))).toHaveLength(1);
+    expect(
+      check(sources, { skipped: "typescript is not installed" }),
+    ).toHaveLength(1);
   });
 });
