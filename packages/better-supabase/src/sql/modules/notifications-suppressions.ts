@@ -11,6 +11,7 @@ import {
   serviceGrant,
 } from "../shared.ts";
 import { addressSql } from "./notifications-address.ts";
+import { claimAddress } from "./notifications-external.ts";
 
 /**
  * Whether the module writes and honours suppressions. A module over the app's
@@ -72,7 +73,7 @@ export function claimSuppression(
 
   return {
     join: `
-  left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(${addressSql(ctx, `rc.${n.col("recipients", "user")}`, `l.${n.col("deliveries", "channel")}`, "u.email")})`,
+  left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(${claimAddress(ctx, n, `l.${n.col("deliveries", "channel")}`, addressSql(ctx, `rc.${n.col("recipients", "user")}`, `l.${n.col("deliveries", "channel")}`, "u.email"))})`,
     field: `,
     'suppressed', s.${c("reason")}`,
   };

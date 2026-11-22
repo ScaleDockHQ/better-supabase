@@ -7,6 +7,13 @@ export type NotificationsSqlOptions = {
   readonly channelDefaults?: unknown;
   readonly channels?: readonly string[];
   readonly createdEvent?: string;
+  /**
+   * Lets `send_notification` name people who are not members: `external` takes
+   * `{ address }` or `{ contact }` entries, and the email channel reaches them.
+   * A contact is resolved through `resolveAddress`, with the contact id in the
+   * `user` argument.
+   */
+  readonly externalRecipients?: boolean;
   readonly maxRecipients?: number;
   readonly partitioned?: boolean;
   readonly priorities?: readonly string[];
@@ -27,6 +34,7 @@ export const notificationsSqlOptions: BlockOptionsSchema<NotificationsSqlOptions
     channelDefaults: option.unknown(),
     channels: option.strings({ default: ["in_app"] }),
     createdEvent: option.string(),
+    externalRecipients: option.boolean({ default: false }),
     maxRecipients: option.number({ default: 1000 }),
     partitioned: option.boolean({ default: false }),
     priorities: option.strings({

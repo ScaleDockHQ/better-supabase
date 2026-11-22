@@ -279,3 +279,8 @@ a status column is open again (as `withdraw_timesheet` does); a decided one stay
 weeks whose status follows the approval request already read a cancelled request as a draft or open week, so
 they need no hook. The new functions are `expense_approval_cancelled` and `timesheet_approval_cancelled`, which
 `add` and `upgrade` write into your schema files without a version bump, because `create or replace` covers them.
+
+**Email to people who are not members.** Set `options.externalRecipients` on `notifications` and
+`send_notification` takes an `external` list of `{ address }` or `{ contact }` entries, reached on the email
+channel through the same claim and bounce suppression as members. A contact resolves through your
+`resolveAddress` function. It is off by default, because it makes the recipient `user` column nullable.
