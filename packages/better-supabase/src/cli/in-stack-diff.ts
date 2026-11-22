@@ -119,8 +119,10 @@ export interface InStackDiffResult {
 }
 
 /**
- * Pg-delta is an optional peer (with `@supabase/pg-topo`) that only `db diff`
- * needs, so it loads on demand. Without it, `db diff` says how to install it.
+ * Pg-delta is a dependency (with `@supabase/pg-topo`) that only `db diff`
+ * needs, so it loads on demand to keep CLI startup fast (invariant 12). An
+ * install made without its dependencies fails here, and the message says to
+ * reinstall better-supabase.
  */
 export async function loadPgDelta(
   load: () => Promise<PgDelta> = () => import("@supabase/pg-delta"),
@@ -130,14 +132,15 @@ export async function loadPgDelta(
   } catch {
     throw new CliError(
       "dependency_missing",
-      'better-supabase needs "@supabase/pg-delta" and "@supabase/pg-topo" to plan the diff. Install them: pnpm add -D @supabase/pg-delta @supabase/pg-topo',
-      { suggestion: "pnpm add -D @supabase/pg-delta @supabase/pg-topo" },
+      'better-supabase could not load "@supabase/pg-delta" to plan the diff. It installs with better-supabase, so reinstall the package without omitting its dependencies.',
+      { suggestion: "Reinstall better-supabase with its dependencies" },
     );
   }
 }
 
 /**
- * `pg` is an optional peer that pg-delta shares; the pools it takes come from
+ * `pg` stays an optional peer, because `better-supabase/postgres` hands the app
+ * a `Pool` and the app owns that version. The pools pg-delta takes come from
  * it.
  */
 export async function openPgPool(url: string): Promise<PoolHandle> {

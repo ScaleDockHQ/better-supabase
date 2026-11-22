@@ -200,11 +200,10 @@ export interface DoctorContext {
    */
   readonly vercel?: boolean;
   /**
-   * Whether a script of the project's `package.json` runs `better-supabase db
-   * diff`, which plans with pg-delta's library (BS239). A project that diffs
-   * with the Supabase CLI never loads the library.
+   * The package names the project's `package.json`, or a workspace package,
+   * lists in any dependency field (BS709).
    */
-  readonly libraryDiff?: boolean;
+  readonly listedDependencies?: readonly string[];
   /** The project's `vercel.json` (BS512). */
   readonly vercelConfig?: TextFile;
   /**

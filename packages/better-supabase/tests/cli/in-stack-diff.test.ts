@@ -50,7 +50,7 @@ describe("in-stack diff helpers", () => {
     await pool.end();
   });
 
-  it("explains how to install pg-delta when it is missing", async () => {
+  it("says to reinstall better-supabase when pg-delta does not load", async () => {
     await expect(
       loadPgDelta(() => Promise.reject(new Error("Cannot find package"))),
     ).rejects.toMatchObject({ code: "dependency_missing" });

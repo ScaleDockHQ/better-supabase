@@ -23,7 +23,15 @@ const BUILTINS = new Set([
   ...builtinModules.map((name) => `node:${name}`),
 ]);
 
-const NODE_ONLY = new Set([...BUILTINS, "pg"]);
+/** Dependencies only the CLI and the Node entries import (ADR 1171). */
+const CLI_DEPENDENCIES = [
+  "@supabase/pg-delta",
+  "@supabase/pg-parser",
+  "@supabase/pg-topo",
+  "oxc-parser",
+];
+
+const NODE_ONLY = new Set([...BUILTINS, "pg", ...CLI_DEPENDENCIES]);
 
 /** Node globals with no WinterTC equivalent. */
 const NODE_GLOBALS =

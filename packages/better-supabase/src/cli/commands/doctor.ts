@@ -67,7 +67,7 @@ import {
 } from "../gen/metadata.ts";
 import { MetadataRejectedError } from "../introspect/typegen.ts";
 import { betterSupabaseInstall } from "../lockfile.ts";
-import { peerVersions } from "../peers.ts";
+import { listedDependencies, peerVersions } from "../peers.ts";
 import { compiledReadSets } from "../read-sets.ts";
 import {
   findRepoRoot,
@@ -166,30 +166,6 @@ const ARGS = {
 } as const;
 
 export type DoctorValues = CliValues<typeof ARGS & typeof SOURCE_ARGS>;
-
-const LIBRARY_DIFF = /\b(?:better-supabase|bsb)\s+db\s+diff\b/;
-
-/** Whether a `package.json` script runs `better-supabase db diff` (BS239). */
-async function runsLibraryDiff(root: string): Promise<boolean> {
-  const file = await readText(root, "package.json");
-
-  if (file === undefined) {
-    return false;
-  }
-
-  try {
-    // SAFETY: a package.json is a JSON object; `scripts` values are checked as strings.
-    const { scripts } = JSON.parse(file.text) as {
-      scripts?: Record<string, unknown>;
-    };
-
-    return Object.values(scripts ?? {}).some(
-      (script) => typeof script === "string" && LIBRARY_DIFF.test(script),
-    );
-  } catch {
-    return false;
-  }
-}
 
 export interface DoctorOptions {
   /** Pre-loaded snapshot (tests). */
@@ -476,6 +452,7 @@ export async function runDoctor(
     ignoredEnvFiles,
     vercelConfig,
     vercelPulled,
+    listed,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -541,6 +518,7 @@ export async function runDoctor(
           }),
         ).then((found) => found.flat())
       : undefined,
+    listedDependencies(config.root).catch(() => undefined),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -576,7 +554,7 @@ export async function runDoctor(
     ...(localStacks ? { localStacks } : {}),
     ...(nextConfig ? { nextConfig } : {}),
     vercel,
-    libraryDiff: await runsLibraryDiff(config.root),
+    ...(listed ? { listedDependencies: [...listed] } : {}),
     ...(vercelConfig ? { vercelConfig } : {}),
     ...(vercelPulled ? { vercelEnv: vercelPulled } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),

@@ -4753,26 +4753,12 @@ describe("pg-delta schema files (BS317, BS318, BS321)", () => {
   });
 });
 
-describe("pg-delta packages (BS239)", () => {
-  const pgdelta = toml("[experimental.pgdelta]\nenabled = true\n");
-
-  const peers = (installed: Record<string, string | undefined>) =>
-    Object.entries(installed).map(([name, version]) => ({
-      name,
-      range: "*",
-      installed: version,
-    }));
-
-  it("names the missing packages and the install command", async () => {
+describe("own copy of a pg-delta package (BS709)", () => {
+  it("names the packages the project lists itself", async () => {
     const findings = await run(
-      "BS239",
+      "BS709",
       context(base, {
-        configToml: pgdelta,
-        libraryDiff: true,
-        peers: peers({
-          "@supabase/pg-delta": "1.0.0-alpha.60",
-          "@supabase/pg-topo": undefined,
-        }),
+        listedDependencies: ["better-supabase", "@supabase/pg-topo"],
       }),
     );
 
@@ -4781,52 +4767,25 @@ describe("pg-delta packages (BS239)", () => {
       severity: "warning",
       target: "@supabase/pg-topo",
     });
-    expect(findings[0]!.message).toContain(
-      "@supabase/pg-topo is not installed",
-    );
-    expect(findings[0]!.message).toContain(
-      "pnpm add -D @supabase/pg-delta @supabase/pg-topo",
-    );
+    expect(findings[0]!.message).toContain("pnpm remove @supabase/pg-topo");
   });
 
-  it("stays quiet for a Supabase CLI declarative project, where no script runs db diff through the library", async () => {
-    expect(
-      await run(
-        "BS239",
-        context(base, {
-          configToml: pgdelta,
-          libraryDiff: false,
-          peers: peers({}),
-        }),
-      ),
-    ).toEqual([]);
+  it("names both packages together", async () => {
+    const findings = await run(
+      "BS709",
+      context(base, {
+        listedDependencies: ["@supabase/pg-delta", "@supabase/pg-topo"],
+      }),
+    );
+
+    expect(findings[0]!.target).toBe("@supabase/pg-delta, @supabase/pg-topo");
   });
 
-  it("stays quiet with both installed, on migra, without a peer list or a Supabase project", async () => {
-    const both = peers({
-      "@supabase/pg-delta": "1.0.0-alpha.60",
-      "@supabase/pg-topo": "1.0.0-alpha.8",
-    });
-
+  it("stays quiet when the project lists neither or has no package.json", async () => {
     expect(
-      await run(
-        "BS239",
-        context(base, { configToml: pgdelta, libraryDiff: true, peers: both }),
-      ),
+      await run("BS709", context(base, { listedDependencies: ["pg"] })),
     ).toEqual([]);
-    expect(
-      await run(
-        "BS239",
-        context(base, {
-          configToml: toml("[experimental.pgdelta]\nenabled = false\n"),
-          peers: peers({}),
-        }),
-      ),
-    ).toEqual([]);
-    expect(await run("BS239", context(base, { configToml: pgdelta }))).toEqual(
-      [],
-    );
-    expect(await run("BS239", context(base, { peers: peers({}) }))).toEqual([]);
+    expect(await run("BS709", context(base))).toEqual([]);
   });
 });
 

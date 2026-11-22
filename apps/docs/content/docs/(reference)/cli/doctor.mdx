@@ -954,15 +954,10 @@ so a saved snapshot skips it. The check is `not valid` on purpose; see
 
 ### BS239
 
-**Warning: pg-delta packages missing.** The project runs the pg-delta
-workflow (`database.sql.workflow`, or the one doctor reads from
-`supabase/config.toml`), but `@supabase/pg-delta` or `@supabase/pg-topo` is not
-installed. [`db diff`](/docs/cli/db#diff) plans the migration with both and
-stops until they are there. Install them as dev dependencies:
-
-```bash
-pnpm add -D @supabase/pg-delta @supabase/pg-topo
-```
+**Retired.** It reported `@supabase/pg-delta` or `@supabase/pg-topo` as not
+installed. better-supabase now installs both as dependencies, so the check can
+no longer fail, and the code stays reserved. See [BS709](#bs709) for the
+opposite mistake.
 
 ### BS240
 
@@ -3125,3 +3120,16 @@ module files, largest first, in one finding that `doctor --json` carries under t
 block to leave out, or which optional table to set to `null` (inventory allocations and accounting budgets drop
 their SQL that way). BS244 names the largest five once the total passes 2 MB. There is no `sql size` command,
 because the `sql` engine is internal.
+
+### BS709
+
+**Warning: own copy of a pg-delta package.** `package.json`, or the
+`package.json` of a workspace package, lists `@supabase/pg-delta` or
+`@supabase/pg-topo`. better-supabase depends on both at an exact version,
+because the migration [`db diff`](/docs/cli/db#diff) plans depends on the
+version. A second entry writes the version twice and can install a second copy
+that plans differently. Remove the entries:
+
+```bash
+pnpm remove @supabase/pg-delta @supabase/pg-topo
+```

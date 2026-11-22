@@ -2841,9 +2841,13 @@
   "dependencies": {
     "@standard-schema/spec": "catalog:deps",
     "@supabase/middleware": "catalog:deps",
+    "@supabase/pg-delta": "catalog:deps",
+    "@supabase/pg-parser": "catalog:deps",
+    "@supabase/pg-topo": "catalog:deps",
     "@supabase/postgrest-js": "catalog:deps",
     "@supabase/server": "catalog:deps",
-    "@supabase/ssr": "catalog:deps"
+    "@supabase/ssr": "catalog:deps",
+    "oxc-parser": "catalog:deps"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "catalog:",
@@ -2876,8 +2880,6 @@
     "@supabase/config": "catalog:",
     "@supabase/lite": "catalog:",
     "@supabase/mcp-server-supabase": "catalog:",
-    "@supabase/pg-delta": "catalog:",
-    "@supabase/pg-topo": "catalog:",
     "@supabase/postgrest-typegen": "catalog:",
     "@supabase/supabase-js": "catalog:",
     "@sveltejs/kit": "catalog:",
@@ -2989,8 +2991,6 @@
     "@supabase/config": "catalog:peers",
     "@supabase/lite": "catalog:peers",
     "@supabase/mcp-server-supabase": "catalog:peers",
-    "@supabase/pg-delta": "catalog:peers",
-    "@supabase/pg-topo": "catalog:peers",
     "@supabase/postgrest-typegen": "catalog:peers",
     "@supabase/supabase-js": "catalog:peers",
     "@sveltejs/kit": "catalog:peers",
@@ -3102,12 +3102,6 @@
       "optional": true
     },
     "@supabase/mcp-server-supabase": {
-      "optional": true
-    },
-    "@supabase/pg-delta": {
-      "optional": true
-    },
-    "@supabase/pg-topo": {
       "optional": true
     },
     "@supabase/postgrest-typegen": {

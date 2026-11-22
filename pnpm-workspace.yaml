@@ -59,13 +59,10 @@ catalog:
   "@solidjs/start": 2.2.2
   "@streamdown/code": 2.0.0
   "@supabase-labs/middleware-openfeature": 0.2.0
-  "@supabase/config": 1.6.1
+  "@supabase/config": 1.10.0
   "@supabase/lite": 0.11.0
   "@supabase/mcp-server-supabase": 0.16.1
   "@supabase/middleware": 1.0.0
-  # Pre-releases: `db diff` plans with the library (docs/decisions/0108).
-  "@supabase/pg-delta": 1.0.0-alpha.60
-  "@supabase/pg-topo": 1.0.0-alpha.8
   "@supabase/postgrest-typegen": 0.8.1
   "@supabase/server": 1.9.2
   "@supabase/ssr": 0.12.7
@@ -224,9 +221,9 @@ catalog:
   # debug's optional peer. Pinned to the copy the examples resolve, so
   # better-supabase and the Next.js examples share one next instance.
   supports-color: 11.0.0
-  # CI runs this copy (`pnpm exec supabase`). Move it to the newest 3.1.x
-  # release once that is older than minimumReleaseAge.
-  supabase: 3.1.0
+  # CI runs this copy (`pnpm exec supabase`). 3.2.0 is the Supabase CLI floor
+  # (docs/decisions/1172).
+  supabase: 3.2.0
   svelte: 5.57.3
   tailwind-merge: 3.7.0
   tailwindcss: 4.3.5
@@ -268,10 +265,17 @@ catalogs:
   deps:
     "@standard-schema/spec": "^1.1.0"
     "@supabase/middleware": "^1.0.0"
+    # Exact pins: the output of `gen`, `doctor` and `db diff` depends on each
+    # version, so a bump is a better-supabase release (docs/decisions/1171).
+    # The two pg packages are pre-releases.
+    "@supabase/pg-delta": 1.0.0-alpha.61
+    "@supabase/pg-parser": 0.1.7
+    "@supabase/pg-topo": 1.0.0-alpha.8
     # The floor of the @supabase/supabase-js peer, which pins postgrest-js exactly.
     "@supabase/postgrest-js": "^2.119.0"
     "@supabase/server": "^1.9.2"
     "@supabase/ssr": "^0.12.7"
+    oxc-parser: 0.159.0
   # Ranges the published packages declare as peers, so consumers pick the
   # version. They are deliberately not exact pins. Each floor is the newest
   # release that was older than minimumReleaseAge when it was set, which is the
@@ -302,14 +306,10 @@ catalogs:
     "@opentelemetry/api": ">=1.9.1 <2"
     # A pre-release line (AGENTS.md "Pre-release pins"); <3 admits 2.0 stable.
     "@orpc/server": ">=2.0.0-beta.50 <3"
-    "@supabase/config": "^1.6.1"
+    "@supabase/config": "^1.10.0"
     "@supabase/lite": ">=0.11.0 <0.12"
     # A floor with no upper bound: the MCP server runs as its own process.
     "@supabase/mcp-server-supabase": ">=0.16.1"
-    # The pre-release the CLI's `db diff` plans with (ADR 0108); the default
-    # catalog pins the exact version the tests run.
-    "@supabase/pg-delta": ">=1.0.0-alpha.60 <1.0.0"
-    "@supabase/pg-topo": ">=1.0.0-alpha.8 <1.0.0"
     # A floor with no upper bound, so a newer release an app installs doesn't
     # fail strict peer checks. The default catalog stays exact (AGENTS.md
     # invariant 11), and `gen` prints a notice for any release but

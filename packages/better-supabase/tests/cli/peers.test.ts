@@ -80,10 +80,10 @@ describe("installed versions", () => {
     const root = await mkdtemp(join(tmpdir(), "bsb-peers-"));
     const versions = await peerVersions(root);
 
-    const pgdelta = versions.find((peer) => peer.name === "@supabase/pg-delta");
+    const config = versions.find((peer) => peer.name === "@supabase/config");
 
-    expect(pgdelta?.installed).toMatch(/^1\.0\.0-alpha\./);
-    expect(pgdelta?.direct).toBeUndefined();
+    expect(config?.installed).toMatch(/^1\./);
+    expect(config?.direct).toBeUndefined();
   });
 
   it("says whether the project lists the peer itself", async () => {
@@ -91,13 +91,13 @@ describe("installed versions", () => {
 
     await writeFile(
       join(root, "package.json"),
-      JSON.stringify({ devDependencies: { "@supabase/pg-delta": "1.0.0" } }),
+      JSON.stringify({ devDependencies: { "@supabase/config": "1.0.0" } }),
     );
 
     const versions = await peerVersions(root);
 
     expect(
-      versions.find((peer) => peer.name === "@supabase/pg-delta")?.direct,
+      versions.find((peer) => peer.name === "@supabase/config")?.direct,
     ).toBe(true);
     expect(versions.find((peer) => peer.name === "hono")?.direct).toBe(false);
   });

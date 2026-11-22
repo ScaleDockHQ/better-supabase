@@ -171,53 +171,41 @@ function missingExtensions(context: DoctorContext): FindingInput[] {
     });
 }
 
-const PGDELTA_PEERS = ["@supabase/pg-delta", "@supabase/pg-topo"] as const;
+const PGDELTA_PACKAGES = ["@supabase/pg-delta", "@supabase/pg-topo"] as const;
 
 /**
- * The pg-delta peers `db diff` loads that a Supabase project on the pg-delta
- * workflow doesn't install.
+ * The pg-delta packages the project lists itself. better-supabase depends on
+ * both at an exact version, so a second entry writes the version twice and can
+ * install a second copy.
  */
-function missingPeers(context: DoctorContext): FindingInput[] {
-  if (
-    context.peers === undefined ||
-    context.libraryDiff !== true ||
-    pgdeltaToml(context) === undefined
-  ) {
-    return [];
-  }
+function ownCopies(context: DoctorContext): FindingInput[] {
+  const listed = new Set(context.listedDependencies);
+  const own = PGDELTA_PACKAGES.filter((name) => listed.has(name));
 
-  const installed = new Set(
-    context.peers.flatMap((peer) =>
-      peer.installed === undefined ? [] : [peer.name],
-    ),
-  );
-
-  const missing = PGDELTA_PEERS.filter((name) => !installed.has(name));
-
-  if (missing.length === 0) {
+  if (own.length === 0) {
     return [];
   }
 
   return [
     {
-      message: `The project diffs with pg-delta (database.sql.workflow), but ${missing.join(" and ")} ${missing.length === 1 ? "is" : "are"} not installed, so \`better-supabase db diff\` stops before it plans a migration. Install them: pnpm add -D ${PGDELTA_PEERS.join(" ")}`,
-      target: missing.join(", "),
+      message: `package.json lists ${own.join(" and ")}, which better-supabase installs as ${own.length === 1 ? "a dependency" : "dependencies"} at an exact version. A second entry can install a second copy that plans a different migration than \`better-supabase db diff\`. Remove ${own.length === 1 ? "it" : "them"}: pnpm remove ${own.join(" ")}`,
+      target: own.join(", "),
     },
   ];
 }
 
 /**
- * The pg-delta peers, and statements in declarative schema files that pg-delta
- * can't order.
+ * The project's own copies of the pg-delta packages, and statements in
+ * declarative schema files that pg-delta can't order.
  */
 export const PGDELTA_RULES: readonly Rule[] = [
   {
-    code: "BS239",
+    code: "BS709",
     severity: "warning",
-    title: "pg-delta packages missing",
+    title: "Own copy of a pg-delta package",
     description:
-      "The project runs the pg-delta workflow and a `package.json` script runs `better-supabase db diff`, but `@supabase/pg-delta` or `@supabase/pg-topo` is not installed. `db diff` plans the migration with both, so it fails until they are. A project that diffs with the Supabase CLI (`supabase db schema declarative sync`) never loads them, so it is not reported.",
-    check: missingPeers,
+      "`package.json` lists `@supabase/pg-delta` or `@supabase/pg-topo`. better-supabase depends on both at an exact version, because the migration `db diff` plans depends on it. A second entry writes the version twice and can install a second copy. Remove it. BS239, which reported the two packages as missing, is retired.",
+    check: ownCopies,
   },
   {
     code: "BS317",

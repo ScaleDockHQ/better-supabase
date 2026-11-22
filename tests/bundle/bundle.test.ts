@@ -158,6 +158,17 @@ function recordedBaseline(
 }
 
 /**
+ * Dependencies that only the CLI and the Node entries import (ADR 1171). A
+ * runtime entry that reaches one would ship a native binding or WASM.
+ */
+const CLI_DEPENDENCIES = new Set([
+  "@supabase/pg-delta",
+  "@supabase/pg-parser",
+  "@supabase/pg-topo",
+  "oxc-parser",
+]);
+
+/**
  * Entries that may use Node built-ins. Everything else must run on any WinterTC
  * runtime.
  */
@@ -510,7 +521,10 @@ describe("bundle", () => {
       )
       .flatMap(([subpath, { externals }]) =>
         externals
-          .filter((name) => BUILTINS.has(name) || name === "pg")
+          .filter(
+            (name) =>
+              BUILTINS.has(name) || name === "pg" || CLI_DEPENDENCIES.has(name),
+          )
           .map((name) => `${subpath} imports ${name}`),
       );
 
