@@ -1,9 +1,11 @@
 import type * as PgDeltaModule from "@supabase/pg-delta";
 import type { Diagnostic, PlanSchemaFilesOptions } from "@supabase/pg-delta";
+import type * as FrontendsModule from "@supabase/pg-delta/frontends";
 import type { Pool } from "pg";
 
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import type { Issue, PlanGate, RenameHint } from "../create/index.ts";
 import type { PgQueryable } from "./db.ts";
@@ -76,6 +78,24 @@ export function migrationVersion(now: Date): string {
 
 export type PgDelta = typeof PgDeltaModule;
 
+export type Frontends = Pick<typeof FrontendsModule, "listCustomFiles">;
+
+/**
+ * A `_custom/` file pg-delta loads into the shadow only. It never reaches your
+ * database unless a migration carries it.
+ */
+export interface CustomReport {
+  /** The path under the schemas folder, such as `_custom/casts.sql`. */
+  readonly path: string;
+  /**
+   * `undelivered` has no `-- pgdelta-migration:` line at all, `dangling` names
+   * a migration file that does not exist.
+   */
+  readonly status: "undelivered" | "dangling";
+  /** The missing migration, for `dangling`. */
+  readonly migration?: string;
+}
+
 /** The minimal `pg` surface the planner needs: pools it can end. */
 interface PoolModule {
   Pool: new (options: { connectionString: string }) => PoolHandle;
@@ -96,11 +116,25 @@ export interface InStackDiffOptions {
   readonly migrations: readonly string[];
   /** Let destructive actions through (`--allow-data-loss`). */
   readonly allowDataLoss?: boolean;
+  /**
+   * Refuse a diff while a user object pg-delta cannot manage exists, instead of
+   * leaving it out of the migration. On unless `--no-strict-coverage`.
+   */
+  readonly strictCoverage?: boolean;
+  /**
+   * Apply the plan to a clone of the stack and check it converges and keeps the
+   * data (`--prove`). The clone briefly disconnects the stack's services.
+   */
+  readonly prove?: boolean;
+  /** Clones the stack for the proof; tests pass a fake. */
+  readonly cloneStack?: (url: string) => Promise<StackClone>;
   /** Renames recorded as `-- bsb: rename old -> new`. */
   readonly hints?: readonly RenameHint[];
   readonly open?: typeof connect;
   /** Loads pg-delta; tests pass a fake. */
   readonly loadDelta?: () => Promise<PgDelta>;
+  /** Loads pg-delta's frontends, which read `_custom/`; tests pass a fake. */
+  readonly loadFrontends?: () => Promise<Frontends>;
   /** Opens a pool for pg-delta; tests pass a fake. */
   readonly openPool?: (url: string) => Promise<PoolHandle>;
   readonly log?: (line: string) => void;
@@ -116,6 +150,30 @@ export interface InStackDiffResult {
   readonly diagnostics: readonly Diagnostic[];
   /** Statements pg-delta left out of the plan, with their files. */
   readonly skipped: readonly { readonly file: string; readonly stmt: string }[];
+  /**
+   * The diagnostics that stopped the diff: errors, and under strict coverage
+   * the warnings that mark an object pg-delta cannot carry into a migration.
+   */
+  readonly blocking: readonly Diagnostic[];
+  /** The proof's verdict, `skipped` with the reason when no clone was made. */
+  readonly proof?: ProofResult;
+  /** `_custom/` files whose delivery to the database is not accounted for. */
+  readonly custom: readonly CustomReport[];
+}
+
+/**
+ * What the proof found; `ok` is true when the clone converged and kept its
+ * data.
+ */
+export type ProofResult =
+  | { readonly status: "proved" }
+  | { readonly status: "failed"; readonly problems: readonly string[] }
+  | { readonly status: "skipped"; readonly reason: string };
+
+/** A sacrificial copy of the stack's database, dropped by `cleanup`. */
+export interface StackClone {
+  readonly url: string;
+  readonly cleanup: () => Promise<void>;
 }
 
 /**
@@ -279,25 +337,212 @@ export async function inStackDiff(
       });
     }
 
-    const sql = gate.blocked ? "" : actionsSql(result.plan.actions);
-
     const diagnostics = [
       ...result.loadDiagnostics,
       ...result.targetDiagnostics,
       ...result.driftDiagnostics,
     ];
 
+    const strictCoverage = options.strictCoverage !== false;
+
+    const blocking = diagnostics.filter((diagnostic) =>
+      delta.hasBlockingDiagnostics([diagnostic], { strictCoverage }),
+    );
+
+    const sql =
+      gate.blocked || blocking.length > 0
+        ? ""
+        : actionsSql(result.plan.actions);
+
+    const proof =
+      options.prove === true && sql !== ""
+        ? await proveOnClone(delta, result, scratch, options, openPool, log)
+        : undefined;
+
+    const custom = await customDelivery(options, options.loadFrontends);
+
     return {
-      sql,
+      custom,
+      sql: proof?.status === "failed" ? "" : sql,
       gate,
       issues: gate.issues,
       diagnostics,
       skipped: result.skipped,
+      blocking,
+      ...(proof === undefined ? {} : { proof }),
     };
   } finally {
     await Promise.allSettled([target.end(), scratch.end()]);
     await shadow.cleanup();
   }
+}
+
+/**
+ * The `_custom/` files that never reach the database: pg-delta runs them in the
+ * shadow so re-exports keep them, and a migration has to deliver them.
+ * Frontends load on first use (invariant 12); a project without the folder
+ * never loads them.
+ */
+async function customDelivery(
+  options: Pick<InStackDiffOptions, "root" | "schemasDir">,
+  load: (() => Promise<Frontends>) | undefined,
+): Promise<readonly CustomReport[]> {
+  const base = join(options.root, options.schemasDir);
+
+  if (!existsSync(join(base, "_custom"))) {
+    return [];
+  }
+
+  const frontends = await (
+    load ?? (() => import("@supabase/pg-delta/frontends"))
+  )();
+
+  return frontends.listCustomFiles(base).flatMap((file): CustomReport[] => {
+    if (!file.delivered) {
+      return [{ path: file.path, status: "undelivered" }];
+    }
+
+    return file.migrations
+      .filter(
+        (migration) => !existsSync(join(base, dirname(file.path), migration)),
+      )
+      .map((migration) => ({
+        path: file.path,
+        status: "dangling" as const,
+        migration,
+      }));
+  });
+}
+
+const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`;
+
+/**
+ * Copies the stack's database with `create database ... template`, which needs
+ * no other session on the source. The stack's services are disconnected first
+ * and reconnect on their own. Retries once because a service can reconnect
+ * between the disconnect and the copy.
+ */
+export async function cloneStackDatabase(
+  url: string,
+  openPool: (url: string) => Promise<PoolHandle> = openPgPool,
+): Promise<StackClone> {
+  const source = decodeURIComponent(new URL(url).pathname.slice(1));
+  const name = `bsb_proof_${Date.now().toString(36)}`;
+  const admin = new URL(url);
+
+  admin.pathname = "/postgres";
+
+  const pool = await openPool(admin.toString());
+
+  const create = async (): Promise<void> => {
+    await pool.query(
+      "select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()",
+      [source],
+    );
+    await pool.query(
+      `create database ${quoteIdent(name)} template ${quoteIdent(source)}`,
+    );
+  };
+
+  try {
+    await create().catch(create);
+  } catch (cause) {
+    await pool.end();
+    throw cause;
+  }
+
+  const clone = new URL(url);
+
+  clone.pathname = `/${name}`;
+
+  return {
+    url: clone.toString(),
+    cleanup: async () => {
+      await pool
+        .query(`drop database if exists ${quoteIdent(name)} with (force)`)
+        .catch(() => {});
+      await pool.end();
+    },
+  };
+}
+
+/**
+ * Applies the plan to a clone of the stack and reports what pg-delta's proof
+ * found: leftover drift, a failed action, or rows that changed. A stack that
+ * cannot be cloned skips the proof with the reason; it never fails the diff.
+ */
+async function proveOnClone(
+  delta: PgDelta,
+  result: Awaited<ReturnType<PgDelta["planSchemaFiles"]>>,
+  scratch: PoolHandle,
+  options: InStackDiffOptions,
+  openPool: (url: string) => Promise<PoolHandle>,
+  log: (line: string) => void,
+): Promise<ProofResult> {
+  const cloneStack =
+    options.cloneStack ?? ((url: string) => cloneStackDatabase(url, openPool));
+
+  let clone: StackClone;
+
+  try {
+    log("Cloning the stack to prove the plan");
+    clone = await cloneStack(options.url);
+  } catch (cause) {
+    return {
+      status: "skipped",
+      reason: `the stack could not be cloned (${cause instanceof Error ? cause.message : String(cause)})`,
+    };
+  }
+
+  const pool = await openPool(clone.url);
+
+  try {
+    const desired = await result.extract(scratch);
+
+    const verdict = await delta.provePlan(result.plan, pool, desired.factBase, {
+      ...result.profile.proveOptions,
+    });
+
+    if (verdict.ok) {
+      return { status: "proved" };
+    }
+
+    return { status: "failed", problems: proofProblems(verdict) };
+  } finally {
+    await pool.end();
+    await clone.cleanup();
+  }
+}
+
+/** The proof's findings as sentences. */
+function proofProblems(
+  verdict: Awaited<ReturnType<PgDelta["provePlan"]>>,
+): readonly string[] {
+  const problems: string[] = [];
+
+  if (verdict.applyError !== undefined) {
+    problems.push(`an action failed: ${verdict.applyError.message}`);
+  }
+
+  if (verdict.driftDeltas.length > 0) {
+    problems.push(
+      `${String(verdict.driftDeltas.length)} difference(s) remain after the plan runs`,
+    );
+  }
+
+  for (const violation of verdict.dataViolations) {
+    problems.push(
+      `${violation.table.schema}.${violation.table.name} lost data (${String(violation.before)} rows before, ${String(violation.after)} after)`,
+    );
+  }
+
+  for (const violation of verdict.rewriteViolations) {
+    problems.push(
+      `${violation.table.schema}.${violation.table.name} was rewritten by an action that did not declare it`,
+    );
+  }
+
+  return problems.length > 0 ? problems : ["the plan did not converge"];
 }
 
 /** The plan with stable ids written as strings, the shape `gatePlan` reads. */

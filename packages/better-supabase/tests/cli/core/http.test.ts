@@ -27,6 +27,23 @@ describe("request", () => {
     expect(api.calls[0]?.headers.get("authorization")).toBe("Bearer sbp_x");
   });
 
+  it("says a scoped token lacks the permission a request names", async () => {
+    const api = fakeFetch(() => ({ status: 403, text: "forbidden" }));
+
+    await expect(
+      request(URL, {
+        what: "Reading",
+        needs: "read the database",
+        fetch: api.fetch,
+      }),
+    ).rejects.toMatchObject({
+      code: "auth_required",
+      message: expect.stringMatching(
+        /Reading was refused \(403\).*does not allow it to read the database.*SUPABASE_ACCESS_TOKEN/,
+      ),
+    });
+  });
+
   it.each([
     [401, "auth_required"],
     [403, "auth_required"],

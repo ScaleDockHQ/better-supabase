@@ -5,7 +5,9 @@ import { declarativeSchemasDir } from "../supabase-config.ts";
 import { workflowOf } from "./shared.ts";
 
 /** `config.toml` when the project runs the pg-delta workflow. */
-function pgdeltaToml(context: DoctorContext): SupabaseConfig | undefined {
+export function pgdeltaToml(
+  context: DoctorContext,
+): SupabaseConfig | undefined {
   const toml = context.configToml;
 
   return toml !== undefined && workflowOf(context) === "pg-delta"
@@ -17,7 +19,7 @@ function pgdeltaToml(context: DoctorContext): SupabaseConfig | undefined {
  * Comments blanked out, so a commented-out statement never matches and line
  * numbers stay.
  */
-function withoutComments(text: string): string {
+export function withoutComments(text: string): string {
   return text
     .replaceAll(/\/\*[\s\S]*?\*\//g, (comment) =>
       comment.replaceAll(/[^\n]/g, " "),
@@ -25,14 +27,16 @@ function withoutComments(text: string): string {
     .replaceAll(/--[^\n]*/g, (comment) => " ".repeat(comment.length));
 }
 
-const lineAt = (text: string, index: number): number =>
+export const lineAt = (text: string, index: number): number =>
   text.slice(0, index).split("\n").length;
 
 /**
  * The declarative schema files pg-delta loads, outside the SQL module files
  * better-supabase writes, when the project diffs with pg-delta.
  */
-function pgdeltaSchemaFiles(context: DoctorContext): readonly TextFile[] {
+export function pgdeltaSchemaFiles(
+  context: DoctorContext,
+): readonly TextFile[] {
   const toml = pgdeltaToml(context);
 
   if (toml === undefined) {
@@ -55,12 +59,12 @@ const BULK_GRANT =
 const API_ROLES = /\b(anon|authenticated|public)\b/i;
 
 /** `do` blocks; group 2 is the body. */
-const DO_BLOCK = /\bdo\s+(\$[\w]*\$)([\s\S]*?)\1/gi;
+export const DO_BLOCK: RegExp = /\bdo\s+(\$[\w]*\$)([\s\S]*?)\1/gi;
 
-const CATALOG =
+export const CATALOG: RegExp =
   /\b(information_schema\.\w+|(?:pg_catalog\.)?pg_(?:class|tables|views|proc|namespace|attribute|trigger|constraint|index|type|policies|matviews))\b/i;
 
-const EXECUTES = /\b(execute|perform)\b/i;
+export const EXECUTES: RegExp = /\b(execute|perform)\b/i;
 
 function bulkGrants(context: DoctorContext): FindingInput[] {
   return pgdeltaSchemaFiles(context).flatMap((file) => {

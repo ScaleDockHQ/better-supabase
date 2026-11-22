@@ -61,18 +61,33 @@ The plan is checked before anything is written:
 - An action that destroys data (dropping a table or column, narrowing a
   column type) stops the diff with a `check_failed` error and writes nothing.
   Run it again with `--allow-data-loss` once you have read the list.
+- Under pg-delta the diff runs with strict coverage. When the schema files
+  create an object pg-delta cannot manage (a kind it does not model, an
+  unmodeled object the target lacks, a security label it cannot place, or
+  `supabase_vault` in use), the diff stops with a `check_failed` error that
+  lists each object and writes nothing. Deliver the object in a migration or a
+  `_custom/` file, or run again with `--no-strict-coverage` to leave it out.
+  The Supabase CLI path passes `--strict-coverage` to `supabase db schema
+declarative sync` for the same reason.
+- With `--prove`, the plan is applied to a clone of the local stack and
+  refused unless the clone converges to the files, no table loses rows, and no
+  undeclared action rewrites a table. Cloning briefly disconnects the stack's
+  services, which reconnect on their own. A stack that cannot be cloned skips
+  the proof and says why.
 
-| Flag                | Effect                                                                                        |
-| ------------------- | --------------------------------------------------------------------------------------------- |
-| `-f, --file`        | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
-| `--in-stack`        | Plans with the library on the running stack, without the Supabase CLI.                        |
-| `--allow-data-loss` | Writes the migration even when it destroys data.                                              |
-| `--stack <name>`    | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
+| Flag                   | Effect                                                                                        |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `-f, --file`           | Saves the diff as `supabase/migrations/<timestamp>_<name>.sql` instead of printing it.        |
+| `--in-stack`           | Plans with the library on the running stack, without the Supabase CLI.                        |
+| `--allow-data-loss`    | Writes the migration even when it destroys data.                                              |
+| `--no-strict-coverage` | Writes the migration even when pg-delta finds objects it cannot manage.                       |
+| `--prove`              | Applies the plan to a clone of the stack and refuses it unless it converges and keeps data.   |
+| `--stack <name>`       | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 A migration from the library plan starts with a comment that asks you to
 review it: it compares two databases, so check the order of the statements
 before you apply it. The JSON envelope names the engine in `data.engine`, lists
-the plan's findings in `data.issues` and sets `data.fellBack` when the shadow
+the plan's findings in `data.issues`, the objects strict coverage refused in `data.blocking`, the proof's verdict in `data.proof`, the `_custom/` files that no migration delivers in `data.custom` and sets `data.fellBack` when the shadow
 database failed. `better-supabase dev stack prune` frees the segments that idle
 stacks hold.
 
@@ -450,3 +465,14 @@ on those files.
 | `--stack <name>` | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 Side effects: Reads the database, writes files with `--write-tests`.
+
+### `_custom/` files
+
+pg-delta loads every file under `supabase/schemas/_custom` into the shadow
+database and never into yours. The in-stack diff lists, in the log and in
+`data.custom`, each file that has no `-- pgdelta-migration:` line (`undelivered`)
+and each file whose directive names a migration that does not exist
+(`dangling`). Neither stops the diff: an object that exists only in `_custom/`
+and is missing from your database is the case strict coverage already refuses.
+Add the directive when a migration carries the file, or `-- pgdelta-migration:
+none` when none has to.

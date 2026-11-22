@@ -173,6 +173,16 @@ const DIFF_ARGS = {
     description:
       "Write the migration even when it drops tables or columns, or changes a column type",
   },
+  "no-strict-coverage": {
+    type: "boolean",
+    description:
+      "Write the migration even when pg-delta finds objects it cannot manage (they stay out of it). By default the diff stops",
+  },
+  prove: {
+    type: "boolean",
+    description:
+      "Apply the plan to a clone of the local stack and refuse it unless it converges and keeps the data (disconnects the stack's services for a moment)",
+  },
 } as const;
 
 type DbDiffFlags = CliOptions<typeof DIFF_ARGS & typeof STACK_ARG>;
@@ -219,12 +229,22 @@ async function renameHints(
 function cliDiffCommand(
   workflow: "pg-delta" | "migra",
   name: string | undefined,
+  strictCoverage: boolean,
 ): readonly string[] | undefined {
   switch (workflow) {
     case "pg-delta": {
       return name === undefined
         ? undefined
-        : ["db", "schema", "declarative", "sync", "--no-apply", "-f", name];
+        : [
+            "db",
+            "schema",
+            "declarative",
+            "sync",
+            "--no-apply",
+            ...(strictCoverage ? ["--strict-coverage"] : []),
+            "-f",
+            name,
+          ];
     }
 
     case "migra": {
@@ -276,7 +296,8 @@ export async function runDbDiff(
   }
 
   let fellBack = false;
-  const command = cliDiffCommand(workflow, name);
+  const strictCoverage = args["no-strict-coverage"] !== true;
+  const command = cliDiffCommand(workflow, name, strictCoverage);
   const stack = args.stack ?? env.BETTER_SUPABASE_STACK;
 
   // A local pg-delta project plans with the library, which gates renames and data loss.
@@ -341,6 +362,8 @@ export async function runDbDiff(
     schemasDir: declarativeSchemasDir(toml, workflow),
     migrations,
     allowDataLoss: args["allow-data-loss"] === true,
+    strictCoverage,
+    prove: args.prove === true,
     hints: await renameHints(config.root, migrations),
     log: deps.log,
   });
@@ -358,7 +381,46 @@ export async function runDbDiff(
     fellBack,
     changes: sql !== "",
     issues: result.issues,
+    blocking: result.blocking,
+    custom: result.custom,
+    ...(result.proof === undefined ? {} : { proof: result.proof }),
   };
+
+  if (result.blocking.length > 0) {
+    return {
+      code: 1,
+      errorCode: "check_failed",
+      error: `pg-delta cannot manage everything the schema files create, so nothing was written:\n${result.blocking
+        .map((item) => `  [${item.code}] ${item.message}`)
+        .join(
+          "\n",
+        )}\nDeliver those objects in a migration or \`_custom/\` file, or run again with --no-strict-coverage to leave them out.`,
+      data,
+    };
+  }
+
+  if (result.proof?.status === "failed") {
+    return {
+      code: 1,
+      errorCode: "check_failed",
+      error: `The plan did not hold up on a clone of the stack, so nothing was written:\n${result.proof.problems
+        .map((problem) => `  ${problem}`)
+        .join("\n")}`,
+      data,
+    };
+  }
+
+  for (const file of result.custom) {
+    deps.log(
+      file.status === "undelivered"
+        ? `${file.path} has no \`-- pgdelta-migration:\` line, so nothing says which migration delivers it to your database. Add the line, or \`-- pgdelta-migration: none\`.`
+        : `${file.path} names ${file.migration}, which does not exist.`,
+    );
+  }
+
+  if (result.proof?.status === "skipped") {
+    deps.log(`The plan was not proved: ${result.proof.reason}.`);
+  }
 
   if (result.gate.blocked) {
     return {
