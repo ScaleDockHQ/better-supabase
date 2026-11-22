@@ -313,6 +313,54 @@ describe("policy security rules", () => {
     } as unknown as DoctorContext;
 
     expect(await run(withProvider, "BS112")).toEqual([]);
+
+    // A comment or a string that names auth.uid() is not a check.
+    const commented = `${open}; -- the caller is checked by auth.uid() elsewhere\n/* auth.jwt() */`;
+    expect(await run(context(withFunction(commented)), "BS112")).toHaveLength(
+      1,
+    );
+
+    // An unqualified call to a function the provider lists is a check.
+    const unqualified = `${open} and ids_organization('notes.delete') is not null`;
+
+    const unqualifiedContext = {
+      ...withProvider,
+      snapshot: withFunction(unqualified),
+    };
+
+    expect(await run(unqualifiedContext, "BS112")).toEqual([]);
+
+    // One level into an app function that checks the caller passes.
+    const helper: ExtrasFunction = {
+      ...definer,
+      name: "guard",
+      securityDefiner: false,
+      execute: [],
+    };
+
+    const wrapped = withFunction(`${open}; perform public.guard();`);
+
+    const withHelper: Snapshot = {
+      ...wrapped,
+      generator: {
+        ...wrapped.generator,
+        functions: [
+          ...wrapped.generator.functions,
+          {
+            ...wrapped.generator.functions[0]!,
+            schema: "public",
+            name: "guard",
+            definition: "select auth.uid()",
+          },
+        ],
+      },
+      extras: {
+        ...wrapped.extras,
+        functions: [...(wrapped.extras.functions ?? []), helper],
+      },
+    };
+
+    expect(await run(context(withHelper), "BS112")).toEqual([]);
   });
 
   it("flags security definer functions open to the API roles that nothing exposes (BS116)", async () => {
@@ -374,6 +422,47 @@ describe("policy security rules", () => {
     expect(await run(withFunctions([definer], {}, called), "BS116")).toEqual(
       [],
     );
+
+    // A trigger function counts as a use.
+    const triggered = snapshot((tables) => {
+      table(tables, "notes").triggers = [
+        {
+          name: "wipe_it",
+          timing: "before",
+          events: ["insert"],
+          level: "row",
+          function: "public.wipe",
+        },
+      ];
+    });
+
+    expect(await run(withFunctions([definer], {}, triggered), "BS116")).toEqual(
+      [],
+    );
+
+    // So does a function the provider's templates name.
+    const plain = withFunctions([definer]);
+
+    const provided = {
+      ...plain,
+      config: {
+        ...plain.config,
+        authorization: { functions: { idsWith: "public.{scope}_ids()" } },
+      },
+      // SAFETY: the rule reads only the provider's function templates.
+    } as unknown as DoctorContext;
+
+    expect(await run(provided, "BS116")).toHaveLength(1);
+
+    const named = {
+      ...provided,
+      config: {
+        ...provided.config,
+        authorization: { functions: { idsWith: "public.w{scope}()" } },
+      },
+    } as unknown as DoctorContext;
+
+    expect(await run(named, "BS116")).toEqual([]);
   });
 
   it("flags storage inserts without the upsert policies (BS113)", async () => {

@@ -35,6 +35,7 @@ import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import { restrictSchemas, tsTypeOf } from "../introspect/typegen.ts";
+import { moduleRefOf } from "../module-schemas.ts";
 import { bootstrapTables } from "./bootstrap-tables.ts";
 import { commentMeta } from "./comment.ts";
 import { buildFunctions } from "./model-functions.ts";
@@ -59,6 +60,7 @@ import {
   parseCheckUnion,
   pascal,
 } from "./shared.ts";
+import { standardSchemaJson } from "./standard-schema-json.ts";
 
 export type { ColumnModel, FunctionModel } from "./model-types.ts";
 
@@ -81,39 +83,6 @@ export function functionGroups(
   }
 
   return groups;
-}
-
-/**
- * The `json` option of every `standardSchema()` generator: `table.column` to
- * `./path.ts#schemaName`, the project's Standard Schema setup. Later generators
- * win over earlier ones.
- */
-function standardSchemaJson(
-  generators: ResolvedConfig["generators"],
-): ReadonlyMap<string, string> {
-  const found = new Map<string, string>();
-
-  for (const generator of generators) {
-    const options = generator.options;
-
-    if (generator.name !== "standard-schema" || !isRecord(options)) {
-      continue;
-    }
-
-    const json = options["json"];
-
-    if (!isRecord(json)) {
-      continue;
-    }
-
-    for (const [key, spec] of Object.entries(json)) {
-      if (typeof spec === "string") {
-        found.set(key, spec);
-      }
-    }
-  }
-
-  return found;
 }
 
 function signatureOf(fn: FunctionModel): FunctionSignature {
@@ -281,10 +250,13 @@ function prepareCatalog(
     schema: string,
     table: string,
     column: string,
+    named?: string,
   ): string | undefined => {
-    const spec = [`${schema}.${table}.${column}`, `${table}.${column}`]
-      .map((candidate) => standardSchemas.get(candidate))
-      .find((entry) => entry !== undefined);
+    const spec =
+      named ??
+      [`${schema}.${table}.${column}`, `${table}.${column}`]
+        .map((candidate) => standardSchemas.get(candidate))
+        .find((entry) => entry !== undefined);
 
     if (spec === undefined) {
       return undefined;
@@ -324,17 +296,27 @@ function prepareCatalog(
       return override.type;
     }
 
-    const [from, name] = override.import.split("#");
+    if ("import" in override) {
+      const [from, name] = override.import.split("#");
 
-    if (!from || !name) {
-      throw new TypeError(
-        `json["${key}"].import must look like "./path.ts#TypeName"`,
-      );
+      if (!from || !name) {
+        throw new TypeError(
+          `json["${key}"].import must look like "./path.ts#TypeName"`,
+        );
+      }
+
+      jsonImports.set(name, { name, from });
+
+      return name;
     }
 
-    jsonImports.set(name, { name, from });
-
-    return name;
+    // A module reference gives both the JSON Schema and the type.
+    return standardSchemaTypeFor(
+      schema,
+      table,
+      column,
+      moduleRefOf(override.schema),
+    );
   };
 
   const optionsOf = (table: CatalogTable) =>

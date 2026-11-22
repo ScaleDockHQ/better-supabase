@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { archiveRestoreContract } from "../archive-sql.ts";
+import { inferredColumn } from "../inferred-bindings.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -254,7 +255,25 @@ function build(ctx: BlockSqlContext): string {
   const writer = (tenant: string, owner: string): string =>
     writerCall(ctx, WHERE, tenant, owner);
 
-  const subjects = subjectsOption(ctx, ["column"]);
+  const entriesTable = ctx.table("entries");
+
+  const subjects = subjectsOption(ctx, ["column"]).map(
+    ([type, subject]): [string, typeof subject] => {
+      const column =
+        subject.extra["column"] === undefined && !ctx.owns("entries")
+          ? inferredColumn(
+              ctx,
+              entriesTable,
+              subject,
+              `blocks.time-entries.on.${type}`,
+            )
+          : undefined;
+
+      return column === undefined
+        ? [type, subject]
+        : [type, { ...subject, extra: { ...subject.extra, column } }];
+    },
+  );
 
   const {
     bound,
@@ -1054,6 +1073,12 @@ const REQUIRES = ["memberships", "permissions", "approvals"] as const;
 export const TIME_ENTRIES: BlockSqlDefinition = {
   contributes: TIME_ENTRIES_CONTRIBUTES,
   name: "time-entries",
+  providerOptional: {
+    approverFor:
+      "lets the users the provider names decide a request, such as out of office covers and delegations",
+    managedUsers:
+      "counts the people a caller manages through the provider as that caller's reports",
+  },
   scopes: ["tenant"],
   title: "Time tracking",
   description:

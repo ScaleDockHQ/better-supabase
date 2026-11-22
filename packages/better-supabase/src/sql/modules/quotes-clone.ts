@@ -3,6 +3,7 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { quoteTemplatesOn } from "./quotes-kit.ts";
+import { cloneTenant, headerPairs, partyPairs } from "./templates-clone.ts";
 
 /** `clone_quote`: a new quote from a quote or a template, with its lines. */
 export function cloneQuoteSql(
@@ -37,6 +38,32 @@ export function cloneQuoteSql(
       } end`
     : "null";
 
+  const header = [
+    headerPairs(ctx, "quotes", "v_src", q, [
+      ["terms", "terms"],
+      ["note", "note"],
+      ["pricesIncludeTax", "pricesIncludeTax"],
+      ["discountBps", "discountBps"],
+      ["discountAmount", "discountAmount"],
+      ["depositBps", "depositBps"],
+      ["depositAmount", "depositAmount"],
+      ["depositRequired", "depositRequired"],
+    ]),
+    partyPairs(ctx, "quotes", "v_src", q),
+  ]
+    .filter((part) => part !== "")
+    .map((part) => `${part}, `)
+    .join("");
+
+  const owned =
+    on && ctx.has("quotes", "template")
+      ? `v_src.${q("template")} is not null`
+      : "false";
+
+  const linesTenant = ctx.has("lines", "tenant")
+    ? `, ${sqlString(ctx.colName("lines", "tenant"))}, v_tenant`
+    : "";
+
   return [
     `create or replace function ${fn(
       "clone_quote",
@@ -50,6 +77,7 @@ export function cloneQuoteSql(
     `  v_src ${t("quotes")};`,
     "  v_created jsonb;",
     "  v_id uuid;",
+    `  v_tenant ${ctx.idType};`,
     "begin",
     `  select * into v_src from ${t("quotes")} x where x.${q(
       "id",
@@ -57,16 +85,12 @@ export function cloneQuoteSql(
     "  if not found then",
     `    ${fail("QUOTE_NOT_FOUND", "no such quote", "P0002")}`,
     "  end if;",
-    `  if not (${n.service} or ${ctx.scope.can(`v_src.${q("tenant")}`, n.write)}) then`,
-    `    ${fail("QUOTE_FORBIDDEN", "not allowed to change quotes")}`,
-    "  end if;",
+    `  ${cloneTenant(ctx, { fn: "clone_quote", code: "QUOTE_FORBIDDEN", source: "v_src", tenant: q("tenant"), owned, service: n.service, can: n.write, message: "not allowed to change quotes" })}`,
     `  ${ctx.hook("before_quote_clone", [
       ["uuid", "clone_quote.source"],
       ["jsonb", "clone_quote.overrides"],
     ])}`,
-    `  v_created := ${fn("create_quote")}(v_src.${q(
-      "tenant",
-    )}, jsonb_strip_nulls(jsonb_build_object('title', v_src.${q(
+    `  v_created := ${fn("create_quote")}(v_tenant, jsonb_strip_nulls(jsonb_build_object(${header}'title', v_src.${q(
       "title",
     )}, 'currency', v_src.${q("currency")}, 'templateId', ${
       templateExpr
@@ -81,7 +105,7 @@ export function cloneQuoteSql(
       lines
     }, to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), ${
       parentKey
-    }, v_id))).*`,
+    }, v_id${linesTenant}))).*`,
     `  from ${lines} l where l.${parent} = clone_quote.source;`,
     `  ${ctx.hook("after_quote_clone", [["uuid", "v_id"]])}`,
     "  return v_created;",

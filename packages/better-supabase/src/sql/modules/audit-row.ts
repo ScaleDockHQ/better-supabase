@@ -2,6 +2,10 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { auditWrite } from "./audit-values.ts";
 
+/** The audited row's key columns, joined with commas, from `row_data`. */
+export const RECORD_KEY =
+  "(select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord))";
+
 /**
  * The log columns a change fills, as logical name and SQL value. `expr` is the
  * operation as lower case text and the event kind: the row trigger reads
@@ -15,10 +19,7 @@ export function rowPairs(
 ): (readonly [string, string])[] {
   return [
     ["table", "tg_table_schema || '.' || tg_table_name"],
-    [
-      "record",
-      "(select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord))",
-    ],
+    ["record", RECORD_KEY],
     ["op", expr.op],
     ...(snapshots
       ? ([

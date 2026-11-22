@@ -11,14 +11,18 @@ import type { PlannedFile } from "./core/files.ts";
 
 import { codeRanges } from "./code-ranges.ts";
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
+import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
+import { doctorBaselineCodemod } from "./codemod-doctor-baseline.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { ownedColumnsCodemod } from "./codemod-owned-columns.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
+import { recordTypesCodemod } from "./codemod-record-types.ts";
 import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
+import { tableTagsCodemod } from "./codemod-table-tags.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
@@ -31,6 +35,8 @@ export interface CodemodProject {
   readonly configText?: string;
   /** False when the config did not load and `config` is the default one. */
   readonly configLoaded?: boolean;
+  /** `config --prune`: remove every entry that equals its default. */
+  readonly prune?: boolean;
   /**
    * The columns of `tables` (`schema.table`) in the live database, by table, or
    * undefined when no database could be read.
@@ -125,6 +131,10 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "extra-columns": extraColumnsCodemod(),
   "owned-columns": ownedColumnsCodemod(),
   config: configCodemod(),
+  "blocks-list": blocksListCodemod(),
+  "record-types": recordTypesCodemod(),
+  "table-tags": tableTagsCodemod(),
+  "doctor-baseline": doctorBaselineCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),
   "server-imports": serverImportsCodemod(),

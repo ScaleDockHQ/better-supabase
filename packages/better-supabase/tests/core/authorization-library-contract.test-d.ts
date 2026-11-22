@@ -300,6 +300,19 @@ describe("authorization library contract", () => {
       // oxlint-disable-next-line typescript/no-deprecated -- an API 1 provider may still set it
       approvals: { distinctApprover: true },
       permissions: [{ key: "file.read", levels: ["own", "team"] }],
+      doctor: { command: ["provider", "doctor", "--json"] },
+      actionKeys: {
+        blocks: { tasks: { read: "task.read" } },
+        recordTypes: { invoice: { read: "invoice.read" } },
+        buckets: { files: { read: "file.read" } },
+        topics: { posts: { send: "post.send" } },
+      },
+      operations: {
+        "ai.tool.send": {
+          permission: "mail.send",
+          approval: { steps: [{ approvers: { permission: "mail.approve" } }] },
+        },
+      },
       suspension: { user: "public.profiles.banned_at", userKey: "user_id" },
       personas: "roles",
       fixtureRoles: [{ name: "viewer", setup: "select 1", permissions: [] }],

@@ -28,7 +28,13 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
-import { appFunction, deciderCall, managerDecides } from "./direct-approver.ts";
+import {
+  appFunction,
+  deciderCall,
+  hasDecider,
+  managerDecides,
+} from "./direct-approver.ts";
+import { expenseApprovalCancelled } from "./expenses-standalone-cancel.ts";
 import {
   EXPENSE_RESERVED,
   invoicedCheck,
@@ -152,7 +158,7 @@ function standalonePolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
               "approve",
               OPERATIONS["expenses.approve"],
             ),
-            ...(ctx.text("decider", "") === "" ? {} : { decider: true }),
+            ...(hasDecider(ctx) ? { decider: true } : {}),
           },
         },
       ],
@@ -873,7 +879,7 @@ begin
 end;
 $$;
 revoke execute on function ${fn("expense_approval_decided")}(uuid, boolean, text, uuid) from public, anon, authenticated;
-`
+${expenseApprovalCancelled({ fn, table, e, status, setStatus, record })}`
 }
 create or replace function ${fn("reimburse_expense")}(expense_id uuid, reference text default null)
 returns jsonb

@@ -8,6 +8,7 @@ import {
   policySnapshot,
 } from "./approvals-policies.ts";
 import { otherDecider } from "./approvals-tenant.ts";
+import { hasDecider } from "./direct-approver.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const WHERE = "blocks.time-entries.options";
@@ -49,7 +50,7 @@ function timesheetPolicyOf(ctx: BlockSqlContext): ApprovalPolicy {
             "approve",
             OPERATIONS["time-entries.approve"],
           ),
-          ...(ctx.text("decider", "") === "" ? {} : { decider: true }),
+          ...(hasDecider(ctx) ? { decider: true } : {}),
         },
       },
     ],
@@ -144,7 +145,7 @@ export function timesheetAtOnce(
       (step) =>
         step.approvers.manager === true || step.escalateTo?.manager === true,
     ),
-    chain: ctx.text("decider", "") !== "",
+    chain: hasDecider(ctx),
     ...(args.employee === undefined ? {} : { employee: args.employee }),
   });
 

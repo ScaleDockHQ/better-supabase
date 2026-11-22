@@ -84,7 +84,7 @@ export function autoTablesOf(ctx: BlockSqlContext): AutoTables | undefined {
 
   return {
     schemas,
-    tenant: column("tenant", "organization_id"),
+    tenant: column("tenant", ctx.tenantColumn ?? "organization_id"),
     user: column("user"),
     exclude: list("exclude", []),
     purge: config["purge"] !== false,

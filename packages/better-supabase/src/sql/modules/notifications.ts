@@ -27,6 +27,11 @@ import {
   digestTable,
   digestUpgrade,
 } from "./notifications-digest.ts";
+import {
+  addedColumns,
+  externalColumns,
+  externalOn,
+} from "./notifications-external.ts";
 import { integerMutations } from "./notifications-items.ts";
 import { functions, notifyNames } from "./notifications-sql.ts";
 import {
@@ -105,6 +110,7 @@ const NAMES: BlockSqlNames = {
     "channelDefaults",
     "channels",
     "createdEvent",
+    "externalRecipients",
     "maxRecipients",
     "partitioned",
     "priorities",
@@ -163,9 +169,18 @@ const NAMES: BlockSqlNames = {
         resolvedAt: "resolved_at",
         resolution: "resolution",
         deliveredAt: "delivered_at",
+        address: "address",
+        contact: "contact_id",
         createdAt: "created_at",
       },
-      optional: ["tenant", "resolvedAt", "resolution", "deliveredAt"],
+      optional: [
+        "tenant",
+        "resolvedAt",
+        "resolution",
+        "deliveredAt",
+        "address",
+        "contact",
+      ],
     },
     deliveries: {
       name: "notification_deliveries",
@@ -325,22 +340,6 @@ $$;
 ${drop}${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
 }
 
-/** Columns version 9 added, for managed tables created before it. */
-function added(n: NotifyNames): string {
-  return (
-    [
-      ["events", "actions"],
-      ["recipients", "resolution"],
-    ] as const
-  )
-    .filter(([table, logical]) => n.has(table, logical))
-    .map(
-      ([table, logical]) =>
-        `alter table ${n.table(table)} add column if not exists ${n.col(table, logical)} jsonb;`,
-    )
-    .join("\n");
-}
-
 function tables(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!ctx.manages) {
     return "";
@@ -420,17 +419,18 @@ create table if not exists ${n.table("recipients")} (
     `${c("recipients", "id")} uuid primary key default gen_random_uuid()`,
     `${c("recipients", "event")} uuid not null references ${n.table("events")} (${c("events", "id")}) on delete cascade`,
     ...opt("recipients", "tenant", id),
-    `${c("recipients", "user")} uuid not null references auth.users (id) on delete cascade`,
+    `${c("recipients", "user")} uuid${externalOn(ctx, n) ? "" : " not null"} references auth.users (id) on delete cascade`,
     `${c("recipients", "readAt")} timestamptz`,
     `${c("recipients", "dismissedAt")} timestamptz`,
     ...opt("recipients", "resolvedAt", "timestamptz"),
     ...opt("recipients", "resolution", "jsonb"),
     ...opt("recipients", "deliveredAt", "timestamptz not null default now()"),
     `${c("recipients", "createdAt")} timestamptz not null default now()`,
+    ...externalColumns(ctx, n),
     `unique (${c("recipients", "event")}, ${c("recipients", "user")})`,
   ].join(",\n  ")}
 );
-${added(n)}
+${addedColumns(ctx, n)}
 create index if not exists notification_recipients_inbox_idx on ${n.table("recipients")} (${c("recipients", "user")}, ${c("recipients", "createdAt")} desc, ${c("recipients", "id")} desc) where ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_unread_idx on ${n.table("recipients")} (${c("recipients", "user")}) where ${c("recipients", "readAt")} is null and ${c("recipients", "dismissedAt")} is null;
 create index if not exists notification_recipients_user_idx on ${n.table("recipients")} (${c("recipients", "user")});

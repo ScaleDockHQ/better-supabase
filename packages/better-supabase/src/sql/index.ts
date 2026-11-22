@@ -11,6 +11,10 @@ export {
   legacyOptionTarget,
 } from "./legacy-options.ts";
 
+export { unusedDeclaredColumns, type UnusedColumn } from "./unused-columns.ts";
+
+export { clientNotNull } from "./client-functions.ts";
+
 export { moduleContext, redundantNulls } from "./module-context.ts";
 
 export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
@@ -142,7 +146,28 @@ export { auditRegistrations } from "./audit-registrations.ts";
 
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
 
-export { type DeclaredForeignKey, sameTenantLayout } from "./foreign-keys.ts";
+export {
+  auditExemptTag,
+  columnTagComments,
+  grantExpose,
+  grantTag,
+  lifecycleTag,
+  sameTenantTag,
+  sameTenantTagsOf,
+  type SameTenantTags,
+  splitList,
+  TABLE_FACT_TAGS,
+  type ColumnTagComment,
+  type GrantFact,
+  type LifecycleFact,
+  type SameTenantFact,
+} from "./table-facts.ts";
+
+export {
+  type DeclaredForeignKey,
+  declaredForeignKeys,
+  sameTenantLayout,
+} from "./foreign-keys.ts";
 
 export { type OwnedColumn, ownedColumns } from "./owned-columns.ts";
 

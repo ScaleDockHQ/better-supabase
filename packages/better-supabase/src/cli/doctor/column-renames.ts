@@ -1,4 +1,4 @@
-import type { ResolvedConfig } from "../../config/index.ts";
+import type { ResolvedConfig, ColumnMapping } from "../../config/index.ts";
 import type { FindingInput, TextFile } from "./rules.ts";
 
 import { SQL_MODULES } from "../../sql/index.ts";
@@ -60,7 +60,7 @@ export function shadowedBlockColumns(
         | Readonly<
             Record<
               string,
-              Readonly<Record<string, string | null | undefined>> | undefined
+              Readonly<Record<string, ColumnMapping | undefined>> | undefined
             >
           >
         | undefined;

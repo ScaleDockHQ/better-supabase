@@ -125,23 +125,35 @@ const SQL_PRACTICES: readonly Rule[] = [
         POLICY.test(statement.text),
       );
 
+      const table = (text: string): string =>
+        bareTable(tableOfPolicy(text)).toLowerCase();
+
+      // A policy with no `for` clause is `for all`, so it reads too.
       const readable = new Set(
         policies
-          .filter((policy) => / for (?:select|all)\b/i.test(policy.text))
-          .map((policy) => tableOfPolicy(policy.text)),
+          .filter(
+            (policy) =>
+              / for (?:select|all)\b/i.test(policy.text) ||
+              !/ for (?:select|insert|update|delete)\b/i.test(policy.text),
+          )
+          .map((policy) => table(policy.text)),
       );
 
       return policies
         .filter(
           (policy) =>
             / for update\b/i.test(policy.text) &&
-            !readable.has(tableOfPolicy(policy.text)),
+            !readable.has(table(policy.text)),
         )
-        .map((policy): FindingInput => ({
-          message: `${policy.path}: the update policy on ${tableOfPolicy(policy.text)} has no select policy, so updates return no rows. Add one for select.`,
-          target: policy.path,
-          location: { file: policy.path, line: policy.line },
-        }));
+        .map((policy): FindingInput => {
+          const name = bareTable(tableOfPolicy(policy.text));
+
+          return {
+            message: `${policy.path}: the update policy on ${name} has no select policy, so updates return no rows. Add one for select.`,
+            target: name,
+            location: { file: policy.path, line: policy.line },
+          };
+        });
     },
   },
   {

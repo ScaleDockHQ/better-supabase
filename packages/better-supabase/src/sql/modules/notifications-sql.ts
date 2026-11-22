@@ -16,6 +16,12 @@ import { consentGate } from "./notifications-consent.ts";
 import { delivery, purge } from "./notifications-delivery.ts";
 import { digestFunctions, heldStatus, notOff } from "./notifications-digest.ts";
 import {
+  externalCheck,
+  externalDeclare,
+  externalInsert,
+  externalOn,
+} from "./notifications-external.ts";
+import {
   changedJson,
   integerMutations,
   itemJson,
@@ -403,7 +409,7 @@ declare
   v_recipients uuid[] := array(
     select x::uuid from jsonb_array_elements_text(coalesce(notification -> 'recipients', '[]')) x
   );
-  v_extra uuid[];
+  v_extra uuid[];${externalDeclare(ctx, n)}
   v_event uuid;${n.has("events", "key") ? "" : "\n  v_hash text;"}
   v_want_members uuid[];
   v_want_channels text[];
@@ -433,8 +439,8 @@ begin
   if v_actor is not null and not coalesce((notification ->> 'include_actor')::boolean, false) then
     v_recipients := array_remove(v_recipients, v_actor);
   end if;${members}
-  v_recipients := array(select distinct x from unnest(v_recipients) x where x is not null);
-  if cardinality(v_recipients) > ${String(maxRecipients)} then
+  v_recipients := array(select distinct x from unnest(v_recipients) x where x is not null);${externalCheck(ctx, n)}
+  if cardinality(v_recipients)${externalOn(ctx, n) ? " + jsonb_array_length(v_external)" : ""} > ${String(maxRecipients)} then
     ${fail("NOTIFICATION_TOO_MANY_RECIPIENTS", `A notification reaches at most ${String(maxRecipients)} recipients`, "22023")}
   end if;
   select coalesce(array_agg(w.member), '{}'), coalesce(array_agg(w.channel), '{}')
@@ -443,7 +449,7 @@ begin
     ${wanted(ctx, n)}
   ) w;
   v_recipients := array(select distinct x from unnest(v_want_members) x);
-  if cardinality(v_recipients) = 0 then
+  if cardinality(v_recipients) = 0${externalOn(ctx, n) ? " and jsonb_array_length(v_external) = 0" : ""} then
     return null;
   end if;
 ${keyed}${writeExtraColumns(n.table("events"), n.extras, "(notification -> 'fields')", `x.${e("id")} = v_event`)}
@@ -451,7 +457,7 @@ ${keyed}${writeExtraColumns(n.table("events"), n.extras, "(notification -> 'fiel
   insert into ${n.table("recipients")} (${recipientColumns.join(", ")})
   select ${recipientValues.join(", ")}
   from unnest(v_recipients) x
-  on conflict do nothing;${deliveries}
+  on conflict do nothing;${deliveries}${externalInsert(ctx, n)}
   ${ctx.hook("after_notify", [["uuid", "v_event"]])}
   ${ctx.record({
     type: "notification.created",

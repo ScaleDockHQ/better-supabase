@@ -1,6 +1,7 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { tenantNameOf } from "../../config/index.ts";
+import { auditExemptTag } from "../../sql/index.ts";
 import { catalogOf, qualified, tableObject } from "./shared.ts";
 
 const escapeRegExp = (value: string): string =>
@@ -129,6 +130,7 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
         !owned.schemas.has(table.schema) &&
         !owned.tables.has(qualified(table)) &&
         !exempt.some((pattern) => pattern.test(qualified(table))) &&
+        auditExemptTag(table.comment ?? null) === undefined &&
         !(
           skipsUntenanted &&
           !table.columns.some((column) => column.name === tenantColumn)
@@ -154,5 +156,18 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
       target: `blocks.audit.options.exempt:${entry.glob}`,
     }));
 
-  return [...unaudited, ...unexplained];
+  const taggedWithoutReason = catalogOf(context)
+    .tables.filter(
+      (table) =>
+        context.config.schemas.includes(table.schema) &&
+        auditExemptTag(table.comment ?? null)?.reason === undefined &&
+        auditExemptTag(table.comment ?? null) !== undefined,
+    )
+    .map((table) => ({
+      message: `${qualified(table)} is tagged @bsb audit-exempt without a reason. Write @bsb audit-exempt reason="why its changes need no audit entry" so a reviewer can tell an intended gap from a forgotten table.`,
+      target: qualified(table),
+      object: tableObject(table),
+    }));
+
+  return [...unaudited, ...unexplained, ...taggedWithoutReason];
 }

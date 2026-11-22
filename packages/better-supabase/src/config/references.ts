@@ -57,13 +57,23 @@ type RoleReferences<C> = [RolesOf<C>] extends [never]
     };
 
 type BlocksOf<C> = C extends { readonly blocks: infer B extends object }
-  ? B extends readonly string[]
+  ? B extends readonly unknown[]
     ? Record<never, never>
     : B
   : Record<never, never>;
 
 /** The instance keys a literal config declares in `blocks`. */
-export type InstanceNames<C> = keyof BlocksOf<C> & string;
+export type InstanceNames<C> = ListedNames<C> | (keyof BlocksOf<C> & string);
+
+type ListedNames<C> = C extends { readonly blocks: readonly (infer E)[] }
+  ? E extends string
+    ? E
+    : E extends { readonly name: infer N extends string }
+      ? N
+      : E extends { readonly block: infer K extends string }
+        ? K
+        : never
+  : never;
 
 /**
  * Each named instance checked against the block it names in `block`, and every

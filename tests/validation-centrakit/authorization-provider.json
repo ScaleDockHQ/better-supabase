@@ -25,6 +25,10 @@
     "permissionsFor": "centrakit.authz_permissions_for({user}, {tenant})",
     "holdersOf": "centrakit.authz_organization_users_with({permission}, {tenant})",
     "actorMayWrite": "centrakit.authz_actor_may_write()",
+    "isApprover": "centrakit.authz_is_approver({subject}, {kind}, {tenant}, {requester}, {approvers})",
+    "approverFor": "centrakit.authz_approver_for({id}, {kind})",
+    "managedUsers": "centrakit.authz_managed_users({tenant})",
+    "canIn": "centrakit.authz_can_in({permission}, {tenant})",
     "rowsWith": "centrakit.authz_{resource}_rows({permission}, {ids})",
     "rowsWithFor": "centrakit.authz_{resource}_rows_for({user}, {permission}, {ids})"
   },
@@ -55,6 +59,26 @@
     },
     {
       "function": "centrakit.authz_actor_may_write",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_is_approver",
+      "args": "text, text, uuid, uuid, jsonb",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_approver_for",
+      "args": "uuid, text",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_managed_users",
+      "args": "uuid",
+      "role": "authenticated"
+    },
+    {
+      "function": "centrakit.authz_can_in",
+      "args": "text, uuid",
       "role": "authenticated"
     },
     {

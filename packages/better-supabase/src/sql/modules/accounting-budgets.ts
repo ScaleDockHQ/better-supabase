@@ -6,8 +6,17 @@ import { userGrant } from "../shared.ts";
 import { accountingSql } from "./accounting-shared.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
+/** Whether the budget tables are on (`tables.budgets` isn't `null`). */
+export function budgetsOn(ctx: BlockSqlContext): boolean {
+  return ctx.hasTable("budgets") && ctx.hasTable("budgetLines");
+}
+
 /** Budgets per account and period, and the budget against the actuals. */
 export function accountingBudgets(ctx: BlockSqlContext): string {
+  if (!budgetsOn(ctx)) {
+    return "";
+  }
+
   const accounts = ctx.table("accounts");
   const periods = ctx.table("periods");
   const entries = ctx.table("entries");

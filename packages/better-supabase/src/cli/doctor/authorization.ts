@@ -10,22 +10,28 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 import {
   DEFAULT_ACTIVE_TENANT,
   FormerPermissionKeyError,
+  restatedEntries,
 } from "../../config/index.ts";
 import {
   modulePermissionKeys,
+  redundantNulls,
   sameTemplateFunction,
   SQL_MODULES,
+  clientNotNull,
   templatePlaceholderProblems,
 } from "../../sql/index.ts";
 import {
   accessRequirements,
   entitlementRequirements,
   entitlementsMode,
+  catalogKeyProblems,
   moduleKeyProblems,
+  providerKeyUses,
   providerLabel,
   unsafeKey,
 } from "../authorization.ts";
-import { accessModule } from "./app-tables.ts";
+import { mergeRestated, probeRestated } from "../restated-probe.ts";
+import { accessModule, adoptionContext, appViewsOf } from "./app-tables.ts";
 import { withoutStrings } from "./rls.ts";
 import { catalogOf, policyObject, qualified } from "./shared.ts";
 
@@ -83,12 +89,56 @@ function missingTemplates(
     }
   }
 
-  return [...callers].map(([name, modules]) => ({
-    severity: "warning",
-    message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.permissions.functions.canAssignFor" : ""}.`,
+  const optional = new Map<
+    keyof AuthorizationProvider["functions"],
+    string[]
+  >();
+
+  for (const module of Object.values(SQL_MODULES)) {
+    if (!installed.has(module.name)) {
+      continue;
+    }
+
+    for (const [name, gain] of Object.entries(module.providerOptional ?? {})) {
+      // SAFETY: `providerOptional` is keyed by the provider's template names.
+      const template = name as keyof AuthorizationProvider["functions"];
+
+      if (
+        provider.functions[template] === undefined &&
+        !(
+          template === "approverFor" &&
+          hasConfiguredDecider(context, module.name)
+        )
+      ) {
+        optional.set(template, [
+          ...(optional.get(template) ?? []),
+          `${module.name} (${gain})`,
+        ]);
+      }
+    }
+  }
+
+  const info = [...optional].map(([name, uses]): FindingInput => ({
+    severity: "info",
+    message: `${providerLabel(provider)} doesn't set authorization.functions.${name}, which the ${uses.join("; ")} would read. Set it to let the provider answer instead of repeating that in blocks config.`,
     target: `authorization.functions.${name}`,
   }));
+
+  return [
+    ...info,
+    ...[...callers].map(([name, modules]): FindingInput => ({
+      severity: "warning",
+      message: `The ${modules.join(", ")} ${modules.length > 1 ? "modules call" : "module calls"} authorization.functions.${name}, which ${providerLabel(provider)} doesn't set, so under the provider model ${TEMPLATE_EFFECT[name] ?? "those calls fail"}. Use a provider that sets ${name}${name === "canAssignFor" ? ", or set blocks.permissions.functions.canAssignFor" : ""}.`,
+      target: `authorization.functions.${name}`,
+    })),
+  ];
 }
+
+const hasConfiguredDecider = (
+  context: DoctorContext,
+  module: string,
+): boolean =>
+  typeof context.config.blocks[module]?.options?.["decider"] === "string";
 
 /**
  * Tables whose generated policies call the provider's functions by role and
@@ -392,111 +442,64 @@ function requirementProblem(
       };
 }
 
+/** Doctor spends at most this long rendering blocks without a config entry. */
+const PROBE_BUDGET_MS = 20_000;
+
 /**
- * Config values that repeat what the provider already supplies (BS426): the
- * generated SQL fills them from `authorization` when they are unset.
+ * Config entries that equal their resolved default (BS427): identity column
+ * mappings, `null`s for columns the views lack, empty maps, a tenant column
+ * that repeats `sql.tenantColumn` and values equal to the provider's.
  */
-function restatedDefaults(context: DoctorContext): FindingInput[] {
-  const provider = context.config.authorization;
+async function restatedDefaults(
+  context: DoctorContext,
+): Promise<FindingInput[]> {
+  const provider =
+    context.config.authorization && accessModule(context).kind === "provider"
+      ? context.config.authorization
+      : undefined;
 
-  // The provider's values are filled in only under the provider model.
-  // Advising their removal under another model deletes the setting.
-  if (!provider || accessModule(context).kind !== "provider") {
-    return [];
-  }
+  const probed = await probeRestated(context.config, {
+    budgetMs: PROBE_BUDGET_MS,
+  }).catch(() => []);
 
-  const findings: FindingInput[] = [];
+  return mergeRestated(
+    restatedEntries({
+      blocks: context.config.blocks,
+      sqlTenantColumn: context.config.sql.tenantColumn,
+      subjects: context.config.subjects,
+      restatedDefaults: context.config.restatedDefaults,
+      genFunctions: context.config.functions,
+      blockNotNull: (name) =>
+        Object.entries(context.config.blocks).flatMap(([key, entry]) => {
+          const declared = clientNotNull(entry?.block ?? key, name);
 
-  const same = (a: unknown, b: unknown): boolean =>
-    JSON.stringify(a) === JSON.stringify(b);
-
-  const invitations = context.config.blocks["invitations"];
-  const tenant = context.config.blocks["memberships"];
-
-  if (
-    invitations?.options?.["platformRoles"] !== undefined &&
-    provider.platformRoles !== undefined &&
-    same(invitations.options["platformRoles"], provider.platformRoles)
-  ) {
-    findings.push({
-      message: `blocks.invitations.options.platformRoles repeats ${providerLabel(provider)}'s platformRoles. Remove it: the provider's value is the default.`,
-      target: "blocks.invitations.options.platformRoles",
-    });
-  }
-
-  const through = tenant?.options?.["roleThrough"];
-
-  if (
-    through !== undefined &&
-    (provider.roleSources ?? []).some((source) =>
-      same(source.role.through, through),
-    )
-  ) {
-    findings.push({
-      message: `blocks.memberships.options.roleThrough repeats a role source of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-      target: "blocks.memberships.options.roleThrough",
-    });
-  }
-
-  const disabledAt = tenant?.columns?.["memberships"]?.["disabledAt"];
-
-  if (
-    typeof disabledAt === "string" &&
-    (provider.memberships ?? []).some(
-      (entry) => entry.disabledAt === disabledAt,
-    )
-  ) {
-    findings.push({
-      message: `blocks.memberships.columns.memberships.disabledAt repeats the disabledAt of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-      target: "blocks.memberships.columns.memberships.disabledAt",
-    });
-  }
-
-  const disabled = context.config.blocks.permissions?.disabled;
-
-  if (disabled !== undefined && provider.suspension !== undefined) {
-    for (const key of ["tenant", "user"] as const) {
-      if (
-        disabled[key] !== undefined &&
-        provider.suspension[key] !== undefined &&
-        same(disabled[key], provider.suspension[key])
-      ) {
-        findings.push({
-          message: `blocks.permissions.disabled.${key} repeats the suspension.${key} of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-          target: `blocks.permissions.disabled.${key}`,
-        });
-      }
-    }
-
-    // The provider's userKey applies only when its user is the one in use.
-    const providerUser =
-      disabled.user === undefined ||
-      (provider.suspension.user !== undefined &&
-        same(disabled.user, provider.suspension.user));
-
-    if (
-      providerUser &&
-      disabled.userKey !== undefined &&
-      provider.suspension.userKey !== undefined &&
-      same(disabled.userKey, provider.suspension.userKey)
-    ) {
-      findings.push({
-        message: `blocks.permissions.disabled.userKey repeats the suspension.userKey of ${providerLabel(provider)}. Remove it: the provider's value is the default.`,
-        target: "blocks.permissions.disabled.userKey",
-      });
-    }
-  }
-
-  return findings;
+          return declared === undefined ? [] : [declared];
+        })[0],
+      provider,
+      defaultColumns: (module) => SQL_MODULES[module]?.names?.tables,
+      // Without a snapshot there are no views, so no `null` can be redundant.
+      nulls: Reflect.has(context, "snapshot")
+        ? redundantNulls({
+            modules: context.config.blocks,
+            ...appViewsOf(context),
+            ...adoptionContext(context),
+          })
+        : [],
+    }),
+    probed,
+  ).map((entry) => ({
+    message: `${entry.path} ${entry.reason}. Remove it: the default is the same (\`better-supabase codemod config --prune\` removes it).`,
+    target: entry.path,
+  }));
 }
 
 export const AUTHORIZATION_RULES: readonly Rule[] = [
   {
-    code: "BS426",
-    severity: "info",
-    title: "Config value the authorization provider already supplies",
+    code: "BS427",
+    severity: "warning",
+    title: "Config restates its default",
     description:
-      "`blocks.invitations.options.platformRoles`, `blocks.memberships.options.roleThrough`, the memberships `disabledAt` column and `blocks.permissions.disabled` (`tenant`, `user`, `userKey`) default to the values the authorization provider declares (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`). A config value equal to the provider's is a second copy that goes stale when the provider changes. Doctor reports each one under the provider access model; under another model the provider's value is not the default. `disabled.userKey` is reported only when `disabled.user` is unset or equal to the provider's, because the provider's key applies only then. Remove each reported copy.",
+      "A config entry equals the value the render uses without it, so it is a second copy that goes stale and hides the entries that matter. Doctor reports an identity mapping for an optional column (`columns.<table>.<column>` set to the column's default name, which only a `{ column, required: true }` entry still enforces), a `null` for a column the view lacks anyway, an empty `columns`, `values` or `tables` map, `columns.<table>.tenant` equal to `sql.tenantColumn`, and a value equal to the authorization provider's (`platformRoles`, a role source's `through`, a membership's `disabledAt`, `suspension`, `tokenHook.function` for `impersonation.options.claimsHook`). The provider kinds are reported under the provider access model only, and `disabled.userKey` only when `disabled.user` is unset or equal to the provider's. Doctor also renders without each `permissions` key and each `options` entry (and each `sameTenant` element) of an installed block, and reports the ones whose removal leaves every file unchanged: a permission key the block would pick anyway, an option equal to its default, a `sameTenant` entry the schema already derives. `better-supabase codemod config --prune` removes each one when the render stays the same. It replaces BS426, whose code stays reserved.",
     check: restatedDefaults,
   },
   {
@@ -806,7 +809,7 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
     severity: "error",
     title: "The provider access model can't use the authorization provider",
     description:
-      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
+      "With `blocks.permissions.model: 'provider'`, the `access` module fills the provider's `idsWith` template for tenant checks and `isPlatform` for platform checks, at its tenant scope. Doctor reports a config without `authorization`, a tenant scope or id type the module can't render, a function those templates call that `authorization.requires` doesn't list, doesn't let `authenticated` execute or the database lacks, and every module permission key (from `modulePermissionKeys`) the provider doesn't mark `sqlComplete: true`, since its functions are trusted with role and scope only. It warns when neither `blocks.permissions.functions.canAssign` nor the provider's `canAssign` is set, because only the service role then assigns roles, and when an installed module calls a template the provider doesn't set (`idsWithFor` and `isPlatformFor` to check another user, `canAssignFor` to recheck an inviter). It reports at info level when leave, expenses or time entries are installed and the provider sets no `approverFor` or `managedUsers`. It also warns when `blocks.memberships.options.roles.many` is on and none of the provider's `memberships` names a `rolesTable`, since the provider then sees one role per member.",
     check: (context) => {
       const mode = accessModule(context);
 
@@ -839,12 +842,14 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
       try {
         findings.push(
+          ...catalogKeyProblems(provider, providerKeyUses(provider)),
           ...moduleKeyProblems(
             provider,
             modulePermissionKeys(
               context.config.blocks,
               context.config.blockNames,
               context.config.subjects,
+              provider.actionKeys,
             ),
           ),
         );

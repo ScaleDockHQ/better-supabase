@@ -446,9 +446,44 @@ describe("doctor command", () => {
 
     const written = JSON.parse(
       await readFile(join(root, "doctor-baseline.json"), "utf-8"),
-    ) as { code: string; reason: string }[];
+    ) as { code: string; reason: string; target: string }[];
 
     expect(written.map((entry) => entry.code)).toEqual(["BS210"]);
+
+    const unexplained = await doctor(
+      ["--only", "BS210", "--json"],
+      { snapshot },
+      config,
+    );
+
+    expect(findings(unexplained)).toEqual([
+      expect.objectContaining({
+        code: "BS210",
+        severity: "error",
+        title: "A baseline entry has no reason",
+      }),
+    ]);
+
+    await write(
+      "doctor-baseline.json",
+      JSON.stringify([
+        {
+          code: "BS210",
+          reason: "facets are small here",
+          targets: written.map((entry) => entry.target),
+        },
+      ]),
+    );
+
+    await doctor(["--only", "BS210", "--update"], { snapshot }, config);
+
+    const regrouped = JSON.parse(
+      await readFile(join(root, "doctor-baseline.json"), "utf-8"),
+    ) as { reason: string; targets: string[] }[];
+
+    expect(regrouped).toEqual([
+      expect.objectContaining({ reason: "facets are small here" }),
+    ]);
 
     const accepted = await doctor(
       ["--only", "BS210", "--json"],

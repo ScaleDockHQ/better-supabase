@@ -31,7 +31,15 @@ export function boundSubjects(
       throw new TypeError(`${where}.${type}.column must be a column name`);
     }
 
-    return [{ type, column, idType: subject.idType }];
+    // An inferred type keeps the text comparison, which never raises on a
+    // malformed stored id.
+    return [
+      {
+        type,
+        column,
+        idType: subject.idInferred === true ? undefined : subject.idType,
+      },
+    ];
   });
 }
 

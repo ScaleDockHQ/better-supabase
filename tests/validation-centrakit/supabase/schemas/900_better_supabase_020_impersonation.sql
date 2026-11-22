@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@3 managed
--- @bsb-hash sha256:f56fe3ab27cbabce4ae01d4ece94b3705c2bf5877ea30c8d027c728ba5b5aded
+-- @bsb-hash sha256:f291f9574db3f818df6e739259cac18d83414ddaf36e3afda2df352e4634b9ad
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -187,7 +187,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'IMPERSONATION_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('impersonation.start') then
+  if not service and not coalesce((centrakit.authz_is_approver(v_row."id"::text, 'support-session', v_row."tenant_id", v_row."admin_id", null::jsonb)), false) then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -284,7 +284,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or coalesce((centrakit.authz_is_approver(x."id"::text, 'support-session', x."tenant_id", x."admin_id", null::jsonb)), false))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,

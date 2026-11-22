@@ -1091,6 +1091,55 @@ as $$
   end
 $$;
 
+-- Who decides a request: the organization's role managers, never the requester. The fixture has
+-- no manager chain or out-of-office covers, so managed users is the empty set.
+create function centrakit.authz_is_approver(
+  p_subject text, p_kind text, p_tenant uuid, p_requester uuid, p_approvers jsonb
+)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select (select auth.uid()) is distinct from p_requester
+    and (select auth.uid()) in (
+      select centrakit.authz_organization_users_with('members.update_role', p_tenant)
+    )
+$$;
+
+create function centrakit.authz_approver_for(p_id uuid, p_kind text)
+returns setof uuid
+language sql stable security definer set search_path = ''
+as $$
+  select centrakit.authz_organization_users_with('members.update_role', o)
+  from centrakit.authz_organization_member_ids() as m(o)
+$$;
+
+create function centrakit.authz_managed_users(p_tenant uuid default null)
+returns setof uuid
+language sql stable set search_path = ''
+as $$
+  select null::uuid where false
+$$;
+
+create function centrakit.authz_can_in(p_permission text, p_tenant uuid)
+returns boolean
+language sql stable set search_path = ''
+as $$
+  select p_tenant in (select centrakit.authz_organization_ids_with(p_permission))
+$$;
+
+revoke execute on function
+  centrakit.authz_is_approver(text, text, uuid, uuid, jsonb),
+  centrakit.authz_approver_for(uuid, text),
+  centrakit.authz_managed_users(uuid),
+  centrakit.authz_can_in(text, uuid)
+  from public, anon;
+grant execute on function
+  centrakit.authz_is_approver(text, text, uuid, uuid, jsonb),
+  centrakit.authz_approver_for(uuid, text),
+  centrakit.authz_managed_users(uuid),
+  centrakit.authz_can_in(text, uuid)
+  to authenticated;
+
 -- The rows of the file tree p_user may act on with p_permission: the
 -- organizations where the key holds, or a grant on the node. A grant counts
 -- in another organization too, as a share does, so a node outside the user's

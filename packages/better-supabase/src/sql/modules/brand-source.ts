@@ -22,7 +22,7 @@ export function brandSourceOf(
   ctx: BlockSqlContext,
   where: string,
 ): BrandSource | undefined {
-  const option = ctx.option("brand");
+  const option: unknown = ctx.option("brand") ?? ctx.brand;
 
   if (option === undefined) {
     return undefined;

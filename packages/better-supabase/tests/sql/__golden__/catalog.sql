@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:91e3e414c20bd989632efc65faa02e5d32857a393185dd5a1148496aa98b04f4
+-- @bsb-hash sha256:66768a836f3f575ce51859a597d9353a33ced9ace45559c1860afe244d8cea1e
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2883,7 +2883,8 @@ grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text)
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -2902,12 +2903,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -3914,7 +3919,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:535c005f438a0c231b79f0628d336bea7b2bdd4ac080c017e614b3158d52f15a
+-- @bsb-hash sha256:8541bfcf07506e0a16cc34ac739d94d1465e98dae209ccb3df647fcc18dba472
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7018,7 +7023,8 @@ grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text)
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -7037,12 +7043,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -8069,7 +8079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:335bb288b62ac266548c64a014724913d156a32911ac011dbd865a73bc441550
+-- @bsb-hash sha256:13db7d8e6ef2eef042beba35ac346f0309d2028cba02d837b016c092e82671bf
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10956,7 +10966,8 @@ grant execute on function "app_private"."set_variant_trade_code"(uuid, text) to 
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "app_private"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -10975,12 +10986,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "app_private"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -11987,7 +12002,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:4c75b40aadfdc89cc37ca6ced0ed7883e39b3e351cb2964b47518ca2da851bec
+-- @bsb-hash sha256:1cf282e1b58683af357044d9c39e5c08169915b9914397551f9b97d7df613edb
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14869,7 +14884,8 @@ grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text)
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -14888,12 +14904,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -16618,7 +16638,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:17036ed4ec60d17e34affaae2728d430e994b65b54ce29c2e75b2435ea918d49
+-- @bsb-hash sha256:5f40a29c6eb316519312dccb2e71bc2f82aafcaf1336aa797adac35afac0e8af
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19464,7 +19484,8 @@ grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text)
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -19483,12 +19504,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');
@@ -20495,7 +20520,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:fba0d6c0c392d23a13f6342250e51b14eed8340c5c85acef0a02540e938e2cef
+-- @bsb-hash sha256:d7ce3f0c0548041e7bbfdf989ba5f0a08e092de031bdd06c83e6d97fd5c1a2da
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23377,7 +23402,8 @@ grant execute on function "better_supabase"."set_variant_trade_code"(uuid, text)
 -- The import target of the supplier_item entity (ADR 0141): item.data is {
 -- supplierId, row?, code?, description?, price?, currency?, unit?, keywords? }.
 -- A row goes through the supplier's column mapping; the fields named next to
--- it win. price is in minor units. A key that is new but names a code the
+-- it win. Without supplierId the supplier or customer ref the item names, once
+-- an earlier entity imported it, gives the supplier. price is in minor units. A key that is new but names a code the
 -- supplier already has takes over that row.
 create or replace function "better_supabase"."import_supplier_item"(run uuid, item jsonb, subject_id text)
 returns jsonb
@@ -23396,12 +23422,16 @@ declare
   v_updated timestamptz;
 begin
   begin
-    v_supplier := nullif(v_data ->> 'supplierId', '')::uuid;
+    v_supplier := coalesce(
+      nullif(v_data ->> 'supplierId', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'supplier', '')::uuid,
+      nullif(import_supplier_item.item -> 'resolved' ->> 'customer', '')::uuid
+    );
   exception when invalid_text_representation then
     raise exception 'supplierId must be a uuid' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end;
   if v_supplier is null then
-    raise exception 'a supplier item needs a supplierId' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
+    raise exception 'a supplier item needs a supplierId, or a supplier or customer ref that an earlier entity imported' using errcode = '22023', hint = 'IMPORT_ITEM_INVALID';
   end if;
   v_merged := (case when jsonb_typeof(v_data -> 'row') = 'object' then "better_supabase"."supplier_item_from_row"(v_tenant, v_supplier, v_data -> 'row') else '{}'::jsonb end) || (v_data - 'row' - 'supplierId');
   v_code := nullif(btrim(v_merged ->> 'code'), '');

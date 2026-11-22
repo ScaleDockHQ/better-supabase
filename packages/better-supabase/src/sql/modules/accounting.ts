@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
-import { accountingBudgets } from "./accounting-budgets.ts";
+import { accountingBudgets, budgetsOn } from "./accounting-budgets.ts";
 import {
   accountingCloseFunctions,
   accountingReportFunctions,
@@ -356,6 +356,7 @@ const NAMES: BlockSqlNames = {
     budgets: {
       name: "accounting_budgets",
       app: {},
+      optionalTable: true,
       lifecycle: tenantTable,
       columns: {
         id: "id",
@@ -371,6 +372,7 @@ const NAMES: BlockSqlNames = {
     budgetLines: {
       name: "accounting_budget_lines",
       app: {},
+      optionalTable: true,
       lifecycle: tenantTable,
       columns: {
         id: "id",
@@ -400,6 +402,25 @@ function build(ctx: BlockSqlContext): string {
 -- and budgets.
 ${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingLedgerReports(ctx)}${accountingOpeningFunctions(ctx)}${accountingImportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}${recognitionTables(ctx)}${recognitionFunctions(ctx)}`;
 }
+
+const budgetContract: readonly BlockSqlContractFunction[] = [
+  {
+    name: "save_accounting_budget",
+    args: ["{id}", "text", "integer", "text", "jsonb", "uuid"],
+    returns: "jsonb",
+  },
+  { name: "get_accounting_budget", args: ["uuid"], returns: "jsonb" },
+  {
+    name: "list_accounting_budgets",
+    args: ["{id}", "integer"],
+    returns: "jsonb",
+  },
+  {
+    name: "accounting_budget_vs_actual",
+    args: ["uuid", "integer"],
+    returns: "jsonb",
+  },
+];
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const extra = extraFieldsArg(
@@ -611,22 +632,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "date", "date"],
       returns: "jsonb",
     },
-    {
-      name: "save_accounting_budget",
-      args: ["{id}", "text", "integer", "text", "jsonb", "uuid"],
-      returns: "jsonb",
-    },
-    { name: "get_accounting_budget", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_accounting_budgets",
-      args: ["{id}", "integer"],
-      returns: "jsonb",
-    },
-    {
-      name: "accounting_budget_vs_actual",
-      args: ["uuid", "integer"],
-      returns: "jsonb",
-    },
+    ...(budgetsOn(ctx) ? budgetContract : []),
   ];
 }
 

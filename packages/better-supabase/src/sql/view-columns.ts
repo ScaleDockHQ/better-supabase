@@ -123,8 +123,18 @@ export function viewColumns(
       }
 
       for (const column of Object.keys(spec.columns)) {
-        const mapped = configured[logical]?.[column];
         const optional = spec.optional?.includes(column) === true;
+
+        const named = configured[logical]?.[column];
+
+        // A name equal to the default, on an optional column, restates it
+        // unless the config marks it `required`.
+        const mapped =
+          optional &&
+          named === spec.columns[column] &&
+          config.requiredColumns?.[logical]?.includes(column) !== true
+            ? undefined
+            : named;
 
         if (mapped === null) {
           const bare = spec.columns[column]!;

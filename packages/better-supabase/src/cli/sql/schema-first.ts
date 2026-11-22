@@ -228,9 +228,15 @@ function tagsFor(
       .map((prefix) => (key.startsWith(prefix) ? key.slice(prefix.length) : ""))
       .find((name) => name !== "" && !name.includes("."));
 
-    if (column !== undefined) {
-      jsonArgs[column] =
-        "import" in entry ? `import:${entry.import}` : entry.type;
+    const arg =
+      "import" in entry
+        ? `import:${entry.import}`
+        : "type" in entry
+          ? entry.type
+          : undefined;
+
+    if (column !== undefined && arg !== undefined) {
+      jsonArgs[column] = arg;
     }
   }
 

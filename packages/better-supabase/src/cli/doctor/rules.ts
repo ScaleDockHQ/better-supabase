@@ -45,6 +45,7 @@ import { ERROR_CODE_RULES } from "./error-codes.ts";
 import { FLAG_RULES } from "./flags.ts";
 import { HOOK_RULES } from "./hooks.ts";
 import { IMPORT_GUARD_RULES } from "./import-guard.ts";
+import { INLINE_SCHEMA_RULES } from "./inline-schemas.ts";
 import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
@@ -60,6 +61,7 @@ import { PGDELTA_RULES } from "./pgdelta.ts";
 import { PLAIN_SECRET_RULES } from "./plain-secrets.ts";
 import { POLICY_RULES } from "./policies.ts";
 import { PRACTICE_RULES } from "./practices.ts";
+import { PROVIDER_DOCTOR_RULES } from "./provider-doctor.ts";
 import { REALTIME_RULES } from "./realtime.ts";
 import { appliesTo, RLS_RULES } from "./rls.ts";
 import { ROUND_TRIP_RULES } from "./round-trips.ts";
@@ -76,7 +78,9 @@ import {
   tableObject,
   workflowOf,
 } from "./shared.ts";
+import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
+import { TABLE_FACT_RULES } from "./table-facts.ts";
 import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
@@ -195,6 +199,12 @@ export interface DoctorContext {
    * (BS608).
    */
   readonly vercel?: boolean;
+  /**
+   * Whether a script of the project's `package.json` runs `better-supabase db
+   * diff`, which plans with pg-delta's library (BS239). A project that diffs
+   * with the Supabase CLI never loads the library.
+   */
+  readonly libraryDiff?: boolean;
   /** The project's `vercel.json` (BS512). */
   readonly vercelConfig?: TextFile;
   /**
@@ -1135,6 +1145,10 @@ const OWN_RULES: readonly Rule[] = [
 
 export const RULES: readonly Rule[] = [
   ...AUTH_USER_RULES,
+  ...TABLE_FACT_RULES,
+  ...INLINE_SCHEMA_RULES,
+  ...PROVIDER_DOCTOR_RULES,
+  ...SHIPPED_SHIM_RULES,
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,

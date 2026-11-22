@@ -297,6 +297,63 @@ export function testAuthorizationProvider(
         }
       },
     ],
+    provider.operations && [
+      "operation approvals list steps",
+      () => {
+        for (const [name, operation] of Object.entries(provider.operations!)) {
+          if (operation.approval !== undefined) {
+            expect(
+              operation.approval.steps.length > 0,
+              `operation "${name}" has an approval without steps`,
+            );
+          }
+        }
+      },
+    ],
+    provider.doctor && [
+      "doctor names a command",
+      () => {
+        expect(
+          provider.doctor!.command.length > 0 &&
+            provider.doctor!.command.every((part) => part.length > 0),
+          "doctor.command is empty",
+        );
+      },
+    ],
+    provider.actionKeys && [
+      "actionKeys name listed permissions",
+      () => {
+        const keys =
+          provider.permissions === undefined
+            ? undefined
+            : new Set(provider.permissions.map((entry) => entry.key));
+
+        const { blocks, recordTypes, buckets, topics } = provider.actionKeys!;
+
+        for (const [group, entries] of [
+          ["blocks", blocks],
+          ["recordTypes", recordTypes],
+          ["buckets", buckets],
+          ["topics", topics],
+        ] as const) {
+          for (const [target, actions] of Object.entries(entries ?? {})) {
+            for (const [action, key] of Object.entries(actions)) {
+              expect(
+                key !== "",
+                `actionKeys.${group}.${target}.${action} names no permission`,
+              );
+
+              if (keys) {
+                expect(
+                  keys.has(key),
+                  `actionKeys.${group}.${target}.${action} needs "${key}", which permissions doesn't list`,
+                );
+              }
+            }
+          }
+        }
+      },
+    ],
     provider.memberships && [
       "memberships name known scopes",
       () => {

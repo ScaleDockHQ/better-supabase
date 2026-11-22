@@ -566,6 +566,8 @@ block keeps requests, their approvals and each member's balance.
 
 `options.resolveAddress` names an app function, `better_supabase.member_address(user uuid, channel text) returns text`, that says where a member is reached on a channel, such as a work email in your own profile table. Claimed deliveries, claimed digests and the suppression of a bounced address use it, and a `null` answer falls back to the member's sign-in email. The function runs inside the block's definer functions, so it needs no grant for signed-in users.
 
+`options.externalRecipients` (default `false`) lets a notification reach people who are not members. `send_notification` then takes an `external` list next to `recipients`, where each entry is `{ "address": "someone@example.com" }` or `{ "contact": "<uuid>" }`. A contact is resolved through `resolveAddress`, with the contact id in the `user` argument, so the option needs it. External recipients have no inbox, count toward `maxRecipients`, and are reached on the email channel only, with the same claim, retry and bounce suppression as members. The recipient `user` column becomes nullable, with a check that exactly one of user, address and contact is set, and `add` and `upgrade` write the columns and the check into existing databases.
+
 Every channel except `in_app` gets a `pending` delivery row per recipient.
 Pass `email` for mail and a `NotificationChannel` for any other channel,
 then call `deliver()` from a cron route or a job, with a service connection:

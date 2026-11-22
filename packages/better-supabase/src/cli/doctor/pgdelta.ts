@@ -178,7 +178,11 @@ const PGDELTA_PEERS = ["@supabase/pg-delta", "@supabase/pg-topo"] as const;
  * workflow doesn't install.
  */
 function missingPeers(context: DoctorContext): FindingInput[] {
-  if (context.peers === undefined || pgdeltaToml(context) === undefined) {
+  if (
+    context.peers === undefined ||
+    context.libraryDiff !== true ||
+    pgdeltaToml(context) === undefined
+  ) {
     return [];
   }
 
@@ -212,7 +216,7 @@ export const PGDELTA_RULES: readonly Rule[] = [
     severity: "warning",
     title: "pg-delta packages missing",
     description:
-      "The project runs the pg-delta workflow, but `@supabase/pg-delta` or `@supabase/pg-topo` is not installed. `db diff` plans the migration with both, so it fails until they are.",
+      "The project runs the pg-delta workflow and a `package.json` script runs `better-supabase db diff`, but `@supabase/pg-delta` or `@supabase/pg-topo` is not installed. `db diff` plans the migration with both, so it fails until they are. A project that diffs with the Supabase CLI (`supabase db schema declarative sync`) never loads them, so it is not reported.",
     check: missingPeers,
   },
   {

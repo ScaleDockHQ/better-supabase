@@ -369,6 +369,36 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("takes an expense back to draft when its approval request is cancelled", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_request uuid;
+begin
+  insert into public.approvers values ('${BOB}');
+  ${as(BOB)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR', null, 'Taxi', employee_id => '${ALICE_EMPLOYEE}') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  v_request := (select r.id from better_supabase.approval_requests r where r.subject_id = v_id::text);
+  perform better_supabase.cancel_approval(v_request);
+  if ${status("v_id")} <> 'draft' then
+    raise exception 'cancel_approval left the expense %', ${status("v_id")};
+  end if;
+end;
+$$;`,
+        ["employees", "approvals", "expenses"],
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            options: { owner: "employee", standaloneApprovals: true },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("stamps the creator, keeps it from clients and keeps nobody out without one", async () => {
     await expect(
       run(`do $$

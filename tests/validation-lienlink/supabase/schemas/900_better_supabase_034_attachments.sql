@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@10 managed
--- @bsb-hash sha256:53f6f6d917c102eddd86dfd82b7d916ee3ad17e1a142a7946283a83746d7586e
+-- @bsb-hash sha256:643279cfa91652411a318f8df8106ce4d8543dc2b7255c79223f4e0e52c06683
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -352,7 +352,7 @@ set search_path = ''
 as $$
 begin
   return attachment_subject_readable.subject_type is null or case attachment_subject_readable.subject_type
-    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = attachment_subject_readable.subject_id and s."organization_id" = attachment_subject_readable.tenant)
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id" = (case when attachment_subject_readable.subject_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (attachment_subject_readable.subject_id)::uuid end) and s."organization_id" = attachment_subject_readable.tenant)
     else false
   end;
 end;

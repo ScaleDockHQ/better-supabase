@@ -37,10 +37,12 @@ export function modulePermissionKeys(
   config: AnyBlocksConfig,
   names: readonly string[],
   subjects?: BlockSqlLayout["subjects"],
+  actionKeys?: BlockSqlLayout["providerActionKeys"],
 ): BlockSqlPermissionKey[] {
   const layout: BlockSqlLayout = {
     modules: config,
     ...(subjects === undefined ? {} : { subjects }),
+    ...(actionKeys === undefined ? {} : { providerActionKeys: actionKeys }),
   };
 
   checkModules(config);

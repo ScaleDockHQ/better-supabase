@@ -4,9 +4,10 @@ import type { IntegrationName, SqlWorkflow } from "../config/index.ts";
 import type { PresetSpec } from "../preset/index.ts";
 import type { Framework } from "./project/detect.ts";
 
-import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
+import { blockList, groupEntries, INTEGRATION_INFO } from "../config/index.ts";
 import { PROVIDER_COMMENT } from "../preset/index.ts";
 import { schemaModulePath } from "./gen/emit.ts";
+import { isRecord } from "./guards.ts";
 import { INTEGRATIONS } from "./names.ts";
 import { nextAppFiles, nextPwaFiles } from "./templates-next.ts";
 
@@ -169,6 +170,11 @@ function functionServer(
 export const needsLib = (names: readonly Integration[]): boolean =>
   names.length === 0 || names.some((name) => name !== "edge" && name !== "mcp");
 
+/** The grouped `blocks` map as the list the config file holds. */
+function listed(blocks: unknown): unknown {
+  return isRecord(blocks) ? blockList(blocks) : blocks;
+}
+
 /**
  * The config keys `init` writes next to `preset`, from the convention flags and
  * prompts.
@@ -253,7 +259,7 @@ export default defineConfig({${
   }${keys.provider === true ? `\n${PROVIDER_COMMENT.join("\n")}` : ""}${
     grouped["blocks"] === undefined
       ? ""
-      : `\n  blocks: ${literal(grouped["blocks"])},`
+      : `\n  blocks: ${literal(listed(grouped["blocks"]))},`
   }
   // \`better-supabase gen\` runs every task this file sets up: types, then
   // sql, spec and seed when they are configured. Pin the list with

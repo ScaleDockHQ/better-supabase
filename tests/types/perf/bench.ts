@@ -301,10 +301,10 @@ function writeConfig(profile: Profile, contentMapper: boolean): void {
           : undefined,
       },
       auth: { tenant: { column: "organization_id" } },
-      blocks: {
-        "updated-at": {},
-        trash: { options: { deletedAt: "archived_at" } },
-      },
+      blocks: [
+        "updated-at",
+        { block: "trash", options: { deletedAt: "archived_at" } },
+      ],
     }),
   );
 }

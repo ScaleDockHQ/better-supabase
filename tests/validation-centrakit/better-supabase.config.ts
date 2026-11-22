@@ -35,17 +35,19 @@ export default defineConfig({
     },
   },
   // The record types comments attach to are @bsb subject tags in 000_centrakit.sql.
-  blocks: {
+  blocks: [
     // Tenant defaults that new organizations receive.
-    seeds: { api: false },
-    permissions: {
+    { block: "seeds", api: false },
+    {
+      block: "permissions",
       model: "provider",
       activeTenant: {
         profileColumn: "centrakit.profiles.active_organization_id",
         key: "user_id",
       },
     },
-    memberships: {
+    {
+      block: "memberships",
       tables: { memberships: "centrakit.organization_users" },
       columns: { memberships: { tenant: "organization_id", role: "role_id" } },
       options: {
@@ -110,7 +112,8 @@ export default defineConfig({
         ],
       },
     },
-    organizations: {
+    {
+      block: "organizations",
       tables: { organizations: "centrakit.organizations" },
       columns: { organizations: { createdBy: null, deletedAt: null } },
       callbacks: {
@@ -126,7 +129,8 @@ export default defineConfig({
         deleteMode: "lifecycle",
       },
     },
-    invitations: {
+    {
+      block: "invitations",
       tables: {
         invitations: "centrakit.organization_invitations",
         platformInvitations: "centrakit.organization_invitations",
@@ -155,14 +159,14 @@ export default defineConfig({
         },
       },
     },
-    profiles: {
+    {
+      block: "profiles",
       tables: { profiles: "centrakit.profiles" },
       columns: {
         profiles: {
           key: "user_id",
           fullName: null,
           avatar: "avatar_path",
-          activeTenant: "active_organization_id",
           onboarding: null,
         },
       },
@@ -176,15 +180,17 @@ export default defineConfig({
         metadata: { first_name: "first_name", last_name: "last_name" },
       },
     },
-    impersonation: {
+    {
+      block: "impersonation",
       permissions: {
         start: "platform.users.manage",
         read: "platform.users.manage",
       },
       // CentraKit's support staff start sessions alone; it has no second approver.
-      options: { auditCategory: "security", approval: "none" },
+      options: { approval: "none" },
     },
-    audit: {
+    {
+      block: "audit",
       tables: {
         log: "centrakit.audit_logs",
         restricted: "centrakit.audit_log_restricted_details",
@@ -229,7 +235,8 @@ export default defineConfig({
         },
       },
     },
-    outbox: {
+    {
+      block: "outbox",
       tables: { events: "centrakit.workflow_events" },
       columns: {
         events: {
@@ -245,7 +252,8 @@ export default defineConfig({
       idType: "uuid",
       options: { defaultSource: "domain", blockSource: "domain" },
     },
-    notifications: {
+    {
+      block: "notifications",
       schema: "better_supabase",
       tables: {
         events: "centrakit.notification_events",
@@ -276,7 +284,8 @@ export default defineConfig({
         channels: ["in_app", "email"],
       },
     },
-    webhooks: {
+    {
+      block: "webhooks",
       tables: {
         endpoints: "centrakit.webhook_destinations",
         secrets: "centrakit.webhook_destination_secrets",
@@ -318,7 +327,8 @@ export default defineConfig({
         },
       },
     },
-    credentials: {
+    {
+      block: "credentials",
       tables: { secrets: "centrakit.integration_credentials" },
       columns: {
         secrets: {
@@ -330,7 +340,8 @@ export default defineConfig({
         },
       },
     },
-    "incoming-webhooks": {
+    {
+      block: "incoming-webhooks",
       tables: { endpoints: "centrakit.inbound_webhooks" },
       columns: {
         endpoints: {
@@ -358,7 +369,8 @@ export default defineConfig({
         read: "webhook.view",
       },
     },
-    "webhook-inbox": {
+    {
+      block: "webhook-inbox",
       tables: { messages: "centrakit.inbound_webhook_events" },
       columns: {
         messages: {
@@ -372,13 +384,16 @@ export default defineConfig({
         },
       },
     },
-    numbering: {
+    {
+      block: "numbering",
       tables: { sequences: "centrakit.organization_number_sequences" },
     },
-    teams: {
+    {
+      block: "teams",
       tables: { teams: "centrakit.teams", members: "centrakit.team_members" },
     },
-    tags: {
+    {
+      block: "tags",
       tables: { tags: "centrakit.organization_tags", taggings: null },
       // CentraKit orders tags by an integer position, not rank keys.
       columns: { tags: { rank: null } },
@@ -396,11 +411,13 @@ export default defineConfig({
         },
       },
     },
-    "state-machine": {
+    {
+      block: "state-machine",
       tables: { history: "centrakit.status_history" },
       columns: { history: { actor: "actor_user_id" } },
     },
-    "custom-fields": {
+    {
+      block: "custom-fields",
       tables: {
         definitions: "centrakit.field_definitions",
         options: "centrakit.field_options",
@@ -408,7 +425,8 @@ export default defineConfig({
       },
       columns: { definitions: { rank: null }, options: { rank: null } },
     },
-    "share-links": {
+    {
+      block: "share-links",
       tables: {
         links: "centrakit.share_links",
         views: "centrakit.subject_views",
@@ -416,18 +434,20 @@ export default defineConfig({
       },
       columns: { links: { versionId: null } },
     },
-    reminders: {
+    {
+      block: "reminders",
       tables: {
         rules: "centrakit.recurrence_rules",
         reminders: "centrakit.reminders",
         deliveries: "centrakit.reminder_deliveries",
       },
     },
-    imports: { tables: { runs: "centrakit.import_runs" } },
+    { block: "imports", tables: { runs: "centrakit.import_runs" } },
     // CentraKit keeps no attachment rows, sort keys, soft deletes, drives,
     // mirrors, legal holds, locks, download blocks or previews on its tree, so
     // the drive adopts the tree and grants and leaves uploads to it.
-    drive: {
+    {
+      block: "drive",
       tables: {
         nodes: "centrakit.file_node",
         grants: "centrakit.file_node_grant",
@@ -461,27 +481,30 @@ export default defineConfig({
       },
       options: { roles: ["viewer", "commenter", "editor"] },
     },
-    "realtime-tables": {},
+    "realtime-tables",
     // CentraKit's provider lists no subjects key, so record teams use its
     // people.manage.
-    subjects: { permissions: { manage: "people.manage" } },
+    { block: "subjects", permissions: { manage: "people.manage" } },
     // Comments are messages on the messaging core; CentraKit's provider names
     // its comment permissions, so messaging checks those keys.
-    messaging: {
+    {
+      block: "messaging",
       permissions: {
         read: "comments.read",
         send: "comments.create",
         moderate: "comments.moderate",
       },
     },
-    comments: {
+    {
+      block: "comments",
       permissions: {
         read: "comments.read",
         create: "comments.create",
         moderate: "comments.moderate",
       },
     },
-    attachments: {
+    {
+      block: "attachments",
       on: {
         task: { table: "centrakit.tasks", idType: "uuid", cascade: true },
         project: {
@@ -497,11 +520,11 @@ export default defineConfig({
         },
       },
     },
-    "data-lifecycle": {
+    {
+      block: "data-lifecycle",
       options: {
         autoTables: {
           schemas: ["centrakit"],
-          tenant: "organization_id",
           user: "created_by",
           exclude: [
             "centrakit.audit_*",
@@ -527,10 +550,14 @@ export default defineConfig({
         ],
       },
     },
-    "api-keys": { options: { scopes: "catalog" } },
-    sessions: { options: { policies: true, exclude: ["centrakit.roles"] } },
-    "jsonb-schemas": {},
-    settings: {
+    { block: "api-keys", options: { scopes: "catalog" } },
+    {
+      block: "sessions",
+      options: { policies: true, exclude: ["centrakit.roles"] },
+    },
+    "jsonb-schemas",
+    {
+      block: "settings",
       options: {
         schemas: {
           user: {
@@ -543,5 +570,5 @@ export default defineConfig({
         },
       },
     },
-  },
+  ],
 });

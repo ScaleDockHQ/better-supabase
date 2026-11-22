@@ -50,16 +50,23 @@ export type JsonSchemaSource =
       };
     };
 
-export type JsonTypeConfig = (
-  | { readonly import: string }
-  | { readonly type: string }
-) & {
-  /**
-   * Enforced in the database by `better-supabase add jsonb-schemas`
-   * (pg_jsonschema).
-   */
-  readonly schema?: JsonSchemaSource;
-};
+export type JsonTypeConfig =
+  | (({ readonly import: string } | { readonly type: string }) & {
+      /**
+       * Enforced in the database by `better-supabase add jsonb-schemas`
+       * (pg_jsonschema). A JSON Schema, a Standard JSON Schema value, or a
+       * module reference (`"./schemas.ts#name"`) the CLI loads.
+       */
+      readonly schema?: JsonSchemaSource | string;
+    })
+  | {
+      /**
+       * A module reference (`"./schemas.ts#name"`) to a Standard Schema. The
+       * CLI loads it for the pg_jsonschema check and types the column as the
+       * schema's output, so one export holds both.
+       */
+      readonly schema: string;
+    };
 
 export interface TableConfig {
   readonly casing?: Casing;

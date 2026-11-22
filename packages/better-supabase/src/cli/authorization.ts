@@ -301,6 +301,9 @@ export function accessProviderMode(
         ? { operations: provider.operations }
         : {}),
       sqlCompleteKeys: sqlCompleteKeys(provider),
+      ...(provider.tokenHook === undefined
+        ? {}
+        : { tokenHook: { function: provider.tokenHook.function } }),
       ...(ownsPermissionsClaim(provider, config.claims?.permissions)
         ? { ownsPermissions: true }
         : {}),
@@ -483,6 +486,98 @@ export function moduleKeyProblems(
       },
     ];
   });
+}
+
+/** A permission key a config setting, tag or operation hands to the provider. */
+export interface CatalogKeyUse {
+  readonly key: string;
+  /** The setting that names it, such as `authorization.operations.x.permission`. */
+  readonly target: string;
+  /** What checks it, such as `The mcp.tool.search operation`. */
+  readonly checker: string;
+}
+
+/**
+ * The module key check for keys that do not come from a block: operations,
+ * `actionKeys` for buckets and topics, and `@bsb access` tags. Same statuses,
+ * same wording: only `sqlComplete: true` passes.
+ */
+export function catalogKeyProblems(
+  provider: AuthorizationProvider,
+  uses: readonly CatalogKeyUse[],
+): BlockSqlKeyProblem[] {
+  if (!provider.permissions) {
+    return [];
+  }
+
+  return uses.flatMap((use): BlockSqlKeyProblem[] => {
+    const problem = unsafeKey(provider, use.key);
+
+    if (!problem) {
+      return [];
+    }
+
+    const fix =
+      problem.status === "incomplete"
+        ? `The provider's SQL functions check role and scope, not the key's other conditions, so it would grant everywhere in the scope. Set ${use.target} to a permission marked sqlComplete: true.`
+        : `${problem.fix} If the provider doesn't define it, set ${use.target} to a key it lists.`;
+
+    return [
+      {
+        target: use.target,
+        message: `${use.checker} checks "${use.key}" with ${providerLabel(provider)}'s SQL functions, but it ${problem.reason}. ${fix}`,
+      },
+    ];
+  });
+}
+
+/** The `@bsb access` tag's key check for `provider`, or none without one. */
+export function tagKeyProblem(
+  provider: AuthorizationProvider | undefined,
+): ((key: string) => string | undefined) | undefined {
+  if (provider?.permissions === undefined) {
+    return undefined;
+  }
+
+  return (key) =>
+    catalogKeyProblems(provider, [
+      { key, target: "the @bsb access tag", checker: "The @bsb access tag" },
+    ])[0]?.message;
+}
+
+/**
+ * The keys `operations` and `actionKeys` (buckets, topics) hand to the
+ * provider.
+ */
+export function providerKeyUses(
+  provider: AuthorizationProvider,
+): CatalogKeyUse[] {
+  const operations = Object.entries(provider.operations ?? {}).map(
+    ([name, operation]): CatalogKeyUse => ({
+      key: operation.permission,
+      target: `authorization.operations.${name}.permission`,
+      checker: `The ${name} operation`,
+    }),
+  );
+
+  const keys = provider.actionKeys;
+
+  const groups = [
+    ["buckets", keys?.buckets],
+    ["topics", keys?.topics],
+  ] as const;
+
+  const mapped = groups.flatMap(([group, entries]) =>
+    Object.entries(entries ?? {}).flatMap(([name, actions]) =>
+      Object.entries(actions).map(([action, key]): CatalogKeyUse => ({
+        key,
+        target: `authorization.actionKeys.${group}.${name}.${action}`,
+        checker: `The ${name} ${group === "buckets" ? "bucket" : "topic"} (${action})`,
+      })),
+    ),
+  );
+
+  return [...operations, ...mapped];
 }
 
 /**

@@ -86,13 +86,18 @@ describe("add --preset --adopt on the CRM schema", () => {
 
   it("maps profiles onto user_id and the CRM's organization_id tenant column", async () => {
     const { blocks } = (await committed()) as {
-      blocks: Record<string, { columns?: unknown }>;
+      blocks: ({ block: string; columns?: unknown } | string)[];
     };
 
-    expect(blocks["profiles"]?.columns).toMatchObject({
+    const entry = (name: string) =>
+      blocks.find(
+        (candidate) => (candidate as { block?: string }).block === name,
+      ) as { columns?: unknown } | undefined;
+
+    expect(entry("profiles")?.columns).toMatchObject({
       profiles: { key: "user_id" },
     });
-    expect(blocks["teams"]?.columns).toEqual({
+    expect(entry("teams")?.columns).toEqual({
       teams: { tenant: "organization_id" },
       members: { employee: null, tenant: "organization_id" },
     });
@@ -134,13 +139,27 @@ describe("add --preset --adopt on the CRM schema", () => {
 
     // The CRM's tables keep their names: adopted tables are named in the
     // config, and only the managed blocks' default names follow blocks.memberships.entities.
-    const { blocks } = (await committed()) as { blocks: BlocksConfig };
+    const { blocks } = (await committed()) as {
+      blocks: ({ block: string } | string)[];
+    };
+
+    const entry = (name: string) => {
+      const found = blocks.find(
+        (candidate) => (candidate as { block?: string }).block === name,
+      ) as { block: string } | undefined;
+
+      return found === undefined
+        ? undefined
+        : Object.fromEntries(
+            Object.entries(found).filter(([key]) => key !== "block"),
+          );
+    };
 
     expect(data.adopted).toEqual({
-      permissions: blocks.permissions,
-      organizations: blocks.organizations,
-      profiles: blocks.profiles,
-      teams: blocks.teams,
+      permissions: entry("permissions"),
+      organizations: entry("organizations"),
+      profiles: entry("profiles"),
+      teams: entry("teams"),
     });
   });
 

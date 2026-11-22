@@ -7,16 +7,23 @@ import type {
   AppTableEvents,
   JsonTypeConfig,
   ResolvedConfig,
+  ResolvedExpose,
   SubjectConfig,
   VectorDistance,
 } from "../../config/index.ts";
+import type { LifecycleFact } from "../../sql/index.ts";
 
 import {
   APP_COLUMN_TYPES,
   APP_TABLE_EVENT_KINDS,
   blockSubjectTypes,
 } from "../../config/index.ts";
-import { parseBsbComment } from "../../sql/index.ts";
+import {
+  grantExpose,
+  grantTag,
+  lifecycleTag,
+  parseBsbComment,
+} from "../../sql/index.ts";
 import { subjectFromTag } from "../subject-tag.ts";
 
 /** The part of a table a tag reader needs: its name and comment. */
@@ -64,6 +71,54 @@ function textArgs(
       typeof value === "string" ? [[key, value]] : [],
     ),
   );
+}
+
+/** A tag that doesn't parse is ignored here, and doctor reports it (BS703). */
+function safely<T>(read: () => T): T | undefined {
+  try {
+    return read();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The `data-lifecycle` block with `fact` as the `options.tables` entry of
+ * `table`, unless the config has one or sets `tables: "auto"`.
+ */
+function withLifecycleTable(
+  blocks: AnyBlocksConfig,
+  installed: boolean,
+  table: string,
+  fact: LifecycleFact | undefined,
+): AnyBlocksConfig {
+  const current = blocks["data-lifecycle"];
+
+  if (!installed || fact === undefined) {
+    return blocks;
+  }
+
+  const tables: unknown = current?.options?.["tables"];
+
+  if (
+    tables === "auto" ||
+    (typeof tables === "object" && tables !== null && table in tables)
+  ) {
+    return blocks;
+  }
+
+  const existing =
+    typeof tables === "object" && tables !== null && !Array.isArray(tables)
+      ? Object.fromEntries(Object.entries(tables))
+      : {};
+
+  return {
+    ...blocks,
+    "data-lifecycle": {
+      ...current,
+      options: { ...current?.options, tables: { ...existing, [table]: fact } },
+    },
+  };
 }
 
 /** The `on` object of block `name` with `entry` for `type`, unless it has one. */
@@ -118,6 +173,7 @@ export function withTableTags(
     ...config.tables,
   };
 
+  const expose: Record<string, ResolvedExpose> = { ...config.expose };
   const fromTags = new Set<string>();
   const eventTables = new Set<string>();
 
@@ -155,7 +211,31 @@ export function withTableTags(
     const names = new Set([short, qualified]);
 
     for (const tag of tags) {
-      if (tag.name === "subject") {
+      if (tag.name === "data-lifecycle") {
+        const next = withLifecycleTable(
+          blocks,
+          config.blockNames.includes("data-lifecycle"),
+          short,
+          safely(() => lifecycleTag(table.comment)),
+        );
+
+        changed ||= next !== blocks;
+        blocks = next;
+      } else if (tag.name === "grant") {
+        const fact = safely(() => grantTag(table.comment));
+
+        if (
+          fact !== undefined &&
+          [...names].every((name) => expose[name] === undefined)
+        ) {
+          const resolved = safely(() => grantExpose(short, fact));
+
+          if (resolved !== undefined) {
+            expose[short] = resolved;
+            changed = true;
+          }
+        }
+      } else if (tag.name === "subject") {
         const type = text(tag.args["type"]) ?? table.name;
         const block = blockTypes.get(type);
 
@@ -168,6 +248,17 @@ export function withTableTags(
         if (subjects[type] === undefined) {
           subjects[type] = subjectFromTag(tag.args, short);
           changed = true;
+        }
+
+        // `blocks=tags,time-entries` names the blocks that take the type, so
+        // the config doesn't repeat it in each block's `on`.
+        for (const name of (text(tag.args["blocks"]) ?? "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter((item) => item !== "")) {
+          const next = bindOn(blocks, name, type, {});
+          changed ||= next !== blocks;
+          blocks = next;
         }
       } else if (
         tag.name === "realtime" &&
@@ -445,6 +536,7 @@ export function withTableTags(
           : {}),
         blocks,
         subjects,
+        expose,
         vectorSearch,
         json,
         appTables,

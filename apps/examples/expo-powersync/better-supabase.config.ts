@@ -21,25 +21,33 @@ export default defineConfig({
       instances: ["notifications", "memberships", "teams", "profiles"],
     },
   },
-  blocks: {
-    memberships: { api: false, tables: { memberships: "public.memberships" } },
-    organizations: { tables: { organizations: "public.organizations" } },
-    permissions: { model: "catalog", activeTenant: "claim" },
-    comments: {},
-    tags: {},
-    notifications: {},
-    teams: {},
-    profiles: {},
+  blocks: [
+    {
+      block: "memberships",
+      api: false,
+      tables: { memberships: "public.memberships" },
+    },
+    {
+      block: "organizations",
+      tables: { organizations: "public.organizations" },
+    },
+    { block: "permissions", model: "catalog", activeTenant: "claim" },
+    "comments",
+    "tags",
+    "notifications",
+    "teams",
+    "profiles",
     // A role change bumps the user's authorization version. The native
     // SessionProvider hears it on authz:<uid>, refreshes the token and
     // reconnects PowerSync, so the sync service drops the rows they lost.
     // `bootstrap` names better_supabase.bootstrap_islands, which the web
     // activity loader reads in one call.
-    sessions: {
+    {
+      block: "sessions",
       options: {
         authzVersions: true,
         bootstrap: { islands: "public.island_counts" },
       },
     },
-  },
+  ],
 });

@@ -123,6 +123,35 @@ function entriesOf(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): readonly SameTenant[] {
+  const fromConfig = configEntries(ctx, layout);
+  const tags = layout.sameTenantTags;
+
+  if (tags === undefined || ctx.option("sameTenant") === false) {
+    return fromConfig;
+  }
+
+  const fallback = ctx.col("memberships", "tenant").replaceAll('"', "");
+  const tagged = parseEntries(tags.entries, fallback, "@bsb same-tenant");
+
+  const own = new Set([
+    ...tagged.map((entry) => `${entry.table}.${entry.column}`),
+    ...tags.skip.map((name) => {
+      const dot = name.lastIndexOf(".");
+
+      return `${quotedTable(name.slice(0, dot))}.${name.slice(dot + 1)}`;
+    }),
+  ]);
+
+  return [
+    ...fromConfig.filter((entry) => !own.has(`${entry.table}.${entry.column}`)),
+    ...tagged,
+  ];
+}
+
+function configEntries(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): readonly SameTenant[] {
   const value = ctx.option("sameTenant");
 
   if (value === false) {

@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@6 managed
--- @bsb-hash sha256:96ff2fffb206482c1b4e6542e526c595fc496981766c90e0fd076c4ecbc40192
+-- @bsb-hash sha256:bf3a05826e58a637d10a6b75f5e5b80f5803183db5dfdb58c02b7589f81b9e36
 -- @bsb-names tasks task=work_item/work_items
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1361,6 +1361,7 @@ declare
   v_child uuid;
   v_copy jsonb;
   v_users uuid[];
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1369,7 +1370,11 @@ begin
   if not found then
     raise exception 'no such work item' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'tasks.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_work_item.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'TASK_FORBIDDEN';
   end if;
   declare
@@ -1381,7 +1386,7 @@ begin
     end if;
   end;
   select coalesce(array_agg(ra."user_id"), '{}') into v_users from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = v_src."id";
-  v_created := "better_supabase"."create_work_item"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
+  v_created := "better_supabase"."create_work_item"(v_tenant, jsonb_strip_nulls(jsonb_build_object(
     'title', v_src."title",
     'body', v_src."body",
     'parentId', v_src."parent_id",
@@ -1393,10 +1398,10 @@ begin
   )) || (coalesce(clone_work_item.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), v_users);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "rank")
-  select c."tenant_id", v_id, c."title", false, c."rank"
+  select v_tenant, v_id, c."title", false, c."rank"
   from "better_supabase"."work_item_checklist_items" c where c."work_item_id" = clone_work_item.source;
   insert into "better_supabase"."taggings" ("tenant_id", "tag_id", "subject_type", "subject_id")
-  select g."tenant_id", g."tag_id", g."subject_type", v_id::text
+  select v_tenant, g."tag_id", g."subject_type", v_id::text
   from "better_supabase"."taggings" g
   where g."subject_type" = 'work_item' and g."subject_id" = clone_work_item.source::text;
   for v_child in select c."id" from "better_supabase"."work_items" c where c."parent_id" = clone_work_item.source loop

@@ -1,0 +1,359 @@
+---
+title: From 0.81 to 0.82
+description: What to change when upgrading from better-supabase 0.81 to 0.82. The blocks list, project-level defaults, config the render already supplies, and authorization facts that move into the provider.
+---
+
+0.82 shrinks the config. Facts the project, the schema files or the
+authorization provider already state are no longer written twice. It is a minor
+release, and below 1.0 a minor version may carry breaking changes. Each change
+is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+Run the codemods in this order, then review the diff and the render:
+
+```bash
+pnpm better-supabase codemod blocks-list
+pnpm better-supabase codemod config --prune
+pnpm better-supabase gen sql
+```
+
+| Section                                                                   | Needs code                           |
+| ------------------------------------------------------------------------- | ------------------------------------ |
+| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`            |
+| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column   |
+| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`         |
+| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider |
+| [Record types](#record-types)                                             | Run `codemod record-types`           |
+| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`             |
+| [Schemas by module reference](#schemas-by-module-reference)               | None                                 |
+| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`        |
+
+## What the codemods did to CentraKit
+
+`scripts/cutover-report.ts` copies a project, renders it with the 0.81 baseline, runs the
+codemods in the order above, and renders again with this release. For CentraKit it
+reported these config lines per top-level key of `better-supabase.config.ts`.
+
+| Section       | Before | After |
+| ------------- | -----: | ----: |
+| `blocks`      |   2930 |  2816 |
+| preamble      |    239 |   239 |
+| `recordTypes` |    225 |   225 |
+| `database`    |    174 |   104 |
+| `gen`         |     54 |    21 |
+| `auth`        |     27 |    27 |
+| `tooling`     |      7 |     7 |
+| **Total**     |   3656 |  3439 |
+
+The target of 3000 lines is not met: 439 lines remain, 2816 of them in `blocks`, led by
+`memberships` (274), `calendar` (123), `invoices` (116), `audit` (112) and `data-lifecycle` (105). Those
+entries hold values that differ from the defaults (column names, options, hooks), so no codemod can
+remove them. Reaching 3000 needs the app to drop options it no longer uses (doctor BS707 lists them)
+or to move more facts into the provider and the schema comments.
+
+The render differs in 15 files. The expected changes are the tax code index, the cancel hooks, the
+numbering default, template clone and import functions, and the render comments. Twelve files carry
+other changes from block updates between the two builds that the report's allowlist does not name; read them in the diff before you deploy.
+Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
+field helpers, the `gen.functions` section, and the two import runner files.
+
+## The blocks list
+
+`blocks` is a list of block names and `{ block, name?, ...entry }` objects. The
+keyed object form is rejected when the config loads, with a hint to run the
+codemod. A block with nothing to configure is a plain name.
+
+| 0.81                                               | 0.82                                                   |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| `blocks: { tags: {} }`                             | `blocks: ["tags"]`                                     |
+| `blocks: { comments: { api: "api" } }`             | `blocks: [{ block: "comments", api: "api" }]`          |
+| `blocks: { "ops-tasks": { block: "tasks", ... } }` | `blocks: [{ block: "tasks", name: "ops-tasks", ... }]` |
+
+`codemod blocks-list` keeps comments and key order. It writes nothing when the
+file already holds a list, and `--check` exits 1 while a file still needs it.
+
+## Project-level defaults
+
+These facts are set once under `database.sql` and every block that needs one
+reads it.
+
+| 0.81                                                                       | 0.82                                             |
+| -------------------------------------------------------------------------- | ------------------------------------------------ |
+| `tenant: "org_id"` on each table, data-lifecycle table and tag link        | `database.sql.tenantColumn: "org_id"`            |
+| `numbering` entry without a tenant column uses `organization_id`           | the entry uses `sql.tenantColumn` when it is set |
+| `format: "{n}"`, `period: "none"`, `column: "number"` on each entity       | the same values are the defaults; remove them    |
+| `brand: { table, column }` on each templates, option set or pipeline block | `database.sql.brand: { table, column, tenant? }` |
+
+The numbering tenant default changes from `organization_id` to
+`sql.tenantColumn`. An app whose numbering entity set no tenant column and
+whose project column differs sees the render change: run `gen sql` and read the
+diff before you deploy.
+
+## Config the render already supplies
+
+`codemod config --prune` removes each entry that `doctor` reports as BS427:
+identity column mappings, empty maps, a tenant that repeats `sql.tenantColumn`,
+an `api` or `audit` equal to `sql`'s, a permission key equal to the one the
+block would use, an option equal to its default, and the numbering values above.
+It renders the blocks with the old and the new config and writes nothing when a
+generated file differs. It removes the entries in batches and halves a batch
+whose render changes or throws, so it lists the block groups it kept and why
+instead of stopping at the first entry another option needs.
+
+| 0.81                                                                  | 0.82                                  |
+| --------------------------------------------------------------------- | ------------------------------------- |
+| `columns: { tasks: { title: "title" } }`                              | removed; the column has the same name |
+| `tenant: "org_id"` equal to `sql.tenantColumn`                        | removed                               |
+| `api: "api"` equal to `database.sql.api`                              | removed                               |
+| `permissions: { read: "tasks.read" }` equal to the key the block uses | removed                               |
+| `options.feed.names: false` equal to the default                      | removed                               |
+
+## Provider fields
+
+An `AuthorizationProvider` can now state the permission keys, the approvers and
+the approval floors that the config used to repeat. Every field is optional, so
+a provider that sets none of them keeps working.
+
+| 0.81                                                   | 0.82                                                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `blocks.<name>.permissions` in every app               | `actionKeys.blocks.<name>` in the provider; the config entry still wins   |
+| `subjects.<type>.permissions` in every app             | `actionKeys.recordTypes.<type>`                                           |
+| bucket and topic keys written in policies              | `actionKeys.buckets` and `actionKeys.topics`, checked by `gen` and doctor |
+| `options.decider` on leave, expenses and time entries  | `functions.approverFor` with `{kind}` and `{id}`; the option still wins   |
+| manager chains read from the employees block           | `functions.managedUsers`, read next to the employees manager              |
+| `options.policies.<subjectType>.<action>` on approvals | `operations["<subjectType>:<action>"].approval`; the option still wins    |
+
+`codemod config --prune` removes a `permissions` entry that equals the
+provider's `actionKeys`. Drop `options.decider` by hand once the provider
+supplies `approverFor`: the codemod can't know the function does the same.
+
+`gen sql` and doctor (BS411) now check the keys of operations, bucket and topic
+`actionKeys` and `@bsb access` tags the way they check module keys, and refuse
+a key the provider does not mark `sqlComplete: true`. Doctor reports at info
+level when leave, expenses or time entries are installed and the provider sets
+no `approverFor` or `managedUsers`.
+
+`actionKeys.buckets` and `actionKeys.topics` are typed and checked only. The
+storage and realtime policies are code in your schema files, so they do not
+read the map.
+
+## Record types
+
+A record type is declared once, in `recordTypes` or with `@bsb subject`, and
+the blocks read it from there.
+
+| Before                                                             | After                                                     |
+| ------------------------------------------------------------------ | --------------------------------------------------------- |
+| `on` repeats the table, id and tenant for each block               | `on: ["task"]`; the registry supplies them                |
+| `idType` on every record type                                      | read from the schema files for `uuid` and integer ids     |
+| `tags.on.<type>.links: { table, subject, tag }`                    | inferred from the foreign keys into the type and the tags |
+| `time-entries.on.<type>.column`                                    | inferred from the foreign key into the type's table       |
+| a type named `time-entry` in `on` and `time_entry` in the registry | one name; `alias` sets the name stored and sent           |
+
+An explicit `links` or `column` entry wins. When more than one foreign key or
+link table could match, the render fails and lists them, so you name the one to
+use. `codemod config --prune` removes a `links` or `column` entry that equals
+what the foreign keys give.
+
+`recordTypes.<type>.alias` is the wire name: the value stored in `subject_type`
+columns and sent to the client. The registry key stays the name in your config
+and code. An alias is lowercase letters, digits, hyphens and underscores, and
+no two types may share a wire name.
+
+`@bsb subject blocks=tags,time-entries` adds the type to the `on` of each
+installed block it names.
+
+`codemod record-types` rewrites the names in `blocks.<name>.on` that differ from
+a registered type only by `-` and `_`, or that are its alias, as the registered
+name. Doctor rule BS346 suggests it when a name matches after that change.
+
+An inferred `uuid` or integer id type casts a stored text id only when the id
+has that type's shape, so a malformed id reads as not found instead of raising.
+
+## Table facts in comments
+
+Four facts about one table now sit in a `comment on table` next to the table,
+where a review of the schema shows them. The config entry still works. For
+audit, data lifecycle and privileges it wins when both exist; a `same-tenant`
+tag replaces the entries for its column.
+
+| Fact                | Config in 0.81                                     | Comment in 0.82                                      |
+| ------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Audit exemption     | `blocks.audit.options.exempt: [{ table, reason }]` | `@bsb audit-exempt reason="rebuilt nightly"`         |
+| Data lifecycle      | `blocks.data-lifecycle.options.tables.<table>`     | `@bsb data-lifecycle user=owner_id export=false`     |
+| Data API privileges | `database.expose.<table>`                          | `@bsb grant authenticated="select,update(title)"`    |
+| Same-tenant check   | `blocks.memberships.options.sameTenant` entry      | `@bsb same-tenant match=region=region` on the column |
+
+```sql
+comment on table public.invoices is '@bsb data-lifecycle user=owner_id; grant authenticated=select';
+comment on column public.tasks.project_id is '@bsb same-tenant';
+```
+
+One `@bsb` starts the tag block, and `;` separates the tags in it.
+
+`audit-exempt` needs a reason, and doctor rule BS315 reports a tag without one.
+`grant` on a table a block adopts exposes the table, so the block only enables
+row level security on it and the `grants` module writes the privileges.
+
+`codemod table-tags` writes the comments into the schema file that creates each
+table and removes the config entries. A fact whose table no schema file creates,
+or whose comment already holds the tag, stays in the config and is listed.
+`same-tenant` entries stay in the config: move them by hand. A
+`blocks.memberships.options.sameTenant` entry can carry `where`, `match`, `hops`,
+`deferrable` and `shared`, and the codemod cannot show that the one-line tag
+renders the same trigger for each of them, so it moves none. A baseline entry
+for BS315 is not moved either: the baseline lists accepted findings, not
+exemptions, so add the `audit-exempt` tag with its reason instead. Doctor rule BS702
+lists the facts a comment can hold, and BS703 reports a tag that cannot take
+effect.
+
+## Schemas by module reference
+
+A `gen.json` column and a `blocks.settings.options.schemas` entry can name an
+exported Standard Schema as `"./schemas.ts#name"`. The CLI loads the export,
+reads its JSON Schema for the pg_jsonschema check, and types the column as its
+output, so the config no longer imports a schema library or repeats the type.
+
+| 0.81                                                                           | 0.82                                                  |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| `json: { "t.c": { import: "./s.ts#C", schema: C } }` with `import { C }` above | `json: { "t.c": { schema: "./s.ts#C" } }`             |
+| `schemas: { user: { theme: theme } }` with the schema imported                 | `schemas: { user: { theme: "./settings.ts#theme" } }` |
+
+An inline JSON Schema and a schema value still work, and `import` or `type` still
+set a different column type. No codemod moves these: the inline form has no name
+to point at. Doctor rule BS704 reports an inline schema that an exported schema
+in a module the `standardSchema()` generator names already produces.
+
+## Doctor
+
+`tooling.doctor.baseline` accepts a grouped form next to the flat one. A group
+names the code, one reason and every target it covers, so a hundred accepted
+findings read as a few lines.
+
+```json
+[
+  {
+    "code": "BS112",
+    "reason": "Helpers the access module calls; checked in review",
+    "targets": ["public.a", "public.b"]
+  }
+]
+```
+
+An entry with an empty reason is an error, and a stale entry is still reported.
+`doctor --update` is an alias of `--update-baseline`, and it writes the grouped
+form when the file is already grouped. `codemod doctor-baseline` rewrites a
+`{ "BS112": { "reason": "...", "targets": [] } }` file into the grouped list.
+
+An authorization provider can set `doctor: { command: [...] }`. Doctor runs it in
+the project root and reports its JSON findings as BS705, so the baseline can
+accept them.
+
+Rules that were wrong now agree with the code:
+
+| Rule  | Change                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BS112 | Comments and strings never count as a call, an unqualified call to a provider function is a check, and a wrapper over a checked app function passes     |
+| BS116 | A helper a policy reaches through another helper, a trigger function and a function the provider's templates name count as uses                         |
+| BS352 | A trigger whose body calls `better_supabase.field_seal` counts as sealing, with no `sealTriggers` entry                                                 |
+| BS365 | Table names are normalized, a policy with no `for` clause is `for all`, every app file is read, and the finding targets the table                       |
+| BS239 | Fires only when a `package.json` script runs `better-supabase db diff`; a Supabase CLI declarative project never loads pg-delta's library               |
+| BS217 | A same-tenant trigger, generated or an app trigger that BS398 accepts, satisfies it; an info finding recommends the composite key where a unique exists |
+
+BS706 warns about a shim of a feature the library ships: a seal trigger beside
+`field-encryption`, a `decider` option where the provider has `approverFor`,
+`approvals: false` with `standaloneApprovals`, and an app file that redefines a
+block function.
+
+## Generators
+
+BS244 now names the five largest blocks by generated SQL size when the module SQL passes 2 MB, so you
+can see which block to install in a smaller form or leave out.
+
+Four generator items from the 0.82 plan did not change code, and the reasons are on record for the ADR:
+
+- **Insert optionality.** `columnsSchema` already reads `not null default` from each column's type text, and a column
+  with a default is optional on insert and required on output. The type test in `tests/core/columns-schema.test.ts`
+  covers it, so there is nothing upstream left to fix.
+- **Empty `saas`, `finance` and `recruiting` slices.** Loading the validation-centrakit config and rendering every
+  block slice produces no slice with an empty composite for those names. The composite entry is only built when
+  every part is installed, so the slice did not reproduce.
+- **`better-supabase sql size`.** The `sql` engine is internal (reached through `add`, `upgrade`, `blocks` and
+  `gen`), so there is no such command to extend. The per-block breakdown lives in the existing size checks.
+
+Block function not-null results are declared in the block manifests (announcements, settings and webhooks list
+their eleven client functions), and `gen` reads them after the function's own `@notNull` tag and before it infers from the function source.
+`gen.functions.<name>.notNull` stays the override that wins, so the order is config, tag, block, inference. `codemod config --prune` and doctor BS427 report a
+`gen.functions` entry whose `notNull` repeats what the block declares, so the entry can be deleted.
+
+Every block slice exports `fields`, built from the block's columns plus the `@bsb fields` and adopted extra
+columns, so a `not null default` column is optional on insert. The new `tests/cli/gen/block-fields.test.ts` covers
+expenses, leave, catalog, tasks, time-entries, teams and flags. The "configured schema generator" is the Standard
+Schema one `columnsSchema` builds, so no separate generator option exists. `tests/blocks/generated-fields.test-d.ts`
+checks the insert types: a `not null` column without a default is required, any other column is optional. Delete
+your hand-written field schemas and `insertableFields` helper, and `blocks.<name>.using((options) => ...)` receives
+the generated `fields` in `options`.
+
+A disabled feature renders no SQL. `blocks.inventory.tables.allocations: null` drops the stock allocation table,
+its eleven functions, the import target and the contract entries (599 fewer lines). `blocks.accounting.tables.budgets: null`
+or `budgetLines: null` drops the budgets table, the four budget functions and their contract entries (232 fewer
+lines). Inventory and invoices already gated their other optional tables: turning off the e-invoice and dunning tables of
+invoices drops 823 of 4634 rendered lines.
+
+Doctor BS707 (info) lists `blocks.<name>.columns` entries that no enabled feature reads. The render records each
+`table.column` it reads, so an entry for a feature that is off is reported with the block, table and column. The
+report names the block, table, column and what gates it: `tables.<table>: null` when the config switched the table
+off, `options.<name>` when rendering again with that boolean option on makes the block read the column, or
+`no option found`.
+
+Doctor BS708 (info) lists the generated SQL of each installed block in kilobytes, largest first, and
+`doctor --json` carries it under that code. It replaces the idea of a `sql size` command.
+
+## Block fixes
+
+**Tax.** `tax_codes` gets a unique index on `(id, tenant_id)` and `tax_rates` a composite foreign key from
+`(tax_code_id, tenant_id)`, so a rate cannot point at another tenant's code. The tax block is now version 2.
+`better-supabase upgrade` adds the index and the key as `not valid`, so old rows never block the upgrade. Run
+`alter table <schema>.tax_rates validate constraint tax_rates_tenant_code_fkey` once after you have checked that
+no rate belongs to a code of another tenant.
+
+**Cancelling an approval.** `cancel_approval` now reaches expenses and time entries, as it already did for
+leave. A submitted standalone expense goes back to draft (as `withdraw_expense` does) and a submitted week kept in
+a status column is open again (as `withdraw_timesheet` does); a decided one stays as it is. Expense reports and
+weeks whose status follows the approval request already read a cancelled request as a draft or open week, so
+they need no hook. The new functions are `expense_approval_cancelled` and `timesheet_approval_cancelled`, which
+`add` and `upgrade` write into your schema files without a version bump, because `create or replace` covers them.
+
+**Email to people who are not members.** Set `options.externalRecipients` on `notifications` and
+`send_notification` takes an `external` list of `{ address }` or `{ contact }` entries, reached on the email
+channel through the same claim and bounce suppression as members. A contact resolves through your
+`resolveAddress` function. It is off by default, because it makes the recipient `user` column nullable.
+
+**Import runner.** Five gaps that apps worked around with their own copy of the functions are closed, each in
+`create or replace` functions that `add` and `upgrade` rewrite without a version bump. A dry run now keeps its
+conflict and error rows in `list_import_issues`, which the rolled-back batch used to take with it, and cancelling
+a dry run removes its stored chunks and issue rows. `import_apply_batch` reads the record map of a whole batch in
+one query instead of one query per item. `enqueue_import_chunks` sends a failed chunk back to pending with a new
+job, so calling it again retries what failed. `import_supplier_item` takes the supplier from a `supplier` or
+`customer` ref when `supplierId` is missing. The import gaps note the plan names was not in the repository, so
+these five follow the plan's wording; compare them with your override before you delete it.
+
+**Template clones.** `instantiate_template` now checks the apply permission of the target tenant before it
+clones, passes that tenant to the clone as `overrides.tenantId`, and `clone_invoice`, `clone_quote` and
+`clone_task` copy every header column the table has, not only the title and currency. A clone into another tenant
+is allowed only for a row a template owns or for the service role, so a user cannot copy a row from a tenant they
+cannot read. These are `create or replace` changes, so `add` and `upgrade` need no version bump.
+
+**Audit statement trigger and squash.** With the restricted table, the statement-level audit trigger matches each
+restricted row to its entry by record and operation instead of by the order `RETURNING` emits, which SQL does not
+promise. A log without a record or op column keeps the order match. `db squash` stamps the kept data migrations with
+`stampAfter` over the whole migrations folder, so a baseline stamped later than the CLI's clock no longer shares a
+stamp with the data. A test now lists the tenant tables that declare no `lifecycle` (35 today, the data-lifecycle
+module's own tables among them) and fails when the list grows.
+
+**Fake client filters.** A second filter on the same column used to replace the first, so `.gte("price", 1).lte("price", 5)`
+recorded only the upper bound. The fake client now records both in an `and` query parameter (`and=(price.gte.1,price.lte.5)`),
+also for two `or` groups. List values that hold a comma are quoted and objects are written as JSON for `contains`. It adds
+`textSearch`, `rangeGt`, `rangeGte`, `rangeLt`, `rangeLte`, `rangeAdjacent`, `isDistinct`, `likeAnyOf`, `likeAllOf`,
+`ilikeAnyOf` and `ilikeAllOf`. The plan 057 note that lists B15 is not in the repository, so this is what reproduced
+against supabase-js; a handler that read `query.price` for a range now reads `query.and`.

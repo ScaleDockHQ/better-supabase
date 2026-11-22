@@ -1,4 +1,6 @@
 import type {
+  AuthorizationActionKeys,
+  AuthorizationApproval,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
@@ -104,6 +106,14 @@ export interface BlockSql {
    * warns (BS411) when the provider doesn't set one.
    */
   readonly providerFunctions?: readonly (keyof AuthorizationFunctions)[];
+  /**
+   * `authorization.functions` templates it reads when the provider sets them,
+   * with what it gains. Doctor reports a missing one at info level (BS411) and
+   * never fails on it.
+   */
+  readonly providerOptional?: Readonly<
+    Partial<Record<keyof AuthorizationFunctions, string>>
+  >;
   /**
    * Modules it works with when they are installed, without needing them.
    * `ctx.installed` and `ctx.of` accept only these and what it requires;
@@ -361,7 +371,19 @@ export interface BlockSqlLayout {
    * subject read policy compares a subject whose id column is listed here on
    * the column's own type, inside the branch for its subject type.
    */
+  /**
+   * The functions the app's own schema files create, as lowercase
+   * `schema.name`. Read only for the bare import targets.
+   */
+  readonly appFunctions?: readonly string[];
   readonly uuidColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The declared type of each id-like column the app's schema files create
+   * (`uuid`, `text`, `bigint`, `integer`, `smallint`), by `schema.table` then
+   * column: what a record type without `idType` compares on.
+   */
+  readonly idTypes?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+
   /**
    * `schema.table` of each table the app already has, to the schema file that
    * creates it or `database`. A block leaves these tables alone and adds only
@@ -417,6 +439,14 @@ export interface BlockSqlLayout {
    */
   readonly foreignKeys?: readonly DeclaredForeignKey[];
   /**
+   * The `same-tenant` column tags in the schema files. They replace the derived
+   * entry of their column, and `same-tenant=false` drops it.
+   */
+  readonly sameTenantTags?: {
+    readonly entries: readonly Record<string, unknown>[];
+    readonly skip: readonly string[];
+  };
+  /**
    * Each declared table's columns, `schema.table` to names, for
    * `sameTenant.auto`.
    */
@@ -463,6 +493,12 @@ export interface BlockSqlLayout {
   /** `sql.scope`: the scope of every block that sets none. Defaults to `tenant`. */
   readonly scope?: BlockScope;
   readonly blockTenantColumn?: string;
+  /** `sql.brand`: the brand source of a block that sets no `options.brand`. */
+  readonly blockBrand?: {
+    readonly table: string;
+    readonly column: string;
+    readonly tenant?: string;
+  };
   /** `config.recordTypes`: the app-wide subject registry (ADR 0020). */
   readonly subjects?: SubjectsConfig;
   /**
@@ -472,6 +508,13 @@ export interface BlockSqlLayout {
   readonly appTables?: AppTablesConfig;
   /** The authorization provider's permission keys, for `api-keys` scopes. */
   readonly permissionCatalog?: readonly string[];
+  /** `authorization.actionKeys`: the provider's keys per instance and action. */
+  readonly providerActionKeys?: AuthorizationActionKeys;
+  /**
+   * The approval floors of `authorization.operations`, by
+   * `<subjectType>:<action>`.
+   */
+  readonly providerApprovals?: Readonly<Record<string, AuthorizationApproval>>;
   /**
    * `authorization.delegation.scopes`: the access module's `scope_permissions`
    * (with `blocks.permissions.scopes` merged over it).
@@ -543,6 +586,8 @@ export interface BlockSqlAccessProvider {
    * the `permissions` claim carry only these; unset keeps every key.
    */
   readonly sqlCompleteKeys?: readonly string[];
+  /** `blocks.impersonation.options.claimsHook` defaults to its function. */
+  readonly tokenHook?: { readonly function: string };
   /**
    * The provider's hook writes the `permissions` claim (`ownedClaims`), so the
    * hook template leaves it out.

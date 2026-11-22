@@ -8,6 +8,8 @@ export {
   SKILLS_AGENTS,
 } from "./names.ts";
 
+export { blockList } from "./instances.ts";
+
 export { resolveJsonSchema } from "./json.ts";
 
 export {
@@ -142,7 +144,9 @@ export type {
   AuthConfig,
   BetterSupabaseConfig,
   BlockInput,
+  BlockEntry,
   BlocksInput,
+  BlocksList,
   DatabaseConfig,
   DataHooksConfig,
   DataHooksFramework,
@@ -180,6 +184,8 @@ export type {
 } from "./expose.ts";
 
 export type {
+  AuthorizationActionKeys,
+  AuthorizationApproval,
   AuthorizationFixtureRole,
   AuthorizationFunctions,
   AuthorizationMembership,
@@ -211,6 +217,7 @@ export type {
   DisabledRow,
   BlockMode,
   BlockConfig,
+  ColumnMapping,
   AnyBlocksConfig,
   BlockScope,
   BlocksConfig,
@@ -230,6 +237,10 @@ export {
 export type { BlockEntity } from "./block-subjects.ts";
 
 export { DEFAULT_ACTIVE_TENANT, tenantNameOf } from "./blocks.ts";
+
+export { restatedEntries } from "./restated.ts";
+
+export type { RestatedEntry, RestatedInput, RestatedKind } from "./restated.ts";
 
 export type * from "./snapshot.ts";
 

@@ -35,15 +35,15 @@ describe("presetConfigSource", () => {
         '  adapters: ["next"],',
         "  // The provider access model reads roles from your authorization",
         "  // library: set `auth.authorization` to its adapter.",
-        "  blocks: {",
-        '    "updated-at": {}, // required by memberships',
-        "    memberships: {}, // required by api-keys, comments and messaging",
-        '    permissions: { model: "provider" }, // required by api-keys, comments, subjects and messaging',
-        '    "api-keys": {},',
-        "    comments: {},",
-        "    subjects: {}, // required by comments and messaging",
-        "    messaging: {}, // required by comments",
-        "  },",
+        "  blocks: [",
+        '    "updated-at", // required by memberships',
+        '    "memberships", // required by api-keys, comments and messaging',
+        '    { block: "permissions", model: "provider" }, // required by api-keys, comments, subjects and messaging',
+        '    "api-keys",',
+        '    "comments",',
+        '    "subjects", // required by comments and messaging',
+        '    "messaging", // required by comments',
+        "  ],",
         "});",
         "",
       ].join("\n"),
@@ -55,7 +55,7 @@ describe("presetConfigSource", () => {
       resolvePreset({ ...DEFAULT_CONVENTIONS, blocks: ["profiles"] }),
     );
 
-    expect(source).toContain("  blocks: {\n    profiles: {},\n  },");
+    expect(source).toContain('  blocks: [\n    "profiles",\n  ],');
     expect(source).not.toContain("casing");
   });
 });

@@ -1644,7 +1644,7 @@ export interface BlockNameRegistry {
   readonly "notifications": {
     readonly tables: {
       readonly "events": "id" | "tenant" | "type" | "actor" | "subjectType" | "subjectId" | "subjectLabel" | "summary" | "actionPath" | "actions" | "priority" | "data" | "key" | "createdBy" | "createdAt";
-      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "resolution" | "deliveredAt" | "createdAt";
+      readonly "recipients": "id" | "event" | "tenant" | "user" | "readAt" | "dismissedAt" | "resolvedAt" | "resolution" | "deliveredAt" | "address" | "contact" | "createdAt";
       readonly "deliveries": "id" | "recipient" | "tenant" | "channel" | "status" | "provider" | "providerMessageId" | "error" | "attempts" | "attemptedAt" | "nextAttemptAt" | "deliveredAt" | "providerStatus" | "providerStatusAt" | "templateKey" | "createdAt";
       readonly "deliveryEvents": "id" | "delivery" | "tenant" | "kind" | "provider" | "providerEventId" | "occurredAt" | "detail" | "createdAt";
       readonly "subscriptions": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "level" | "createdAt" | "updatedAt";

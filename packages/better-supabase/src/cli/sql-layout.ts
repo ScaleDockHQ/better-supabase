@@ -18,6 +18,7 @@ import {
   adoptedColumnProblems,
   auditRegistrations,
   appColumnsOf,
+  declaredForeignKeys as appForeignKeys,
   declaredIndexes,
   declaredTableColumns,
   declaredColumnTypes,
@@ -31,6 +32,7 @@ import {
   resolveExposeColumns,
   resolveBlocks,
   sameTenantLayout,
+  sameTenantTagsOf,
   rlsTables,
 } from "../sql/index.ts";
 import { apiUsedNames } from "./api-used.ts";
@@ -53,10 +55,77 @@ export async function schemasDirOf(config: ResolvedConfig): Promise<string> {
 }
 
 /**
+ * Reads kept for the length of one `withLayoutSession`. A probe renders the
+ * blocks hundreds of times over the same files; without the session each render
+ * reads and scans every schema file and the snapshot again.
+ */
+let session: Map<string, Promise<unknown>> | undefined;
+
+/** Runs `run` with the layout's file reads and scans shared between calls. */
+export async function withLayoutSession<T>(run: () => Promise<T>): Promise<T> {
+  const outer = session;
+  session ??= new Map();
+
+  try {
+    return await run();
+  } finally {
+    session = outer;
+  }
+}
+
+function shared<T>(
+  key: string,
+  root: string,
+  read: () => Promise<T>,
+): Promise<T> {
+  if (session === undefined) {
+    return read();
+  }
+
+  const id = `${key}\0${root}`;
+  // SAFETY: each key is only ever filled by the read of that name.
+  const hit = session.get(id) as Promise<T> | undefined;
+
+  if (hit !== undefined) {
+    return hit;
+  }
+
+  const made = read();
+  session.set(id, made);
+
+  return made;
+}
+
+const schemaTexts = (
+  config: ResolvedConfig,
+): ReturnType<typeof readSchemaTexts> =>
+  shared("schemaTexts", config.root, () => readSchemaTexts(config));
+
+const declarativeTexts = (
+  config: ResolvedConfig,
+): ReturnType<typeof readDeclarativeTexts> =>
+  shared("declarativeTexts", config.root, () => readDeclarativeTexts(config));
+
+const snapshotCatalog = (
+  config: ResolvedConfig,
+): ReturnType<typeof readSnapshotCatalog> =>
+  shared("snapshotCatalog", config.root, () => readSnapshotCatalog(config));
+
+const databaseTables = (
+  config: ResolvedConfig,
+): ReturnType<typeof readDatabaseTables> =>
+  shared("databaseTables", config.root, () => readDatabaseTables(config));
+
+const auditedTables = (
+  config: ResolvedConfig,
+): ReturnType<typeof readAuditedTables> =>
+  shared("auditedTables", config.root, () => readAuditedTables(config));
+
+/**
  * The migrations oldest first, then the declarative schema files, so a schema
  * file, which holds the final state, wins over an older migration.
  */
-async function schemaTexts(
+async function readSchemaTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
@@ -80,7 +149,7 @@ async function schemaTexts(
   );
 }
 
-async function declarativeTexts(
+async function readDeclarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
@@ -107,7 +176,9 @@ async function declarativeTexts(
  * the declarative schemas, so a later call or `unaudit` wins and the schema
  * files, which hold the final state, win over a migration.
  */
-async function auditedTables(config: ResolvedConfig): Promise<AuditedTable[]> {
+async function readAuditedTables(
+  config: ResolvedConfig,
+): Promise<AuditedTable[]> {
   return auditRegistrations(await schemaTexts(config));
 }
 
@@ -221,7 +292,10 @@ export async function moduleLayoutFor(
     ...(grants === undefined ? {} : { grants }),
     ...(apiUsed === undefined ? {} : { apiUsed }),
     schemasDir: await schemasDirOf(config),
-    uuidColumns: uuidColumnsOf(await appSchemaTexts(config), config.schemas),
+    ...appScans(await appSchemaTexts(config), config.schemas),
+    ...(resolved.has("imports")
+      ? { appFunctions: appFunctionsOf(await appSchemaTexts(config)) }
+      : {}),
     ...(resolved.has("pgtap") ? await accessTokenHookOf(config) : {}),
     ...(resolved.has("audit")
       ? { auditedTables: await auditedTables(config) }
@@ -253,6 +327,66 @@ export async function moduleLayoutFor(
       : {}),
     ...own,
   };
+}
+
+type AppScans = Pick<
+  BlockSqlLayout,
+  "uuidColumns" | "idTypes" | "foreignKeys" | "sameTenantTags"
+>;
+
+/**
+ * The last scan by its input. Doctor asks for the layout once per rule, and
+ * these scans of a large schema folder cost seconds each, so the same files are
+ * scanned once.
+ */
+let lastScans: { key: string; scans: AppScans } | undefined;
+
+function appScans(
+  files: readonly { readonly path: string; readonly text: string }[],
+  schemas: readonly string[],
+): AppScans {
+  const key = `${schemas.join(",")}\0${files.map((file) => file.text).join("\0")}`;
+
+  if (lastScans?.key !== key) {
+    const foreignKeys = appForeignKeys(files, schemas);
+
+    lastScans = {
+      key,
+      scans: {
+        uuidColumns: uuidColumnsOf(files, schemas),
+        idTypes: idTypesOf(files, schemas),
+        foreignKeys,
+        sameTenantTags: sameTenantTagsOf(
+          files.map((file) => file.text),
+          schemas,
+          foreignKeys,
+        ),
+      },
+    };
+  }
+
+  return lastScans.scans;
+}
+
+const FUNCTION_DECLARATION =
+  /\bcreate\s+(?:or\s+replace\s+)?function\s+(?:"?([a-z_][a-z0-9_]*)"?\s*\.\s*)?"?([a-z_][a-z0-9_]*)"?\s*\(/giu;
+
+/**
+ * The functions the app's files create, as `schema.name` (`public`
+ * unqualified).
+ */
+function appFunctionsOf(
+  files: readonly { readonly text: string }[],
+): readonly string[] {
+  return [
+    ...new Set(
+      files.flatMap((file) =>
+        [...file.text.matchAll(FUNCTION_DECLARATION)].map((match) =>
+          `${match[1] ?? "public"}.${match[2] ?? ""}`.toLowerCase(),
+        ),
+      ),
+    ),
+  ];
 }
 
 /** The columns the app's files declare as `uuid`, by `schema.table`. */
@@ -407,7 +541,7 @@ export function writtenByBlocks(source: {
  * schema files and migrations stand in for it.
  */
 /** The config's snapshot as a catalog, or `undefined` without one. */
-async function snapshotCatalog(
+async function readSnapshotCatalog(
   config: ResolvedConfig,
 ): Promise<ReturnType<typeof toCatalog> | undefined> {
   const path = config.source.snapshot;
@@ -469,7 +603,7 @@ export async function snapshotColumnTypes(
   return found;
 }
 
-async function databaseTables(
+async function readDatabaseTables(
   config: ResolvedConfig,
 ): Promise<{
   readonly tables: Readonly<Record<string, string>>;
@@ -739,4 +873,26 @@ export function migrationsDir(config: ResolvedConfig): string {
   }
 
   return "supabase/migrations";
+}
+
+const ID_TYPES = new Set(["uuid", "text", "bigint", "integer", "smallint"]);
+
+/** The columns the app's files declare with an id-like type, by `schema.table`. */
+function idTypesOf(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, Readonly<Record<string, string>>>> {
+  return Object.fromEntries(
+    [...declaredColumnTypes(files, schemas)]
+      .map(
+        ([table, columns]) =>
+          [
+            table,
+            Object.fromEntries(
+              [...columns].filter(([, type]) => ID_TYPES.has(type)),
+            ),
+          ] as const,
+      )
+      .filter(([, columns]) => Object.keys(columns).length > 0),
+  );
 }

@@ -36,7 +36,7 @@ export const TEMPLATE_PLACEHOLDERS: Readonly<
   subject: [],
   subjectForTenant: ["tenant", "scope"],
   bootstrapPermissions: ["tenant", "scope"],
-  approverFor: [],
+  approverFor: ["kind", "id"],
   managedUsers: ["tenant"],
   canApprove: ["tool", "tenant", "scope"],
   canIn: ["permission", "tenant", "scope"],

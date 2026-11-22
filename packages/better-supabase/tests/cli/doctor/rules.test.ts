@@ -2724,6 +2724,24 @@ describe("block on names an unknown record type (BS346)", () => {
     ]);
   });
 
+  it("suggests the codemod when the name differs only by - and _", async () => {
+    const findings = await run(
+      "BS346",
+      context(
+        base,
+        {},
+        {
+          recordTypes: { time_entry: { table: "time_entries" } },
+          blocks: { tags: { on: ["time-entry"] } },
+        },
+      ),
+    );
+
+    expect(findings[0]?.message).toContain(
+      'Did you mean "time_entry"? Run `better-supabase codemod record-types`',
+    );
+  });
+
   it("passes an inline on entry that carries its own table", async () => {
     expect(
       await run(
@@ -4750,6 +4768,7 @@ describe("pg-delta packages (BS239)", () => {
       "BS239",
       context(base, {
         configToml: pgdelta,
+        libraryDiff: true,
         peers: peers({
           "@supabase/pg-delta": "1.0.0-alpha.60",
           "@supabase/pg-topo": undefined,
@@ -4770,6 +4789,19 @@ describe("pg-delta packages (BS239)", () => {
     );
   });
 
+  it("stays quiet for a Supabase CLI declarative project, where no script runs db diff through the library", async () => {
+    expect(
+      await run(
+        "BS239",
+        context(base, {
+          configToml: pgdelta,
+          libraryDiff: false,
+          peers: peers({}),
+        }),
+      ),
+    ).toEqual([]);
+  });
+
   it("stays quiet with both installed, on migra, without a peer list or a Supabase project", async () => {
     const both = peers({
       "@supabase/pg-delta": "1.0.0-alpha.60",
@@ -4777,7 +4809,10 @@ describe("pg-delta packages (BS239)", () => {
     });
 
     expect(
-      await run("BS239", context(base, { configToml: pgdelta, peers: both })),
+      await run(
+        "BS239",
+        context(base, { configToml: pgdelta, libraryDiff: true, peers: both }),
+      ),
     ).toEqual([]);
     expect(
       await run(

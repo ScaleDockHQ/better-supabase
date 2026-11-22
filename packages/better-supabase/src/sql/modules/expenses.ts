@@ -457,6 +457,8 @@ const CONTRIBUTES: BlockContributes = {
               `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, true, ${comment}, ${approver});`,
             reject: ({ subjectId, comment, approver }) =>
               `perform ${own.fn("expense_approval_decided")}(${subjectUuid(subjectId)}, false, ${comment}, ${approver});`,
+            cancel: ({ subjectId }) =>
+              `perform ${own.fn("expense_approval_cancelled")}(${subjectUuid(subjectId)});`,
             ...(own.flag("selfDecideWhenTopOfChain", false)
               ? {
                   selfDecides: ({ subjectId }) =>
@@ -492,6 +494,12 @@ const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 export const EXPENSES: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
   name: "expenses",
+  providerOptional: {
+    approverFor:
+      "lets the users the provider names decide a request, such as out of office covers and delegations",
+    managedUsers:
+      "counts the people a caller manages through the provider as that caller's reports",
+  },
   version: 2,
   upgrades: [EXPENSE_CREATOR_BACKFILL],
   scopes: ["tenant"],

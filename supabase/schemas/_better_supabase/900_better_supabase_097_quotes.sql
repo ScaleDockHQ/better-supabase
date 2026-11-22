@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:5299d43e830bff851a103b456d979bd1e093af2f1deb2d9ad1be4af31b1b4c0a
+-- @bsb-hash sha256:43bb34f48964d9988bfbe9ab85bb6bec6971679606693a292a9fd667da73cde5
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1895,6 +1895,7 @@ declare
   v_src "better_supabase"."quotes";
   v_created jsonb;
   v_id uuid;
+  v_tenant uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1903,7 +1904,11 @@ begin
   if not found then
     raise exception 'no such quote' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src."tenant_id", 'quotes.write'), false)) then
+  v_tenant := coalesce(nullif(coalesce(clone_quote.overrides, '{}'::jsonb) ->> 'tenantId', '')::uuid, v_src."tenant_id");
+  if v_tenant is distinct from v_src."tenant_id" and not ((auth.role() = 'service_role') or false) then
+    raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_tenant, 'quotes.write'), false)) then
     raise exception 'not allowed to change quotes' using errcode = '42501', hint = 'QUOTE_FORBIDDEN';
   end if;
   declare
@@ -1914,10 +1919,10 @@ begin
         using clone_quote.source, clone_quote.overrides;
     end if;
   end;
-  v_created := "better_supabase"."create_quote"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object('title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
+  v_created := "better_supabase"."create_quote"(v_tenant, jsonb_strip_nulls(jsonb_build_object('terms', v_src."terms", 'note', v_src."note", 'pricesIncludeTax', v_src."prices_include_tax", 'discountBps', v_src."discount_bps", 'discountAmount', v_src."discount_amount", 'depositBps', v_src."deposit_bps", 'depositAmount', v_src."deposit_amount", 'depositRequired', v_src."deposit_required", 'company', case when v_src."company_id" is null then null else jsonb_build_object('type', v_src."company_type", 'id', v_src."company_id") end, 'contact', case when v_src."contact_id" is null then null else jsonb_build_object('type', v_src."contact_type", 'id', v_src."contact_id") end, 'title', v_src."title", 'currency', v_src."currency", 'templateId', null, 'sourceTemplateId', null)) || (coalesce(clone_quote.overrides, '{}'::jsonb) - 'templateId') || jsonb_strip_nulls(jsonb_build_object('templateId', null, 'sourceTemplateId', null)), null);
   v_id := (v_created ->> 'id')::uuid;
   insert into "better_supabase"."quote_lines"
-  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id))).*
+  select (jsonb_populate_record(null::"better_supabase"."quote_lines", to_jsonb(l) || jsonb_build_object('id', gen_random_uuid(), 'parent_id', v_id, 'tenant_id', v_tenant))).*
   from "better_supabase"."quote_lines" l where l."parent_id" = clone_quote.source;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_quote_clone"(uuid)');

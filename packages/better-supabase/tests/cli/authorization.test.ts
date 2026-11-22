@@ -6,6 +6,7 @@ import {
   entitlementRequirements,
   entitlementsMode,
   keyStatus,
+  catalogKeyProblems,
   moduleKeyProblems,
   providerLabel,
   unsafeKey,
@@ -177,6 +178,7 @@ describe("accessProviderMode", () => {
         functions: stubProvider.functions,
         memberships: stubProvider.memberships,
         sqlCompleteKeys: sqlCompleteKeys(stubProvider),
+        tokenHook: { function: "authz.access_token_hook" },
         truncatedClaim: "memberships_truncated",
       },
     });
@@ -323,6 +325,40 @@ describe("keyStatus and unsafeKey", () => {
       status: "unknown",
       reason: expect.stringContaining("authorization.permissions is not set"),
     });
+  });
+});
+
+describe("catalogKeyProblems", () => {
+  it("checks operation and tag keys like module keys", () => {
+    const problems = catalogKeyProblems(stubProvider, [
+      {
+        key: "documents.write",
+        target: "authorization.operations.a.permission",
+        checker: "The a operation",
+      },
+      {
+        key: "documents.own",
+        target: "the @bsb access tag",
+        checker: "The @bsb access tag",
+      },
+    ]);
+
+    expect(problems).toEqual([
+      {
+        target: "the @bsb access tag",
+        message: expect.stringMatching(
+          /The @bsb access tag checks "documents\.own".*sqlComplete: false/,
+        ),
+      },
+    ]);
+  });
+
+  it("says nothing without a permissions list", () => {
+    expect(
+      catalogKeyProblems(withProvider({ permissions: undefined }), [
+        { key: "x", target: "t", checker: "c" },
+      ]),
+    ).toEqual([]);
   });
 });
 

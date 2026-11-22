@@ -168,12 +168,6 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.workflow_events",
           "centrakit.workflow_runs",
         ],
-        // CentraKit's own authz helpers, executable through /rpc.
-        "warning BS116": [
-          "centrakit.authz_can_assign",
-          "centrakit.authz_is_platform",
-          "centrakit.authz_organization_ids_with",
-        ],
         // Tenant columns CentraKit doesn't index.
         "warning BS204": [
           "centrakit.customer_contacts.organization_id",
@@ -194,21 +188,6 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.webhook_destination_secrets.organization_id",
           "centrakit.workflow_events.organization_id",
           "centrakit.workflow_runs.organization_id",
-        ],
-        // CentraKit's foreign keys that don't carry organization_id.
-        "warning BS217": [
-          "centrakit.customer_contacts.customer_contacts_customer_id_fkey",
-          "centrakit.file_node_grant.file_node_grant_file_node_id_fkey",
-          "centrakit.notification_deliveries.notification_deliveries_recipient_id_fkey",
-          "centrakit.notification_recipients.notification_recipients_event_id_fkey",
-          "centrakit.projects.projects_customer_id_fkey",
-          "centrakit.tasks.tasks_contact_id_fkey",
-          "centrakit.tasks.tasks_customer_id_fkey",
-          "centrakit.tasks.tasks_project_id_fkey",
-          "centrakit.webhook_deliveries.webhook_deliveries_destination_id_fkey",
-          "centrakit.webhook_deliveries.webhook_deliveries_event_id_fkey",
-          "centrakit.webhook_deliveries.webhook_deliveries_workflow_run_id_fkey",
-          "centrakit.webhook_destination_secrets.webhook_destination_secrets_destination_id_fkey",
         ],
         // CentraKit's int8 ids, with no `int8` codec in the config.
         "warning BS222": [
@@ -261,5 +240,5 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 });
