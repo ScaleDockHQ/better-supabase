@@ -1,9 +1,10 @@
 import type { ExportSpecifier, ImportDeclarationSpecifier } from "oxc-parser";
 
 import { MagicString } from "magic-string";
-import { parseSync } from "oxc-parser";
 
 import type { Codemod, ReviewLine } from "./codemod.ts";
+
+import { parseSource } from "./config-document/parse.ts";
 
 /** The subpath each name moved to out of `better-supabase/server` (ADR 0450). */
 const MOVED: Readonly<Record<string, string>> = {
@@ -68,7 +69,7 @@ export function moveServerImports(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
   const review: ReviewLine[] = [];
 
   if (parsed.errors.length > 0) {

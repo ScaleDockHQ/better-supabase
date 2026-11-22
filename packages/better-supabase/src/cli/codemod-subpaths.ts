@@ -1,8 +1,9 @@
 /** Renames `better-supabase/<subpath>` import specifiers. */
 
 import { MagicString } from "magic-string";
-import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
+
+import { parseSource } from "./config-document/parse.ts";
 
 /**
  * `text` with each `better-supabase/<subpath>` module specifier in `renames`
@@ -14,7 +15,7 @@ export function renameSubpaths(
   text: string,
   renames: Readonly<Record<string, string>>,
 ): string {
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
   const out = new MagicString(text);
 
   walk(parsed.program, {

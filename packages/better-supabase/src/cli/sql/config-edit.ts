@@ -1,15 +1,20 @@
 /**
- * Adds block names to `blocks` in `better-supabase.config.ts`. The edit reads
- * the object literal passed to `defineConfig(...)` (or the default export) with
- * the codemod scanner, so strings and comments never count as code, and inserts
- * the names in the form the config already uses: `name: {}` in an object,
- * `"name"` in a list. Anything that isn't a literal object it can follow is
- * refused with a reason, and `add` prints the snippet instead.
+ * Adds, sets and removes block entries in `better-supabase.config.ts`,
+ * `better-supabase.config.json` and `lib/blocks.ts`. The TypeScript edits go
+ * through a `ConfigDocument` (ADR 1181): it reads the object literal passed to
+ * `defineConfig(...)` (or the default export) from a syntax tree, so strings
+ * and comments never count as code, and writes the names in the form the config
+ * already uses: `name: {}` in an object, `"name"` in a list. Anything that
+ * isn't a literal it can follow is refused with a reason, and `add` prints the
+ * snippet instead.
  */
+
+import { walk } from "oxc-walker";
 
 import type { PresetSpec } from "../../preset/index.ts";
 
-import { codeRanges } from "../config-document/ranges.ts";
+import { ConfigDocument } from "../config-document/index.ts";
+import { CliError } from "../core/errors.ts";
 import { isRecord } from "../guards.ts";
 
 export type ConfigEdit =
@@ -21,375 +26,13 @@ export type ConfigEdit =
     }
   | { readonly ok: false; readonly reason: string };
 
-export interface Property {
-  /** The key, unquoted; undefined for a spread or a computed key. */
-  readonly key: string | undefined;
-  readonly start: number;
-  readonly valueStart: number;
-  /** The index after the value, before any comma. */
-  readonly valueEnd: number;
-}
-
-const OPENING = "({[";
-const CLOSING = ")}]";
 const IDENT = /^[A-Za-z_$][\w$]*$/;
 
-/**
- * `source` with every character outside code replaced: string and template
- * contents become `x` between their quotes, comments become spaces. Indexes
- * stay the same, so a match in the mask is a position in `source`.
- */
-export function mask(source: string): string {
-  const ranges = codeRanges(source);
-  let out = "";
-  let cursor = 0;
-
-  const hide = (end: number): void => {
-    const gap = source.slice(cursor, end);
-    const quote = gap[0];
-
-    if (quote === '"' || quote === "'" || quote === "`") {
-      const closed = gap.length > 1 && gap.endsWith(quote);
-      const inner = gap.slice(1, closed ? -1 : undefined);
-      out += quote + inner.replaceAll(/[^\n]/g, "x") + (closed ? quote : "");
-    } else {
-      out += gap.replaceAll(/[^\n]/g, " ");
-    }
-  };
-
-  for (const [start, end] of ranges) {
-    if (start > cursor) {
-      hide(start);
-    }
-
-    out += source.slice(start, end);
-    cursor = end;
-  }
-
-  if (cursor < source.length) {
-    hide(source.length);
-  }
-
-  return out;
-}
-
-/** The index of the bracket that closes the one at `open`. */
-export function closingIndex(code: string, open: number): number {
-  let depth = 0;
-
-  for (let index = open; index < code.length; index += 1) {
-    const char = code[index]!;
-
-    if (char === '"' || char === "'" || char === "`") {
-      index = code.indexOf(char, index + 1);
-
-      if (index === -1) {
-        return -1;
-      }
-    } else if (OPENING.includes(char)) {
-      depth += 1;
-    } else if (CLOSING.includes(char)) {
-      depth -= 1;
-
-      if (depth === 0) {
-        return index;
-      }
-    }
-  }
-
-  return -1;
-}
-
-const skipSpace = (code: string, from: number): number => {
-  let index = from;
-
-  while (index < code.length && /\s/.test(code[index]!)) {
-    index += 1;
-  }
-
-  return index;
-};
-
-/**
- * The end of the expression starting at `index`: the next `,` or closer at
- * depth 0.
- */
-function valueEnd(code: string, index: number): number {
-  let depth = 0;
-  let end = index;
-
-  for (; end < code.length; end += 1) {
-    const char = code[end]!;
-
-    if (char === '"' || char === "'" || char === "`") {
-      end = code.indexOf(char, end + 1);
-
-      if (end === -1) {
-        return code.length;
-      }
-    } else if (OPENING.includes(char)) {
-      depth += 1;
-    } else if (CLOSING.includes(char)) {
-      if (depth === 0) {
-        break;
-      }
-
-      depth -= 1;
-    } else if (char === "," && depth === 0) {
-      break;
-    }
-  }
-
-  while (end > index && /\s/.test(code[end - 1]!)) {
-    end -= 1;
-  }
-
-  return end;
-}
-
-/** The properties of the object literal whose `{` is at `open`. */
-export function properties(
-  source: string,
-  code: string,
-  open: number,
-): readonly Property[] | undefined {
-  const close = closingIndex(code, open);
-
-  if (close === -1) {
-    return undefined;
-  }
-
-  const found: Property[] = [];
-  let index = skipSpace(code, open + 1);
-
-  while (index < close) {
-    const start = index;
-    let key: string | undefined;
-
-    if (code.startsWith("...", index)) {
-      index += 3;
-    } else if (code[index] === '"' || code[index] === "'") {
-      const end = code.indexOf(code[index]!, index + 1);
-      key = source.slice(index + 1, end);
-      index = end + 1;
-    } else if (code[index] === "[") {
-      index = closingIndex(code, index) + 1;
-    } else {
-      const name = /^[A-Za-z_$][\w$]*/.exec(code.slice(index))?.[0];
-
-      if (!name) {
-        return undefined;
-      }
-
-      key = name;
-      index += name.length;
-    }
-
-    index = skipSpace(code, index);
-    let valueStart = index;
-
-    if (key !== undefined && code[index] === ":") {
-      valueStart = skipSpace(code, index + 1);
-    } else if (code[index] === "(") {
-      // A method: its value runs through the body.
-      valueStart = start;
-    } else if (key !== undefined && (code[index] === "," || index === close)) {
-      valueStart = start;
-    }
-
-    const end = valueEnd(code, valueStart);
-    found.push({ key, start, valueStart, valueEnd: end });
-    index = skipSpace(code, end);
-
-    if (code[index] === ",") {
-      index = skipSpace(code, index + 1);
-    } else if (index !== close) {
-      return undefined;
-    }
-  }
-
-  return found;
-}
-
-/**
- * The `{` of the config object: `defineConfig({...})` or `export default
- * {...}`.
- */
-export function configObject(code: string): number | undefined {
-  const call = /\bdefineConfig\s*(?:<[^>]*>)?\s*\(\s*\{/.exec(code);
-
-  if (call) {
-    return call.index + call[0].length - 1;
-  }
-
-  const literal =
-    /\bexport\s+default\s*\{/.exec(code) ??
-    /\bmodule\.exports\s*=\s*\{/.exec(code);
-
-  return literal ? literal.index + literal[0].length - 1 : undefined;
-}
-
-const indentAt = (source: string, index: number): string =>
-  /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", index - 1) + 1))?.[0] ??
-  "";
+const NO_OBJECT = "it doesn't pass an object literal to defineConfig()";
 
 /** A module name as an object key, quoted when it isn't an identifier. */
 export const keyText = (name: string): string =>
   IDENT.test(name) ? name : `"${name}"`;
-
-interface Span {
-  readonly start: number;
-  readonly end: number;
-}
-
-/** The elements of the array literal whose `[` is at `open`. */
-function elements(code: string, open: number): readonly Span[] {
-  const close = closingIndex(code, open);
-  const found: Span[] = [];
-  let index = skipSpace(code, open + 1);
-
-  while (index < close) {
-    const end = valueEnd(code, index);
-    found.push({ start: index, end });
-    index = skipSpace(code, end);
-
-    if (code[index] !== ",") {
-      break;
-    }
-
-    index = skipSpace(code, index + 1);
-  }
-
-  return found;
-}
-
-/**
- * The edit that appends `entries` to the object or array whose opener is at
- * `open`, after `last`, its last entry. It follows the literal's layout: one
- * entry per line when it spans lines, inline otherwise, and a trailing comma
- * when the last entry has one.
- */
-function append(
-  source: string,
-  code: string,
-  open: number,
-  last: Span | undefined,
-  entries: readonly string[],
-): { readonly start: number; readonly end: number; readonly text: string } {
-  const close = closingIndex(code, open);
-  const multiline = code.slice(open, close).includes("\n");
-
-  if (last === undefined) {
-    if (!multiline) {
-      const inner = entries.join(", ");
-
-      return {
-        start: open + 1,
-        end: close,
-        text: code[open] === "{" ? ` ${inner} ` : inner,
-      };
-    }
-
-    const indent = `${indentAt(source, open)}  `;
-
-    return {
-      start: open + 1,
-      end: close,
-      text: `\n${entries.map((entry) => `${indent}${entry},`).join("\n")}\n${indentAt(source, close)}`,
-    };
-  }
-
-  if (!multiline) {
-    return {
-      start: last.end,
-      end: last.end,
-      text: entries.map((entry) => `, ${entry}`).join(""),
-    };
-  }
-
-  const indent = indentAt(source, last.start);
-  const after = skipSpace(code, last.end);
-
-  if (code[after] === ",") {
-    return {
-      start: after + 1,
-      end: after + 1,
-      text: entries.map((entry) => `\n${indent}${entry},`).join(""),
-    };
-  }
-
-  return {
-    start: last.end,
-    end: last.end,
-    text: entries.map((entry) => `,\n${indent}${entry}`).join(""),
-  };
-}
-
-const lastOf = (props: readonly Property[]): Span | undefined => {
-  const last = props.at(-1);
-
-  return last ? { start: last.start, end: last.valueEnd } : undefined;
-};
-
-const quoted = (code: string, index: number): boolean =>
-  code[index] === '"' || code[index] === "'";
-
-/** The text of the string literal at `span`, or undefined. */
-function stringAt(
-  source: string,
-  code: string,
-  span: Span,
-): string | undefined {
-  return quoted(code, span.start)
-    ? source.slice(span.start + 1, span.end - 1)
-    : undefined;
-}
-
-export interface ListedBlock {
-  readonly name: string;
-  readonly span: Span;
-  /** The `{` of an object element. */
-  readonly open?: number;
-}
-
-/**
- * The `blocks` list's elements by instance name: a name is its own instance,
- * and an object is `name`, else `block`.
- */
-export function listedBlocks(
-  source: string,
-  code: string,
-  open: number,
-): readonly ListedBlock[] {
-  return elements(code, open).flatMap((span): ListedBlock[] => {
-    const text = stringAt(source, code, span);
-
-    if (text !== undefined) {
-      return [{ name: text, span }];
-    }
-
-    if (code[span.start] !== "{") {
-      return [];
-    }
-
-    const props = properties(source, code, span.start) ?? [];
-
-    const read = (key: string): string | undefined => {
-      const prop = props.find((item) => item.key === key);
-
-      return prop === undefined
-        ? undefined
-        : stringAt(source, code, {
-            start: prop.valueStart,
-            end: prop.valueEnd,
-          });
-    };
-
-    const name = read("name") ?? read("block");
-
-    return name === undefined ? [] : [{ name, span, open: span.start }];
-  });
-}
 
 /**
  * The `blocks` list element for instance `name`: its quoted name when the entry
@@ -415,99 +58,35 @@ function listEntry(
   );
 }
 
-/** `source` with `names` added to `blocks`, keeping the form it has. */
-export function addBlocksToConfig(
-  source: string,
-  names: readonly string[],
-): ConfigEdit {
-  const code = mask(source);
-  const root = configObject(code);
-
-  if (root === undefined) {
-    return {
-      ok: false,
-      reason: "it doesn't pass an object literal to defineConfig()",
-    };
+/** `value` as a TypeScript literal, one key per line, indented from `indent`. */
+function literal(value: unknown, indent: string, quote: string): string {
+  if (value === null) {
+    return "null";
   }
 
-  const rootProps = properties(source, code, root);
-
-  if (!rootProps) {
-    return { ok: false, reason: "its config object can't be read" };
+  if (typeof value === "string") {
+    return value.includes(quote) || value.includes("\\")
+      ? JSON.stringify(value)
+      : `${quote}${value}${quote}`;
   }
 
-  const blocks = rootProps.find((prop) => prop.key === "blocks");
-
-  const edit = (start: number, end: number, text: string): ConfigEdit => ({
-    ok: true,
-    text: source.slice(0, start) + text + source.slice(end),
-  });
-
-  if (!blocks) {
-    const entries = names.map((name) => `"${name}"`).join(", ");
-
-    const change = append(source, code, root, lastOf(rootProps), [
-      `blocks: [${entries}]`,
-    ]);
-
-    return edit(change.start, change.end, change.text);
+  if (typeof value !== "object") {
+    return String(value);
   }
 
-  const open = blocks.valueStart;
-
-  if (code[open] === "{") {
-    const listed = properties(source, code, open);
-
-    if (!listed) {
-      return { ok: false, reason: "its blocks object can't be read" };
-    }
-
-    const keys = new Set(listed.map((prop) => prop.key));
-    const missing = names.filter((name) => !keys.has(name));
-
-    if (missing.length === 0) {
-      return { ok: true, text: source };
-    }
-
-    const change = append(
-      source,
-      code,
-      open,
-      lastOf(listed),
-      missing.map((name) => `${keyText(name)}: {}`),
-    );
-
-    return edit(change.start, change.end, change.text);
+  if (Array.isArray(value)) {
+    return `[${value.map((item: unknown) => literal(item, indent, quote)).join(", ")}]`;
   }
 
-  if (code[open] === "[") {
-    const quote =
-      /(["'])/.exec(source.slice(open, closingIndex(code, open)))?.[1] ?? '"';
+  const entries = Object.entries(value);
 
-    const present = new Set(
-      listedBlocks(source, code, open).map((item) => item.name),
-    );
-
-    const missing = names.filter((name) => !present.has(name));
-
-    if (missing.length === 0) {
-      return { ok: true, text: source };
-    }
-
-    const last = elements(code, open).at(-1);
-
-    const change = append(
-      source,
-      code,
-      open,
-      last,
-      missing.map((name) => `${quote}${name}${quote}`),
-    );
-
-    return edit(change.start, change.end, change.text);
+  if (entries.length === 0) {
+    return "{}";
   }
 
-  return { ok: false, reason: "its blocks key isn't a literal object or list" };
+  const inner = `${indent}  `;
+
+  return `{\n${entries.map(([key, entry]) => `${inner}${keyText(key)}: ${literal(entry, inner, quote)},`).join("\n")}\n${indent}}`;
 }
 
 /** `addBlocksToConfig` for `better-supabase.config.json`. */
@@ -567,62 +146,6 @@ const jsonEdit = (
       : `${JSON.stringify(next, null, indent)}\n`,
 });
 
-/**
- * `source` with `preset` set to `value` (a preset name or object), replacing
- * the one it has.
- */
-export function setPresetInConfig(
-  source: string,
-  value: string | PresetSpec,
-): ConfigEdit {
-  const code = mask(source);
-  const root = configObject(code);
-
-  if (root === undefined) {
-    return {
-      ok: false,
-      reason: "it doesn't pass an object literal to defineConfig()",
-    };
-  }
-
-  const rootProps = properties(source, code, root);
-
-  if (!rootProps) {
-    return { ok: false, reason: "its config object can't be read" };
-  }
-
-  const current = rootProps.find((prop) => prop.key === "preset");
-
-  // Keep the file's quotes.
-  const quote =
-    source[current?.valueStart ?? -1] === "'" ||
-    (current === undefined && source.includes("'better-supabase/config'"))
-      ? "'"
-      : '"';
-
-  const text = literal(value, "  ", quote);
-
-  if (current) {
-    return {
-      ok: true,
-      text:
-        source.slice(0, current.valueStart) +
-        text +
-        source.slice(current.valueEnd),
-    };
-  }
-
-  const change = append(source, code, root, lastOf(rootProps), [
-    `preset: ${text}`,
-  ]);
-
-  return {
-    ok: true,
-    text:
-      source.slice(0, change.start) + change.text + source.slice(change.end),
-  };
-}
-
 /** `setPresetInConfig` for `better-supabase.config.json`. */
 export function setPresetInJson(
   source: string,
@@ -643,252 +166,6 @@ export function setPresetInJson(
   const indent = /^[ \t]+/m.exec(source)?.[0] ?? "  ";
 
   return jsonEdit(source, config, { ...config, preset: value }, indent);
-}
-
-/** A block client to wire: `key: exportName`, imported from `subpath`. */
-export interface WiredBlock {
-  readonly key: string;
-  readonly export: string;
-  readonly subpath: string;
-}
-
-/**
- * The blocks object passed to `defineBlocks(blockConfig, { ... })` or
- * `createBlocks(options, { ... })` in `lib/blocks.ts`, with its entries.
- */
-export function wiringBlocks(
-  source: string,
-  code: string,
-):
-  | {
-      readonly ok: true;
-      readonly open: number;
-      readonly listed: readonly Property[];
-    }
-  | { readonly ok: false; readonly reason: string } {
-  const call = /\b(createBlocks|defineBlocks)\s*(?:<[^>]*>)?\s*\(/.exec(code);
-
-  if (!call) {
-    return {
-      ok: false,
-      reason: "it doesn't call defineBlocks() or createBlocks()",
-    };
-  }
-
-  const callee = call[1] ?? "defineBlocks";
-  const first = skipSpace(code, call.index + call[0].length);
-  const firstEnd = valueEnd(code, first);
-  const comma = skipSpace(code, firstEnd);
-  const open = code[comma] === "," ? skipSpace(code, comma + 1) : -1;
-
-  if (open === -1 || code[open] !== "{") {
-    return {
-      ok: false,
-      reason: `${callee}() isn't passed an object literal of blocks`,
-    };
-  }
-
-  const listed = properties(source, code, open);
-
-  if (!listed) {
-    return { ok: false, reason: "its blocks object can't be read" };
-  }
-
-  return { ok: true, open, listed };
-}
-
-/**
- * `lib/blocks.ts` with `blocks` imported and added to the blocks object passed
- * to `defineBlocks(blockConfig, { ... })` or `createBlocks(options, { ... })`.
- * A block whose export the file already names is left out.
- */
-export function addBlocksToWiring(
-  source: string,
-  blocks: readonly WiredBlock[],
-): ConfigEdit {
-  const code = mask(source);
-
-  const missing = blocks.filter(
-    (block) => !new RegExp(`\\b${block.export}\\b`).test(code),
-  );
-
-  if (missing.length === 0) {
-    return { ok: true, text: source };
-  }
-
-  const found = wiringBlocks(source, code);
-
-  if (!found.ok) {
-    return found;
-  }
-
-  const { open, listed } = found;
-
-  const change = append(
-    source,
-    code,
-    open,
-    lastOf(listed),
-    missing.map((block) => `${keyText(block.key)}: ${block.export}`),
-  );
-
-  let text =
-    source.slice(0, change.start) + change.text + source.slice(change.end);
-
-  const imports = [...mask(text).matchAll(/^import\b[^;]*;/gm)].at(-1);
-  const at = imports === undefined ? 0 : imports.index + imports[0].length;
-
-  const lines = missing
-    .map((block) => `import { ${block.export} } from "${block.subpath}";`)
-    .join("\n");
-
-  text =
-    imports === undefined
-      ? `${lines}\n\n${text}`
-      : `${text.slice(0, at)}\n${lines}${text.slice(at)}`;
-
-  return { ok: true, text };
-}
-
-/** `value` as a TypeScript literal, one key per line, indented from `indent`. */
-function literal(value: unknown, indent: string, quote: string): string {
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "string") {
-    return value.includes(quote) || value.includes("\\")
-      ? JSON.stringify(value)
-      : `${quote}${value}${quote}`;
-  }
-
-  if (typeof value !== "object") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item: unknown) => literal(item, indent, quote)).join(", ")}]`;
-  }
-
-  const entries = Object.entries(value);
-
-  if (entries.length === 0) {
-    return "{}";
-  }
-
-  const inner = `${indent}  `;
-
-  return `{\n${entries.map(([key, entry]) => `${inner}${keyText(key)}: ${literal(entry, inner, quote)},`).join("\n")}\n${indent}}`;
-}
-
-/**
- * `source` with the `blocks` entry for instance `name` set to `value`,
- * replacing the entry it has: a name in the list, or a `{ block, name?, ... }`
- * object.
- */
-export function setBlockInConfig(
-  source: string,
-  name: string,
-  value: object,
-): ConfigEdit {
-  const code = mask(source);
-  const root = configObject(code);
-
-  if (root === undefined) {
-    return {
-      ok: false,
-      reason: "it doesn't pass an object literal to defineConfig()",
-    };
-  }
-
-  const rootProps = properties(source, code, root);
-
-  if (!rootProps) {
-    return { ok: false, reason: "its config object can't be read" };
-  }
-
-  const quote = source.includes("'better-supabase/config'") ? "'" : '"';
-
-  const edit = (start: number, end: number, text: string): ConfigEdit => ({
-    ok: true,
-    text: source.slice(0, start) + text + source.slice(end),
-  });
-
-  const blocks = rootProps.find((prop) => prop.key === "blocks");
-
-  if (!blocks) {
-    const indent = rootProps[0]
-      ? indentAt(source, rootProps[0].start)
-      : `${indentAt(source, root)}  `;
-
-    const change = append(source, code, root, lastOf(rootProps), [
-      `blocks: [${listEntry(name, value, indent, quote)}]`,
-    ]);
-
-    return edit(change.start, change.end, change.text);
-  }
-
-  const open = blocks.valueStart;
-  const indent = indentAt(source, blocks.start);
-
-  if (code[open] === "{") {
-    const listed = properties(source, code, open);
-
-    if (!listed) {
-      return { ok: false, reason: "its blocks object can't be read" };
-    }
-
-    const current = listed.find((prop) => prop.key === name);
-
-    if (current) {
-      const entry = literal(value, indentAt(source, current.start), quote);
-
-      if (current.valueStart === current.start) {
-        const written = source.slice(current.start, current.valueEnd);
-
-        // A shorthand (`teams`) has no value to replace; a method has code the
-        // edit would lose.
-        return written === name
-          ? edit(current.start, current.valueEnd, `${keyText(name)}: ${entry}`)
-          : { ok: false, reason: `blocks.${name} is a method, not a value` };
-      }
-
-      return edit(current.valueStart, current.valueEnd, entry);
-    }
-
-    const inner = listed[0] ? indentAt(source, listed[0].start) : `${indent}  `;
-
-    const change = append(source, code, open, lastOf(listed), [
-      `${keyText(name)}: ${literal(value, inner, quote)}`,
-    ]);
-
-    return edit(change.start, change.end, change.text);
-  }
-
-  if (code[open] === "[") {
-    const listed = listedBlocks(source, code, open);
-    const current = listed.find((item) => item.name === name);
-
-    if (current) {
-      return edit(
-        current.span.start,
-        current.span.end,
-        listEntry(name, value, indentAt(source, current.span.start), quote),
-      );
-    }
-
-    const last = elements(code, open).at(-1);
-
-    const inner = last ? indentAt(source, last.start) : `${indent}  `;
-
-    const change = append(source, code, open, last, [
-      listEntry(name, value, inner, quote),
-    ]);
-
-    return edit(change.start, change.end, change.text);
-  }
-
-  return { ok: false, reason: "its blocks key isn't a literal object or list" };
 }
 
 /** `setBlockInConfig` for `better-supabase.config.json`. */
@@ -979,99 +256,6 @@ function withListEntry(
 const nested = (path: readonly string[], value: unknown): unknown =>
   path.reduceRight<unknown>((inner, key) => ({ [key]: inner }), value);
 
-/**
- * `source` with the key at `path` set to `value`, replacing what it has and
- * creating the objects on the way: `["tables", "projects"]` sets one app table
- * and keeps the others. A `blocks` list becomes an object.
- */
-export function setPathInConfig(
-  source: string,
-  path: readonly [string, ...string[]],
-  value: unknown,
-): ConfigEdit {
-  const code = mask(source);
-  const root = configObject(code);
-
-  if (root === undefined) {
-    return {
-      ok: false,
-      reason: "it doesn't pass an object literal to defineConfig()",
-    };
-  }
-
-  const quote = source.includes("'better-supabase/config'") ? "'" : '"';
-
-  const edit = (start: number, end: number, text: string): ConfigEdit => ({
-    ok: true,
-    text: source.slice(0, start) + text + source.slice(end),
-  });
-
-  let open = root;
-
-  for (let index = 0; index < path.length; index += 1) {
-    const key = path[index]!;
-    const at = path.slice(0, index + 1).join(".");
-    const props = properties(source, code, open);
-
-    if (!props) {
-      return { ok: false, reason: `its ${at} object can't be read` };
-    }
-
-    const current = props.find((prop) => prop.key === key);
-    const rest = path.slice(index + 1);
-
-    if (!current) {
-      const indent = props[0]
-        ? indentAt(source, props[0].start)
-        : `${indentAt(source, open)}  `;
-
-      const change = append(source, code, open, lastOf(props), [
-        `${keyText(key)}: ${literal(nested(rest, value), indent, quote)}`,
-      ]);
-
-      return edit(change.start, change.end, change.text);
-    }
-
-    if (rest.length === 0) {
-      return edit(
-        current.valueStart,
-        current.valueEnd,
-        literal(value, indentAt(source, current.start), quote),
-      );
-    }
-
-    if (index === 0 && key === "blocks" && code[current.valueStart] === "[") {
-      const [block, ...inside] = rest;
-
-      if (block === undefined) {
-        return { ok: false, reason: "its blocks key is a list" };
-      }
-
-      const listed = listedBlocks(source, code, current.valueStart).find(
-        (item) => item.name === block,
-      );
-
-      if (listed?.open === undefined || inside.length === 0) {
-        return setBlockInConfig(source, block, nested(inside, value) ?? {});
-      }
-
-      // Keep the entry's own keys: continue the path inside its object.
-      open = listed.open;
-      index += 1;
-
-      continue;
-    }
-
-    if (code[current.valueStart] !== "{") {
-      return { ok: false, reason: `its ${at} key isn't a literal object` };
-    }
-
-    open = current.valueStart;
-  }
-
-  return { ok: false, reason: "the path is empty" };
-}
-
 /** `value` in `object` at `path`, with the objects on the way copied. */
 function withPath(
   object: Readonly<Record<string, unknown>>,
@@ -1149,62 +333,376 @@ export function setPathInJson(
   return jsonEdit(source, config, withPath(config, path, value), indent);
 }
 
-/** The range to cut for `props[index]`, with its comma and line. */
-export function cutRange(
-  source: string,
-  code: string,
-  open: number,
-  props: readonly Property[],
-  index: number,
-  multiline: boolean,
-): { readonly start: number; readonly end: number; readonly text: string } {
-  const prop = props[index]!;
-  const previous = props[index - 1];
-  const after = skipSpace(code, prop.valueEnd);
-  const tailFrom = code[after] === "," ? after + 1 : prop.valueEnd;
+/** The document for `source`, or the reason the edit cannot start. */
+export function openConfig(source: string): ConfigDocument | ConfigEdit {
+  try {
+    const document = ConfigDocument.parse(source);
 
-  if (!multiline) {
-    return {
-      start: prop.start,
-      end: code[after] === "," ? skipSpace(code, tailFrom) : prop.valueEnd,
-      text: source.slice(prop.start, prop.valueEnd),
-    };
+    return document.configObject() === undefined
+      ? { ok: false, reason: NO_OBJECT }
+      : document;
+  } catch (error) {
+    if (error instanceof CliError) {
+      return { ok: false, reason: error.message };
+    }
+
+    throw error;
   }
-
-  let before = open + 1;
-
-  if (previous) {
-    before = skipSpace(code, previous.valueEnd) + 1;
-  }
-
-  const gap = source.slice(before, prop.start);
-  const newline = gap.indexOf("\n");
-  const start = newline === -1 ? before : before + newline + 1;
-  const lineEnd = source.indexOf("\n", tailFrom);
-
-  const restIsBlank =
-    lineEnd !== -1 && code.slice(tailFrom, lineEnd).trim() === "";
-
-  const trailing = restIsBlank ? source.slice(tailFrom, lineEnd).trimEnd() : "";
-
-  return {
-    start,
-    end: restIsBlank ? lineEnd + 1 : tailFrom,
-    text: `${source.slice(start, prop.valueEnd)},${trailing}`,
-  };
 }
 
-/** Removes the `, }` an inline regroup leaves before the object's brace. */
-export function tidyInline(text: string, open: number): string {
-  const close = closingIndex(mask(text), open);
+/** The finished edit: the text, or the first thing the document flagged. */
+export function finish(document: ConfigDocument): ConfigEdit {
+  const [first] = document.review;
 
-  if (text.slice(open + 1, close).trim() === "") {
-    return `${text.slice(0, open + 1)}${text.slice(close)}`;
+  return first === undefined
+    ? { ok: true, text: document.text }
+    : { ok: false, reason: first };
+}
+
+/** The leading whitespace of the line that holds `offset`. */
+const indentAt = (source: string, offset: number): string =>
+  /^[ \t]*/.exec(source.slice(source.lastIndexOf("\n", offset - 1) + 1))?.[0] ??
+  "";
+
+/** Where the entry or the first sibling of `path`'s owner sits, for indentation. */
+function indentFor(document: ConfigDocument, path: readonly string[]): string {
+  const found = document.locate(path);
+
+  if (found !== undefined) {
+    return indentAt(document.text, found.entry.start);
   }
 
-  const head = text
-    .slice(0, close)
-    .replace(/,\s*$/, text[open] === "[" ? "" : " ");
+  const parent =
+    path.length === 1 ? undefined : document.locate(path.slice(0, -1));
 
-  return head + text.slice(close);
+  const owner = parent?.value ?? document.configObject();
+
+  if (owner?.type === "ArrayExpression") {
+    const last = owner.elements.findLast((each) => each !== null);
+
+    return last === undefined
+      ? `${indentAt(document.text, owner.start)}${document.style.indent}`
+      : indentAt(document.text, last.start);
+  }
+
+  const first =
+    owner?.type === "ObjectExpression" ? owner.properties[0] : undefined;
+
+  if (first !== undefined) {
+    return indentAt(document.text, first.start);
+  }
+
+  return owner === undefined
+    ? ""
+    : `${indentAt(document.text, owner.start)}${document.style.indent}`;
+}
+
+/** `source` with `names` added to `blocks`, keeping the form it has. */
+export function addBlocksToConfig(
+  source: string,
+  names: readonly string[],
+): ConfigEdit {
+  const document = openConfig(source);
+
+  if (!(document instanceof ConfigDocument)) {
+    return document;
+  }
+
+  const { quote } = document.style;
+  const blocks = document.locate(["blocks"]);
+
+  if (blocks === undefined) {
+    document.set(
+      ["blocks"],
+      `[${names.map((name) => `${quote}${name}${quote}`).join(", ")}]`,
+    );
+
+    return finish(document);
+  }
+
+  if (blocks.value.type === "ObjectExpression") {
+    for (const name of names) {
+      if (!document.has(["blocks", name])) {
+        document.set(["blocks", name], "{}");
+      }
+    }
+
+    return finish(document);
+  }
+
+  if (blocks.value.type === "ArrayExpression") {
+    const listed = document.text.slice(blocks.value.start, blocks.value.end);
+    const used = /(["'])/.exec(listed)?.[1] ?? quote;
+
+    for (const name of names) {
+      if (!document.has(["blocks", name])) {
+        document.append(["blocks"], `${used}${name}${used}`);
+      }
+    }
+
+    return finish(document);
+  }
+
+  return { ok: false, reason: "its blocks key isn't a literal object or list" };
+}
+
+/**
+ * `source` with `preset` set to `value` (a preset name or object), replacing
+ * the one it has.
+ */
+export function setPresetInConfig(
+  source: string,
+  value: string | PresetSpec,
+): ConfigEdit {
+  const document = openConfig(source);
+
+  if (!(document instanceof ConfigDocument)) {
+    return document;
+  }
+
+  document.set(
+    ["preset"],
+    literal(value, indentFor(document, ["preset"]), document.style.quote),
+  );
+
+  return finish(document);
+}
+
+/** A block client to wire: `key: exportName`, imported from `subpath`. */
+export interface WiredBlock {
+  readonly key: string;
+  readonly export: string;
+  readonly subpath: string;
+}
+
+const NO_WIRING = "it doesn't call defineBlocks() or createBlocks()";
+
+/** The wiring document, or the reason the edit cannot start. */
+export function openWiring(source: string): ConfigDocument | ConfigEdit {
+  try {
+    const document = ConfigDocument.parseWiring(source);
+
+    const call = document.wiredCall();
+
+    if (call === undefined) {
+      return { ok: false, reason: NO_WIRING };
+    }
+
+    return call.blocks === undefined
+      ? {
+          ok: false,
+          reason: `${call.name}() isn't passed an object literal of blocks`,
+        }
+      : document;
+  } catch (error) {
+    if (error instanceof CliError) {
+      return { ok: false, reason: error.message };
+    }
+
+    throw error;
+  }
+}
+
+/** Every identifier the module names: declarations, imports and references. */
+function identifiersIn(document: ConfigDocument): ReadonlySet<string> {
+  const names = new Set<string>();
+
+  document.rewrite(({ program }) => {
+    walk(program, {
+      enter(node) {
+        if (node.type === "Identifier") {
+          names.add(node.name);
+        }
+      },
+    });
+  });
+
+  return names;
+}
+
+/**
+ * `lib/blocks.ts` with `blocks` imported and added to the blocks object passed
+ * to `defineBlocks(blockConfig, { ... })` or `createBlocks(options, { ... })`.
+ * A block whose export the file already names is left out.
+ */
+export function addBlocksToWiring(
+  source: string,
+  blocks: readonly WiredBlock[],
+): ConfigEdit {
+  const document = openWiring(source);
+
+  if (!(document instanceof ConfigDocument)) {
+    return document;
+  }
+
+  const named = identifiersIn(document);
+  const missing = blocks.filter((block) => !named.has(block.export));
+
+  if (missing.length === 0) {
+    return { ok: true, text: source };
+  }
+
+  for (const block of missing) {
+    document.set([block.key], block.export);
+  }
+
+  const lines = missing
+    .map((block) => `import { ${block.export} } from "${block.subpath}";`)
+    .join("\n");
+
+  document.rewrite(({ program, edit }) => {
+    const last = program.body.findLast(
+      (statement) => statement.type === "ImportDeclaration",
+    );
+
+    if (last === undefined) {
+      edit.prepend(`${lines}\n\n`);
+    } else {
+      edit.appendLeft(last.end, `\n${lines}`);
+    }
+  });
+
+  return finish(document);
+}
+
+/**
+ * `source` with the `blocks` entry for instance `name` set to `value`,
+ * replacing the entry it has: a name in the list, or a `{ block, name?, ... }`
+ * object.
+ */
+export function setBlockInConfig(
+  source: string,
+  name: string,
+  value: object,
+): ConfigEdit {
+  const document = openConfig(source);
+
+  if (!(document instanceof ConfigDocument)) {
+    return document;
+  }
+
+  const { quote } = document.style;
+  const blocks = document.locate(["blocks"]);
+
+  if (blocks === undefined) {
+    document.set(
+      ["blocks"],
+      `[${listEntry(name, value, indentFor(document, ["blocks"]), quote)}]`,
+    );
+
+    return finish(document);
+  }
+
+  if (blocks.value.type === "ObjectExpression") {
+    const current = document.locate(["blocks", name]);
+
+    if (
+      current?.entry.type === "Property" &&
+      (current.entry.method || current.entry.kind !== "init")
+    ) {
+      return { ok: false, reason: `blocks.${name} is a method, not a value` };
+    }
+
+    document.set(
+      ["blocks", name],
+      literal(value, indentFor(document, ["blocks", name]), quote),
+    );
+
+    return finish(document);
+  }
+
+  if (blocks.value.type === "ArrayExpression") {
+    const indent = indentFor(document, ["blocks", name]);
+    const entry = listEntry(name, value, indent, quote);
+
+    if (document.has(["blocks", name])) {
+      document.set(["blocks", name], entry);
+    } else {
+      document.append(["blocks"], entry);
+    }
+
+    return finish(document);
+  }
+
+  return { ok: false, reason: "its blocks key isn't a literal object or list" };
+}
+
+/**
+ * `source` with the key at `path` set to `value`, replacing what it has and
+ * creating the objects on the way: `["tables", "projects"]` sets one app table
+ * and keeps the others. An entry of a `blocks` list keeps its own keys.
+ */
+export function setPathInConfig(
+  source: string,
+  path: readonly [string, ...string[]],
+  value: unknown,
+): ConfigEdit {
+  const document = openConfig(source);
+
+  if (!(document instanceof ConfigDocument)) {
+    return document;
+  }
+
+  const { quote } = document.style;
+
+  const blocksList =
+    path[0] === "blocks" &&
+    document.locate(["blocks"])?.value.type === "ArrayExpression";
+
+  for (let index = 0; index < path.length; index += 1) {
+    const prefix = path.slice(0, index + 1);
+    const rest = path.slice(index + 1);
+    const found = document.locate(prefix);
+    const at = prefix.join(".");
+
+    if (blocksList && index === 1) {
+      const block = path[1]!;
+
+      // The element is the instance's own object: keep its keys and continue
+      // inside it. Otherwise the element is replaced or added as a whole.
+      if (found?.value.type === "ObjectExpression" && rest.length > 0) {
+        continue;
+      }
+
+      const entry = listEntry(
+        block,
+        nested(rest, value) ?? {},
+        indentFor(document, prefix),
+        quote,
+      );
+
+      if (found === undefined) {
+        document.append(["blocks"], entry);
+      } else {
+        document.set(prefix, entry);
+      }
+
+      return finish(document);
+    }
+
+    if (found === undefined) {
+      document.set(
+        prefix,
+        literal(nested(rest, value), indentFor(document, prefix), quote),
+      );
+
+      return finish(document);
+    }
+
+    if (rest.length === 0) {
+      document.set(prefix, literal(value, indentFor(document, prefix), quote));
+
+      return finish(document);
+    }
+
+    if (blocksList && index === 0) {
+      continue;
+    }
+
+    if (found.value.type !== "ObjectExpression") {
+      return { ok: false, reason: `its ${at} key isn't a literal object` };
+    }
+  }
+
+  return { ok: false, reason: "the path is empty" };
 }

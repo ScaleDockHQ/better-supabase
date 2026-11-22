@@ -33,4 +33,13 @@ describe("codeRanges", () => {
   it("keeps the code of a file that does not parse", () => {
     expect(code(`call(); // x\nfoo(`)).toContain("call();");
   });
+
+  it("reads a TypeScript generic arrow, which TSX cannot parse", () => {
+    expect(
+      code(`const f = <T,>(x: T) => x; // note, with a comma\ncall();`),
+    ).toBe("const f = <T,>(x: T) => x; |\ncall();");
+    expect(
+      code(`const f = <V extends string = never>(x: V) => x; // a, b\ncall();`),
+    ).toBe("const f = <V extends string = never>(x: V) => x; |\ncall();");
+  });
 });

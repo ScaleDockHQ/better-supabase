@@ -8,7 +8,6 @@
 import type { Node } from "oxc-parser";
 
 import { MagicString } from "magic-string";
-import { parseSync } from "oxc-parser";
 import { ScopeTracker, isReferenceIdentifier, walk } from "oxc-walker";
 
 import type { ResolvedConfig } from "../config/index.ts";
@@ -28,6 +27,7 @@ import { serverImportsCodemod } from "./codemod-server-imports.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
 import { tableTagsCodemod } from "./codemod-table-tags.ts";
+import { parseSource } from "./config-document/parse.ts";
 import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
@@ -169,7 +169,7 @@ function renameImports(
   subpath?: string,
 ): { text: string; locals: Set<string> } {
   const locals = new Set<string>();
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
   const out = new MagicString(text);
 
   for (const statement of parsed.program.body) {
@@ -235,7 +235,7 @@ function renameIdentifiers(
     return text;
   }
 
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
   const out = new MagicString(text);
   const scopeTracker = new ScopeTracker();
 

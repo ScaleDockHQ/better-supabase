@@ -151,6 +151,19 @@ describe("remove", () => {
       'const shared = ["audit"];\n\nexport default { blocks: shared };\n',
     );
 
+    const followed = await run(["remove", "audit", "--cwd", dir]);
+
+    // The list lives in a constant: the edit follows it to its declaration.
+    expect(followed.code).toBe(0);
+    expect(
+      await readFile(join(dir, "better-supabase.config.ts"), "utf-8"),
+    ).toContain("const shared = [];");
+
+    await writeFile(
+      join(dir, "better-supabase.config.ts"),
+      'const load = () => ["audit"];\nexport default { blocks: load() };\n',
+    );
+
     const refused = await run(["remove", "audit", "--cwd", dir]);
 
     expect(refused.code).toBe(2);

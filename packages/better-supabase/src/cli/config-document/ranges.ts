@@ -1,5 +1,6 @@
-import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
+
+import { parseSource } from "./parse.ts";
 
 /**
  * `[start, end)` ranges of code, outside strings, regular expressions, template
@@ -8,7 +9,7 @@ import { walk } from "oxc-walker";
  * the part the parser recovered.
  */
 export function codeRanges(text: string): [number, number][] {
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
 
   const hidden: [number, number][] = parsed.comments.map((comment) => [
     comment.start,

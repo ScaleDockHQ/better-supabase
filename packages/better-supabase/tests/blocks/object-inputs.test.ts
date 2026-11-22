@@ -2,7 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { closingIndex, mask } from "../../src/cli/sql/config-edit.ts";
+import { codeRanges } from "../../src/cli/config-document/ranges.ts";
+import { closeOf } from "../../src/cli/doctor/source-scan.ts";
 
 const BLOCKS = join(import.meta.dirname, "../../src/blocks");
 
@@ -393,6 +394,41 @@ function parameterCount(code: string, close: number, open: number): number {
   return body.trim().length === 0 ? 0 : commas + 1 - (trailing ? 1 : 0);
 }
 
+/** `source` with strings and comments blanked: string contents become `x`. */
+function mask(source: string): string {
+  let out = "";
+  let cursor = 0;
+
+  const hide = (end: number): void => {
+    const gap = source.slice(cursor, end);
+    const quote = gap[0];
+
+    if (quote === '"' || quote === "'" || quote === "`") {
+      const closed = gap.length > 1 && gap.endsWith(quote);
+      const inner = gap.slice(1, closed ? -1 : undefined);
+
+      out += quote + inner.replaceAll(/[^\n]/g, "x") + (closed ? quote : "");
+    } else {
+      out += gap.replaceAll(/[^\n]/g, " ");
+    }
+  };
+
+  for (const [start, end] of codeRanges(source)) {
+    if (start > cursor) {
+      hide(start);
+    }
+
+    out += source.slice(start, end);
+    cursor = end;
+  }
+
+  if (cursor < source.length) {
+    hide(source.length);
+  }
+
+  return out;
+}
+
 /** The `<file>:<method>` of every signature in `src/blocks` with 2+ parameters. */
 function multiParameter(): string[] {
   const found = new Set<string>();
@@ -402,9 +438,9 @@ function multiParameter(): string[] {
 
     for (const match of code.matchAll(SIGNATURE)) {
       const open = match.index + match[0].length - 1;
-      const close = closingIndex(code, open);
+      const close = closeOf(code, open);
 
-      if (close === -1) {
+      if (close >= code.length) {
         continue;
       }
 

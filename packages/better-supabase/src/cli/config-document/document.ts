@@ -53,6 +53,25 @@ const DEFINE_CONFIG = "defineConfig";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
+/** `a.b` for a non-computed member expression of identifiers, else undefined. */
+function text(node: Node): string | undefined {
+  if (node.type === "Identifier") {
+    return node.name;
+  }
+
+  if (
+    node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property.type === "Identifier"
+  ) {
+    const object = text(node.object);
+
+    return object === undefined ? undefined : `${object}.${node.property.name}`;
+  }
+
+  return undefined;
+}
+
 /** `node` without the wrappers that only carry a type or parentheses. */
 function unwrap(node: Node): Node {
   if (
@@ -101,16 +120,26 @@ export class ConfigDocument {
   readonly #path: string;
   readonly #before: ReadonlySet<string>;
   readonly #review: string[] = [];
+  readonly #wiring: boolean;
 
-  private constructor(module: ParsedModule, path: string) {
+  private constructor(module: ParsedModule, path: string, wiring: boolean) {
     this.#module = module;
     this.#path = path;
+    this.#wiring = wiring;
     this.#before = referencedBindings(module.program);
   }
 
   /** Parses `text`. A file that does not parse throws a usage error. */
   static parse(text: string, path = "config.ts"): ConfigDocument {
-    return new ConfigDocument(parseModule(text, path), path);
+    return new ConfigDocument(parseModule(text, path), path, false);
+  }
+
+  /**
+   * Parses `lib/blocks.ts`: the root is the blocks object passed to
+   * `defineBlocks(blockConfig, { ... })` or `createBlocks(options, { ... })`.
+   */
+  static parseWiring(text: string, path = "blocks.ts"): ConfigDocument {
+    return new ConfigDocument(parseModule(text, path), path, true);
   }
 
   /** The text with every edit applied. */
@@ -155,15 +184,70 @@ export class ConfigDocument {
   /** The object literal the default export (or `defineConfig`) holds. */
   configObject(): ObjectExpression | undefined {
     const { program } = this.#module;
+
+    if (this.#wiring) {
+      return this.#wiredObject();
+    }
+
     const local = this.#defineConfigNames(program);
 
     for (const statement of program.body) {
       if (statement.type === "ExportDefaultDeclaration") {
         return this.#asConfig(statement.declaration, local, new Set());
       }
+
+      // `module.exports = defineConfig({ ... })` in a CommonJS file.
+      if (
+        statement.type === "ExpressionStatement" &&
+        statement.expression.type === "AssignmentExpression" &&
+        statement.expression.left.type === "MemberExpression" &&
+        text(statement.expression.left) === "module.exports"
+      ) {
+        return this.#asConfig(statement.expression.right, local, new Set());
+      }
     }
 
-    return undefined;
+    // A file that calls `defineConfig(...)` without exporting it.
+    return this.defineConfigCalls()[0];
+  }
+
+  /**
+   * The first `defineBlocks` or `createBlocks` call of a wiring file: its name,
+   * and the blocks object it receives when that is a literal.
+   */
+  wiredCall():
+    | { readonly name: string; readonly blocks: ObjectExpression | undefined }
+    | undefined {
+    let found:
+      | { name: string; blocks: ObjectExpression | undefined }
+      | undefined;
+
+    walk(this.#module.program, {
+      enter: (node: Node): void => {
+        if (
+          found === undefined &&
+          node.type === "CallExpression" &&
+          node.callee.type === "Identifier" &&
+          (node.callee.name === "defineBlocks" ||
+            node.callee.name === "createBlocks")
+        ) {
+          const second = node.arguments[1];
+          const inner = second === undefined ? undefined : unwrap(second);
+
+          found = {
+            name: node.callee.name,
+            blocks: inner?.type === "ObjectExpression" ? inner : undefined,
+          };
+        }
+      },
+    });
+
+    return found;
+  }
+
+  /** The second argument of the first `defineBlocks` or `createBlocks` call. */
+  #wiredObject(): ObjectExpression | undefined {
+    return this.wiredCall()?.blocks;
   }
 
   /**
@@ -325,6 +409,25 @@ export class ConfigDocument {
     }
 
     this.#addProperty(owner, key, valueText);
+
+    return { status: "done" };
+  }
+
+  /**
+   * Adds `valueText` as the last element of the array at `path`, in the form
+   * the array has (one line or one element per line).
+   */
+  append(path: readonly PathSegment[], valueText: string): EditResult {
+    const found = this.locate(path);
+    const list = found?.value;
+
+    if (list?.type !== "ArrayExpression") {
+      return this.#flag(
+        `${this.#path}: cannot add to ${path.join(".")}, because it is not an array literal in this file; add it by hand.`,
+      );
+    }
+
+    this.#addElement(list, valueText);
 
     return { status: "done" };
   }
@@ -974,6 +1077,43 @@ export class ConfigDocument {
       }
     } else {
       edited.appendLeft(last.end, `, ${entry}`);
+    }
+
+    this.#apply(edited);
+  }
+
+  #addElement(owner: ArrayExpression, valueText: string): void {
+    const { text } = this.#module;
+    const style = this.style;
+    const edited = new MagicString(text);
+    const last = owner.elements.findLast((each) => each !== null);
+    const multiline = text.slice(owner.start, owner.end).includes("\n");
+
+    if (last === undefined) {
+      const closing = lineStartOf(text, owner.end - 1);
+      const outer = /^[\t ]*/.exec(text.slice(closing))?.[0] ?? "";
+
+      edited.overwrite(
+        owner.start,
+        owner.end,
+        multiline || valueText.includes("\n")
+          ? `[${style.eol}${outer}${style.indent}${valueText},${style.eol}${outer}]`
+          : `[${valueText}]`,
+      );
+    } else if (multiline) {
+      const lead =
+        /^[\t ]*/.exec(text.slice(lineStartOf(text, last.start)))?.[0] ??
+        style.indent;
+
+      const comma = this.#commaAfter(last.end, owner.end - 1);
+
+      if (comma === -1) {
+        edited.appendLeft(last.end, `,${style.eol}${lead}${valueText}`);
+      } else {
+        edited.appendLeft(comma + 1, `${style.eol}${lead}${valueText},`);
+      }
+    } else {
+      edited.appendLeft(last.end, `, ${valueText}`);
     }
 
     this.#apply(edited);

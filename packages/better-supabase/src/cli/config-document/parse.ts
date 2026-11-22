@@ -1,4 +1,4 @@
-import type { Comment, Program } from "oxc-parser";
+import type { Comment, ParseResult, Program } from "oxc-parser";
 
 import { parseSync } from "oxc-parser";
 
@@ -41,4 +41,22 @@ export function parseModule(text: string, path: string): ParsedModule {
   }
 
   return { program: parsed.program, comments: parsed.comments, text };
+}
+
+/**
+ * Parses source text of unknown flavour. `<T>value` assertions and `<T>(x) =>`
+ * generics are only valid in `.ts`, JSX only in `.tsx`, so it reads the text as
+ * TypeScript first and as TSX when that reports errors, and keeps the read with
+ * fewer errors. A text that parses in neither keeps the recovered tree.
+ */
+export function parseSource(text: string): ParseResult {
+  const typescript = parseSync("source.ts", text, { sourceType: "module" });
+
+  if (typescript.errors.length === 0) {
+    return typescript;
+  }
+
+  const tsx = parseSync("source.tsx", text, { sourceType: "module" });
+
+  return tsx.errors.length < typescript.errors.length ? tsx : typescript;
 }

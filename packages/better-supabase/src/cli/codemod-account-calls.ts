@@ -1,10 +1,10 @@
 import { MagicString } from "magic-string";
-import { parseSync } from "oxc-parser";
 import { walk } from "oxc-walker";
 
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
 import { lineColumn } from "./config-document/index.ts";
+import { parseSource } from "./config-document/parse.ts";
 
 const HELPERS = new Set([
   "deleteAccount",
@@ -26,7 +26,7 @@ export function moveAccountCalls(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
-  const parsed = parseSync("source.tsx", text, { sourceType: "module" });
+  const parsed = parseSource(text);
 
   if (parsed.errors.length > 0) {
     return { text, review: [] };

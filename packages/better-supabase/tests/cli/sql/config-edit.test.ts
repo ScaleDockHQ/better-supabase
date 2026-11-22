@@ -172,21 +172,24 @@ module.exports = {
     );
   });
 
-  it("refuses an object it can't read", () => {
+  it("reads numeric keys and refuses what it cannot parse", () => {
     expect(
       addBlocksToConfig("export default defineConfig({ 1: 2 });", ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
-    expect(
-      addBlocksToConfig("export default defineConfig({ blocks: { 1: 2 } });", [
-        "tags",
-      ]),
-    ).toEqual({ ok: false, reason: "its blocks object can't be read" });
-    expect(
-      addBlocksToConfig("export default defineConfig({ blocks: {", ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
-    expect(
-      addBlocksToConfig('export default defineConfig({ name: "open', ["tags"]),
-    ).toEqual({ ok: false, reason: "its config object can't be read" });
+    ).toEqual({
+      ok: true,
+      text: 'export default defineConfig({ 1: 2, blocks: ["tags"] });',
+    });
+
+    for (const source of [
+      "export default defineConfig({ blocks: {",
+      'export default defineConfig({ name: "open',
+    ]) {
+      const result = addBlocksToConfig(source, ["tags"]);
+
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.reason).toContain("config.ts:1:");
+    }
+
     expect(addBlocksToConfig("export default config;", ["tags"])).toEqual({
       ok: false,
       reason: "it doesn't pass an object literal to defineConfig()",
