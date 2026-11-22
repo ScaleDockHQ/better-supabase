@@ -306,3 +306,10 @@ promise. A log without a record or op column keeps the order match. `db squash` 
 `stampAfter` over the whole migrations folder, so a baseline stamped later than the CLI's clock no longer shares a
 stamp with the data. A test now lists the tenant tables that declare no `lifecycle` (35 today, the data-lifecycle
 module's own tables among them) and fails when the list grows.
+
+**Fake client filters.** A second filter on the same column used to replace the first, so `.gte("price", 1).lte("price", 5)`
+recorded only the upper bound. The fake client now records both in an `and` query parameter (`and=(price.gte.1,price.lte.5)`),
+also for two `or` groups. List values that hold a comma are quoted and objects are written as JSON for `contains`. It adds
+`textSearch`, `rangeGt`, `rangeGte`, `rangeLt`, `rangeLte`, `rangeAdjacent`, `isDistinct`, `likeAnyOf`, `likeAllOf`,
+`ilikeAnyOf` and `ilikeAllOf`. The plan 057 note that lists B15 is not in the repository, so this is what reproduced
+against supabase-js; a handler that read `query.price` for a range now reads `query.and`.

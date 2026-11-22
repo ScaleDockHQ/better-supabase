@@ -49,13 +49,33 @@ function pgrst116(rows: number) {
   } as const;
 }
 
+const RESERVED = /[,()]/;
+
+/**
+ * A list item the way supabase-js writes it: quoted when it holds `,`, `(` or
+ * `)`.
+ */
+function listItem(value: unknown): string {
+  const text =
+    typeof value === "object" && value !== null
+      ? JSON.stringify(value)
+      : String(value);
+
+  return RESERVED.test(text) ? `"${text.replaceAll('"', '\\"')}"` : text;
+}
+
 function filterValue(operator: string, value: unknown): string {
   if (Array.isArray(value)) {
-    const items = value.map(String).join(",");
+    const items = value.map(listItem).join(",");
 
     return operator === "cs" || operator === "cd" || operator === "ov"
       ? `{${items}}`
       : `(${items})`;
+  }
+
+  // A JSON object for `cs` and `cd` on a jsonb column.
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value);
   }
 
   return String(value);
@@ -66,6 +86,7 @@ class FakeQuery implements PromiseLike<Settled> {
   private cardinality: Cardinality = "many";
   private body: unknown;
   private readonly prefer: string[] = [];
+  private readonly joined = new Set<string>();
 
   private readonly handler: FakeHandler;
   private readonly sink: FakeRequest[];
@@ -85,6 +106,41 @@ class FakeQuery implements PromiseLike<Settled> {
     this.method = method;
     this.path = path;
     this.schemaName = schemaName;
+  }
+
+  /**
+   * Sets a filter. A second filter on the same column (`gte` then `lte`, or two
+   * `or` groups) moves both into `and=(...)`, as the query record holds one
+   * value per key and PostgREST reads `and` as the conjunction of its members.
+   */
+  private setFilter(key: string, expression: string): this {
+    const member = (value: string): string =>
+      key === "or" ? `or${value}` : `${key}.${value}`;
+
+    const existing = this.query[key];
+
+    if (existing === undefined && !this.joined.has(key)) {
+      this.query[key] = expression;
+
+      return this;
+    }
+
+    const parts = [
+      ...(existing === undefined ? [] : [member(existing)]),
+      member(expression),
+    ];
+
+    delete this.query[key];
+    this.joined.add(key);
+
+    const and = this.query["and"];
+
+    this.query["and"] =
+      and === undefined
+        ? `(${parts.join(",")})`
+        : `${and.slice(0, -1)},${parts.join(",")})`;
+
+    return this;
   }
 
   select(columns = "*"): this {
@@ -177,35 +233,92 @@ class FakeQuery implements PromiseLike<Settled> {
   }
 
   in(column: string, values: readonly unknown[]): this {
-    this.query[column] = `in.${filterValue("in", values)}`;
-
-    return this;
+    return this.setFilter(column, `in.${filterValue("in", values)}`);
   }
 
   not(column: string, operator: string, value: unknown): this {
-    this.query[column] = `not.${operator}.${filterValue(operator, value)}`;
-
-    return this;
+    return this.setFilter(
+      column,
+      `not.${operator}.${filterValue(operator, value)}`,
+    );
   }
 
   or(filters: string): this {
-    this.query["or"] = `(${filters})`;
-
-    return this;
+    return this.setFilter("or", `(${filters})`);
   }
 
   match(values: Readonly<Record<string, unknown>>): this {
     for (const [column, value] of Object.entries(values)) {
-      this.query[column] = `eq.${String(value)}`;
+      this.setFilter(column, `eq.${String(value)}`);
     }
 
     return this;
   }
 
   filter(column: string, operator: string, value: unknown): this {
-    this.query[column] = `${operator}.${filterValue(operator, value)}`;
+    return this.setFilter(
+      column,
+      `${operator}.${filterValue(operator, value)}`,
+    );
+  }
 
-    return this;
+  isDistinct(column: string, value: unknown): this {
+    return this.filter(column, "isdistinct", value);
+  }
+
+  textSearch(
+    column: string,
+    query: string,
+    options: {
+      readonly config?: string;
+      readonly type?: "plain" | "phrase" | "websearch";
+    } = {},
+  ): this {
+    const operator =
+      options.type === undefined
+        ? "fts"
+        : { plain: "plfts", phrase: "phfts", websearch: "wfts" }[options.type];
+
+    return this.setFilter(
+      column,
+      `${operator}${options.config ? `(${options.config})` : ""}.${query}`,
+    );
+  }
+
+  rangeGt(column: string, range: string): this {
+    return this.filter(column, "sr", range);
+  }
+
+  rangeGte(column: string, range: string): this {
+    return this.filter(column, "nxl", range);
+  }
+
+  rangeLt(column: string, range: string): this {
+    return this.filter(column, "sl", range);
+  }
+
+  rangeLte(column: string, range: string): this {
+    return this.filter(column, "nxr", range);
+  }
+
+  rangeAdjacent(column: string, range: string): this {
+    return this.filter(column, "adj", range);
+  }
+
+  likeAllOf(column: string, patterns: readonly string[]): this {
+    return this.setFilter(column, `like(all).{${patterns.join(",")}}`);
+  }
+
+  likeAnyOf(column: string, patterns: readonly string[]): this {
+    return this.setFilter(column, `like(any).{${patterns.join(",")}}`);
+  }
+
+  ilikeAllOf(column: string, patterns: readonly string[]): this {
+    return this.setFilter(column, `ilike(all).{${patterns.join(",")}}`);
+  }
+
+  ilikeAnyOf(column: string, patterns: readonly string[]): this {
+    return this.setFilter(column, `ilike(any).{${patterns.join(",")}}`);
   }
 
   order(
