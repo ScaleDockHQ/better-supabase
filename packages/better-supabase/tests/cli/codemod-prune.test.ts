@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   settleGroups,
-  topLevelValue,
   withoutConfigPaths,
 } from "../../src/cli/codemod-prune.ts";
 
@@ -146,14 +145,14 @@ describe("withoutConfigPaths misses", () => {
   const missed = (text: string, path: string) =>
     withoutConfigPaths(text, [path]).missed;
 
-  it("misses every path without a closed config object", () => {
+  it("misses every path without a config object and rejects an unclosed one", () => {
     expect(missed("const x = 1;\n", "sql.dir")).toEqual(["sql.dir"]);
-    expect(missed("export default defineConfig({ sql: {", "sql")).toEqual([
-      "sql",
-    ]);
+    expect(() => missed("export default defineConfig({ sql: {", "sql")).toThrow(
+      "Expected",
+    );
   });
 
-  it("misses a path through a listed name, a scalar or an unclosed object", () => {
+  it("misses a path through a listed name or a scalar and rejects an unclosed object", () => {
     expect(
       missed(
         'export default defineConfig({ blocks: ["tags"] });',
@@ -163,27 +162,16 @@ describe("withoutConfigPaths misses", () => {
     expect(
       missed('export default defineConfig({ sql: "x" });', "sql.dir"),
     ).toEqual(["sql.dir"]);
-    expect(
+    expect(() =>
       missed("export default defineConfig({ a: { b: { c: 1 } });", "a.b.c"),
-    ).toEqual(["a.b.c"]);
+    ).toThrow("Expected");
   });
 
   it("removes a last property on the closing line", () => {
     expect(
       withoutConfigPaths("export default defineConfig({ a: 1, b: 2 })", ["b"])
         .text,
-    ).toBe("export default defineConfig({ a: 1})");
-  });
-});
-
-describe("topLevelValue", () => {
-  it("finds the value text of a top-level key", () => {
-    const text = 'export default defineConfig({ sql: { dir: "db" } });';
-    const range = topLevelValue(text, "sql")!;
-
-    expect(text.slice(range.start, range.end).trim()).toBe('{ dir: "db" }');
-    expect(topLevelValue(text, "casing")).toBeUndefined();
-    expect(topLevelValue("const x = 1;", "sql")).toBeUndefined();
+    ).toBe("export default defineConfig({ a: 1 })");
   });
 });
 

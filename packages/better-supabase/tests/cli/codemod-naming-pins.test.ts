@@ -560,18 +560,17 @@ describe("withColumnPins search edges", () => {
     expect(missed).toEqual([]);
     expect(out).toContain('const note = "drive: { columns: {} }";');
     expect(out).toMatch(
-      /instances: \{ drive: \{\n\s*columns: \{\n\s*nodes: \{\n\s*deletedAt: "deleted_at",/u,
+      /instances: \{ drive: \{ block: 'drive', columns: \{\n\s*nodes: \{\n\s*deletedAt: "deleted_at",/u,
     );
   });
 
-  it("misses a block with no object or an unclosed one", () => {
+  it("misses a block with no object and rejects an unclosed one", () => {
     expect(
       withColumnPins("export default { blocks: {} };", [pin]).missed,
     ).toEqual([pin]);
-    expect(
-      withColumnPins("export default { blocks: { drive: { x: 1 }", [pin])
-        .missed,
-    ).toEqual([pin]);
+    expect(() =>
+      withColumnPins("export default { blocks: { drive: { x: 1 }", [pin]),
+    ).toThrow("Expected");
   });
 });
 

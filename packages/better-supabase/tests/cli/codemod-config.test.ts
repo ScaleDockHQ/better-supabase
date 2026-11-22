@@ -331,15 +331,18 @@ describe("config codemod --prune for a config that does not render", () => {
 });
 
 describe("withoutColumnEntries leaves", () => {
-  it("leaves a table the columns object lacks and an unclosed block", () => {
-    expect(
-      withoutColumnEntries(CONFIG, [entry("teams", "members", "name")]),
-    ).toBe(CONFIG);
+  it("leaves a table the columns object lacks and rejects an unclosed block", () => {
+    const result = withoutColumnEntries(CONFIG, [
+      entry("teams", "members", "name"),
+    ]);
+
+    expect(result.text).toBe(CONFIG);
+    expect(result.review).toHaveLength(1);
 
     const unclosed = "export default { tags: { columns: { tags: { rank: null";
 
-    expect(
+    expect(() =>
       withoutColumnEntries(unclosed, [entry("tags", "tags", "rank")]),
-    ).toBe(unclosed);
+    ).toThrow("Expected");
   });
 });

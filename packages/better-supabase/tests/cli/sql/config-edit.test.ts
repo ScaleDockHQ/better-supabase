@@ -4,16 +4,12 @@ import {
   addBlocksToConfig,
   addBlocksToJson,
   addBlocksToWiring,
-  cutRange,
-  mask,
-  properties,
   setBlockInConfig,
   setBlockInJson,
   setPresetInConfig,
   setPathInConfig,
   setPathInJson,
   setPresetInJson,
-  tidyInline,
 } from "../../../src/cli/sql/config-edit.ts";
 
 const edited = (source: string, names: readonly string[]): string => {
@@ -674,57 +670,6 @@ describe("setPathInConfig edges", () => {
       ok: false,
       reason: "its appTables key isn't a literal object",
     });
-  });
-});
-
-describe("cutRange", () => {
-  const range = (source: string, index: number, multiline: boolean) => {
-    const code = mask(source);
-    const open = source.indexOf("{");
-
-    return cutRange(
-      source,
-      code,
-      open,
-      properties(source, code, open)!,
-      index,
-      multiline,
-    );
-  };
-
-  it("cuts an inline property with its comma", () => {
-    const source = "{ a: 1, b: 2 }";
-    const cut = range(source, 0, false);
-
-    expect(cut.text).toBe("a: 1");
-    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe("{ b: 2 }");
-    expect(range(source, 1, false).text).toBe("b: 2");
-  });
-
-  it("cuts a whole line with its trailing comment", () => {
-    const source = "{\n  a: 1,\n  b: 2, // note\n  c: 3\n}";
-    const cut = range(source, 1, true);
-
-    expect(cut.text).toBe("  b: 2, // note");
-    expect(source.slice(0, cut.start) + source.slice(cut.end)).toBe(
-      "{\n  a: 1,\n  c: 3\n}",
-    );
-  });
-
-  it("stops at the comma when code follows on the line", () => {
-    const source = "{ a: 1, b: 2 }";
-    const cut = range(source, 0, true);
-
-    expect(cut.text).toBe(" a: 1,");
-    expect(cut.end).toBe(source.indexOf(",") + 1);
-  });
-});
-
-describe("tidyInline", () => {
-  it("empties a blank object and drops a dangling comma", () => {
-    expect(tidyInline("x = {  }", 4)).toBe("x = {}");
-    expect(tidyInline("x = { a: 1, }", 4)).toBe("x = { a: 1 }");
-    expect(tidyInline("x = [1, ]", 4)).toBe("x = [1]");
   });
 });
 

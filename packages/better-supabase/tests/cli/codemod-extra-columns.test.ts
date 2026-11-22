@@ -9,8 +9,8 @@ import {
   schemasDirOf,
   withoutOptionKeys,
 } from "../../src/cli/codemod-extra-columns.ts";
-import { resolveConfig } from "../../src/config/index.ts";
 import { primeSchemaFacts } from "../../src/cli/sql-facts.ts";
+import { resolveConfig } from "../../src/config/index.ts";
 
 const run = async (
   input: Parameters<typeof extraColumnsFiles>[0],
@@ -302,7 +302,7 @@ describe("extra-columns codemod", () => {
       'alter table "better_supabase"."tags"\n  add column "region" text;',
     );
     expect(files[1]!.contents).toBe(
-      "export default { blocks: { tags: { options: { } } } };\n",
+      "export default { blocks: { tags: { options: {} } } };\n",
     );
   });
 
