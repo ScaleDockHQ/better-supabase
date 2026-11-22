@@ -40,7 +40,8 @@ change.
 
 ## Consequences
 
-The reader is not wired in yet. The regex scanners stay until every family
-(views, indexes, foreign keys, policy grants, triggers and the pipeline model)
-has the same proof and the loaders (`readSchemaTexts`, the render pipeline) read
-ahead. Until then there are two readers, with a test that keeps them equal.
+The reader covers the families listed above plus views, policy grants, the
+extension schema, updated-at triggers, indexes, foreign keys and the
+declaration model, each proven equal on about 515 files with the differences
+named in `equivalence-queries.test.ts`. ADR 1180 records where the text
+scanners stay.
