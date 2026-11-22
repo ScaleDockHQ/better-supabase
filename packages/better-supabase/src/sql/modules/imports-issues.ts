@@ -8,7 +8,7 @@ import {
   userGrant,
 } from "../shared.ts";
 
-const ISSUES = (ctx: BlockSqlContext): string =>
+export const ISSUES = (ctx: BlockSqlContext): string =>
   `${ctx.schema}.${ctx.tableName("issues").name}`;
 
 const issueTenant = (ctx: BlockSqlContext): string =>

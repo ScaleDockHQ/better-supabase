@@ -284,3 +284,12 @@ they need no hook. The new functions are `expense_approval_cancelled` and `times
 `send_notification` takes an `external` list of `{ address }` or `{ contact }` entries, reached on the email
 channel through the same claim and bounce suppression as members. A contact resolves through your
 `resolveAddress` function. It is off by default, because it makes the recipient `user` column nullable.
+
+**Import runner.** Five gaps that apps worked around with their own copy of the functions are closed, each in
+`create or replace` functions that `add` and `upgrade` rewrite without a version bump. A dry run now keeps its
+conflict and error rows in `list_import_issues`, which the rolled-back batch used to take with it, and cancelling
+a dry run removes its stored chunks and issue rows. `import_apply_batch` reads the record map of a whole batch in
+one query instead of one query per item. `enqueue_import_chunks` sends a failed chunk back to pending with a new
+job, so calling it again retries what failed. `import_supplier_item` takes the supplier from a `supplier` or
+`customer` ref when `supplierId` is missing. The import gaps note the plan names was not in the repository, so
+these five follow the plan's wording; compare them with your override before you delete it.
