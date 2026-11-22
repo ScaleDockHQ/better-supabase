@@ -285,6 +285,27 @@ describe("organizations module", () => {
     expect(body({})).not.toContain("attributes jsonb");
   });
 
+  it("leaves out the columns attributesExclude names", () => {
+    const sql = body({
+      organizations: {
+        options: {
+          extraColumns: { plan: "text", secret: "text" },
+          attributesExclude: ["secret"],
+        },
+      },
+    });
+
+    expect(sql).toContain(`jsonb_build_object('plan', o."plan")`);
+    expect(sql).not.toContain(`'secret'`);
+    expect(() =>
+      body({
+        organizations: {
+          options: { attributes: ["secret"], attributesExclude: ["secret"] },
+        },
+      }),
+    ).toThrow(/both attributes and attributesExclude/);
+  });
+
   it("returns the app's attribute columns from mine", () => {
     const sql = body(CENTRAKIT, CENTRAKIT_TABLES);
 

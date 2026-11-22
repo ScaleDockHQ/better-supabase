@@ -5,6 +5,12 @@ import { blockOptions, option } from "../options.ts";
 /** `blocks.organizations.options`. */
 export type OrganizationsSqlOptions = {
   readonly assignmentGuard?: string;
+  /**
+   * The columns your schema files add to the organizations table, which are
+   * attributes by default. Columns listed here stay out of
+   * `create_organization`, `update_organization` and `list_my_organizations`.
+   */
+  readonly attributesExclude?: readonly string[];
   readonly attributes?: readonly string[];
   readonly auditCategory?: unknown;
   readonly deleteMode?: string;
@@ -28,6 +34,7 @@ export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions
   blockOptions<OrganizationsSqlOptions>({
     assignmentGuard: option.string({ default: "module" }),
     attributes: option.strings({ default: [] }),
+    attributesExclude: option.strings({ default: [] }),
     auditCategory: option.unknown(),
     deleteMode: option.string({ default: "hard" }),
     formerOwnerRole: option.string({ default: "admin" }),

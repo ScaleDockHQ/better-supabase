@@ -56,6 +56,7 @@ const NAMES: BlockSqlNames = {
   options: [
     "assignmentGuard",
     "attributes",
+    "attributesExclude",
     "auditCategory",
     "deleteMode",
     "formerOwnerRole",
