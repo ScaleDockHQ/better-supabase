@@ -5,6 +5,19 @@ import { walk } from "oxc-walker";
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
 import { ConfigDocument, propertyName } from "./config-document/index.ts";
+import { CliError } from "./core/errors.ts";
+
+function parsedOrUndefined(text: string): ConfigDocument | undefined {
+  try {
+    return ConfigDocument.parse(text);
+  } catch (error) {
+    if (error instanceof CliError) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
 
 const same = (name: string): string => name.replaceAll("-", "_");
 
@@ -56,7 +69,13 @@ export function recordTypes(text: string): {
   readonly text: string;
   readonly review: readonly ReviewLine[];
 } {
-  const document = ConfigDocument.parse(text);
+  // The codemod runs on every source file; one that does not parse as TypeScript (JSX) is not the config.
+  const document = parsedOrUndefined(text);
+
+  if (document === undefined) {
+    return { text, review: [] };
+  }
+
   const types = registered(document);
   const blocks = document.locate(["blocks"]);
 

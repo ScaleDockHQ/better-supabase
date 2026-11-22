@@ -291,9 +291,22 @@ export function tableTagsCodemod(): Codemod {
     description:
       "Move audit exemptions, data-lifecycle tables and expose entries into comment on table tags",
     project: async (project: CodemodProject) => {
-      await primeSchemaFacts(project.sql, project.config.root);
+      // A pgTAP file with psql commands (\gset) does not parse; it is skipped and reported.
+      const unread = await primeSchemaFacts(project.sql, project.config.root, {
+        lenient: true,
+      });
 
-      return tableTagFiles(project);
+      const result = tableTagFiles(project);
+
+      return {
+        ...result,
+        review: [
+          ...result.review,
+          ...unread.map((error) => ({
+            message: `${error.path}:${String(error.line)}: ${error.message}; the codemod did not read this file.`,
+          })),
+        ],
+      };
     },
   };
 }

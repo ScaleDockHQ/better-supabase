@@ -6,6 +6,12 @@ const wrap = (blocks: string): string =>
   `import { defineConfig } from "better-supabase";\n\nexport default defineConfig({\n  preset: "saas",\n  blocks: ${blocks},\n});\n`;
 
 describe("blocks-list codemod", () => {
+  it("leaves a source file that is not a config alone, even one that is not valid TypeScript", () => {
+    const jsx = 'export const View = () => <div className="a">x</div>;\n';
+
+    expect(blocksList(jsx).text).toBe(jsx);
+  });
+
   it("turns empty entries into names and configured ones into objects", () => {
     const out = blocksList(
       wrap(`{

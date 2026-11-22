@@ -26,6 +26,11 @@ interface Rewritten {
  * spread or a computed key stays as written and gets a review line.
  */
 export function blocksList(text: string): Rewritten {
+  // The codemod runs on every source file; only a file that calls defineConfig can hold blocks.
+  if (!text.includes("defineConfig")) {
+    return { text, review: [] };
+  }
+
   const document = ConfigDocument.parse(text);
   const located = document.locate(["blocks"]);
 

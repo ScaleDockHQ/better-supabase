@@ -298,7 +298,10 @@ export function extraColumnsCodemod(): Codemod {
     project: async (project: CodemodProject) => {
       const { config } = project;
 
-      await primeSchemaFacts(project.sql, config.root);
+      // A pgTAP file with psql commands (\gset) does not parse; it adds no facts.
+      const unread = await primeSchemaFacts(project.sql, config.root, {
+        lenient: true,
+      });
 
       const options = Object.fromEntries(
         Object.entries(config.blocks).map(([name, block]) => [
@@ -384,7 +387,7 @@ export function extraColumnsCodemod(): Codemod {
         }
       };
 
-      return extraColumnsFiles({
+      const result = extraColumnsFiles({
         options,
         tableOf,
         sql: project.sql,
@@ -398,6 +401,16 @@ export function extraColumnsCodemod(): Codemod {
               },
             }),
       });
+
+      return {
+        ...result,
+        review: [
+          ...result.review,
+          ...unread.map((error) => ({
+            message: `${error.path}:${String(error.line)}: ${error.message}; the codemod did not read this file.`,
+          })),
+        ],
+      };
     },
   };
 }
