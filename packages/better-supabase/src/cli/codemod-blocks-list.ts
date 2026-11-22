@@ -1,12 +1,9 @@
 import type { Codemod, ReviewLine } from "./codemod.ts";
 
-import { topLevelValue } from "./codemod-prune.ts";
-import { KEY, LEADING_COMMENTS, segments } from "./codemod-sort-keys.ts";
+import { ConfigDocument, propertyName } from "./config-document/index.ts";
 
 const lineOf = (text: string, index: number): number =>
   text.slice(0, index).split("\n").length;
-
-const BLOCK_KEY = /(?:^|[{,\s])(?:block|"block"|'block')\s*:/;
 
 /** `{ ...inner }` with `lead` as its first property. */
 function withLeadProperty(object: string, lead: string): string {
@@ -29,40 +26,32 @@ interface Rewritten {
  * spread or a computed key stays as written and gets a review line.
  */
 export function blocksList(text: string): Rewritten {
-  const located = topLevelValue(text, "blocks");
+  const document = ConfigDocument.parse(text);
+  const located = document.locate(["blocks"]);
 
-  if (located === undefined) {
+  if (located?.value.type !== "ObjectExpression") {
     return { text, review: [] };
   }
 
-  const value = text.slice(located.start, located.end);
-  const trimmed = value.trim();
+  const object = located.value;
+  const entries: { start: number; end: number; next: string }[] = [];
 
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
-    return { text, review: [] };
-  }
+  for (const property of object.properties) {
+    const name =
+      property.type === "Property" ? propertyName(property) : undefined;
 
-  const offset = value.indexOf("{");
-  const inner = trimmed.slice(1, -1);
-  const parts = segments(inner);
-  const trailing = parts.at(-1)!.trim() === "" ? parts.pop()! : undefined;
-  const out: string[] = [];
-
-  for (const part of parts) {
-    const core = part.trim();
-    const comments = LEADING_COMMENTS.exec(core)![0];
-    const entry = core.slice(comments.length);
-    const key = KEY.exec(entry);
-    const name = key === null ? undefined : (key[1] ?? key[2] ?? key[3]);
-
-    const body = key === null ? undefined : entry.slice(key[0].length).trim();
-
-    if (name === undefined || body === undefined || !body.startsWith("{")) {
+    if (
+      property.type !== "Property" ||
+      name === undefined ||
+      property.value.type !== "ObjectExpression" ||
+      property.shorthand ||
+      property.method
+    ) {
       return {
         text,
         review: [
           {
-            line: lineOf(text, located.start + offset),
+            line: lineOf(text, object.start),
             message:
               "blocks has an entry the codemod can't read (a spread or a computed key). Convert it to a list by hand.",
           },
@@ -70,32 +59,47 @@ export function blocksList(text: string): Rewritten {
       };
     }
 
-    const empty = body.replaceAll(/[\s{}]/g, "") === "";
-    const hasBlock = BLOCK_KEY.test(body);
+    const { value } = property;
+    const empty = value.properties.length === 0;
 
-    const next = empty
-      ? JSON.stringify(name)
-      : withLeadProperty(
-          body,
-          hasBlock
-            ? `name: ${JSON.stringify(name)}`
-            : `block: ${JSON.stringify(name)}`,
-        );
-
-    out.push(
-      `${/^\s*/.exec(part)![0]}${comments}${next}${/\s*$/.exec(part)![0]}`,
+    const hasBlock = value.properties.some(
+      (each) => each.type === "Property" && propertyName(each) === "block",
     );
+
+    entries.push({
+      start: property.start,
+      end: property.end,
+      next: empty
+        ? JSON.stringify(name)
+        : withLeadProperty(
+            text.slice(value.start, value.end),
+            hasBlock
+              ? `name: ${JSON.stringify(name)}`
+              : `block: ${JSON.stringify(name)}`,
+          ),
+    });
   }
 
-  const list = `[${out.join(",")}${out.length > 0 ? "," : ""}${trailing ?? ""}]`;
+  document.rewrite(({ edit }) => {
+    for (const entry of entries) {
+      edit.overwrite(entry.start, entry.end, entry.next);
+    }
 
-  return {
-    text:
-      text.slice(0, located.start + offset) +
-      list +
-      text.slice(located.start + value.lastIndexOf("}") + 1),
-    review: [],
-  };
+    edit.overwrite(object.start, object.start + 1, "[");
+    edit.overwrite(object.end - 1, object.end, "]");
+
+    const last = object.properties.at(-1);
+
+    if (
+      last !== undefined &&
+      text.slice(object.start, object.end).includes("\n") &&
+      !/^\s*,/.test(text.slice(last.end, object.end - 1))
+    ) {
+      edit.appendLeft(last.end, ",");
+    }
+  });
+
+  return { text: document.text, review: [] };
 }
 
 export function blocksListCodemod(): Codemod {

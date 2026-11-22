@@ -288,6 +288,8 @@ async function prune(
       message: `${path} repeats its default, but the codemod could not find it in ${configFile}; remove it by hand.`,
     }));
 
+  review.push(...first.review.map((message) => ({ message })));
+
   if (first.text === configText) {
     return { files: [], review };
   }
