@@ -79,6 +79,24 @@ describe("diffSnapshots and classifyDiffs", () => {
     expect(explained["tax_codes"]).toBe(1);
     expect(unexplained.map((item) => item.file)).toEqual(["a.sql", "c.sql"]);
   });
+
+  it("scopes a main-side entry to its module file", () => {
+    const diff = (file: string) => ({
+      file,
+      kind: "changed" as const,
+      added: ["  v_known int;"],
+      removed: [],
+    });
+
+    const { unexplained } = classifyDiffs([
+      diff("supabase/schemas/better_supabase/module_064_imports.sql"),
+      diff("supabase/schemas/better_supabase/module_010_other.sql"),
+    ]);
+
+    expect(unexplained.map((item) => item.file)).toEqual([
+      "supabase/schemas/better_supabase/module_010_other.sql",
+    ]);
+  });
 });
 
 describe("parseArgs", () => {
