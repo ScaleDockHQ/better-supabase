@@ -255,7 +255,7 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
     v_row.${e("tenant")}, ${sqlString(EXPENSE_SUBJECT)}, v_row.${e("id")}::text, 'approve',
     ${sqlString(standalonePolicy(ctx))}::jsonb${employee ? ` || jsonb_build_object('managerOf', v_row.${e("employee")}::text)` : ""}${exclude}, null,
     jsonb_build_object('userId', ${owner.requester("v_row")}${employee ? `, 'employeeId', v_row.${e("employee")}` : ""}, 'amount', v_row.${e("amount")}::text, 'currency', v_row.${e("currency")}, 'spentOn', v_row.${e("spentOn")}),
-    ${owner.requester("v_row")}
+    ${owner.requester("v_row")}, true
   );`;
 
   const cancelApproval =

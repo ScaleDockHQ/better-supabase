@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:f4ff0df0a5daa93d94f195e54a18af1105ea15c859797325d44c2fd01f3f764e
+-- @bsb-hash sha256:cb14a2d6ab0eae442f1bb778fce379bc1540419d284a56f8acd679ef97712422
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -425,10 +425,11 @@ $$;
 
 -- The organizations whose last owner the member is: removing their
 -- memberships (leaving, or deleting the account) would fail the owner check.
--- A member reads their own and the service role any member's; for another
--- member, the caller gets the organizations where they may remove members
--- (blocks.organizations.permissions.removeMember), so an offboarding run by
--- HR can ask first. It never raises for another member.
+-- A member reads their own and the service role any member's. Another member's
+-- list needs the remove permission (blocks.organizations.permissions.removeMember
+-- or options.soleOwnedPermission) in every organization the list would name, and
+-- in at least one organization of the member, so an offboarding run by HR can ask
+-- first. Without it the call raises instead of returning a partial list.
 create or replace function "better_supabase"."sole_owned_organizations"(member uuid default null)
 returns uuid[]
 language plpgsql
@@ -440,21 +441,33 @@ as $$
 declare
   v_member uuid := coalesce(member, auth.uid());
   v_all boolean := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_member = auth.uid();
+  v_ids uuid[];
 begin
   if v_member is null then
     raise exception 'Only the member or the service role can read this' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
   end if;
-  return coalesce((
+  if not v_all and not exists (select 1 from "public"."memberships" m
+    where m."user_id" = v_member
+      and coalesce(better_supabase.member_can(auth.uid(), m."organization_id", 'members.remove'), false)) then
+    raise exception 'Not allowed to read this member''s organizations' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  v_ids := coalesce((
     select array_agg(m."organization_id" order by m."organization_id")
     from "public"."memberships" m
     where m."user_id" = v_member and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = 'owner'
-      and (v_all or coalesce(better_supabase.member_can(auth.uid(), m."organization_id", 'members.remove'), false))
       and exists (select 1 from "public"."organizations" o where o."id" = m."organization_id")
       and not exists (
         select 1 from "public"."memberships" y
         where y."organization_id" = m."organization_id" and y."user_id" <> v_member and (select r."key" from "better_supabase"."roles" r where r."id" = y."role") = 'owner'
       )
   ), '{}');
+  if not v_all and exists (
+    select 1 from unnest(v_ids) t (id)
+    where not coalesce(better_supabase.member_can(auth.uid(), t.id, 'members.remove'), false)
+  ) then
+    raise exception 'Not allowed to read this member''s organizations' using errcode = '42501', hint = 'ORGANIZATION_FORBIDDEN';
+  end if;
+  return v_ids;
 end;
 $$;
 

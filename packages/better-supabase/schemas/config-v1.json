@@ -8614,6 +8614,9 @@
               "decider": {
                 "type": "string"
               },
+              "writer": {
+                "type": "string"
+              },
               "approvalRequired": {
                 "type": "string"
               },

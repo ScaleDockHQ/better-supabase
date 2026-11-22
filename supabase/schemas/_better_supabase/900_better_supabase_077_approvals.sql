@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:4aac734a23c922be2261546eb8bc81a5e19d963a70927d58d497d3f315c9f858
+-- @bsb-hash sha256:f695d6ffcc6b25c3cf8da8dbc0f81d03def0c3b0c6e469dacd7310ce065f7c35
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -359,7 +359,7 @@ begin
     return;
   end if;
   if approval_notify.kind in ('approved', 'rejected', 'expired') then
-    v_recipients := array[v_req."requested_by"];
+    v_recipients := array_remove(array[v_req."requested_by"], null);
     v_permission := null;
   else
     v_approvers := v_req."policy" -> 'steps' -> v_req."step" -> case when approval_notify.kind = 'escalated' then 'escalateTo' else 'approvers' end;
@@ -411,7 +411,7 @@ begin
       'summary', left(v_req."action" || coalesce(': ' || v_req."reason", ''), 140),
       'recipients', to_jsonb(v_recipients),
       'permission', v_permission,
-      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) else jsonb_build_array(v_req."requested_by") || coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) end,
+      'exclude', case when approval_notify.kind in ('approved', 'rejected', 'expired') then '[]'::jsonb when coalesce((v_req."policy" ->> 'selfApproval')::boolean, false) then coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) else to_jsonb(array_remove(array[v_req."requested_by"], null)) || coalesce(v_req."policy" -> 'excludedUserIds', '[]'::jsonb) end,
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req."id"::text || ':' || v_req."step"::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req."id", 'action', v_req."action", 'step', v_req."step")
@@ -507,9 +507,11 @@ revoke execute on function "better_supabase"."approval_finalize"(uuid) from publ
 
 -- Files a request under an explicit policy snapshot. request_approval and
 -- the access-requests module call it after their own checks. requested_by
--- defaults to the caller.
+-- defaults to the caller. on_behalf names requested_by as the subject's
+-- owner: null then means an owner without a login, never the caller, so a
+-- member who files for that owner can still decide the request.
 
-create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
+create or replace function "better_supabase"."open_approval"(tenant uuid, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null, on_behalf boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -519,7 +521,7 @@ as $$
 declare
   v_req "better_supabase"."approval_requests"%rowtype;
   v_policy jsonb := open_approval.policy;
-  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
+  v_requester uuid := case when open_approval.on_behalf then open_approval.requested_by else coalesce(open_approval.requested_by, auth.uid()) end;
 begin
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_approval_request"(uuid, text, text, text)');
@@ -578,7 +580,7 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+revoke execute on function "better_supabase"."open_approval"(uuid, text, text, text, jsonb, text, jsonb, uuid, boolean) from public, anon, authenticated;
 
 -- Closes the pending request for a subject that its own module decided
 -- (decide_ai_tool_approval, approve_support_request) without running the

@@ -13,7 +13,7 @@ import {
   userGrant,
   conflict,
 } from "../shared.ts";
-import { deciderCall } from "./direct-approver.ts";
+import { deciderCall, writerCall } from "./direct-approver.ts";
 import {
   atOnceSql,
   TIMESHEET_SUBJECT,
@@ -267,7 +267,7 @@ begin
   if not found then
     ${timesheetNotFound}
   end if;
-  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}) then
+  if not (${SERVICE_CALLER} or coalesce(v_sheet.${t("user")} = auth.uid(), false) or ${ctx.can("tenant", `v_sheet.${t("tenant")}`, manage)}${deciderCall(ctx, "blocks.time-entries.options", `v_sheet.${t("id")}`)}${writerCall(ctx, "blocks.time-entries.options", `v_sheet.${t("tenant")}`, `v_sheet.${t("user")}`)}) then
     ${forbidden("not allowed to withdraw this timesheet")}
   end if;
   update ${ar} x set ${a("status")} = 'cancelled'

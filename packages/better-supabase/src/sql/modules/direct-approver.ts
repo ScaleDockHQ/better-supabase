@@ -113,6 +113,25 @@ export function deciderCall(
 }
 
 /**
+ * ` or <schema.function>(<tenant>, <owner>)` for `options.writer`, an app
+ * function `(tenant, owner uuid) returns boolean` that lets more callers write
+ * for another owner, such as a manager for their reports; else `""`. A null
+ * answer denies.
+ */
+export function writerCall(
+  ctx: BlockSqlContext,
+  where: string,
+  tenant: string,
+  owner: string,
+): string {
+  const writer = appFunction(ctx, where, "writer");
+
+  return writer === undefined
+    ? ""
+    : ` or coalesce(${writer}(${tenant}, ${owner}), false)`;
+}
+
+/**
  * The quoted `"schema"."function"` an option such as `approvalRequired` names,
  * or undefined when it is unset.
  */
