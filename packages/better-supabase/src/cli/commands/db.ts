@@ -27,6 +27,7 @@ import {
   migrationFiles,
   migrationVersion,
 } from "../in-stack-diff.ts";
+import { requirePgDelta } from "../pg-delta-only.ts";
 import {
   declarativeSchemasDir,
   readSupabaseConfig,
@@ -268,6 +269,10 @@ export async function runDbDiff(
       "usage",
       "db diff turns declarative schema files into a migration, and this project writes migrations directly (database.sql.workflow = migrations).",
     );
+  }
+
+  if (args["in-stack"] === true) {
+    requirePgDelta("db diff --in-stack (the in-stack proof)", workflow);
   }
 
   let fellBack = false;

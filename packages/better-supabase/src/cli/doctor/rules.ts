@@ -51,6 +51,7 @@ import { LITE_RULES } from "./lite.ts";
 import { LIVE_STATE_RULES } from "./live-state-rules.ts";
 import { LIVE_RULES } from "./live.ts";
 import { skippedForMetadata } from "./metadata.ts";
+import { MIGRA_DROP_RULES } from "./migra-drops.ts";
 import { MIGRATION_RULES } from "./migration-rules.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
@@ -1185,6 +1186,7 @@ export const RULES: readonly Rule[] = [
   ...WIRING_RULES,
   ...STACK_RULES,
   ...SUPABASE_CLI_RULES,
+  ...MIGRA_DROP_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

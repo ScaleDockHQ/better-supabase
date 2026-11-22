@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/validation-presets",
       "tests/validation-crm",
       "tests/validation-declarative",
+      "tests/validation-jsonc",
       "tests/validation-lienlink",
       "tests/validation-migrations",
       "tests/validation-new-app",

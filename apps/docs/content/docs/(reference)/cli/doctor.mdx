@@ -3184,3 +3184,29 @@ an older one. `db.major_version` is BS712.
 `db.major_version = 17`. The
 [upgrade guide](https://supabase.com/docs/guides/platform/upgrading) lists the
 steps.
+
+### BS713
+
+**Error or warning: a migra diff drops part of the schema files.** The project
+diffs `supabase/schemas` with migra, which drops `comment on` statements, grants
+and the `security_invoker` option of views. A `comment on` that holds `@bsb`
+tags is an error, because the owner, policies or access the tags record would be
+lost from the database. Grants and security-invoker views are warnings. Keep
+them by switching to pg-delta:
+
+```toml
+[experimental.pgdelta]
+enabled = true
+```
+
+Remove `schema_paths` from `[db.migrations]` too, and create migrations with
+`supabase db schema declarative sync`.
+
+### BS714
+
+**Warning: a module file lost its hash marker.** A module file has no
+`@bsb-hash` line. `supabase db pull --declarative` exports the database into
+new files without comments, which removes the marker, and `gen sql` then can't
+tell the file from one you wrote. Run `better-supabase gen sql` after a pull to
+write the module files again. A pull keeps `public/_custom/app_tables.sql` and
+the module files where they are, so nothing needs to move.

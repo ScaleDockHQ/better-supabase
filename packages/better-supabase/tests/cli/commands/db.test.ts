@@ -358,6 +358,15 @@ describe("db diff", () => {
     expect(result.output).toBe("No schema changes.");
   });
 
+  it("names the pg-delta-only feature and the config lines under migra", async () => {
+    await expect(
+      diff(["--in-stack"], deps({ code: 0 }, ""), "migra"),
+    ).rejects.toMatchObject({
+      code: "usage",
+      message: expect.stringContaining("experimental.pgdelta.enabled = true"),
+    });
+  });
+
   it("says so when nothing changed", async () => {
     const result = await diff(["--in-stack"], deps({ code: 0 }, ""));
 

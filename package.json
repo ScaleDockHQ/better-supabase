@@ -30,7 +30,7 @@
     "check:test-budget": "node scripts/check-test-budget.ts",
     "ci:baseline": "node scripts/ci-baseline.ts",
     "ci:wait": "node scripts/ci-wait.ts",
-    "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-lienlink ] && [ \"$p\" != tests/validation-single-tenant ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
+    "db:gen": "dotenv -e .env.development.local -- sh -c 'for p in apps/examples/* apps/examples/monorepo/* tests/validation-*; do if [ \"$p\" != tests/validation-centrakit ] && [ \"$p\" != tests/validation-declarative ] && [ \"$p\" != tests/validation-jsonc ] && [ \"$p\" != tests/validation-lienlink ] && [ \"$p\" != tests/validation-single-tenant ] && ls \"$p\"/better-supabase.config.* >/dev/null 2>&1; then node packages/better-supabase/bin/better-supabase.js gen --cwd \"$p\" || exit 1; fi; done'",
     "db:seed:pages": "node scripts/seed-entity-pages.ts",
     "db:seed:scale": "node scripts/seed-scale.ts",
     "dev": "turbo run dev",

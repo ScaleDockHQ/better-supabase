@@ -42,7 +42,12 @@ also when a step fails. The stack has to have applied every migration first
 (`supabase migration up`), or the diff would repeat them.
 
 Under migra, or on a database that isn't local, `db diff` runs the Supabase
-CLI's command for the workflow (`supabase db diff`). When that command can't
+CLI's command for the workflow (`supabase db diff`). Both engines stay
+supported. A feature only pg-delta has (`--in-stack`, the baseline of `db
+squash`) stops under migra with one message that names it and the two config
+lines that switch: `experimental.pgdelta.enabled = true` and removing
+`db.migrations.schema_paths`. Doctor rule [BS713](/docs/cli/doctor#bs713) lists
+what a migra diff drops from your files. When that command can't
 start its shadow database, usually because every System V shared memory
 segment is in use (macOS allows 32, and each running stack holds one), `db
 diff` plans with the library on the stack you already run.
@@ -361,7 +366,9 @@ baseline of the declarative schema files, which it writes with
 diff never writes the module extensions or your seed data, so the command
 carries them over: the `better_supabase_extensions` migration goes in before
 the baseline, and each name in `--keep` goes in after it, with the files of one
-name merged in order. A name with no migration is an error. When the baseline
+name merged in order (`name_1`, `name_2` and `name_10` from pg-delta's
+multi-file output sort by number, and files that disagree about
+`-- pg-delta: transaction=false` are refused). A name with no migration is an error. When the baseline
 fails, the command puts the old migrations back. Never squash migrations a
 hosted project has applied; run it for a deliberate reset and reset the
 database afterwards.

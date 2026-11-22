@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/validation-jsonc",
+  "private": true,
+  "description": "A project whose only Supabase config is supabase/config.jsonc: every command reads it through one module.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

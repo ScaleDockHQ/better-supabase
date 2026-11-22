@@ -724,6 +724,34 @@ describe("generated and module files (BS303, BS304)", () => {
     ]);
   });
 
+  it("reports a module file whose hash marker is gone (BS714)", async () => {
+    const ctx = {
+      ...rooted({ blocks: ["audit"] }),
+      configToml: toml("[db]\n"),
+    };
+
+    const files = renderBlocks(["audit"], moduleLayout(ctx.config));
+
+    for (const file of files) {
+      await write(file.path, file.contents);
+    }
+
+    expect(await run("BS714", ctx)).toEqual([]);
+
+    const audit = files.find(
+      (file) => file.module === "audit" && file.kind === "schema",
+    )!;
+
+    await write(audit.path, audit.contents.replace(/^-- @bsb-hash .*\n/m, ""));
+
+    expect(await run("BS714", ctx)).toEqual([
+      expect.objectContaining({
+        target: audit.path,
+        message: expect.stringContaining("better-supabase gen sql"),
+      }),
+    ]);
+  });
+
   it("reports block files no installed block renders, apart from edited ones", async () => {
     const ctx = rooted({ blocks: ["audit"] });
     const files = renderBlocks(["audit"], moduleLayout(ctx.config));
@@ -3495,6 +3523,71 @@ describe("migration-only module options (BS314)", () => {
           {},
           { blocks: { invitations: { options: { tokenStorage: "sha256" } } } },
         ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe("what a migra diff drops (BS713)", () => {
+  const migra = { database: { sql: { workflow: "migra" as const } } };
+
+  const file = (text: string) => ({ path: "supabase/schemas/tasks.sql", text });
+
+  it("errors on a comment that holds @bsb tags", async () => {
+    const findings = await run(
+      "BS713",
+      context(
+        base,
+        {
+          configToml: toml("[db]\n"),
+          sqlFiles: [
+            file(
+              "create table tasks (id int);\ncomment on table tasks is 'x @bsb owner=org';",
+            ),
+          ],
+        },
+        migra,
+      ),
+    );
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      severity: "error",
+      location: { file: "supabase/schemas/tasks.sql", line: 2 },
+    });
+  });
+
+  it("warns on grants and security-invoker views", async () => {
+    const findings = await run(
+      "BS713",
+      context(
+        base,
+        {
+          configToml: toml("[db]\n"),
+          sqlFiles: [
+            file(
+              "grant select on tasks to anon;\ncreate view v with (security_invoker = true) as select 1;",
+            ),
+          ],
+        },
+        migra,
+      ),
+    );
+
+    expect(findings.map((finding) => finding.severity)).toEqual([
+      "warning",
+      "warning",
+    ]);
+  });
+
+  it("stays quiet under pg-delta", async () => {
+    expect(
+      await run(
+        "BS713",
+        context(base, {
+          configToml: toml("[experimental.pgdelta]\nenabled = true\n"),
+          sqlFiles: [file("grant select on tasks to anon;")],
+        }),
       ),
     ).toEqual([]);
   });
