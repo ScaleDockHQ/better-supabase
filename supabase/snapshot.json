@@ -409326,6 +409326,18 @@
             "partial": false,
             "method": "btree",
             "predicate": null
+          },
+          {
+            "name": "tax_rates_tenant_code_idx",
+            "columns": [
+              "tax_code_id",
+              "tenant_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
