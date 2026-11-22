@@ -12,7 +12,7 @@ const list = (values: readonly string[]): string =>
  * The unique index that lets `tax_rates` reference a code together with its
  * tenant.
  */
-export function taxCodeTenantKey(ctx: BlockSqlContext): string {
+function taxCodeTenantKey(ctx: BlockSqlContext): string {
   const { name } = ctx.tableName("codes");
 
   return sqlIdent(
@@ -21,7 +21,7 @@ export function taxCodeTenantKey(ctx: BlockSqlContext): string {
 }
 
 /** The composite foreign key from a rate to its code in the same tenant. */
-export function taxRateCodeKey(ctx: BlockSqlContext): string {
+function taxRateCodeKey(ctx: BlockSqlContext): string {
   return sqlIdent(`${ctx.tableName("rates").name}_tenant_code_fkey`);
 }
 

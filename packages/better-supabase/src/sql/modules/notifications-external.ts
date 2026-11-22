@@ -42,7 +42,7 @@ export function externalColumns(
 }
 
 /** The statements a table created before the option needs, and its indexes. */
-export function externalAlter(ctx: BlockSqlContext, n: NotifyNames): string {
+function externalAlter(ctx: BlockSqlContext, n: NotifyNames): string {
   if (!externalOn(ctx, n)) {
     return "";
   }

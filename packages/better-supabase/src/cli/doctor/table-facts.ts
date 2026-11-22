@@ -25,7 +25,7 @@ function recordKeys(value: unknown): string[] {
  * Table facts the config holds that a `comment on table` tag can hold next to
  * the table (BS702). A fact the table's comment already carries is not listed.
  */
-export function configFactsATagCanHold(context: DoctorContext): FindingInput[] {
+function configFactsATagCanHold(context: DoctorContext): FindingInput[] {
   const { config } = context;
   const listed: unknown = config.blocks["audit"]?.options?.["exempt"];
   const entries: unknown[] = Array.isArray(listed) ? listed : [];
@@ -100,7 +100,7 @@ function tryTag(read: () => unknown): string | undefined {
 }
 
 /** `@bsb` table facts that cannot take effect (BS703). */
-export function tableFactProblems(context: DoctorContext): FindingInput[] {
+function tableFactProblems(context: DoctorContext): FindingInput[] {
   return catalogOf(context).tables.flatMap((table) => {
     if (
       !context.config.schemas.includes(table.schema) ||

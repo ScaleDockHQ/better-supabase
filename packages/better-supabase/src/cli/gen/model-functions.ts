@@ -77,7 +77,7 @@ export function returnsTag(comment: string | undefined): string | undefined {
  * whose schema (or API schema) holds `schema.name` and lists `name` in its
  * not-null results.
  */
-export function blockNotNull(
+function blockNotNull(
   blocks: ModelContext["config"]["blocks"],
   schema: string,
   name: string,

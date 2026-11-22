@@ -1,6 +1,16 @@
+import type { ColumnMapping } from "../../config/blocks.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { catalogOf } from "./shared.ts";
+
+/** The column name a mapping gives, `null` for a column the table lacks. */
+function columnNameOf(
+  mapping: ColumnMapping | undefined,
+): string | null | undefined {
+  return typeof mapping === "object" && mapping !== null
+    ? mapping.column
+    : mapping;
+}
 
 /**
  * An app's own `team_members` table that has the employee column while its user
@@ -24,7 +34,7 @@ export function requiredTeamMemberUser(context: DoctorContext): FindingInput[] {
 
   const mapped = teams.tables?.["members"];
   const columns = teams.columns?.["members"];
-  const employee = columns?.["employee"];
+  const employee = columnNameOf(columns?.["employee"]);
 
   if (typeof mapped !== "string" || employee === null) {
     return [];
@@ -32,7 +42,7 @@ export function requiredTeamMemberUser(context: DoctorContext): FindingInput[] {
 
   const schema = teams.schema ?? sql.blockDefaults?.schema ?? "better_supabase";
   const table = mapped.includes(".") ? mapped : `${schema}.${mapped}`;
-  const userColumn = columns?.["user"] ?? "user_id";
+  const userColumn = columnNameOf(columns?.["user"]) ?? "user_id";
   const employeeColumn = employee ?? "employee_id";
 
   const found = catalogOf(context).tables.find(

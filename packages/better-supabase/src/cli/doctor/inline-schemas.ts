@@ -92,7 +92,7 @@ async function exportedSchemas(
  * Inline JSON Schemas in `gen.json` and `blocks.settings.options.schemas` whose
  * document an exported Standard Schema already produces (BS704).
  */
-export async function inlineSchemasAnExportHolds(
+async function inlineSchemasAnExportHolds(
   context: DoctorContext,
 ): Promise<FindingInput[]> {
   const inline: { where: string; document: unknown }[] = [];

@@ -168,7 +168,7 @@ export function moduleContext(
  * One fact, in the order every block default follows: the config entry, then
  * the authorization provider's value, then the fallback.
  */
-export function resolveFact<T>(
+function resolveFact<T>(
   configured: T | undefined,
   provided: T | undefined,
   fallback?: T,

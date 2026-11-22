@@ -187,9 +187,6 @@ export interface BlockListObject {
   readonly [key: string]: unknown;
 }
 
-/** One element of the `blocks` list: a block name, or an entry with config. */
-export type BlockListEntry = string | BlockListObject;
-
 const isListObject = (entry: unknown): entry is BlockListObject =>
   typeof entry === "object" && entry !== null && !Array.isArray(entry);
 
