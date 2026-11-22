@@ -277,7 +277,10 @@ describe("task coordination", () => {
         "release_task_claim",
         { task: "w1", token: "tok", note: "done for now" },
       ],
-      ["delegate_task", { task: "w1", to_user: "u2", profile: null }],
+      [
+        "delegate_task",
+        { task: "w1", to_user: "u2", profile: null, to_profile: null },
+      ],
       [
         "hold_task",
         { task: "w1", kind: "question", note: null, ask_user_ids: null },

@@ -539,8 +539,8 @@
     "security-definer-functions": 66
   },
   "tasks": {
-    "security-definer-functions": 195,
-    "row-triggers": 20
+    "security-definer-functions": 207,
+    "row-triggers": 32
   },
   "tax": {
     "security-definer-functions": 67

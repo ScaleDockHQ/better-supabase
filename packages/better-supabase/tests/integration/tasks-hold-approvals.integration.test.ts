@@ -26,12 +26,16 @@ const MODULES = [
 
 const DECIDE = "better_supabase.decide_approval($1, $2, $3)";
 
-const layout = (onReject: "cancel" | "keep"): BlockSqlLayout => ({
+const layout = (
+  onReject: "cancel" | "keep",
+  hold: Record<string, unknown> = {},
+  approval: Record<string, unknown> = {},
+): BlockSqlLayout => ({
   subjects: withBlockSubjects({}, ["tasks"], {}),
   modules: {
     tasks: {
       tables: { projects: "work_projects" },
-      options: { hold: { approval: { onReject } } },
+      options: { hold: { ...hold, approval: { onReject, ...approval } } },
     },
   },
 });
@@ -55,13 +59,16 @@ describe.skipIf(!live)("task hold approvals", () => {
       taskId: string;
       approvalId: () => Promise<string>;
     }) => Promise<void>,
+    hold: Record<string, unknown> = {},
+    approval: Record<string, unknown> = {},
+    kind = "review",
   ): Promise<void> => {
     const s = await BlockSession.open(pool);
 
     try {
       const owner = await s.user("owner");
       const alice = await s.user("alice");
-      await s.install(MODULES, layout(onReject));
+      await s.install(MODULES, layout(onReject, hold, approval));
       const org = await s.organization(owner, { member: alice });
       const transport = sqlTransport(s.sql);
       const tasks = createTasks({ transport });
@@ -78,7 +85,7 @@ describe.skipIf(!live)("task hold approvals", () => {
         .orThrow();
 
       await tasks
-        .hold({ taskId: task.id, kind: "review", note: "Please check" })
+        .hold({ taskId: task.id, kind, note: "Please check" })
         .orThrow();
 
       const approvalId = async (): Promise<string> => {
@@ -168,5 +175,74 @@ describe.skipIf(!live)("task hold approvals", () => {
         expect(await s.hint(DECIDE, [id, "approved", null])).not.toBe("ok");
       },
     );
+  });
+
+  const status = async (s: BlockSession, taskId: string): Promise<string> => {
+    await s.service();
+
+    const [row] = await s.rows<{ status: string }>(
+      `select status from better_supabase.approval_requests
+       where subject_type = 'task_hold' and subject_id = $1`,
+      [taskId],
+    );
+
+    return row?.status ?? "none";
+  };
+
+  it("cancels the pending request when the hold is released", async () => {
+    await run("cancel", async ({ s, tasks, alice, taskId }) => {
+      expect(await status(s, taskId)).toBe("pending");
+
+      await s.as(alice);
+      await tasks.releaseHold({ taskId }).orThrow();
+
+      expect(await status(s, taskId)).toBe("cancelled");
+    });
+  });
+
+  it("cancels the pending request when the task is closed", async () => {
+    await run("cancel", async ({ s, tasks, alice, taskId }) => {
+      await s.as(alice);
+      await tasks.cancel({ taskId }).orThrow();
+
+      expect(await status(s, taskId)).toBe("cancelled");
+    });
+  });
+
+  it("limits hold kinds, and files an approval only for the listed ones", async () => {
+    await run(
+      "cancel",
+      async ({ s, tasks, org, alice, taskId }) => {
+        // "input" is allowed but not approvable: no request is filed.
+        expect(await status(s, taskId)).toBe("none");
+
+        await s.as(alice);
+        await tasks.releaseHold({ taskId }).orThrow();
+
+        expect(
+          hint(await tasks.hold({ taskId, kind: "other", note: "x" })),
+        ).toBe("TASK_HOLD_INVALID");
+
+        expect(org).toBeDefined();
+      },
+      { kinds: ["review", "input"] },
+      { kinds: ["review"] },
+      "input",
+    );
+  });
+
+  it("refuses an approval kind the hold does not allow", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await expect(
+        s.install(
+          MODULES,
+          layout("cancel", { kinds: ["input"] }, { kinds: ["review"] }),
+        ),
+      ).rejects.toThrow(/does not allow/);
+    } finally {
+      await s.close();
+    }
   });
 });

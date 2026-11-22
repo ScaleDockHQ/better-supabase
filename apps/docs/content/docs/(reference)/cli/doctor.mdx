@@ -1021,6 +1021,17 @@ transaction and send one reload.
 
 ## Drift
 
+### BS245
+
+**Warning: a task pipeline lacks a stage an option names.**
+`blocks.tasks.options.hold.stage`, `claims.startStage` and `claims.expiredStage`
+name a stage by key or `{ category }`. A hold in a pipeline without that stage
+raises `TASK_HOLD_STAGE_MISSING`, and a claim or an expiry in one leaves the
+task where it is. BS245 lists each live pipeline of the `task` subject type that
+has no live stage for an option that is set. Add the stage, or point the option
+at a category every pipeline has. BS245 needs a database, so a saved snapshot
+skips it.
+
 ### BS260
 
 **Warning: code uses a name that `api/naming.json` renamed.** Doctor reads the

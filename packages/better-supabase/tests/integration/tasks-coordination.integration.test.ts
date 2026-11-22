@@ -24,14 +24,18 @@ const MODULES = [
   "tasks",
 ];
 
-const layout = (): BlockSqlLayout => ({
+const layout = (
+  claims?: Record<string, unknown>,
+  hold?: Record<string, unknown>,
+): BlockSqlLayout => ({
   subjects: withBlockSubjects({}, ["tasks"], {}),
   modules: {
     tasks: {
       tables: { projects: "work_projects" },
       options: {
         needs: { kind: "blocks" },
-        claims: { lease: 60, maxLease: 600 },
+        claims: { lease: 60, maxLease: 600, ...(claims ?? { next: "any" }) },
+        ...(hold === undefined ? {} : { hold }),
       },
     },
   },
@@ -46,12 +50,15 @@ describe.skipIf(!live)("task coordination", () => {
   afterAll(() => pool.end());
 
   /** An organization with an owner, two members and a team pipeline. */
-  const setup = async () => {
+  const setup = async (
+    claims?: Record<string, unknown>,
+    hold?: Record<string, unknown>,
+  ) => {
     const s = await BlockSession.open(pool);
     const owner = await s.user("owner");
     const alice = await s.user("alice");
     const bob = await s.user("bob");
-    await s.install(MODULES, layout());
+    await s.install(MODULES, layout(claims, hold));
     const org = await s.organization(owner, { member: alice, member2: bob });
     const transport = sqlTransport(s.sql);
     const tasks = createTasks({ transport });
@@ -413,6 +420,182 @@ describe.skipIf(!live)("task coordination", () => {
     }
   });
 
+  it("moves a task to a stage named by category on claim and on hold", async () => {
+    const env = await setup(
+      { next: "any", startStage: { category: "started" } },
+      { stage: { category: "backlog" } },
+    );
+
+    try {
+      const { s, tasks, org, team, alice } = env;
+      const stage = await stages(env);
+      await s.as(alice);
+
+      const task = await tasks
+        .create({ organizationId: org, input: { title: "Go", teamId: team } })
+        .orThrow();
+
+      const claimed = await tasks.claim({ taskId: task.id }).orThrow();
+      expect(claimed.task.stageId).toBe(stage("in_progress"));
+
+      const held = await tasks
+        .hold({ taskId: task.id, kind: "question", note: "Why?" })
+        .orThrow();
+
+      expect(held.stageId).toBe(stage("backlog"));
+    } finally {
+      await env.s.close();
+    }
+  });
+
+  it("reserves a delegated task for a profile and clears the reservation", async () => {
+    const env = await setup();
+
+    try {
+      const { s, tasks, org, team, alice, bob } = env;
+      await stages(env);
+      await s.as(alice);
+
+      const make = (title: string) =>
+        tasks
+          .create({ organizationId: org, input: { title, teamId: team } })
+          .orThrow();
+
+      const one = await make("One");
+      const two = await make("Two");
+      const three = await make("Three");
+      const four = await make("Four");
+
+      const reserved = await tasks
+        .delegate({ taskId: one.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      expect(reserved.delegateProfile).toEqual({
+        name: "scout",
+        userId: bob.id,
+      });
+
+      await s.as(bob);
+
+      // Only the reserved tasks of that profile come back under the filter.
+      const picked = await tasks
+        .claimNext({
+          organizationId: org,
+          filter: { delegateProfile: "scout" },
+          profile: { kind: "agent", name: "scout" },
+        })
+        .orThrow();
+
+      expect(picked?.task.id).toBe(one.id);
+      expect(picked?.task.delegateProfile?.name).toBe("scout");
+
+      // A person with write access takes a reserved task over and ends it.
+      await s.as(alice);
+
+      await tasks
+        .delegate({ taskId: two.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      const taken = await tasks.claim({ taskId: two.id }).orThrow();
+      expect(taken.task.delegateProfile).toBeUndefined();
+
+      // Delegating again without a profile clears it.
+      await tasks
+        .delegate({ taskId: three.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      const again = await tasks
+        .delegate({ taskId: three.id, toUserId: bob.id })
+        .orThrow();
+
+      expect(again.delegateProfile).toBeUndefined();
+
+      // Unassigning the user clears it, and so does closing.
+      await tasks
+        .delegate({ taskId: four.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+
+      await tasks.assign({ taskId: four.id, userIds: [alice.id] }).orThrow();
+
+      expect(
+        (await tasks.getTask(four.id).orThrow()).delegateProfile,
+      ).toBeUndefined();
+
+      await tasks
+        .delegate({ taskId: four.id, toUserId: bob.id, toProfile: "scout" })
+        .orThrow();
+      await tasks.complete({ taskId: four.id }).orThrow();
+
+      expect(
+        (await tasks.getTask(four.id).orThrow()).delegateProfile,
+      ).toBeUndefined();
+    } finally {
+      await env.s.close();
+    }
+  });
+
+  it("runs before_task_close once on every closing path and lets it refuse", async () => {
+    const env = await setup();
+
+    try {
+      const { s, tasks, org, team, alice } = env;
+      const stage = await stages(env);
+
+      await s.service();
+      await s.rows(
+        "create table public.close_log (task uuid, outcome text, note text)",
+      );
+
+      await s.rows(`create function public.before_task_close(t uuid, o text, n text)
+        returns void language plpgsql as $$
+        begin
+          insert into public.close_log values (t, o, n);
+          if n = 'refuse' then raise exception 'refused' using errcode = '23514'; end if;
+        end $$`);
+
+      await s.as(alice);
+
+      const make = (title: string) =>
+        tasks
+          .create({ organizationId: org, input: { title, teamId: team } })
+          .orThrow();
+
+      const one = await make("One");
+      const two = await make("Two");
+      const three = await make("Three");
+      const four = await make("Four");
+
+      await tasks.complete({ taskId: one.id, note: "done" }).orThrow();
+      await tasks.move({ taskId: two.id, stageId: stage("done") }).orThrow();
+
+      await s.service();
+
+      await s.rows(
+        "update better_supabase.tasks set state = 'completed' where id = $1",
+        [three.id],
+      );
+
+      const log = await s.rows<{ task: string; outcome: string; note: string }>(
+        "select task, outcome, note from public.close_log order by outcome, task",
+      );
+
+      expect(log.filter((row) => row.task === one.id)).toEqual([
+        { task: one.id, outcome: "completed", note: "done" },
+      ]);
+      expect(log.filter((row) => row.task === two.id)).toHaveLength(1);
+      expect(log.filter((row) => row.task === three.id)).toHaveLength(1);
+
+      // A hook that raises refuses the close, and keeps its own error.
+      await s.as(alice);
+
+      const refused = await tasks.cancel({ taskId: four.id, note: "refuse" });
+      expect(refused.ok).toBe(false);
+      expect((await tasks.getTask(four.id).orThrow()).closedAt).toBeUndefined();
+    } finally {
+      await env.s.close();
+    }
+  });
+
   it("refuses every new write to a read-only agent and a writable one meets the permission check", async () => {
     const env = await setup();
 
@@ -470,6 +653,111 @@ describe.skipIf(!live)("task coordination", () => {
       );
     } finally {
       await env.s.close();
+    }
+  });
+
+  it("limits claimNext to the caller's own tasks and keeps agents narrow", async () => {
+    const env = await setup({});
+
+    try {
+      const { s, tasks, org, team, alice, bob } = env;
+      await stages(env);
+      await s.as(alice);
+
+      const make = (title: string, assignee: string | undefined) =>
+        tasks
+          .create({
+            organizationId: org,
+            input: { title, teamId: team },
+            ...(assignee === undefined ? {} : { assigneeIds: [assignee] }),
+          })
+          .orThrow();
+
+      const forAlice = await make("For Alice", alice.id);
+      const forBob = await make("For Bob", bob.id);
+      const free = await make("Free", undefined);
+
+      const first = await tasks.claimNext({ organizationId: org }).orThrow();
+      expect(first?.task.id).toBe(forAlice.id);
+
+      // Alice has nothing else assigned: the unassigned task stays out of reach.
+      expect(
+        await tasks.claimNext({ organizationId: org }).orThrow(),
+      ).toBeUndefined();
+
+      expect(
+        hint(
+          await tasks.claimNext({
+            organizationId: org,
+            filter: { assigneeId: bob.id },
+          }),
+        ),
+      ).toBe("TASK_FILTER_FORBIDDEN");
+
+      await s.as(bob);
+      const second = await tasks.claimNext({ organizationId: org }).orThrow();
+      expect(second?.task.id).toBe(forBob.id);
+
+      // A person still claims an unassigned task by id.
+      const byId = await tasks.claim({ taskId: free.id }).orThrow();
+      expect(byId.claim.holderId).toBe(bob.id);
+    } finally {
+      await env.s.close();
+    }
+  });
+
+  it("never lets an agent session widen the pick, under any option value", async () => {
+    for (const next of ["assigned", "any"]) {
+      const env = await setup({ next });
+
+      try {
+        const { s, tasks, org, team, alice, bob } = env;
+        await stages(env);
+        await s.as(alice);
+
+        const mine = await tasks
+          .create({
+            organizationId: org,
+            input: { title: "Mine", teamId: team },
+            assigneeIds: [alice.id],
+          })
+          .orThrow();
+
+        const free = await tasks
+          .create({
+            organizationId: org,
+            input: { title: "Free", teamId: team },
+          })
+          .orThrow();
+
+        await s.as(alice, {
+          act: { kind: "agent", sub: "scout", read_only: false },
+        });
+
+        expect(
+          hint(
+            await tasks.claimNext({
+              organizationId: org,
+              filter: { assigneeId: bob.id },
+            }),
+          ),
+        ).toBe("TASK_FILTER_FORBIDDEN");
+
+        // The test session's act claim carries no permissions, so these
+        // meet the permission check before the assignment check. Either way
+        // an agent never gets a claim on a task that is not its user's.
+        expect(hint(await tasks.claim({ taskId: free.id }))).toMatch(
+          /^TASK_(NOT_ASSIGNED|FORBIDDEN)$/,
+        );
+
+        expect(hint(await tasks.claimNext({ organizationId: org }))).toMatch(
+          /^TASK_(NOT_ASSIGNED|FORBIDDEN)$/,
+        );
+
+        expect(mine.id).toBeDefined();
+      } finally {
+        await env.s.close();
+      }
     }
   });
 });
