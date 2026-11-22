@@ -1,5 +1,171 @@
 # better-supabase
 
+## 0.82.0
+
+### Minor Changes
+
+- [#1108](https://github.com/ScaleDockHQ/better-supabase/pull/1108) [`fdf085f`](https://github.com/ScaleDockHQ/better-supabase/commit/fdf085fcc9adba46b971e8625ed5dcea92edd9fa) Thanks [@martijn00](https://github.com/martijn00)! - AI SDK surfaces for media, MCP, harness agents and tools. There are no breaking changes.
+  
+  ## Features
+  
+  - `createMediaRoute` and `createVideoRoutes` (`better-supabase/ai-sdk/chat`) serve image, speech and video generation with an access check, the quota, metering and Storage output. The video webhook only wakes a status check.
+  - `mcpResourceTools`, `mcpPrompts`, `mcpPromptMessages` and `mcpEventRoute` (`better-supabase/ai-sdk/mcp`) cover MCP resources, prompts and the event webhook.
+  - `harnessRoute`, `steerRoute` and `harnessStateCipher` (`better-supabase/ai-sdk/agents`) run a `HarnessAgent` turn and store its resume state encrypted. `@ai-sdk/harness` is a new optional peer.
+  - `tenantToolsContext` and `guardTools` (`better-supabase/ai-sdk`) pass the tenant to tools and apply guardrails to tool inputs and outputs.
+
+- [#1114](https://github.com/ScaleDockHQ/better-supabase/pull/1114) [`034dd05`](https://github.com/ScaleDockHQ/better-supabase/commit/034dd05f9e14c5565bc9c9c5c27e84e22e2997f7) Thanks [@mick340](https://github.com/mick340)! - Leave, expenses and timesheets filed for an employee without an account no longer make the member who filed them the approval's requester, so that member can decide them, and a request without a requester now notifies its approvers instead of nobody. A mapped `rejected_at` keeps a leave request rejected in approvals mode without an approval request, so `update` and `cancel` fail with `LEAVE_REQUEST_CLOSED`. Time entries take `options.writer`, an app function `(tenant, owner uuid) returns boolean` that lets more callers log, change and archive another owner's entries and submit and withdraw their weeks. `sole_owned_organizations` for another member now fails with `ORGANIZATION_FORBIDDEN` when the caller lacks the remove permission, instead of returning an empty or partial list.
+
+- [#1110](https://github.com/ScaleDockHQ/better-supabase/pull/1110) [`95a805f`](https://github.com/ScaleDockHQ/better-supabase/commit/95a805f6ea42245b375eefcf0e32434cdde8eb4e) Thanks [@martijn00](https://github.com/martijn00)! - `createMediaRoute` and `createVideoRoutes` in `better-supabase/ai-sdk/chat` take a `gatewayPolicy`
+  option. Pass the reader that `gatewayPolicyReader` returns, and the organization's gateway policy is
+  applied to the `providerOptions` your `run` and `start` callbacks receive. A policy that fails to
+  load answers with its error instead of running the call. Without the option nothing changes.
+
+- [#1109](https://github.com/ScaleDockHQ/better-supabase/pull/1109) [`a700e9f`](https://github.com/ScaleDockHQ/better-supabase/commit/a700e9f7d48a49e91013ad915c6b22efc46f4f6c) Thanks [@martijn00](https://github.com/martijn00)! - Close the gaps task coordination left. A hold can open an approval (`blocks.tasks.options.hold.approval`): approving releases the task, and a rejection cancels it or, with `onReject: "keep"`, leaves it on hold. Messages carry who acted: `send` and comment `create` take `actor: { kind, name }`, and `Message` returns `authorKind` and `authorName`, which `message.sent` also carries as `actorKind` and `actorName`.
+  
+  Upgrade notes:
+  
+  - The messaging module is at version 2. Run `better-supabase upgrade`, then `better-supabase db diff` and apply the migration. It adds the nullable `author_kind` and `author_name` text columns to messages. An adopted messages table gets them only when you map them or run `codemod owned-columns`; without them the label is not stored and `authorKind` is `undefined`.
+  - `hold.approval` is off by default and needs the approvals block and the `held_at` column. When it is on, the tasks module adds the internal function `settle_task_hold`, which no role can call.
+  - Messages sent before the upgrade have no kind or name.
+
+- [#1105](https://github.com/ScaleDockHQ/better-supabase/pull/1105) [`cdf63f2`](https://github.com/ScaleDockHQ/better-supabase/commit/cdf63f254f4b25ca2d819113038c867ac80e2da5) Thanks [@martijn00](https://github.com/martijn00)! - Add task coordination for queues that people and agents share. `tasks` gains prerequisites (`options.needs`, `setNeeds`, the `ready` filter and `task.unblocked`), `createPlan`, leased claims (`claim`, `claimNext`, `renew`, `release`, `delegate`), holds, `note` on `complete` and `cancel`, `fail`, `move` and `moveMany`, `stageTimes` and the realtime topic `tasks:{organizationId}`. `db.permissions.explain` and `explainPermissionTool` say why a member holds or lacks a key.
+  
+  Upgrade notes:
+  
+  - The tasks module is at version 6. Run `better-supabase db diff` and apply the migration. New columns (`waiting_on`, `held_at`, `hold_kind`, `close_note` and the claims table) exist on an adopted table only when you map them; the claims table needs `app: {}` when you set `ownTablePolicies: "app"`.
+  - Audit rows and timeline entries label an `act` of kind `agent` as `agent`. They were `impersonation` before, so reports that group by actor kind change.
+  - `setNeeds` and `create({ needs })` need the relations manage permission.
+  - `fail` needs a canceled stage; with `canceled: null` it raises `TASK_OUTCOME_UNAVAILABLE`.
+  - The client method is `createPlan`; `createMany` stays retired.
+  - A new function `better_supabase.explain_permission` is granted to `authenticated`.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`225ac13`](https://github.com/ScaleDockHQ/better-supabase/commit/225ac134d5c75316cf2df103c83461425d291c50) Thanks [@martijn00](https://github.com/martijn00)! - Agents on Supabase with Vercel Sandbox, Connect and the Chat SDK.
+  
+  - `supabaseAccess` and `supabaseAccessFrom` in `better-supabase/vercel-sandbox` build a sandbox
+    network policy that reaches only your Supabase project, as one user. The firewall adds the token,
+    so code in the sandbox never holds it. They refuse a service role key.
+  - `connectEventRoute` and `postgresConnectEventSubscriptions` in `better-supabase/vercel-connect`
+    verify Connect and MCP event deliveries and write each one to the outbox once, with
+    subscriptions in a `connect_event_subscriptions` table you create.
+  - `connectAuth` in `better-supabase/eve` wraps `connect` from `@vercel/connect/eve` with the same
+    Connect subject as `vercelConnectCredentials`.
+  - `chatHistory` and `eraseChatHistory` in `better-supabase/chat-sdk` key the Chat SDK's user history
+    by the linked app user and erase it by user.
+  
+  Upgrade: nothing breaks. To receive Connect events, create the table from the Connect events docs
+  page and mount the route.
+
+- [#1107](https://github.com/ScaleDockHQ/better-supabase/pull/1107) [`dfd9eb8`](https://github.com/ScaleDockHQ/better-supabase/commit/dfd9eb89dce1c87641fd07241d11560127ad117f) Thanks [@martijn00](https://github.com/martijn00)! - Blob client uploads, Nitro 3 in the Nuxt module and an agent block from `init`. There are no breaking changes.
+  
+  ## Features
+  
+  - `blobUploadRoute` (`better-supabase/storage`) answers Vercel Blob client uploads: `authorize` runs your permission check before a token is issued, and `onCompleted` records the finished upload.
+  - The Nuxt module detects Nitro 2 or 3 and writes `toH3V1` or `toH3` middleware to match.
+  - `better-supabase init` writes a managed block into `AGENTS.md` for projects that already have agent files.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`723b3f7`](https://github.com/ScaleDockHQ/better-supabase/commit/723b3f720a672d111d6bc96e1639cb5c963688b8) Thanks [@martijn00](https://github.com/martijn00)! - Expire cached reads when a write comes from outside the process, and cache public reads without the service role.
+  
+  - `cacheRoute` (`better-supabase/server`) verifies a bearer token or a Standard Webhooks signature and expires the `bsb:` tags of a change. It reads the trigger's payload, a Supabase Database Webhook and an outbox CloudEvent.
+  - `cacheInvalidationSql` (`better-supabase/sql`) generates `better_supabase.notify_cache()` and statement-level triggers that send the changed table, ids and tenants through `pg_net`. Write its output into a migration, then store the route URL and the token in Vault with `select vault.create_secret('https://app.example.com/hooks/cache', 'bsb_cache_url')` and `select vault.create_secret('<token>', 'bsb_cache_bearer')`. Enable the `pg_net` and `supabase_vault` extensions first. Without the URL secret the triggers do nothing.
+  - `vercelRuntimeCacheAdapter(getCache)` and `vercelCdnCache({ addCacheTag, invalidateByTag })` are cache adapters over `@vercel/functions` (`>=3.11.3 <4`, an optional peer you pass in). `encodeCacheTag` escapes the characters Vercel splits tags on.
+  - `bsb.public()` (`better-supabase/next`) returns an anonymous context for `'use cache'` reads, so Row Level Security applies and the service role stays out of shared caches.
+  - Doctor rule BS640 reports a plain `"use cache"` function that reads `cookies()`, `headers()`, `bsb.cached()`, `bsb.context()` or `bsb.user()`.
+  
+  Upgrade: nothing changes until you add the route, the SQL and the secrets. `pg_net` sends once and doesn't retry, so keep a short `cacheLife` as the backstop. See the Vercel cache invalidation page in the docs.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`95792a1`](https://github.com/ScaleDockHQ/better-supabase/commit/95792a1adc0b175dad9b8e46032e1a03d24d9344) Thanks [@martijn00](https://github.com/martijn00)! - Durable execution parity with Vercel Workflow, Queues and Schedules.
+  
+  - `startFor` takes `retention`, `deploymentId` and `hook`. A start with a `hook` token is
+    idempotent on that token and resolves to the owning run on a conflict.
+  - `cancelTenantRuns(tenant)` in `better-supabase/workflow-sdk` cancels a tenant's open runs, with
+    `runs.cancelMany` where the World has it.
+  - `ScheduleProvider` gains optional `scheduleOnce`, `enableSchedule`, `disableSchedule`,
+    `runScheduleNow` and `getSchedule`, and `createQueue` gains `scheduleOnce`, `enableSchedule`,
+    `disableSchedule`, `runSchedule` and `getSchedule`. `vercelScheduler` implements them and
+    `testScheduleProvider` checks them. A listed schedule now reports `once` and `enabled`, and a
+    one-time schedule has a `nextRun`. The SQL scheduler does not implement them and answers
+    `invalid_request`.
+  - `maintenanceRoute` and `leaseOverlap` in `better-supabase/blocks/queue`. `cronRoute` takes
+    `maxLateSeconds` and `overlap`.
+  
+  Upgrade: nothing breaks. A custom `ScheduleProvider` keeps working because every new member is
+  optional, so `apiVersion` stays 1. A `VercelSchedulesClient` fake needs `get`, `enable`, `disable`
+  and `invoke` only to use the new schedule methods.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`225ac13`](https://github.com/ScaleDockHQ/better-supabase/commit/225ac134d5c75316cf2df103c83461425d291c50) Thanks [@martijn00](https://github.com/martijn00)! - AI Gateway governance per organization in `better-supabase/ai-sdk`.
+  
+  - `GatewayOptions` is now typed after the SDK's `GatewayProviderOptions` (a structural copy, so
+    `@ai-sdk/gateway` stays an optional peer). Upgrade note: a misspelled key or a non-string entry in
+    `tags`, `only` or `order` is now a compile error. Fix the call site; nothing changes at runtime.
+  - `parseGatewayPolicy`, `gatewayPolicySetting`, `gatewayPolicyReader`, `mergeGatewayPolicies`,
+    `applyGatewayPolicy` and `governedGatewayOptions` give each organization a policy (zero data
+    retention, allowed providers, region, prompt caching, headquarters) stored in the settings block.
+  - `createGatewayBudget` checks an organization's budget before a call and settles the cost after it,
+    on the usage block's `ai.cost` meter.
+  - `gatewayCostOf`, `gatewayCostEntries`, `gatewayRunRelease` and `costUsage` keep cache read and write
+    tokens, reasoning tokens and the market cost. `gatewayCostBackfill` retries until the gateway knows
+    the generation, and `checkGatewayCredits` and `creditsMonitor` watch the team's credits.
+  - `virtualModelCatalogRefresh` adds virtual models to the model catalog, and
+    `virtualModelSpendReconciliation` attributes their spend by user, because a virtual model replaces the
+    request tags.
+
+- [#1102](https://github.com/ScaleDockHQ/better-supabase/pull/1102) [`94facc8`](https://github.com/ScaleDockHQ/better-supabase/commit/94facc845d9b7c060ab446cf0662da868874f4b2) Thanks [@martijn00](https://github.com/martijn00)! - Vercel integrations gain a Vercel OIDC `AuthResolver`, verdict handlers, deadline-aware Postgres statements, Blob options and framework guards. There are no breaking changes.
+  
+  ## Features
+  
+  - `vercelOidcResolver` (`better-supabase/vercel-passport`) verifies a Vercel OIDC token and returns an `apiKey` caller from your `map`. `verifyPassport` can read the chunked `_vercel_passport` cookie with `headers: "cookie"` or `"all"`.
+  - `botIdGuard` and `firewallRateLimit` take `onVerdict`. `firewallRateLimiter` (`better-supabase/vercel-security`) is a `RateLimiter` backed by the Vercel Firewall.
+  - `createPostgres({ getDeadline, deadlineMargin })` cancels a statement that could not finish before the invocation ends.
+  - `vercelBlobStore` takes `ttlDays`, `cacheControlMaxAge`, `storeId` and `oidcToken`, and maps Blob's store, suspended and precondition errors to `DbError` codes.
+  - The Vercel domain provider reports `misconfigured` and the recommended `dns` records when the SDK has `domains.getDomainConfig`.
+  - `bsb.caller()` guards SvelteKit remote functions (pass `getRequestEvent` in `kit`). `bsb.guard()` is the guard for a TanStack Start function middleware.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`0ea23f5`](https://github.com/ScaleDockHQ/better-supabase/commit/0ea23f59ddf44d5b8bcb03b427ee0fab33d6dedf) Thanks [@martijn00](https://github.com/martijn00)! - Observability on Vercel: query metrics, server errors and workflow run outcomes.
+  
+  - `better-supabase/otel/vercel` exports `vercelMetrics(metric)`, a plugin that sends the duration
+    and the failures of every repository operation to Vercel custom metrics through the `metric`
+    function of `@vercel/functions`. It makes at most 16 calls per request (`maxCalls`) and sends one
+    `budget_exceeded` count past the cap. It has its own entry so an app does not need
+    `@opentelemetry/api`.
+  - `better-supabase/next/instrumentation` exports `createOnRequestError(betterSupabase)`, a handler
+    for Next.js's `onRequestError` that emits a `request.failed` block event with the error name, a
+    cut message, the digest, the path without its query string and the route context.
+  - `registerWorkflowLifecycle` in `better-supabase/workflow-sdk` registers the Workflow SDK's
+    lifecycle hooks and writes `workflow_sdk.run_completed` and `workflow_sdk.run_failed` to the
+    outbox, with the key `<runId>:<transition>`. The SDK reports only completed and failed runs.
+  - Docs: a Vercel observability page with the `@workflow/web` mount behind `protectWebHandler` and
+    recipes for `@vercel/otel` and eve's `agentRuns()`.
+  
+  Upgrade: nothing breaks. All three are new exports, and `@vercel/functions`, `next` and `workflow`
+  keep their tested ranges.
+
+- [#1103](https://github.com/ScaleDockHQ/better-supabase/pull/1103) [`6f2113b`](https://github.com/ScaleDockHQ/better-supabase/commit/6f2113bcab9cb32087277dfd235ccd068d98f717) Thanks [@martijn00](https://github.com/martijn00)! - A Supabase project on Vercel works without renamed variables.
+  
+  - The CLI (`gen`, `db`, `doctor`) and the Workflow World read `POSTGRES_URL_NON_POOLING` and
+    `POSTGRES_URL`, the names the Supabase integration syncs. The CLI prefers the direct string, the
+    World the pooled one.
+  - `loadEnv` and `parseEnv` take `prefix` for an integration connected with a custom prefix (`DB1`
+    reads `DB1_SUPABASE_URL`), and say when only the legacy `SUPABASE_ANON_KEY` or
+    `SUPABASE_SERVICE_ROLE_KEY` name is set. New exports: `withEnvPrefix` and `projectRefOf`.
+  - New `better-supabase/vercel` entry: `deploymentUrl`, `protectionBypassHeaders`,
+    `protectionBypassUrl`, `deploymentIssues` and `assertDeployment`. The bypass secret is only sent
+    to the deployment's own hosts. The Workflow World adds the header to its flow route.
+  - `better-supabase doctor --vercel` reads `.vercel/.env.<name>.local` and reports BS513 (an
+    environment lacks a Supabase variable), BS514 (a secret under a browser prefix) and BS515
+    (preview and production on one Supabase project).
+  - New docs page: Deploy on Vercel.
+  
+  Upgrade: nothing breaks. A CLI run that had `POSTGRES_URL` in its shell now connects with it when no
+  other connection string is set; pass `--db-url-stdin` or set `DATABASE_URL` to choose another.
+
+### Patch Changes
+
+- [#1099](https://github.com/ScaleDockHQ/better-supabase/pull/1099) [`227077b`](https://github.com/ScaleDockHQ/better-supabase/commit/227077b8c4bc220262b0119af02829ff33dfa94c) Thanks [@martijn00](https://github.com/martijn00)! - Fix drift in the AI and agent adapters. A Vercel AI Gateway budget or credit rejection (HTTP 402) now maps to a `quota_exceeded` error with status 402 and the code `AI_GATEWAY_PAYMENT_REQUIRED` instead of a 503 outage, gateway errors keep their `generationId` and `ruleId` in `details`, the gateway `timeout_error` type maps to a timeout, and the newer AI SDK error names are recognized. `connectTools` and `connectAll` return a `toolApproval` map for `askUnlessReadOnly` instead of setting the deprecated `needsApproval` on each tool; pass the map as the agent's `toolApproval`. `invalidateToken` on the Vercel Connect provider now names the team and organization scope, so a scoped token leaves the cache, and `startAuthorization` forwards `webhook` and `expiresInMs`. `credentialAuth` for eve sends the device code as `userCode` and evicts through a provider that caches tokens. The CLI detects `OPENCODE=1`. The eve, BotID, Firewall and Sandbox structural types follow the installed SDKs, and the peer ranges in seven docs pages match the catalog.
+
+- [#1101](https://github.com/ScaleDockHQ/better-supabase/pull/1101) [`1c99e4b`](https://github.com/ScaleDockHQ/better-supabase/commit/1c99e4bd96b4557eab505e0c8e53bd5e5d8e8c42) Thanks [@martijn00](https://github.com/martijn00)! - Fix drift in the framework adapters. The Next.js adapter sends cache tags to `cacheTag()` in chunks of 128, so a list longer than 128 no longer loses its tail. The TanStack Start page and the middleware file `better-supabase init` writes now include `createCsrfMiddleware`, because defining `src/start.ts` turns off Start's default CSRF protection for server functions.
+
+- [#1101](https://github.com/ScaleDockHQ/better-supabase/pull/1101) [`1c99e4b`](https://github.com/ScaleDockHQ/better-supabase/commit/1c99e4bd96b4557eab505e0c8e53bd5e5d8e8c42) Thanks [@martijn00](https://github.com/martijn00)! - Fix the Workflow World delivery contract. A continuation (the flow asked to wait) starts `attempt` over, so a long run no longer reaches `@workflow/core`'s 48 delivery cap through sleeps and step retries. In `vercel-queue` mode a continuation and the hops of a long delay are sent without an idempotency key, because Vercel drops a send whose key it saw in the last 24 hours. The World no longer claims `maxConcurrency` or `inBandFence` and creates spec 8 runs even when `WORKFLOW_SPEC_VERSION=9` is set, since the pgmq queue does not serialize a run's messages. `queueBatch` reports `retryable` as `@vercel/queue` returns it.
+
 ## 0.81.0
 
 ### Patch Changes
