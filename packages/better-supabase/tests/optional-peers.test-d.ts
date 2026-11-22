@@ -12,8 +12,16 @@ import type {
 import type * as Blob from "@vercel/blob";
 import type * as Connect from "@vercel/connect";
 import type * as ConnectChat from "@vercel/connect/chat";
+import type * as ConnectEve from "@vercel/connect/eve";
+import type * as ConnectMcp from "@vercel/connect/mcp";
 import type { checkRateLimit } from "@vercel/firewall";
-import type { attachDatabasePool, getCache } from "@vercel/functions";
+import type {
+  addCacheTag,
+  attachDatabasePool,
+  getCache,
+  invalidateByTag,
+  metric,
+} from "@vercel/functions";
 import type * as Kms from "@vercel/kms";
 import type { PassportIdentityPayload } from "@vercel/passport";
 import type * as VercelSandbox from "@vercel/sandbox";
@@ -45,7 +53,9 @@ import type {
   Identify,
   ProviderData,
 } from "flags";
+import type { InstrumentationOnRequestError } from "next/dist/server/instrumentation/types";
 import type { Publisher, Subscriber } from "resumable-stream/generic";
+import type { registerLifecycleHooks } from "workflow/api";
 
 import { describe, expectTypeOf, it } from "vitest";
 
@@ -57,10 +67,15 @@ import type {
 } from "../src/blocks/queue/index.ts";
 import type { VercelKmsModule } from "../src/blocks/signing-keys/index.ts";
 import type { WhatsappTemplateAdapter } from "../src/chat-sdk/index.ts";
+import type {
+  VercelCdnFunctions,
+  vercelRuntimeCacheAdapter,
+} from "../src/core/cache-vercel.ts";
 import type { vercelRuntimeCache } from "../src/core/jwks-store.ts";
 import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
+  ConnectEveFunction,
   EveConnectionAuthorization,
   EveDynamicSchedules,
   EveScheduleOptions,
@@ -85,6 +100,8 @@ import type {
   FlagsSdkProviderData,
 } from "../src/flags-sdk/index.ts";
 import type { JsonRenderSpec } from "../src/json-render/index.ts";
+import type { OnRequestError } from "../src/next/instrumentation/index.ts";
+import type { VercelMetric } from "../src/otel/vercel/index.ts";
 import type { AttachablePool } from "../src/postgres/pool.ts";
 import type { SyncedDatabaseLike } from "../src/powersync/index.ts";
 import type { VercelBlobModule } from "../src/storage/index.ts";
@@ -93,11 +110,13 @@ import type {
   postgresSubscriber,
 } from "../src/streams/resumable/index.ts";
 import type {
+  ConnectEventVerifier,
   VercelConnectChatModule,
   VercelConnectModule,
 } from "../src/vercel-connect/index.ts";
 import type { PassportClaims } from "../src/vercel-passport/index.ts";
 import type {
+  VercelNetworkPolicy,
   VercelSandboxModule,
   VercelSandboxSessionModule,
 } from "../src/vercel-sandbox/index.ts";
@@ -105,6 +124,7 @@ import type {
   CheckBotId,
   CheckRateLimit,
 } from "../src/vercel-security/index.ts";
+import type { WorkflowLifecycleOptions } from "../src/workflow-sdk/index.ts";
 
 /**
  * The structural types better-supabase declares instead of importing an
@@ -118,7 +138,20 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<CredentialSubject>().toExtend<Connect.ConnectTokenSubject>();
   });
 
+  it("@vercel/connect/eve takes the options connectAuth passes", () => {
+    expectTypeOf<typeof ConnectEve.connect>().toExtend<
+      ConnectEveFunction<unknown>
+    >();
+  });
+
+  it("@vercel/connect/mcp verifies the deliveries connectEventRoute reads", () => {
+    expectTypeOf<
+      typeof ConnectMcp.experimental_verifyMcpEvent
+    >().toExtend<ConnectEventVerifier>();
+  });
+
   it("@vercel/sandbox and its AI SDK adapter have what vercelSandboxes calls", () => {
+    expectTypeOf<VercelSandbox.NetworkPolicy>().toExtend<VercelNetworkPolicy>();
     expectTypeOf<typeof VercelSandbox>().toExtend<VercelSandboxModule>();
     expectTypeOf<
       typeof SandboxSessions
@@ -146,6 +179,34 @@ describe("structurally typed optional peers", () => {
     >();
     expectTypeOf<typeof getCache>().toExtend<
       Parameters<typeof vercelRuntimeCache>[0]
+    >();
+  });
+
+  it("@vercel/functions gives the Runtime Cache tags and the CDN purge the cache adapters use", () => {
+    expectTypeOf<typeof getCache>().toExtend<
+      Parameters<typeof vercelRuntimeCacheAdapter>[0]
+    >();
+    expectTypeOf<{
+      addCacheTag: typeof addCacheTag;
+      invalidateByTag: typeof invalidateByTag;
+    }>().toExtend<VercelCdnFunctions>();
+  });
+
+  it("@vercel/functions' metric is the function vercelMetrics takes", () => {
+    expectTypeOf<typeof metric>().toExtend<VercelMetric>();
+    expectTypeOf<VercelMetric>().toExtend<typeof metric>();
+  });
+
+  it("Next.js's onRequestError and the bridge take each other's arguments", () => {
+    expectTypeOf<OnRequestError>().toExtend<InstrumentationOnRequestError>();
+    expectTypeOf<InstrumentationOnRequestError>().toExtend<
+      (...args: Parameters<OnRequestError>) => void | Promise<void>
+    >();
+  });
+
+  it("the Workflow SDK takes the lifecycle hooks registerWorkflowLifecycle installs", () => {
+    expectTypeOf<typeof registerLifecycleHooks>().toExtend<
+      NonNullable<WorkflowLifecycleOptions["register"]>
     >();
   });
 

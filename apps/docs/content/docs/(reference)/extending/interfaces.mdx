@@ -140,6 +140,10 @@ betterSupabase.cache(redis);
 client)` attaches `queryCache(client)`. Adapter errors are logged, never
 returned from the mutation.
 
+`vercelCdnCache` and `vercelRuntimeCacheAdapter` (`better-supabase/server`) purge Vercel
+tags, and `cacheRoute` calls any adapter when a write comes from outside the process.
+See [Cache invalidation outside the process](/docs/vercel/cache).
+
 ## EventSink
 
 Receives CloudEvents batches. See [CloudEvents](/docs/standards/events) for

@@ -85,6 +85,8 @@ describe("vercelConnectCredentials", () => {
     const started = await provider.startAuthorization!(ref, {
       subject: user,
       redirectUri: "https://app.test/callback",
+      webhook: "https://app.test/hook",
+      expiresInMs: 60_000,
     }).orThrow();
 
     expect(started.url).toContain("vercel.com");
@@ -95,6 +97,8 @@ describe("vercelConnectCredentials", () => {
     expect(calls[1]?.[3]).toEqual({
       vercelToken: "vt",
       callbackUrl: "https://app.test/callback",
+      webhook: "https://app.test/hook",
+      expiresInMs: 60_000,
     });
 
     expect(await provider.revoke(ref, { subject: user }).orThrow()).toBe(true);
@@ -342,11 +346,25 @@ describe("vercelConnectCredentials", () => {
     expect(
       await provider.invalidateToken(ref, { subject: user }).orThrow(),
     ).toBe(true);
-    expect(deleteTokenCacheEntry).toHaveBeenCalledWith("github", {
-      subject: user,
-      installationId: "inst_1",
-      scopes: ["repo"],
+    expect(deleteTokenCacheEntry).toHaveBeenCalledWith(
+      "github",
+      { subject: user, installationId: "inst_1", scopes: ["repo"] },
+      {},
+    );
+
+    const scoped = vercelConnectCredentials({
+      load: async () => ({ ...module, deleteTokenCacheEntry }),
+      teamId: "team_1",
+      orgId: "org_1",
     });
+
+    await scoped.invalidateToken(ref, { subject: user }).orThrow();
+
+    expect(deleteTokenCacheEntry).toHaveBeenLastCalledWith(
+      "github",
+      expect.objectContaining({ installationId: "inst_1" }),
+      { teamId: "team_1", orgId: "org_1" },
+    );
 
     const old = vercelConnectCredentials({ load: async () => module });
     expect(await old.invalidateToken(ref, { subject: user }).orThrow()).toBe(

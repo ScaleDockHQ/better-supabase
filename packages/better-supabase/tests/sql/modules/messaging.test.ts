@@ -34,6 +34,13 @@ describe("messaging module", () => {
     expect(body({ messaging: { options: { threadDepth: 1 } } })).toBe(flat);
   });
 
+  it("labels who acted with optional author_kind and author_name columns", () => {
+    const sql = body();
+
+    expect(sql).toContain('"author_kind" text');
+    expect(sql).toContain("send_message.attrs -> 'actor' ->> 'kind'");
+  });
+
   it("names the topic, the body limit and the edit window", () => {
     const sql = body({
       messaging: {

@@ -26,6 +26,13 @@ export interface VercelNetworkRule {
   readonly transform?: readonly {
     readonly headers?: Readonly<Record<string, string>>;
   }[];
+  /** Answers a matching request at the firewall without contacting the host. */
+  readonly response?: {
+    readonly statusCode: number;
+    readonly headers?: Readonly<Record<string, string>>;
+    readonly body?: string;
+    readonly contentType?: string;
+  };
 }
 
 /** The egress firewall of a sandbox, as `@vercel/sandbox` takes it. */
@@ -58,6 +65,7 @@ export type VercelDriveMount =
  * through to `@vercel/sandbox` unchanged.
  */
 export interface VercelSandboxCreateOptions {
+  /** @deprecated A legacy Vercel-managed runtime; use `image`. */
   readonly runtime?: string;
   readonly image?: string;
   readonly resources?: { readonly vcpus?: number };

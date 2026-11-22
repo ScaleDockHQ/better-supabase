@@ -319,9 +319,10 @@ export async function stdinDatabaseUrl(
 }
 
 /**
- * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`, then
- * the local stack: the `[db] port` in `config.toml`, else the running stack's
- * `DB_URL`. With neither it fails with `not_found` rather than guess a port.
+ * Connection string: stdin, config, `$DATABASE_URL`, `$SUPABASE_DB_URL`,
+ * `$POSTGRES_URL_NON_POOLING`, `$POSTGRES_URL`, then the local stack: the `[db]
+ * port` in `config.toml`, else the running stack's `DB_URL`. With neither it
+ * fails with `not_found` rather than guess a port.
  */
 export async function databaseUrl(
   config: ResolvedConfig,

@@ -52,7 +52,15 @@ export interface PassportPrincipal {
 }
 
 /** Which headers `verifyPassport` reads the token from. */
-export type PassportTokenSource = "passport" | "bearer" | "both";
+export type PassportTokenSource =
+  | "passport"
+  | "bearer"
+  | "both"
+  | "cookie"
+  | "all";
+
+/** The cookie Vercel stores the Passport session token in. */
+export const PASSPORT_COOKIE = "_vercel_passport";
 
 export interface VerifyPassportOptions<U = never> {
   /**
@@ -92,6 +100,10 @@ export interface VerifyPassportOptions<U = never> {
    * Where the token is read: `passport` is the `x-vercel-oidc-passport-token`
    * header, `bearer` is `Authorization: Bearer` (a token forwarded to another
    * backend), and `both` (the default) tries the Passport header first.
+   * `cookie` reads the `_vercel_passport` cookie, including its chunked form,
+   * and `all` tries the header, then Bearer, then the cookie. A cookie is sent
+   * by the browser on its own, so use it only on routes that also guard against
+   * cross-site requests.
    */
   readonly headers?: PassportTokenSource;
 }
@@ -116,23 +128,114 @@ const errorText = (cause: unknown): string =>
 const nonEmpty = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
-function tokenOf(
-  request: Request,
-  source: PassportTokenSource,
-): string | undefined {
-  if (source !== "bearer") {
-    const header = request.headers.get(PASSPORT_HEADER)?.trim();
+const CHUNKED = /^__vc_chunked_v1:(\d+):([0-9a-f]{64})$/;
+const CHUNKED_PREFIX = "__vc_chunked_v1:";
+const GENERATION_LENGTH = 32;
+const MAX_CHUNKS = 100;
 
-    if (header) {
-      return header;
+function cookieValue(header: string, name: string): string | undefined {
+  for (const part of header.split(";")) {
+    const [key, ...value] = part.trim().split("=");
+
+    if (key === name) {
+      return value.join("=");
     }
   }
 
-  if (source === "passport") {
-    return undefined;
+  return undefined;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * The Passport token in the `_vercel_passport` cookie. A large token is split
+ * into `_vercel_passport.<n>.<generation>` chunks behind a manifest value
+ * (`__vc_chunked_v1:<count>:<sha256>`), as `@vercel/passport` writes it; the
+ * chunks must all be present and hash to the manifest's checksum.
+ */
+async function cookieToken(
+  request: Request,
+): Promise<Result<string | undefined>> {
+  const header = request.headers.get("cookie");
+  const stored = header ? cookieValue(header, PASSPORT_COOKIE) : undefined;
+
+  if (stored === undefined || !stored.startsWith(CHUNKED_PREFIX)) {
+    return ok(stored === "" ? undefined : stored);
   }
 
-  return BEARER.exec(request.headers.get("authorization") ?? "")?.[1];
+  const problem = (message: string): Result<never> =>
+    err(dbError("unauthorized", message, { hint: "PASSPORT_TOKEN" }));
+
+  const match = CHUNKED.exec(stored);
+  const count = Number(match?.[1]);
+  const checksum = match?.[2];
+
+  if (
+    checksum === undefined ||
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > MAX_CHUNKS
+  ) {
+    return problem("The Passport session cookie manifest is invalid");
+  }
+
+  const generation = checksum.slice(0, GENERATION_LENGTH);
+  const chunks: string[] = [];
+
+  for (let index = 1; index <= count; index += 1) {
+    const chunk = cookieValue(
+      header ?? "",
+      `${PASSPORT_COOKIE}.${index}.${generation}`,
+    );
+
+    if (chunk === undefined) {
+      return problem(
+        `The Passport session cookie is missing chunk ${index} of ${count}`,
+      );
+    }
+
+    chunks.push(chunk);
+  }
+
+  const value = chunks.join("");
+
+  return (await sha256Hex(value)) === checksum
+    ? ok(value)
+    : problem("The Passport session cookie does not match its checksum");
+}
+
+async function tokenOf(
+  request: Request,
+  source: PassportTokenSource,
+): Promise<Result<string | undefined>> {
+  if (source === "passport" || source === "both" || source === "all") {
+    const header = request.headers.get(PASSPORT_HEADER)?.trim();
+
+    if (header) {
+      return ok(header);
+    }
+  }
+
+  if (source === "bearer" || source === "both" || source === "all") {
+    const bearer = BEARER.exec(request.headers.get("authorization") ?? "")?.[1];
+
+    if (bearer !== undefined) {
+      return ok(bearer);
+    }
+  }
+
+  return source === "cookie" || source === "all"
+    ? cookieToken(request)
+    : ok(undefined);
 }
 
 /** Whether `iss` is Passport's issuer, alone or scoped to an owner. */
@@ -245,7 +348,7 @@ function optionsProblem<U>(
   return undefined;
 }
 
-async function verifySignature(
+export async function verifySignature(
   token: string,
   keys: JwksSource,
 ): Promise<Result<Readonly<Record<string, unknown>>>> {
@@ -310,7 +413,13 @@ export function verifyPassport<U = never>(
       return err(misconfigured);
     }
 
-    const token = tokenOf(request, options.headers ?? "both");
+    const found = await tokenOf(request, options.headers ?? "both");
+
+    if (!found.ok) {
+      return found;
+    }
+
+    const token = found.data;
 
     if (token === undefined) {
       return err(

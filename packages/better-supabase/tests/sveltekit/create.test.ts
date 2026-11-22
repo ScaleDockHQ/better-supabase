@@ -185,3 +185,71 @@ describe("createSvelteKit", () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 });
+
+describe("bsb.caller in remote functions", () => {
+  let current: { request: Request; locals: object } | undefined;
+
+  const remote = createSvelteKit(betterSupabase, {
+    env,
+    auth: { jwks: signer.jwks },
+    prefetchJwks: false,
+    kit: {
+      ...kit,
+      getRequestEvent: () => {
+        if (current === undefined) {
+          throw new Error("no event");
+        }
+
+        return current;
+      },
+    },
+    signIn: "/sign-in",
+  });
+
+  async function inRemote<T>(
+    request: Request,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const event = { request, locals: {}, url: new URL(request.url) };
+    let out: T | undefined;
+
+    await remote.handle({
+      event,
+      resolve: async () => {
+        current = event;
+        out = await run();
+
+        return new Response(null);
+      },
+    });
+
+    // SAFETY: resolve ran run before handle returned.
+    return out as T;
+  }
+
+  it("reads the event itself and returns the caller", async () => {
+    const caller = await inRemote(await requestAs({ role: "member" }), () =>
+      remote.caller(),
+    );
+
+    expect(caller.session).toMatchObject({ user: { id: USER } });
+  });
+
+  it("answers a refusal with error(), never a redirect", async () => {
+    await expect(
+      inRemote(await requestAs(undefined, { url: "https://app.test/x" }), () =>
+        remote.caller(),
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+
+    await expect(
+      inRemote(await requestAs({ role: "member" }), () =>
+        remote.caller({ requireTenant: true }),
+      ),
+    ).rejects.toBeInstanceOf(HttpError);
+  });
+
+  it("needs getRequestEvent in kit", () => {
+    expect(() => bsb.caller()).toThrow(/getRequestEvent/);
+  });
+});

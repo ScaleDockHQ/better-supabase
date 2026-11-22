@@ -38,7 +38,12 @@ const CREATED = new RegExp(
   "gi",
 );
 
-const CONSTRAINT = new RegExp(String.raw`\bconstraint\s+(${IDENT})`, "gi");
+// `drop constraint if exists name` names a constraint too, so the optional
+// `if exists` must not be read as the name.
+const CONSTRAINT = new RegExp(
+  String.raw`\bconstraint\s+(?:if\s+(?:not\s+)?exists\s+)?(${IDENT})`,
+  "gi",
+);
 
 const unquote = (name: string): string =>
   name.startsWith('"') ? name.slice(1, -1) : name;

@@ -19,7 +19,12 @@ interface Call {
 }
 
 function fakeChats(
-  options: { readonly steps?: unknown[]; readonly runs?: unknown[] } = {},
+  options: {
+    readonly steps?: unknown[];
+    readonly runs?: unknown[];
+    readonly leafId?: string | null;
+    readonly claim?: Record<string, unknown>;
+  } = {},
 ) {
   const calls: Call[] = [];
 
@@ -34,14 +39,18 @@ function fakeChats(
   const chats = {
     chats: {
       create: record("chats.create", { id: "c" }),
-      get: record("chats.get", { id: "c", leafId: "m0", activeRunId: "run_1" }),
+      get: record("chats.get", {
+        id: "c",
+        ...(options.leafId === null ? {} : { leafId: options.leafId ?? "m0" }),
+        activeRunId: "run_1",
+      }),
     },
     messages: {
       appendUser: record("messages.appendUser", {}),
       saveAssistant: record("messages.saveAssistant", {}),
     },
     runs: {
-      claim: record("runs.claim", { runId: "run_1" }),
+      claim: record("runs.claim", options.claim ?? { runId: "run_1" }),
       release: record("runs.release", true),
       list: record("runs.list", options.runs ?? []),
       steps: {
@@ -418,6 +427,220 @@ describe("syncSession", () => {
   });
 });
 
+describe("syncSession remaining events", () => {
+  it("records model calls, a cancelled approval and usage without a cost", async () => {
+    const { chats, calls } = fakeChats({
+      steps: [
+        {
+          key: "interaction:ap",
+          detail: { kind: "approval", approvalId: "a1" },
+        },
+        {
+          key: "interaction:qu",
+          detail: { kind: "question", inputId: "in_1" },
+        },
+        {
+          key: "interaction:qd",
+          detail: { kind: "question", inputId: "in_2" },
+        },
+      ],
+    });
+
+    const recorded: unknown[] = [];
+    const reply = vi.fn();
+
+    const events: EveSyncEvent[] = [
+      admitted,
+      at(2, "turn.started", { turnId: "t1" }, "t1"),
+      at(3, "delivery.consumed", { deliveryId: "d1", parts: "hi" }, "t1"),
+      at(
+        4,
+        "delivery.consumed",
+        { deliveryId: "d2", parts: [{ kind: "file" }, { kind: "text" }] },
+        "t1",
+      ),
+      at(
+        5,
+        "content.completed",
+        { kind: "image", value: "x", partId: "p" },
+        "t1",
+      ),
+      at(
+        6,
+        "content.completed",
+        { kind: "text", value: "", partId: "p" },
+        "t1",
+      ),
+      at(7, "content.completed", { kind: "text", value: "x" }, "t1"),
+      at(
+        8,
+        "content.completed",
+        { kind: "text", value: "draft", partId: "d", phase: "draft" },
+        "t1",
+      ),
+      at(9, "model.started", { modelId: "m" }, "t1"),
+      at(10, "model.started", { runId: "mr", attempt: 2 }, "t1"),
+      at(11, "model.settled", { runId: "mr", outcome: "interrupted" }, "t1"),
+      at(12, "model.settled", { outcome: "abandoned" }, "t1"),
+      at(13, "model.settled", { runId: "mr2", outcome: "exploded" }, "t1"),
+      at(14, "call.requested", { policy: "ask" }, "t1"),
+      at(
+        15,
+        "call.requested",
+        { callId: "c1", capability: { kind: "tool" }, policy: "allow" },
+        "t1",
+      ),
+      at(16, "call.settled", { outcome: "interrupted" }, "t1"),
+      at(
+        17,
+        "call.settled",
+        { callId: "c1", outcome: "abandoned", reason: "stop" },
+        "t1",
+      ),
+      at(18, "interaction.settled", {}, "t1"),
+      at(
+        19,
+        "interaction.settled",
+        { interactionId: "ap", outcome: "cancelled", reason: "no" },
+        "t1",
+      ),
+      at(
+        20,
+        "interaction.settled",
+        { interactionId: "qu", outcome: "accepted", response: { text: "yes" } },
+        "t1",
+      ),
+      at(
+        21,
+        "interaction.settled",
+        { interactionId: "qd", outcome: "declined" },
+        "t1",
+      ),
+      at(22, "usage.recorded", { kind: "tool", usage: { inputTokens: 1 } }),
+      {
+        type: "usage.recorded",
+        data: { kind: "model", usage: { inputTokens: 4, outputTokens: 0 } },
+      },
+      at(23, "usage.recorded", { kind: "model", usage: null }),
+      at(
+        24,
+        "turn.settled",
+        { outcome: "failed", error: { message: "boom" } },
+        "t1",
+      ),
+      at(25, "turn.settled", { outcome: "unknown" }),
+      at(26, "turn.started", {}),
+      at(27, "interaction.opened", { request: { kind: "approval" } }, "t1"),
+      at(
+        28,
+        "interaction.settled",
+        { interactionId: "missing", outcome: "accepted" },
+        "t1",
+      ),
+      {
+        type: "usage.recorded",
+        data: { kind: "model", usage: { inputTokens: 0, outputTokens: 0 } },
+      },
+    ];
+
+    await syncSession(
+      {
+        store: memoryStore(),
+        chats,
+        read: reader(events),
+        resolve: () => target,
+        reply,
+        usage: {
+          client: {
+            recordMany: (input: unknown) => {
+              recorded.push(input);
+
+              return AsyncResult.ok({});
+            },
+          },
+          meters: { inputTokens: "in", outputTokens: "out" },
+        } as never,
+      },
+      "s",
+    );
+
+    expect(calls.some((call) => call.fn === "steps.record")).toBe(true);
+    expect(calls.some((call) => call.fn === "approvals.decide")).toBe(true);
+    expect(calls.some((call) => call.fn === "inputs.answer")).toBe(true);
+    expect(reply).not.toHaveBeenCalled();
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]).toMatchObject({
+      idempotencyKey: "eve:s:x:0",
+      entries: [{ meter: "in", quantity: 4 }],
+    });
+  });
+
+  it("falls back to the active run and skips a reply with no leaf", async () => {
+    const { chats, calls } = fakeChats({ leafId: null, claim: {} });
+    const store = memoryStore();
+    const lease = store.lease.bind(store);
+
+    store.lease = (sessionId, seconds) =>
+      lease(sessionId, seconds).then((held) =>
+        held === undefined ? undefined : { ...held, runId: undefined },
+      );
+
+    await syncSession(
+      {
+        store,
+        chats,
+        read: reader([
+          admitted,
+          at(2, "turn.started", { turnId: "t1" }, "t1"),
+          at(
+            3,
+            "content.completed",
+            { kind: "text", value: "yo", partId: "p", phase: "reply" },
+            "t1",
+          ),
+        ]),
+        resolve: () => ({
+          organizationId: "org-1",
+          ownerId: "user-1",
+          agentId: "ag",
+        }),
+      },
+      "s",
+    );
+
+    expect(
+      calls.find((call) => call.fn === "chats.create")?.args[0],
+    ).toMatchObject({ input: { title: "eve session", agentId: "ag" } });
+    expect(calls.map((call) => call.fn)).toContain("runs.claim");
+    expect(calls.map((call) => call.fn)).not.toContain(
+      "messages.saveAssistant",
+    );
+  });
+
+  it("ignores usage when no meters are configured", async () => {
+    const { chats } = fakeChats();
+
+    await expect(
+      syncSession(
+        {
+          store: memoryStore(),
+          chats,
+          read: reader([
+            admitted,
+            at(2, "usage.recorded", {
+              kind: "model",
+              usage: { inputTokens: 1 },
+            }),
+          ]),
+          resolve: () => target,
+          usage: { client: { recordMany: () => AsyncResult.ok({}) } } as never,
+        },
+        "s",
+      ),
+    ).resolves.toMatchObject({ status: "synced" });
+  });
+});
+
 describe("syncSession replay", () => {
   it("opens no second run for a turn that already ended", async () => {
     const { chats, calls } = fakeChats({
@@ -462,6 +685,39 @@ describe("sweepSessions", () => {
 
     expect(synced).toBe(2);
     expect(await store.behind()).toEqual([]);
+  });
+
+  it("passes the age and the limit through to the store", async () => {
+    const { chats } = fakeChats();
+    const store = memoryStore();
+    await store.wake("a");
+
+    const synced = await sweepSessions({
+      store,
+      chats,
+      read: reader([admitted]),
+      resolve: () => target,
+      olderThan: "2026-01-01T00:00:00Z",
+      limit: 1,
+    });
+
+    expect(synced).toBe(1);
+  });
+
+  it("skips a session whose lease is already held", async () => {
+    const { chats } = fakeChats();
+    const store = memoryStore();
+    await store.wake("a");
+    await store.lease("a");
+
+    const synced = await sweepSessions({
+      store,
+      chats,
+      read: reader([admitted]),
+      resolve: () => target,
+    });
+
+    expect(synced).toBe(0);
   });
 });
 

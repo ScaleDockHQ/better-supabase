@@ -230,6 +230,16 @@ the `typecheck` script, so TypeScript 7.1 serves the schema types from the
 without a `typecheck` script that runs `tsc`, are left alone; the next steps
 print the change to make instead.
 
+## Agent instructions
+
+When the project already has an `AGENTS.md`, `CLAUDE.md`, `.cursor`, `.claude` or
+`.agents`, `init` writes a block into `AGENTS.md` between
+`<!-- BEGIN:better-supabase-agent-rules -->` and
+`<!-- END:better-supabase-agent-rules -->`. It points agents at the skills, the
+docs MCP server and `llms.txt`, and says not to edit generated files. Each run
+rewrites only what sits between the markers, so write your own notes outside
+them. A project with none of those files is left alone.
+
 ## Workspaces
 
 At the root of a pnpm, npm, yarn or bun workspace (a `pnpm-workspace.yaml`,

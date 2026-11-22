@@ -7,6 +7,11 @@ const INVALID_INPUT: ReadonlySet<string> = new Set([
   "AI_InvalidArgumentError",
   "AI_InvalidPromptError",
   "AI_InvalidDataContentError",
+  "AI_ToolChoiceViolationError",
+  "AI_MissingToolResultsError",
+  "AI_InvalidToolApprovalError",
+  "AI_InvalidToolApprovalSignatureError",
+  "AI_ToolCallNotFoundForApprovalError",
   "AI_MessageConversionError",
   "AI_TooManyEmbeddingValuesForCallError",
 ]);
@@ -24,6 +29,8 @@ const GENERATION_FAILED: ReadonlySet<string> = new Set([
   "AI_NoSpeechGeneratedError",
   "AI_NoTranscriptGeneratedError",
   "AI_NoVideoGeneratedError",
+  "AI_NoTranslationGeneratedError",
+  "AI_InvalidStreamPartError",
   "AI_NoSuchToolError",
   "AI_InvalidToolInputError",
   "AI_ToolCallRepairError",
@@ -105,13 +112,58 @@ function ofStatus(
   });
 }
 
+const stringOf = (value: unknown): string | undefined =>
+  typeof value === "string" && value !== "" ? value : undefined;
+
+// The ids the gateway dashboard and support search by; never the provider's message.
+function gatewayDetails(error: Record<string, unknown>): string | undefined {
+  const parts = [
+    ["generationId", stringOf(error["generationId"])],
+    ["ruleId", stringOf(error["ruleId"])],
+  ].flatMap(([name, value]) =>
+    value === undefined ? [] : [`${name}=${value}`],
+  );
+
+  return parts.length === 0 ? undefined : parts.join(" ");
+}
+
+function withGatewayDetails(
+  mapped: DbError,
+  error: Record<string, unknown>,
+): DbError {
+  const details = gatewayDetails(error);
+
+  return details === undefined ? mapped : { ...mapped, details };
+}
+
+// The SDK wraps a gateway error type it does not know (a 402 budget or credit
+// rejection) as `internal_server_error`, so the status code decides first.
+function ofGatewayStatus(error: Record<string, unknown>): DbError | undefined {
+  if (numberOf(error["statusCode"]) === 402) {
+    return dbError(
+      "quota_exceeded",
+      "The AI Gateway budget or credits are used up.",
+      { code: "AI_GATEWAY_PAYMENT_REQUIRED", status: 402, meter: "ai-gateway" },
+    );
+  }
+
+  return undefined;
+}
+
 function ofGateway(type: string, error: Record<string, unknown>): DbError {
+  return withGatewayDetails(
+    ofGatewayStatus(error) ?? ofGatewayType(type, error),
+    error,
+  );
+}
+
+function ofGatewayType(type: string, error: Record<string, unknown>): DbError {
   switch (type) {
     case "rate_limit_exceeded": {
       return ofStatus(429, error);
     }
 
-    case "timeout": {
+    case "timeout_error": {
       return ofStatus(504, error);
     }
 
@@ -198,7 +250,7 @@ export function aiErrorToDbError(error: unknown): DbError {
       : aiErrorToDbError(last);
   }
 
-  if (name === "AI_APICallError") {
+  if (name === "AI_APICallError" || name === "AI_StreamProviderError") {
     return ofStatus(numberOf(error["statusCode"]), error);
   }
 

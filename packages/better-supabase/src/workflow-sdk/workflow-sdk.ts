@@ -89,6 +89,39 @@ export interface StartForOptions {
    * argument too, so a step's `bsb.forContext` resolves it.
    */
   readonly ticket?: string;
+  /**
+   * `0` deletes the run's data as soon as it ends (the SDK's
+   * `experimental_retention`). `"default"` leaves the choice to the World.
+   */
+  readonly retention?: 0 | "default";
+  /**
+   * The deployment the run executes on, or `"latest"` for the newest one in the
+   * environment. Only Worlds with immutable deployments (Vercel) route by it;
+   * the Supabase World warns and runs on the current one. The run's argument
+   * and result types are `unknown` across deployments.
+   */
+  readonly deploymentId?: string;
+  /**
+   * Makes the start idempotent on a hook token, atomically with the run's
+   * admission (the SDK's `experimental_hook`). A second start with the same
+   * token creates no run and resolves to the run that owns the token. Needs a
+   * World with atomic start hooks. Unlike `idempotencyKey`, the token also lets
+   * `resumeHook(token)` reach the run at once.
+   */
+  readonly hook?: StartForHook;
+}
+
+/** The hook `StartForOptions.hook` creates with the run. */
+export interface StartForHook {
+  /** The hook token. Non-empty. */
+  readonly token: string;
+  /**
+   * Keeps the token unavailable for at least this many milliseconds after
+   * `start()`, also once the run ended. Needs a World with hook retention.
+   */
+  readonly minRetentionMs?: number;
+  /** Data stored with the hook, returned by `getHookByToken`. */
+  readonly metadata?: unknown;
 }
 
 /** The run a start with idempotency `key` created, while it is in the World. */
@@ -279,10 +312,7 @@ async function startRun<TArgs extends unknown[], TResult>(
   }
 
   const launch = (): Promise<Run<TResult>> =>
-    start(workflow, args, {
-      attributes,
-      ...(options.world === undefined ? {} : { world: options.world }),
-    });
+    launchRun(workflow, args, { attributes, options });
 
   if (key !== undefined && registry !== undefined) {
     return startRegistered({
@@ -296,6 +326,81 @@ async function startRun<TArgs extends unknown[], TResult>(
   }
 
   return key === undefined ? launch() : startKeyed(key, options.world, launch);
+}
+
+interface Launch {
+  readonly attributes: Readonly<Record<string, string>>;
+  readonly options: StartForOptions;
+}
+
+/** `HookConflictError` of a refused start, typed structurally. */
+function conflictingRun(cause: unknown): string | undefined {
+  if (typeof cause !== "object" || cause === null) {
+    return undefined;
+  }
+
+  // SAFETY: every member is checked below before use.
+  const { name, kind, conflictingRunId } = cause as {
+    readonly name?: unknown;
+    readonly kind?: unknown;
+    readonly conflictingRunId?: unknown;
+  };
+
+  return name === "HookConflictError" &&
+    kind === "start" &&
+    typeof conflictingRunId === "string"
+    ? conflictingRunId
+    : undefined;
+}
+
+async function launchRun<TArgs extends unknown[], TResult>(
+  workflow: WorkflowFn<TArgs, TResult>,
+  args: TArgs,
+  { attributes, options }: Launch,
+): Promise<Run<TResult>> {
+  const { hook, retention, deploymentId, world } = options;
+
+  if (hook?.token === "") {
+    throw new TypeError("better-supabase: a start hook needs a token");
+  }
+
+  const base = {
+    attributes: { ...attributes },
+    ...(world === undefined ? {} : { world }),
+    ...(retention === undefined ? {} : { experimental_retention: retention }),
+    ...(hook === undefined
+      ? {}
+      : {
+          experimental_hook: {
+            token: hook.token,
+            ...(hook.minRetentionMs === undefined
+              ? {}
+              : { experimental_minRetention: hook.minRetentionMs }),
+            ...(hook.metadata === undefined ? {} : { metadata: hook.metadata }),
+          },
+        }),
+  };
+
+  try {
+    if (deploymentId === undefined) {
+      return await start(workflow, args, base);
+    }
+
+    // SAFETY: a cross-deployment start types its result as unknown; the caller
+    // chose the deployment and owns the workflow's argument and result types.
+    return (await start(workflow, args, {
+      ...base,
+      deploymentId,
+    })) as Run<TResult>;
+  } catch (cause) {
+    const owner = conflictingRun(cause);
+
+    if (owner === undefined) {
+      throw cause;
+    }
+
+    return getRun<TResult>(owner);
+  }
 }
 
 function workflowName(workflow: {

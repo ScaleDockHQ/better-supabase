@@ -576,9 +576,10 @@ describe("vercelScheduler", () => {
         expression: { type: "single", at: "2027-01-01T09:00" },
       });
 
-    expect(await scheduler.listSchedules?.({})).toMatchObject([
-      { name: "once", cron: "", nextRun: null },
-    ]);
+    const [listed] = (await scheduler.listSchedules?.({})) ?? [];
+
+    expect(listed).toMatchObject({ name: "once", cron: "", once: true });
+    expect(listed?.nextRun?.toString()).toBe("2027-01-01T09:00:00Z");
   });
 
   it("keeps the tenant-less namespace apart from tenants", async () => {
@@ -983,5 +984,66 @@ describe("vercelScheduleBridgeRoute", () => {
     expect(failures).toHaveLength(1);
     expect(String(failures[0])).toMatch(/names no queue/);
     expect(errors).toEqual([]);
+  });
+});
+
+describe("vercelScheduler one-time, enable, disable, run now and get", () => {
+  it("writes a single schedule at the next whole minute, in the zone", async () => {
+    const fake = fakeSchedules();
+    const scheduler = vercelScheduler(fake.client);
+    const at = Temporal.Instant.from("2026-12-01T10:00:30Z");
+    await scheduler.scheduleOnce?.(
+      "trial-end",
+      at,
+      "mail",
+      { n: 1 },
+      "Europe/Amsterdam",
+    );
+    const stored = [...fake.space("better-supabase").values()][0];
+    expect(stored?.expression).toEqual({
+      type: "single",
+      at: "2026-12-01T11:01",
+    });
+
+    const got = await scheduler.getSchedule?.("trial-end");
+    expect(got).toMatchObject({ name: "trial-end", once: true, enabled: true });
+    expect(got?.nextRun?.toString()).toBe("2026-12-01T10:01:00Z");
+  });
+
+  it("disables, enables and runs a schedule, and reports a missing one", async () => {
+    const fake = fakeSchedules();
+    const scheduler = vercelScheduler(fake.client);
+    await scheduler.schedule(
+      "nightly",
+      "0 3 * * *",
+      "mail",
+      {},
+      "UTC",
+      Temporal.Now.instant(),
+    );
+    expect(await scheduler.disableSchedule?.("nightly")).toBe(true);
+    expect((await scheduler.getSchedule?.("nightly"))?.enabled).toBe(false);
+    expect(await scheduler.enableSchedule?.("nightly")).toBe(true);
+    expect((await scheduler.getSchedule?.("nightly"))?.enabled).toBe(true);
+    expect(await scheduler.runScheduleNow?.("nightly")).toBe(true);
+    expect(fake.calls.some((call) => call.startsWith("invoke"))).toBe(true);
+    expect(await scheduler.disableSchedule?.("missing")).toBe(false);
+    expect(await scheduler.runScheduleNow?.("missing")).toBe(false);
+    expect(await scheduler.getSchedule?.("missing")).toBeNull();
+  });
+
+  it("needs a client with the methods", async () => {
+    const full = fakeSchedules().client;
+
+    const scheduler = vercelScheduler({
+      create: (params) => full.create(params),
+      update: (params) => full.update(params),
+      delete: (params) => full.delete(params),
+      list: (params) => full.list(params),
+    });
+
+    await expect(scheduler.getSchedule?.("x")).rejects.toThrow(
+      "needs a @vercel/schedules client",
+    );
   });
 });

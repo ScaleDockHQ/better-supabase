@@ -134,7 +134,7 @@ describe("SQL module event catalog", () => {
 
   it("names events <entity>.<past_verb>, spelled one way", () => {
     const typeName = /^[a-z]+(_[a-z]+)*\.[a-z]+(_[a-z]+)*$/;
-    const past = /(ed|left|paid|set|sent|split|withdrawn)$/;
+    const past = /(ed|held|left|paid|set|sent|split|withdrawn)$/;
     expect(
       MAP_TYPES.filter(
         (type) =>

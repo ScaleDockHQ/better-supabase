@@ -1,5 +1,10 @@
 export { createMcp, defineTool, MCP_PROTOCOL_VERSION } from "./mcp.ts";
 
+export {
+  explainPermissionTool,
+  type ExplainPermissionToolOptions,
+} from "./explain-permission.ts";
+
 export { answerLine, answerMessage } from "./protocol.ts";
 
 export type { ProtocolServer, ServerDescription } from "./protocol.ts";

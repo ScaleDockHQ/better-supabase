@@ -295,6 +295,13 @@ export function isSupabaseFileStore(
 
 type BlobAccess = "public" | "private";
 
+/** How `@vercel/blob` authenticates a call: a token, or OIDC with a store id. */
+interface BlobAuth {
+  token?: string;
+  oidcToken?: string;
+  storeId?: string;
+}
+
 /**
  * The `@vercel/blob` functions `vercelBlobStore` calls, typed structurally:
  * pass `import * as blob from "@vercel/blob"` (`>=2.9.0 <3`).
@@ -308,29 +315,34 @@ export interface VercelBlobModule {
       contentType?: string;
       allowOverwrite?: boolean;
       addRandomSuffix?: boolean;
+      cacheControlMaxAge?: number;
+      ttlDays?: number;
       token?: string;
+      oidcToken?: string;
+      storeId?: string;
     },
   ): PromiseLike<unknown>;
   get(
     urlOrPathname: string,
-    options: { access: BlobAccess; token?: string },
+    options: BlobAuth & { access: BlobAccess },
   ): PromiseLike<{
     readonly stream: ReadableStream<Uint8Array> | null;
     readonly blob: { readonly contentType: string | null };
   } | null>;
   head(
     urlOrPathname: string,
-    options?: { token?: string },
+    options?: BlobAuth,
   ): PromiseLike<{ readonly size: number; readonly contentType: string }>;
-  del(urlOrPathname: string[], options?: { token?: string }): PromiseLike<void>;
-  issueSignedToken(options: {
-    pathname?: string;
-    operations?: ("get" | "head" | "put" | "delete")[];
-    validUntil?: number;
-    allowedContentTypes?: string[];
-    maximumSizeInBytes?: number;
-    token?: string;
-  }): PromiseLike<{
+  del(urlOrPathname: string[], options?: BlobAuth): PromiseLike<void>;
+  issueSignedToken(
+    options: BlobAuth & {
+      pathname?: string;
+      operations?: ("get" | "head" | "put" | "delete")[];
+      validUntil?: number;
+      allowedContentTypes?: string[];
+      maximumSizeInBytes?: number;
+    },
+  ): PromiseLike<{
     readonly clientSigningToken: string;
     readonly delegationToken: string;
   }>;
@@ -365,6 +377,21 @@ export interface VercelBlobStoreOptions {
   /** A read-write token. Default: the SDK's `BLOB_READ_WRITE_TOKEN` or OIDC. */
   readonly token?: string;
   /**
+   * The Vercel OIDC token the SDK authenticates with instead of a stored token.
+   * It overrides `VERCEL_OIDC_TOKEN` and needs `storeId` or `BLOB_STORE_ID`.
+   */
+  readonly oidcToken?: string;
+  /** The store id for OIDC authentication. Overrides `BLOB_STORE_ID`. */
+  readonly storeId?: string;
+  /**
+   * Deletes every blob this store writes after this many days (1 to 730), as
+   * `ttlDays` does. Each write that sets a TTL counts as an extra Advanced
+   * Operation per started 60 days. Default: no expiry.
+   */
+  readonly ttlDays?: number;
+  /** Seconds the edge and browser cache a blob. Default: the SDK's one month. */
+  readonly cacheControlMaxAge?: number;
+  /**
    * Put before every pathname, such as `files/`. The pathname is
    * `${prefix}${bucket}/${path}`.
    */
@@ -378,6 +405,11 @@ const BLOB_ERRORS = {
   BlobServiceRateLimited: "rate_limited",
   BlobFileTooLargeError: "invalid_input",
   BlobContentTypeNotAllowedError: "invalid_input",
+  BlobPathnameMismatchError: "invalid_input",
+  BlobClientTokenExpiredError: "unauthorized",
+  BlobStoreSuspendedError: "forbidden",
+  BlobPreconditionFailedError: "conflict",
+  BlobStoreNotFoundError: "misconfigured",
 } as const;
 
 type BlobErrorName = keyof typeof BLOB_ERRORS;
@@ -466,6 +498,18 @@ function fromBlobError(cause: unknown): DbError {
       return dbError("invalid_input", message, { code: name });
     }
 
+    case "unauthorized": {
+      return dbError("unauthorized", message, { code: name });
+    }
+
+    case "conflict": {
+      return dbError("conflict", message, { code: name });
+    }
+
+    case "misconfigured": {
+      return dbError("unexpected", message, { code: name });
+    }
+
     default: {
       const never: never = kind;
 
@@ -503,7 +547,21 @@ export function vercelBlobStore(
 ): FileStore {
   const access = options.access ?? "private";
   const prefix = options.prefix ?? "";
-  const auth = options.token === undefined ? {} : { token: options.token };
+
+  const auth: BlobAuth = {
+    ...(options.token === undefined ? {} : { token: options.token }),
+    ...(options.oidcToken === undefined
+      ? {}
+      : { oidcToken: options.oidcToken }),
+    ...(options.storeId === undefined ? {} : { storeId: options.storeId }),
+  };
+
+  const writeOptions = {
+    ...(options.ttlDays === undefined ? {} : { ttlDays: options.ttlDays }),
+    ...(options.cacheControlMaxAge === undefined
+      ? {}
+      : { cacheControlMaxAge: options.cacheControlMaxAge }),
+  };
 
   const pathname = (bucket: string, path: string): string =>
     `${prefix}${bucket}/${path}`;
@@ -520,6 +578,7 @@ export function vercelBlobStore(
             : { contentType: put.contentType }),
           allowOverwrite: put.upsert ?? false,
           addRandomSuffix: false,
+          ...writeOptions,
           ...auth,
         }),
       ).map(() => undefined),

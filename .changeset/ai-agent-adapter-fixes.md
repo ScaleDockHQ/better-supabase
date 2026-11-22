@@ -1,0 +1,5 @@
+---
+"better-supabase": patch
+---
+
+Fix drift in the AI and agent adapters. A Vercel AI Gateway budget or credit rejection (HTTP 402) now maps to a `quota_exceeded` error with status 402 and the code `AI_GATEWAY_PAYMENT_REQUIRED` instead of a 503 outage, gateway errors keep their `generationId` and `ruleId` in `details`, the gateway `timeout_error` type maps to a timeout, and the newer AI SDK error names are recognized. `connectTools` and `connectAll` return a `toolApproval` map for `askUnlessReadOnly` instead of setting the deprecated `needsApproval` on each tool; pass the map as the agent's `toolApproval`. `invalidateToken` on the Vercel Connect provider now names the team and organization scope, so a scoped token leaves the cache, and `startAuthorization` forwards `webhook` and `expiresInMs`. `credentialAuth` for eve sends the device code as `userCode` and evicts through a provider that caches tokens. The CLI detects `OPENCODE=1`. The eve, BotID, Firewall and Sandbox structural types follow the installed SDKs, and the peer ranges in seven docs pages match the catalog.

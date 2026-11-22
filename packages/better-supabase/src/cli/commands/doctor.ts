@@ -54,6 +54,11 @@ import {
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
+import {
+  VERCEL_CODES,
+  VERCEL_ENVIRONMENTS,
+  vercelEnvPath,
+} from "../doctor/vercel-env.ts";
 import { PROCESS_ENV } from "../env.ts";
 import {
   METADATA_REJECTED,
@@ -146,6 +151,11 @@ const ARGS = {
     type: "boolean",
     description:
       "Print the grant and revoke SQL BS404 asks for, to add to your schema or migration",
+  },
+  vercel: {
+    type: "boolean",
+    description:
+      "Check the variables of each Vercel environment from `vercel pull` (.vercel/.env.<name>.local): missing names, a secret under a browser prefix, preview and production on one project (BS513 to BS515)",
   },
   "update-baseline": {
     type: "boolean",
@@ -373,7 +383,10 @@ export async function runDoctor(
   // --stats and --explain ask for their checks even when --only leaves them out.
   const hookUser = args.as;
 
+  const vercelEnv = args.vercel === true;
+
   const asked = new Set([
+    ...(vercelEnv ? VERCEL_CODES : []),
     ...(stats ? ["BS209"] : []),
     ...(planning ? ["BS212"] : []),
     ...(hookUser ? ["BS405"] : []),
@@ -462,6 +475,7 @@ export async function runDoctor(
     install,
     ignoredEnvFiles,
     vercelConfig,
+    vercelPulled,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -515,6 +529,18 @@ export async function runDoctor(
       ? gitIgnored(config.root, ENV_FILES, env)
       : undefined,
     readText(config.root, "vercel.json"),
+    vercelEnv
+      ? Promise.all(
+          VERCEL_ENVIRONMENTS.map(async (environment) => {
+            const file = await readText(
+              config.root,
+              vercelEnvPath(environment),
+            );
+
+            return file === undefined ? [] : [{ environment, file }];
+          }),
+        ).then((found) => found.flat())
+      : undefined,
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -552,6 +578,7 @@ export async function runDoctor(
     vercel,
     libraryDiff: await runsLibraryDiff(config.root),
     ...(vercelConfig ? { vercelConfig } : {}),
+    ...(vercelPulled ? { vercelEnv: vercelPulled } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),

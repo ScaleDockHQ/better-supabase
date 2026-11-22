@@ -372,3 +372,10 @@ export {
   type AutoEmbeddingConfig,
   renderAutoEmbedding,
 } from "./auto-embeddings.ts";
+
+export {
+  CACHE_NOTIFY_BEARER_SECRET,
+  CACHE_NOTIFY_URL_SECRET,
+  cacheInvalidationSql,
+  type CacheInvalidationSqlOptions,
+} from "./cache-notify.ts";

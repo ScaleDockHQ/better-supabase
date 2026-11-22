@@ -1,0 +1,264 @@
+---
+title: Deploy on Vercel
+description: Run a Supabase project on Vercel, with the integration's variable names, preview deployments, auth redirects, safe migrations, rollbacks and static IPs.
+---
+
+This page covers what changes when an app on better-supabase runs on Vercel
+with the Supabase Marketplace integration: which variables you get, how
+previews find their database, and how a deploy and a migration stay compatible.
+`better-supabase/vercel` has the small helpers the page uses; it imports no
+Node built-in and no Vercel package, so it runs on every runtime.
+
+## Variables the integration sets
+
+The integration syncs these names to each connected Vercel project:
+
+| Names                                                                                             | Read by better-supabase as                  |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL`                                                        | the project URL                             |
+| `SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                                | the publishable key                         |
+| `SUPABASE_SECRET_KEY`                                                                             | the secret key, server only                 |
+| `SUPABASE_JWT_SECRET`                                                                             | the shared JWT secret (Supabase Lite only)  |
+| `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`                                                        | the pooled and the direct connection string |
+| `POSTGRES_PRISMA_URL`, `POSTGRES_USER`, `POSTGRES_HOST`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | not read                                    |
+
+`createPostgres`, `loadEnv` and the Workflow World read `POSTGRES_URL` and
+`POSTGRES_URL_NON_POOLING` after `SUPABASE_DB_URL` and `DATABASE_URL`. The CLI
+reads them too, after the same two names, with the direct string first,
+because `gen` and `db` introspect and need a session. The CLI never loads
+`.env` files, so give it the variables with `vercel env run`:
+
+```bash
+vercel env run -e production -- pnpm better-supabase gen --snapshot
+```
+
+Use a development or preview environment for commands that write. A production
+connection string in your shell is a production database to every command that
+reads it.
+
+### Older projects
+
+Projects connected before the integration moved to the new key format may only
+have `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`. better-supabase reads the `sb_publishable_` and
+`sb_secret_` names only. When the publishable key is missing and a legacy name
+is set, `loadEnv` says so:
+
+```text
+SUPABASE_PUBLISHABLE_KEY: is not set. SUPABASE_ANON_KEY is the legacy name and is not read; set SUPABASE_PUBLISHABLE_KEY to an sb_ key (Project Settings > API Keys)
+```
+
+Create the new keys under Project Settings, API Keys, and add them to every
+environment.
+
+### A custom prefix
+
+When you connect a resource to a project you can set a custom prefix, such as
+`DB1`. Vercel prepends it with an underscore to every name, so the URL becomes
+`DB1_SUPABASE_URL` and the pooled string `DB1_POSTGRES_URL`. Pass the prefix
+to the environment loader, and prefixed names win over plain ones:
+
+```ts title="lib/env.ts"
+import { loadEnv } from "better-supabase/env";
+
+export const env = loadEnv(process.env, { prefix: "DB1" });
+```
+
+`withEnvPrefix(process.env, "DB1")` returns the same source with the plain
+names filled in, for any code that takes an env object. The prefix must start
+with a letter and hold letters, digits and underscores.
+
+A browser variable keeps the prefix in front, as in
+`DB1_NEXT_PUBLIC_SUPABASE_URL`. Next.js only inlines names that start with
+`NEXT_PUBLIC_`, so that variable never reaches the browser. Add a second,
+plainly named `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+for the browser client.
+
+## Check the environments
+
+`vercel pull --environment=<name>` writes each environment's variables to
+`.vercel/.env.<name>.local`. Pull all three, then run doctor with `--vercel`:
+
+```bash
+vercel pull --yes --environment=production
+vercel pull --yes --environment=preview
+vercel pull --yes --environment=development
+pnpm better-supabase doctor --vercel
+```
+
+Doctor compares names, so it works when Vercel hides a sensitive value. It
+reports an environment with no Supabase URL or publishable key
+([BS513](/docs/cli/doctor#bs513)), a secret under a browser prefix
+([BS514](/docs/cli/doctor#bs514)), and preview and production on one Supabase
+project ([BS515](/docs/cli/doctor#bs515)).
+
+## Keep previews off production
+
+A preview deployment that points at the production project reads and writes
+production data. Connect the integration to Preview with its own project or a
+Supabase preview branch, then fail fast when it does not:
+
+```ts title="instrumentation.ts"
+import { assertDeployment } from "better-supabase/vercel";
+
+export function register() {
+  assertDeployment(process.env, {
+    productionProjectRef: "abcdefghijklmnopqrst",
+  });
+}
+```
+
+`assertDeployment` throws an `EnvValidationError` that names `SUPABASE_URL`,
+never its value, when the deployment is not production and the URL has the
+production project ref. `deploymentIssues` returns the same findings without
+throwing, for a health route.
+
+### The branch redeploy race
+
+Vercel applies a changed or new variable to later deployments only: its
+documentation says existing deployments do not get changed variables and that
+you create a new deployment after you change a resource connection. A preview
+branch needs time to be created and migrated, so a preview build that starts
+first can be built without the branch's variables or with the base project's.
+Wait for the `Supabase Preview` check on the pull request to pass, then
+redeploy the preview. `doctor --vercel` shows what a pulled environment holds,
+and `assertDeployment` catches a preview that fell back to production.
+
+## Auth redirects
+
+`deploymentUrl` builds the URL of this deployment from the variables Vercel
+sets. On a production deployment it returns the production domain, and on any
+other deployment the Git branch URL, which stays the same across commits of one
+branch:
+
+```ts title="app/login/actions.ts"
+import { deploymentUrl } from "better-supabase/vercel";
+
+const redirectTo = deploymentUrl(process.env, {
+  path: "/auth/callback",
+  fallback: "http://localhost:3000",
+});
+```
+
+Pass `target: "deployment"` for the URL of one deployment
+(`VERCEL_URL`), `"branch"` or `"production"` to choose. The functions strip
+any scheme from the variable and return `https://` URLs. `VERCEL_URL` cannot be
+used with Standard Deployment Protection, so the branch URL is the default for
+previews.
+
+Supabase checks `redirectTo` against the redirect URL list in the project's URL
+Configuration. Set the production URL as the Site URL, and add one wildcard for
+previews. The `*` wildcard matches anything but the separators `.` and `/`, and
+Vercel's deployment and branch URLs
+(`<project>-<hash>-<team>.vercel.app`, `<project>-git-<branch>-<team>.vercel.app`)
+are one label, so this pattern covers both:
+
+```text
+https://*-<team-slug>.vercel.app/**
+http://localhost:3000/**
+```
+
+Use the exact callback path for the production URL: Supabase recommends it
+over `**` there.
+
+## Calls to a protected deployment
+
+With Vercel Authentication or a password on previews, a call from outside the
+browser needs the Protection Bypass for Automation secret in the
+`x-vercel-protection-bypass` header. That covers queue and workflow
+deliveries, webhooks from the database, and health checks. Vercel sets the
+secret as `VERCEL_AUTOMATION_BYPASS_SECRET` once you create it in the
+project's Deployment Protection settings, and you redeploy after you change it.
+
+`protectionBypassHeaders` returns the header, or an empty object without a
+secret. Given the target URL, it only returns the header for a host of this
+deployment (`VERCEL_URL`, `VERCEL_BRANCH_URL`,
+`VERCEL_PROJECT_PRODUCTION_URL`) or one in `allowHosts`, so a callback to
+another service never carries the secret:
+
+```ts title="lib/callback.ts"
+import { protectionBypassHeaders } from "better-supabase/vercel";
+
+export async function callBack(url: string, body: unknown) {
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...protectionBypassHeaders(process.env, { url }),
+    },
+    body: JSON.stringify(body),
+  });
+}
+```
+
+The Workflow World does this for its own deliveries: its environment loading
+adds the header when `WORKFLOW_FLOW_URL` is a host of this deployment, and
+`WORKFLOW_DELIVERY_HEADERS` or the `deliveryHeaders` option, when set, win. For
+`pg_net`, store `JSON.stringify(protectionBypassHeaders(process.env))` in the
+`workflow_delivery_headers` Vault secret. A caller that cannot set a header,
+such as a database webhook, can use `protectionBypassUrl(url, process.env)`,
+which adds the secret as the `x-vercel-protection-bypass` query parameter.
+Prefer the header, because URLs end up in logs.
+
+The bypass skips Deployment Protection, bot protection and Firewall system
+mitigations, but not an active DDoS mitigation.
+
+## Migrations under Skew Protection
+
+Skew Protection pins a browser's framework requests to the deployment that
+served its page, for as long as the project's maximum age allows (12 hours on
+Pro and one day on Enterprise by default, up to your deployment retention). An
+old client keeps calling old server code while your database is already on the
+new schema. Every migration therefore has to work for both versions at once:
+expand, then contract.
+
+1. Expand: add the new column, table or function, as nullable or with a
+   default, and keep every old one. Backfill in batches.
+2. Deploy code that writes both shapes and reads the new one.
+3. Wait past the maximum age, so no pinned client runs the old code.
+4. Contract: drop the old column in a later migration, once nothing reads it.
+
+Skew Protection does not pin a full-page navigation, which gets the latest
+production deployment, and it does not cover your own `fetch` calls in Next.js
+or Astro unless they carry the deployment ID. `doctor` already flags unsafe
+migrations (a rename, a drop, a type change); treat those findings as
+blocking for a Vercel deploy. Enable System Environment Variables on the
+project, because without them Skew Protection has no deployment ID.
+
+## Rolling Releases and Instant Rollback
+
+A Rolling Release sends a fraction of production traffic to the new
+deployment before it takes all of it, so the old and the new code run against
+one database at the same time, and Vercel recommends Skew Protection with it.
+The expand-then-contract rule above is what keeps both versions working.
+
+Instant Rollback points your domains back at an earlier production deployment.
+It restores code, not data and not variables: Vercel keeps the rolled-back
+deployment's build and does not apply changed environment variables, and it
+turns off auto-assignment of production domains until you promote a deployment
+again. A migration is never rolled back with it. After a contract migration
+dropped a column, the rolled-back code fails on it, which is why the contract
+step waits until the old deployment is out of reach.
+
+## Static IPs and network restrictions
+
+Supabase Network Restrictions limit which IP ranges reach Postgres and its
+pooler. They do not apply to the HTTPS APIs (PostgREST, Auth, Storage) or to
+`supabase-js`, so they protect the connections behind `POSTGRES_URL`, `pg`
+pools, the World and the CLI, not the Data API.
+
+Vercel Functions use dynamic addresses unless you turn on Static IPs, a Pro and
+Enterprise feature that gives each configured region a pair of egress
+addresses. Allowlist those pairs in Network Restrictions, then redeploy. Three
+details decide whether it works:
+
+- Static IPs cover Vercel Functions only. Routing Middleware does not use them,
+  so make a database call from a function. Builds use dynamic addresses until
+  you turn on Use for builds, which a build-time migration needs.
+- The addresses are shared with a small group of customers and apply to every
+  environment of the project, preview included. Keep database credentials and
+  RLS in place.
+- Add IPv6 CIDRs as well when your direct connection resolves to IPv6 (Supabase
+  names this case on its Network Restrictions page).
+
+Static IPs are egress only; they do not give the app a fixed inbound address.

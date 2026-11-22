@@ -2,6 +2,8 @@
 
 ## 0.81.0 (2026-11-21)
 
+- The npm README leads with a supabase-js comparison, a feature table and a five-step quick start, then covers existing apps, frameworks, the CLI, blocks, integrations, subpaths, agent support, limits and the upgrade policy. The package keywords name the frameworks and features it supports.
+
 - eve on Supabase moves to eve 1.3, Workflow 5.7.1 and the ai 7.0.179 line, finishes the purge of zero-retention runs through world-postgres 5.4.1's backstop, lets a web tier skip delivery with `skipWorkers`, and adds `supabaseSkillScopes` for eve's custom skills. The migration guide is [From 0.80 to 0.81](https://bettersupabase.com/docs/migration/0.80-to-0.81).
 
   ## Breaking changes

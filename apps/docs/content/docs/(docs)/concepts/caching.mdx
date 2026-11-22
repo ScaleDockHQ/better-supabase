@@ -63,6 +63,32 @@ table, the changed row ids, and `tables`, the full list to invalidate.
 Your own adapter implements one method, and `testCacheAdapter` from
 `better-supabase/testing` checks it against the same cases.
 
+Writes that don't go through `db` expire the same tags through a Postgres
+trigger and a signed route. See
+[Cache invalidation outside the process](/docs/vercel/cache).
+
+## Cache public data without the service role
+
+A `'use cache'` function can't read cookies or headers, so it has no user. For
+data every visitor may read, such as a plan list or published articles,
+`bsb.public()` returns a context that reads as the `anon` role. Row Level
+Security still applies, so the read returns what an anonymous visitor may see
+and nothing more. It never reads the request and never uses the service role.
+
+```ts
+async function plans() {
+  "use cache";
+  const { db } = await bsb.public({ tables: ["plans"] });
+
+  return db.plans.list().orThrow();
+}
+```
+
+It takes the same `tables`, `id`, `tenant` and `life` options as
+`bsb.cached()` and tags the entry the same way. Doctor rule
+[BS640](/docs/cli/doctor#bs640) reports a plain `'use cache'` function that
+reads the request instead.
+
 ## TanStack Query
 
 Query options from `createQueries` carry `meta: { bsTables }`. Invalidation

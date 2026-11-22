@@ -194,3 +194,22 @@ agent can call them without reading the rendered page.
   from `user_metadata` or from request input. When the config has an
   `authorization` provider whose hook owns `memberships`, don't add the
   `tenant` SQL module ([authorization providers](/docs/extending/authorization-providers)).
+
+## Vercel MCP recipe
+
+Connect the docs MCP server next to Vercel's own MCP server so an agent can read
+the API and then inspect the deployment it runs on. In Cursor, add both to
+`.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "better-supabase": { "url": "https://bettersupabase.com/mcp" },
+    "vercel": { "url": "https://mcp.vercel.com" }
+  }
+}
+```
+
+Ask the agent to look up an API with the first server, and to read build logs
+or runtime errors with the second. Vercel's server asks you to sign in on first
+use.

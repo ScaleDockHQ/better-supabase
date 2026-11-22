@@ -164,3 +164,16 @@ export const guardrails = createAiGuardrails({
   schema: "api",
 });
 ```
+
+## Guard tool inputs and outputs
+
+`guardTools(tools, guardrails)` from `better-supabase/ai-sdk` applies the same guardrails to what
+a tool receives and returns. A blocked input never reaches `execute`; the model gets the refusal
+text as the tool result. A redacted input or output is rewritten, and a tool that streams has each
+chunk checked.
+
+```ts
+import { guardTools } from "better-supabase/ai-sdk";
+
+const safeTools = guardTools(tools, guardrails);
+```

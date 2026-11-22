@@ -39,6 +39,12 @@ export interface TanStackStartHandlerOptions<Data, Context> {
   readonly context: Context;
 }
 
+/** What the `.server()` callback of a function middleware receives. */
+export interface TanStackStartFunctionMiddlewareOptions<Context, Next> {
+  readonly context: Context;
+  readonly next: (options: { readonly context: object }) => Promise<Next>;
+}
+
 export interface BetterTanStackStart<
   M extends AnyModels,
   F extends AnyFunctions,
@@ -79,6 +85,34 @@ export interface BetterTanStackStart<
       LocalsResource<M, F, E, C, P, B>
     >,
   ): Promise<FrameworkLocals<M, F, E, C, P, B> & AuthorizedContext<C, P, R>>;
+  /**
+   * The `.server()` callback of a function middleware (`createMiddleware({
+   * type: "function" })`) that runs the guard before a server function:
+   * `requireTenant`, `requireRole`, `authorize` and the other `require`
+   * options. It adds the caller (`db`, `tenant`, `snapshot`, ...) to `context`
+   * and sends a refusal as `require` does. The request middleware must run
+   * first, which every server function already has in `src/start.ts`.
+   *
+   * ```ts
+   * const tenantOnly = createMiddleware({ type: "function" }).server(
+   *   bsb.guard({ requireTenant: true }),
+   * );
+   * ```
+   */
+  guard<R extends boolean = false>(
+    options?: BlockRequireOptions<
+      C,
+      P,
+      R,
+      Ref,
+      LocalsResource<M, F, E, C, P, B>
+    >,
+  ): <Next>(
+    args: TanStackStartFunctionMiddlewareOptions<
+      FrameworkLocals<M, F, E, C, P, B>,
+      Next
+    >,
+  ) => Promise<Next>;
   /**
    * A `createServerFn().handler()` returning an `ActionResult`, for
    * `useAction`. Pass the same schema to `.inputValidator()` to type `data` on
@@ -146,6 +180,36 @@ export function createTanStackStart<
     return context;
   };
 
+  const requireIn: BetterTanStackStart<
+    M,
+    F,
+    E,
+    C,
+    P,
+    PermissionRef<A>,
+    B
+  >["require"] = async (context, requireOptions = {}) => {
+    const scope = scopeOf(context);
+
+    const caller = await requireCaller(
+      scope.bsb.auth,
+      requireOptions,
+      scope.tenant,
+      server.authorizer,
+      scope,
+    );
+
+    if ("kind" in caller) {
+      const request = requests.get(scope) ?? new Request("http://localhost/");
+
+      // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer.
+      throw refusalResponse(caller, request, options, expose);
+    }
+
+    // SAFETY: requireTenant refused a missing tenant.
+    return { ...scope, ...caller } as never;
+  };
+
   return extendServer<BetterTanStackStart<M, F, E, C, P, PermissionRef<A>, B>>(
     server,
     {
@@ -153,27 +217,14 @@ export function createTanStackStart<
         return withFlush(server, options.waitUntil, () => served(args));
       },
 
-      require: async (context, requireOptions = {}) => {
-        const scope = scopeOf(context);
+      require: requireIn,
 
-        const caller = await requireCaller(
-          scope.bsb.auth,
-          requireOptions,
-          scope.tenant,
-          server.authorizer,
-          scope,
-        );
+      guard(guardOptions = {}) {
+        return async ({ context, next }) => {
+          const caller = await requireIn(context, guardOptions);
 
-        if ("kind" in caller) {
-          const request =
-            requests.get(scope) ?? new Request("http://localhost/");
-
-          // oxlint-disable-next-line typescript/only-throw-error -- TanStack Start sends a thrown Response as the answer.
-          throw refusalResponse(caller, request, options, expose);
-        }
-
-        // SAFETY: requireTenant refused a missing tenant.
-        return { ...scope, ...caller } as never;
+          return next({ context: caller });
+        };
       },
 
       action(actionOptions, fn) {

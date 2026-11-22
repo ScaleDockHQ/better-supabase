@@ -159,6 +159,19 @@ const notes = await messaging.anchoredTo(videoId).orThrow();
 Any other JSON anchor, such as a text range, is stored as it is.
 `isFileAnchor` tells a file anchor from the rest when you render a message.
 
+## Who acted
+
+`send` takes `actor: { kind, name }` for an agent or a service that writes as a
+user. A table with the optional `author_kind` and `author_name` columns stores
+it, and `Message.authorKind` and `authorName` return it. Without an `actor` the
+kind comes from the session: `agent` for a token with an `act` claim of that
+kind, `service` for the service role, `system` without a user and `user`
+otherwise. The label never grants access. `message.sent` and the other message
+events carry `actorKind` and `actorName`, which is where the timeline and the
+comments read them. An app table gets the two columns through the block-columns
+file that `codemod owned-columns` writes, like any other optional column.
+Comments take the same `actor` on `create`.
+
 ## Record mentions
 
 `@[Name](subject:<type>/<id>)` mentions a record registered in

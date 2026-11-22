@@ -150,8 +150,7 @@ otherwise. Payloads sealed for another recipient stay closed.
 
 Upgrade the SQL module first (`workflow-sdk` version 4 converts the World
 timestamps to `timestamptz`), then deploy the app. Runs started on
-`workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8,
-and `capabilities.inBandFence` is on for them. Don't run old and new app
+`workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8. Don't run old and new app
 versions against the same database for longer than one deploy.
 
 ### Rolling out 5.7
@@ -187,10 +186,11 @@ Upgrade the SQL module first (`workflow-sdk` version 5 adds the
 `workflow.workflow_job_lock_holders` table of world-postgres migration 0030,
 closed to the API roles), then deploy the app. The World declares
 `queueAuthMode: "skip"`: the flow route checks the HMAC signature of every
-delivery itself, so the runtime adds no queue key check. It keeps the
-capabilities of `@workflow/world-postgres`, including `inBandFence`, so
-`WORKFLOW_SPEC_VERSION=9` creates spec 9 runs once every process runs
-`workflow` 5.5; without it, new runs stay on spec 8.
+delivery itself, so the runtime adds no queue key check. The World
+creates spec 8 runs and ignores `WORKFLOW_SPEC_VERSION=9`: the pgmq queue
+runs a run's messages in parallel and takes no run delivery lease, so it
+declares neither `capabilities.maxConcurrency` nor `capabilities.inBandFence`
+(ADR 1106).
 
 ## Delivery
 
@@ -247,10 +247,12 @@ export const world = createSupabaseWorld({ delivery: "vercel-queue" });
 
 - A message goes to the topic that matches its queue name, with every
   character outside `A-Za-z0-9_-` replaced by `-`. The Workflow SDK builders
-  write the consumer trigger for the topics `__wkf_workflow_*` and
-  `__wkf_step_*`, so no extra configuration is needed.
+  write the consumer trigger for the topics `__wkf_workflow_*` (steps share
+  the workflow topic since `workflow` 5), so no extra configuration is needed.
 - The message id is the idempotency key, so a retried send doesn't queue a
-  second copy. A delay over 23 hours is split into hops: each hop is
+  second copy. A continuation (the flow asked to wait) is a new message with
+  no key, because Vercel drops a send whose key it saw in the last 24 hours.
+  A delay over 23 hours is split into hops: each hop is
   delivered, sees the delay that remains, and sends the message on without
   running the flow.
 - The flow route answers Vercel's callback. A non-2xx response retries after
@@ -628,6 +630,42 @@ that already ran returns the first run.
 `nodeRunReporter` records each step node's status, output and error in
 `workflow_node_runs` for the canvas. A record that fails never fails the
 step.
+
+## Start options and bulk cancel
+
+`startFor` forwards three SDK start options. `retention: 0` deletes the run's data as soon as
+it ends, `deploymentId` pins the run to a deployment (`"latest"` picks the newest one in the
+environment) on a World with immutable deployments such as Vercel, and `hook` creates a hook
+with the run so the start is idempotent on its token. The Supabase World ignores `deploymentId`
+and logs a warning, because it has one deployment.
+
+```ts
+const run = await startFor(context, importWorkflow, [file.id], {
+  retention: 0,
+  hook: { token: `import:${file.id}`, minRetentionMs: 3_600_000 },
+});
+```
+
+A second start with the same token creates no run and resolves to the run that owns the token,
+and `resumeHook(token)` reaches the run at once. Use `idempotencyKey` when the World has no
+atomic start hooks. The hook needs a World that supports them, and `minRetentionMs` needs hook
+retention.
+
+`cancelTenantRuns` cancels every pending or running run of a tenant, for an offboarded or
+suspended organization. It lists the runs through `world.analytics`, then cancels them in
+batches of 100 with `runs.cancelMany` when the World has it and one run at a time otherwise
+(the Supabase World has no `cancelMany`, so the SDK's own fallback applies). It returns a
+`Result` and never throws for a World error: run ids that failed come back in `failed`, and
+calling it again is safe.
+
+```ts
+import { cancelTenantRuns } from "better-supabase/workflow-sdk";
+
+const { requested, cancelled, settled, failed } = await cancelTenantRuns(
+  organizationId,
+  { reason: "organization suspended" },
+).orThrow();
+```
 
 ## Analytics
 

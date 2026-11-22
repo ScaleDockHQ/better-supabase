@@ -78,7 +78,11 @@ export interface VercelDeliveryDeps {
 
 export interface VercelDelivery {
   /** One message; a delay past 23 hours goes in hops. */
-  send(message: StoredMessage, delaySeconds: number | undefined): Promise<void>;
+  send(
+    message: StoredMessage,
+    delaySeconds: number | undefined,
+    opts?: { readonly continuation?: boolean },
+  ): Promise<void>;
   /**
    * Up to 100 messages per request; a failure is reported per message so the
    * runtime resends what did not go.
@@ -121,6 +125,7 @@ export function createVercelDelivery(deps: VercelDeliveryDeps): VercelDelivery {
   const send = async (
     message: StoredMessage,
     delaySeconds: number | undefined,
+    opts?: { readonly continuation?: boolean },
   ): Promise<void> => {
     const sdk = await deps.sdk();
     const { delaySeconds: hop, remaining } = chainDelay(delaySeconds ?? 0);
@@ -131,7 +136,9 @@ export function createVercelDelivery(deps: VercelDeliveryDeps): VercelDelivery {
       remaining > 0 ? { ...message, remainingDelay: remaining } : message,
       {
         delaySeconds: hop,
-        idempotencyKey: await hopKey(message, remaining),
+        ...(opts?.continuation === true
+          ? {}
+          : { idempotencyKey: await hopKey(message, remaining) }),
         ...(retention === undefined ? {} : { retentionSeconds: retention }),
       },
     );
@@ -204,7 +211,7 @@ export function createVercelDelivery(deps: VercelDeliveryDeps): VercelDelivery {
             results.push({
               messageId: null,
               error: outcome.error,
-              retryable: true,
+              retryable: outcome.retryable ?? true,
             });
           } else {
             results.push({ messageId });
@@ -260,7 +267,10 @@ export function createVercelDelivery(deps: VercelDeliveryDeps): VercelDelivery {
 
       if (message.remainingDelay !== undefined && message.remainingDelay > 0) {
         const { remainingDelay, ...next } = message;
-        await send(next, remainingDelay);
+        // Unkeyed: a continuation's hops share the key of the original
+        // message's hops, and a duplicate wake is harmless where a dropped
+        // one strands the run.
+        await send(next, remainingDelay, { continuation: true });
 
         return;
       }
@@ -302,7 +312,13 @@ export function createVercelDelivery(deps: VercelDeliveryDeps): VercelDelivery {
       if (timeoutSeconds === undefined) {
         await deps.clearWake(message);
       } else {
-        await send({ ...message, attempt: attempt + 1 }, timeoutSeconds);
+        // A continuation is a new message, so `attempt` starts over (core
+        // fails a run past 48 deliveries of one message) and it carries no
+        // idempotency key: Vercel drops a send whose key it saw in the last
+        // 24 hours, which is the key of the delivery that is answering now.
+        await send({ ...message, attempt: 1 }, timeoutSeconds, {
+          continuation: true,
+        });
       }
     };
 

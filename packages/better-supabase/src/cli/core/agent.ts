@@ -65,7 +65,7 @@ export function detectAgent(env: Env, probe: AgentProbe): string | undefined {
     ],
     [set(env["ANTIGRAVITY_AGENT"]), "antigravity"],
     [set(env["AUGMENT_AGENT"]), "augment-cli"],
-    [set(env["OPENCODE_CLIENT"]), "opencode"],
+    [env["OPENCODE"] === "1" || set(env["OPENCODE_CLIENT"]), "opencode"],
     [
       (set(env["CLAUDECODE"]) || set(env["CLAUDE_CODE"])) &&
         set(env["CLAUDE_CODE_IS_COWORK"]),

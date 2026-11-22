@@ -12,6 +12,7 @@ import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 import type { LocalStackCheck } from "./stacks.ts";
+import type { VercelEnvFile } from "./vercel-env.ts";
 
 import {
   blockFileState,
@@ -80,6 +81,7 @@ import {
 import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
 import { TABLE_FACT_RULES } from "./table-facts.ts";
+import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
 import { WORKFLOW_BUILDER_RULES } from "./workflow-builder.ts";
 
@@ -205,6 +207,11 @@ export interface DoctorContext {
   readonly libraryDiff?: boolean;
   /** The project's `vercel.json` (BS512). */
   readonly vercelConfig?: TextFile;
+  /**
+   * The variables `vercel pull` wrote per environment, read with `--vercel`
+   * (BS513 to BS515). An empty list means nothing was pulled.
+   */
+  readonly vercelEnv?: readonly VercelEnvFile[];
 }
 
 export interface Rule {
@@ -1177,6 +1184,7 @@ export const RULES: readonly Rule[] = [
   ...SEARCH_KEY_RULES,
   ...ENTITY_PAGE_INDEX_RULES,
   ...IMPORT_GUARD_RULES,
+  ...VERCEL_ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));

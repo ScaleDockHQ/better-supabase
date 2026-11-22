@@ -1,4 +1,4 @@
-import { cacheLife, cacheTag, io } from "next/cache.js";
+import { cacheLife, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
 import { cookies } from "next/headers.js";
 import { cache } from "react";
@@ -75,6 +75,7 @@ import {
   validateBound,
   withReadSetTables,
 } from "./action-bound.ts";
+import { applyCacheTags } from "./cache-tags.ts";
 import {
   invalidateAll,
   nextCache,
@@ -563,6 +564,23 @@ export function createNext<
       applyEntry(ctx, view, scope, tenant, cachedOptions);
 
       return withExtra(ctx, { session: view });
+    },
+
+    // `contextFor` takes the auth state it is given and never reads cookies or
+    // headers, so this runs inside a plain "use cache" scope, and the anon
+    // client carries no caller identity (tests/next/public.test.ts).
+    public(publicOptions = {}) {
+      const { tenant } = publicOptions;
+
+      const ctx = base.contextFor(
+        { kind: "none", reason: "none" },
+        tenant === undefined ? {} : { tenant },
+      );
+
+      const view = toSession(ctx.auth);
+      applyEntry(ctx, view, "remote", tenant, publicOptions);
+
+      return Promise.resolve(withExtra(ctx, { session: view }));
     },
 
     async user() {
@@ -1068,10 +1086,10 @@ export function createNext<
     ...flows,
 
     tag(table, id, tagOptions = {}) {
-      cacheTag(
+      applyCacheTags([
         ...tableTags(table, tagOptions),
         ...(id === undefined ? [] : [tagFor(table, id)]),
-      );
+      ]);
     },
 
     tags(target, tagOptions = {}) {
@@ -1120,7 +1138,7 @@ export function createNext<
         }
       }
 
-      cacheTag(...tags);
+      applyCacheTags(tags);
     },
 
     blockAction: (client, method, blockOptions) =>

@@ -57,7 +57,7 @@ function tanstackStartTemplates(
   return [
     {
       path: `${supabaseDir(context)}/middleware.ts`,
-      contents: `import { createMiddleware } from '@tanstack/react-start';
+      contents: `import { createCsrfMiddleware, createMiddleware } from '@tanstack/react-start';
 import { createServer, withBetterSupabase } from 'better-supabase/server';
 import { toTanStackStart } from '${context.serverImport ?? "better-supabase/tanstack-start"}';
 
@@ -65,8 +65,13 @@ import { betterSupabase } from '${sibling(context)}';
 
 const bsb = createServer(betterSupabase);
 
-// Register it as \`requestMiddleware\` in \`createStart\`, and as a server function
-// middleware where a function needs the caller.
+// Defining src/start.ts turns off Start's default CSRF middleware, so list
+// \`csrf\` first in \`requestMiddleware\`, then \`supabase\`. Use \`supabase\` as a
+// server function middleware where a function needs the caller.
+export const csrf = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === 'serverFn',
+});
+
 export const supabase = createMiddleware().server(
   toTanStackStart([
     withBetterSupabase(bsb, { refresh: true, allow: ['user', 'none'] }),

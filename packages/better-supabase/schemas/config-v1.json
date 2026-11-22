@@ -8503,7 +8503,10 @@
               "templates": {
                 "type": "boolean",
                 "default": false
-              }
+              },
+              "needs": {},
+              "claims": {},
+              "hold": {}
             }
           }
         }

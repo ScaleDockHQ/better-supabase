@@ -64,3 +64,32 @@ export default defineOpenAPIConnection({
   toolCall: { providedArguments: tenantArgument("organization_id") },
 });
 ```
+
+## Vercel Connect through eve's own helper
+
+`credentialAuth` reads Connect through `vercelConnectCredentials`. When you
+would rather use `connect()` from `@vercel/connect/eve`, which also handles
+the authorization flow, eviction and the device code itself, wrap it with
+`connectAuth`. It sets `createSubject` so a signed-in user is the same
+Connect subject (issuer `<supabaseUrl>/auth/v1`, subject the user id) that
+`vercelConnectCredentials` uses, and grants made through either path are
+shared. An app principal gets the app subject.
+
+```ts title="agent/connections/github.ts"
+import { connect } from "@vercel/connect/eve";
+import { defineMcpClientConnection } from "eve/connections";
+import { connectAuth } from "better-supabase/eve";
+
+export default defineMcpClientConnection({
+  url: "https://api.githubcopilot.com/mcp/",
+  description: "The signed-in user's GitHub",
+  auth: connectAuth(connect, {
+    connector: "github",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  }),
+});
+```
+
+`@vercel/connect` (`>=2.9.5`) is an optional peer, and you pass its
+`connect` function in. `principalType` (`user` by default) and any other
+option `connect()` takes go in `connect`.

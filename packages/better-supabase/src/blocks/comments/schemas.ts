@@ -25,6 +25,12 @@ export const commentInputSchema: EntitySchema<NewComment> =
       },
       mentionIds: { kind: "uuid", optional: true, array: true },
       parentId: { kind: "uuid", optional: true },
+      actor: {
+        kind: "json",
+        optional: true,
+        description:
+          "Who acts: { kind, name }, stored as the author's kind and name.",
+      },
       attachmentIds: { kind: "uuid", optional: true, array: true },
       fields: {
         kind: "json",

@@ -150,6 +150,16 @@ function tableDdl(q: MessagingSql): TableDdl {
       ? `\n  ${definition(ctx.col(table, logical))},`
       : "";
 
+  // The author's kind and name reach a table that already exists, or one the
+  // app declares, through the same statement (ADRs 0325 and 1161).
+  const actorColumns = (["authorKind", "authorName"] as const)
+    .filter((logical) => ctx.has("messages", logical))
+    .map(
+      (logical) =>
+        `\nalter table ${t("messages")} add column if not exists ${ms(logical)} text;`,
+    )
+    .join("");
+
   // An `on conflict` target with a nullable thread column.
   const appKey = (table: string, columns: readonly string[]): string =>
     appUniqueIndex(ctx, table, columns).replace(/;$/u, " nulls not distinct;");
@@ -192,7 +202,7 @@ ${lock("members")}`,
   ${ms("conversation")} uuid not null references ${t("conversations")} (${cv("id")}) on delete cascade,
   ${ms("parent")} uuid references ${t("messages")} (${ms("id")}) on delete set null,
   ${ms("thread")} uuid references ${t("messages")} (${ms("id")}) on delete cascade,
-  ${ms("author")} uuid,
+  ${ms("author")} uuid,${column("messages", "authorKind", (name) => `${name} text`)}${column("messages", "authorName", (name) => `${name} text`)}
   ${ms("kind")} text not null default 'message' check (${ms("kind")} in ('message', 'note')),
   ${ms("body")} text not null default '' check (length(${ms("body")}) <= ${String(q.maxBody)}),
   ${ms("document")} jsonb,${column("messages", "anchor", (name) => `${name} jsonb`)}
@@ -209,7 +219,7 @@ ${lock("members")}`,
   ${ms("deletedAt")} timestamptz,
   ${ms("createdAt")} timestamptz not null default now(),
   check ((${ms("thread")} is null) = (${ms("parent")} is null))
-);
+);${actorColumns}
 create index if not exists ${idx("messaging_messages_conversation_idx")} on ${t("messages")} (${ms("conversation")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is null or ${ms("broadcast")};
 create index if not exists ${idx("messaging_messages_conversation_all_idx")} on ${t("messages")} (${ms("conversation")});
 create index if not exists ${idx("messaging_messages_thread_idx")} on ${t("messages")} (${ms("thread")}, ${ms("sentAt")}, ${ms("id")}) where ${ms("thread")} is not null;

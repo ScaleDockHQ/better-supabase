@@ -1,0 +1,99 @@
+---
+title: Connect and MCP events
+description: Verify Vercel Connect and MCP event deliveries in one route and write each one to the outbox once, with subscriptions kept per tenant in your own table.
+---
+
+A Vercel Connect or MCP event subscription makes the connector call your app
+when something happens, such as a new GitHub issue. `connectEventRoute` from
+`better-supabase/vercel-connect` is the route that receives those calls. It
+verifies the delivery, looks up the subscription's tenant, and writes the event
+to the [outbox](/docs/blocks/outbox), so your handlers, workflows and webhooks
+see it like any other event. A redelivery is written once.
+
+`@vercel/connect` (`>=2.9.5 <3`) is an optional peer. You pass its
+`experimental_verifyMcpEvent` in, so the entry imports nothing at load time.
+
+## The subscriptions table
+
+Subscriptions live in a table you create, one row per Connect subscription,
+with the tenant on the row. Nothing but your server reads it, so row level
+security is on and there is no policy.
+
+```sql title="supabase/schemas/connect_event_subscriptions.sql"
+create table public.connect_event_subscriptions (
+  id text primary key,
+  tenant_id uuid not null,
+  connector_id text not null,
+  user_id uuid,
+  name text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'active', 'stopped', 'failed')),
+  status_reason text,
+  expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index on public.connect_event_subscriptions (tenant_id);
+
+alter table public.connect_event_subscriptions enable row level security;
+```
+
+`postgresConnectEventSubscriptions(sql)` reads and writes it through a
+`SqlClient` on a service transport (override `table` and `schema` if you named
+it differently; identifiers must be plain). It is a documented table and not a
+block, so it adds no migration to the catalog. Store the subscription row when
+you call Connect's `experimental_subscribe`, with the Connect subscription id as
+`id`.
+
+## The route
+
+```ts title="app/api/connect/events/route.ts"
+import { experimental_verifyMcpEvent } from "@vercel/connect/mcp";
+import {
+  connectEventRoute,
+  postgresConnectEventSubscriptions,
+} from "better-supabase/vercel-connect";
+
+import { outbox, sql } from "@/lib/server";
+
+const handle = connectEventRoute({
+  verify: experimental_verifyMcpEvent,
+  path: "/api/connect/events",
+  outbox,
+  subscriptions: postgresConnectEventSubscriptions(sql),
+});
+
+export const POST = handle;
+```
+
+For each delivery the route answers:
+
+| Case                                         | Response                             |
+| -------------------------------------------- | ------------------------------------ |
+| not a `POST`                                 | 405                                  |
+| the signature, audience or issuer is invalid | 401                                  |
+| Connect's keys can't be fetched right now    | 503, so Connect retries              |
+| the verifier is misconfigured                | 500                                  |
+| an unknown, stopped or failed subscription   | 200 `{ "status": "ignored" }`        |
+| the outbox write fails                       | 503, so Connect retries              |
+| an event written                             | 200 `{ "status": "accepted", "id" }` |
+
+The event type is `connect.<name>` (`typePrefix` changes the prefix). Its
+payload has the connector, subscription and delivery ids, the event id, name,
+timestamp and cursor, the `data`, and the subscription's `context`. The
+tenant and subject (the subscribing user) come from the table row, never from
+the request body, and the outbox key is `connect:<deliveryId>`, so a retry of
+the same delivery returns the first event's id.
+
+A gap message from Connect becomes a `connect.gap` event, so a handler can
+backfill. A terminated message becomes `connect.terminated` and marks the
+subscription `failed` with the reason, which stops later deliveries from being
+accepted until you subscribe again. `onDelivery` receives each stored
+delivery for logging or metrics. Like every sink, it can't change the response:
+an error it throws is ignored.
+
+## Vercel Connect through eve
+
+To give an eve agent Connect tokens, see
+[MCP and OpenAPI connections](/docs/eve/connections#vercel-connect-through-eves-own-helper).

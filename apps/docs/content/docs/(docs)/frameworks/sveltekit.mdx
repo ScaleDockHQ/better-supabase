@@ -70,3 +70,31 @@ of it (a spread, `structuredClone`, a serialized loader result) gets the
 `invalid` context, so pass plain values such as the user id onward instead.
 Prefetches refresh the session too. Parallel requests with the same refresh
 token share one call to Auth, so they never race on it.
+
+## Remote functions
+
+SvelteKit's remote functions (`query`, `command` and `form` from
+`$app/server`) have no `event` argument. Pass `getRequestEvent` to
+`createSvelteKit` and call `bsb.caller()` inside the function:
+
+```ts title="src/routes/notes/data.remote.ts"
+import { error, fail, redirect } from "@sveltejs/kit";
+import { getRequestEvent, query } from "$app/server";
+
+const bsb = createSvelteKit(betterSupabase, {
+  kit: { error, fail, redirect, getRequestEvent },
+});
+
+export const notes = query(async () => {
+  const { db } = await bsb.caller({ requireTenant: true });
+
+  return db.notes.list().orThrow();
+});
+```
+
+`caller` takes the same options as `bsb.require`. A refusal becomes
+SvelteKit's `error()` and never a redirect, because a remote function answers
+the client that called it. Call it before the first `await` where the runtime
+has no `AsyncLocalStorage`, since `getRequestEvent` then works only
+synchronously. Remote functions are experimental in SvelteKit; enable them
+with `kit.experimental.remoteFunctions`.

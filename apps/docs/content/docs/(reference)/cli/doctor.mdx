@@ -37,6 +37,7 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--as <uuid>`              | With `--explain` or `--explain-write`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                   |
 | `--claims <json>`          | With `--explain` or `--explain-write`: plan with these JWT claims                                                                                                                                                                                                  |
 | `--fix-grants`             | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
+| `--vercel`                 | Check the variables of each Vercel environment that `vercel pull` wrote to `.vercel/.env.<name>.local` ([BS513](#bs513) to [BS515](#bs515))                                                                                                                        |
 | `--update-baseline`        | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
 
 Doctor never prints env values, only variable names and line numbers.
@@ -2616,6 +2617,42 @@ no SQL file stores the `jobs_tick_url` and `jobs_tick_token` Vault secrets that
 `better_supabase.http_tick()` reads. Secrets set from the dashboard are
 invisible to this static check; ignore that finding when you set them there.
 
+### BS513
+
+**Warning: a Vercel environment lacks a Supabase variable.** With `--vercel`,
+doctor reads `.vercel/.env.development.local`, `.vercel/.env.preview.local` and
+`.vercel/.env.production.local`, the files `vercel pull --environment=<name>`
+writes. It reports an environment that sets no `SUPABASE_URL` or no
+`SUPABASE_PUBLISHABLE_KEY` (plain or with a browser prefix), one that sets only
+the legacy `SUPABASE_ANON_KEY` name, which the library does not read, and a
+Supabase or database variable that production or preview sets but another
+environment lacks, as when the integration is connected to production only.
+Names are checked, not values, so a sensitive variable that Vercel does not
+return still counts as set. With nothing pulled, the finding tells you which
+command to run.
+
+### BS514
+
+**Error: a secret under a browser prefix in a Vercel environment.** With
+`--vercel`, a variable whose name starts with `NEXT_PUBLIC_`, `VITE_`,
+`PUBLIC_`, `EXPO_PUBLIC_` or `NUXT_PUBLIC_` and continues with a secret name
+(`SECRET`, `SERVICE_ROLE`, `JWT_SECRET`, a database URL, `PASSWORD`,
+`PRIVATE`), or whose value starts with `sb_secret_`, is inlined into client
+code at build time. The name is enough, so the check works when Vercel hides
+the value. Rename the variable, redeploy and rotate the key. The same check on
+`.env` files is [BS501](#bs501).
+
+### BS515
+
+**Warning: preview and production share a Supabase project.** With `--vercel`,
+the preview and production files name the same project: the same project ref
+for a hosted URL, or the same origin for any other. Every preview deployment
+then reads and writes production data. Connect preview to its own project or a
+branch database. The check is skipped when Vercel hides either URL. At runtime,
+`assertDeployment` from
+[`better-supabase/vercel`](/docs/vercel/deploy#keep-previews-off-production)
+fails a preview that starts against the production project.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets
@@ -2810,6 +2847,17 @@ functions that carry the directive as their first statement.
 role skips the user's policies, so what it returns is cached under the user's
 key but isn't their data, and each call adds a verification. Read as the user,
 or move the admin read out of the cached function.
+
+### BS640
+
+**Warning: request read inside a plain `"use cache"` scope.** A function with
+`"use cache"` as its first statement calls `cookies()`, `headers()`,
+`bsb.cached()`, `bsb.context()` or `bsb.user()`. Next.js rejects request reads
+in a shared cache scope, and a per-user result must not be shared. Call
+[`bsb.public()`](/docs/concepts/caching#cache-public-data-without-the-service-role)
+for data every visitor may read, or use `"use cache: private"` for the user's
+own. The check reads source text, so it follows function declarations and arrow
+functions that carry the directive as their first statement.
 
 ## Shims
 

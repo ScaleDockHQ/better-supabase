@@ -15,7 +15,7 @@ pnpm add @vercel/sandbox @ai-sdk/sandbox-vercel ai
 pnpm better-supabase add ai-chat
 ```
 
-`@vercel/sandbox` (`>=4.0.0 <5`) and `@ai-sdk/sandbox-vercel`
+`@vercel/sandbox` (`>=4.1.0 <5`) and `@ai-sdk/sandbox-vercel`
 (`>=1.0.182 <2`) are optional peers. The entry loads them the first time a
 chat asks for a sandbox; when your bundler includes them, pass the modules as
 `load` and `loadSession`. A call without them fails with the hint
@@ -143,13 +143,15 @@ creating anything.
 ## Network presets
 
 A sandbox reaches the internet only through its firewall, the
-`networkPolicy` create option. The entry has three presets.
+`networkPolicy` create option. The entry has four presets, and
+[`supabaseAccess`](#supabase-access) is the one for your own project.
 
 | Preset                                            | Gives                                                                 |
 | ------------------------------------------------- | --------------------------------------------------------------------- |
 | `untrusted`                                       | no network, one vCPU, five minutes, and no snapshot kept on stop      |
 | `gatewayOnly(token)`                              | only the AI Gateway, with `token` added as the `authorization` header |
 | `brokered(credentials, ref, { domain, subject })` | only `domain`, with a credential's headers added at the firewall      |
+| `supabaseAccess(token, { url })`                  | only your Supabase project, the listed services, as one user          |
 
 `gatewayOnly` and `brokered` add the token at the firewall, so code in the
 VM calls the API without ever holding it. `brokered` reads the token from
@@ -175,6 +177,106 @@ const { session } = await vercel
 `forChat` applies a `networkPolicy` from `create` to a sandbox that already
 runs, so a resumed chat gets a fresh token. `mergeSandboxOptions(...layers)`
 combines presets left to right and keeps the shortest `timeout`.
+
+## Supabase access
+
+`supabaseAccess(token, options)` lets code in the sandbox call your Supabase
+project as one signed-in user, without the sandbox ever holding the token. The
+firewall adds the `authorization` header (and `apikey`, when you pass the
+publishable key) to requests for the project host and pins the `host` header,
+so a request with another `Host` is not served. Only the services you list
+answer: any other path on the project host gets a 403 from the firewall, every
+other host is denied, and the Postgres port is not reachable (the firewall
+cannot rewrite Postgres traffic). The session timeout ends a minute before the
+token expires.
+
+```ts title="lib/sandbox-access.ts"
+import { supabaseAccess } from "better-supabase/vercel-sandbox";
+
+import { vercel } from "./sandboxes";
+
+const { data } = await supabase.auth.getSession();
+
+if (data.session === null) {
+  throw new Error("Sign in first");
+}
+
+const access = supabaseAccess(
+  { token: data.session.access_token },
+  {
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    services: ["rest", "storage"],
+  },
+);
+
+const { session } = await vercel
+  .forChat(organizationId, chatId, { create: access })
+  .orThrow();
+```
+
+The token is the user's own access token, so row level security decides what
+the code can read, as it does in the browser. `supabaseAccess` refuses a
+`service_role` JWT and a `sb_secret_` key, since they would bypass row level
+security from inside code nobody reviewed, and it refuses an `http` project
+URL because a sandbox cannot reach a local stack. Use `supabaseAccessFrom`
+to take the token from a [credential provider](/docs/extending/credentials)
+instead, for example a `jwt-bearer` subject that signs a short JWT for the
+user:
+
+```ts
+import { supabaseAccessFrom } from "better-supabase/vercel-sandbox";
+
+const access = await supabaseAccessFrom(
+  credentials,
+  { provider: "kms" },
+  { url, subject: { type: "jwt-bearer", sub: userId }, apikey },
+).orThrow();
+```
+
+| `services` value | Path prefix     |
+| ---------------- | --------------- |
+| `rest`           | `/rest/v1`      |
+| `storage`        | `/storage/v1`   |
+| `functions`      | `/functions/v1` |
+| `graphql`        | `/graphql/v1`   |
+| `auth`           | `/auth/v1`      |
+| `realtime`       | `/realtime/v1`  |
+
+The default is `rest`, `storage` and `functions`. The policy applies to a
+sandbox that already runs through `forChat`, so a resumed chat gets a fresh
+token.
+
+### With eve
+
+eve ships its own Vercel sandbox, so there is no provider to wrap:
+`vercelSandboxes` registers sandboxes in the AI chat block's `ai_sandboxes`
+table, which an eve session does not use. eve's `networkPolicy` takes the same
+domain rules, but its rule type has no `response` rule, so pass
+`denyOtherPaths: false`. Requests for other paths on the project host then
+reach it without the token, as an anonymous caller.
+
+```ts title="agent/sandbox.ts"
+import { defineSandbox } from "eve/sandbox";
+import { VercelSandbox } from "eve/sandbox/vercel";
+import { supabaseAccess } from "better-supabase/vercel-sandbox";
+
+const environment = VercelSandbox.environment();
+
+export default defineSandbox(async ({ session }) => {
+  const access = supabaseAccess(
+    { token: await userToken(session) },
+    { url, apikey, denyOtherPaths: false },
+  );
+
+  return await environment.open({ networkPolicy: access.networkPolicy });
+});
+```
+
+eve applies `networkPolicy` when it creates the sandbox and keeps the live
+policy when a session reopens, so the token from the first turn stays until it
+expires. Call `sandbox.setNetworkPolicy(access.networkPolicy)` on a reopened
+session to give it a fresh one.
 
 ## Drive mounts
 

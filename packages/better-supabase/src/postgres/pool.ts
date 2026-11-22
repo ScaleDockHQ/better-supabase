@@ -97,6 +97,16 @@ export interface PostgresOptions {
    */
   readonly statementTimeout?: number | PostgresTimeouts;
   /**
+   * The end of the current invocation. Pass `getDeadline` from
+   * `@vercel/functions`: each transaction's `statement_timeout` is then at most
+   * the time left minus `deadlineMargin`, so Postgres cancels a statement the
+   * function could no longer answer for. It never raises a timeout, and it
+   * leaves a session's own `statementTimeout` untouched when that is lower.
+   */
+  readonly getDeadline?: () => Date | number | undefined;
+  /** Milliseconds kept free before the deadline. Defaults to 500. */
+  readonly deadlineMargin?: number;
+  /**
    * Ends a session that stays idle inside a transaction this long, in
    * milliseconds, so `transaction(fn)` can't hold a connection while `fn` waits
    * on something else. Defaults to 15000; `0` turns it off. Statements outside
@@ -118,6 +128,8 @@ export interface PostgresOptions {
    */
   readonly logger?: Logger;
 }
+
+const DEFAULT_DEADLINE_MARGIN = 500;
 
 /** Supabase sets no idle-in-transaction timeout; 15 s frees a stuck connection. */
 const DEFAULT_IDLE_IN_TRANSACTION_TIMEOUT = 15_000;
@@ -304,6 +316,26 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
         }
       : { ...DEFAULT_TIMEOUTS, ...options.statementTimeout };
 
+  /** `timeout` capped to the time left before the invocation's deadline. */
+  function limitByDeadline(timeout: number | undefined): number | undefined {
+    const deadline = options.getDeadline?.();
+
+    if (deadline === undefined) {
+      return timeout;
+    }
+
+    const left = Math.max(
+      1,
+      (typeof deadline === "number" ? deadline : deadline.getTime()) -
+        Date.now() -
+        (options.deadlineMargin ?? DEFAULT_DEADLINE_MARGIN),
+    );
+
+    return timeout === undefined || timeout <= 0
+      ? left
+      : Math.min(timeout, left);
+  }
+
   /** The transaction-local settings a session's transactions start with. */
   function settingsOf(session: Session): [string, string][] {
     const settings: [string, string][] = Object.entries(session.settings ?? {});
@@ -316,8 +348,10 @@ export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
           ? timeouts.anon
           : timeouts.admin);
 
-    if (timeout !== undefined) {
-      settings.push(["statement_timeout", String(Math.trunc(timeout))]);
+    const limit = limitByDeadline(timeout);
+
+    if (limit !== undefined) {
+      settings.push(["statement_timeout", String(Math.trunc(limit))]);
     }
 
     if (session.claims && session.role) {

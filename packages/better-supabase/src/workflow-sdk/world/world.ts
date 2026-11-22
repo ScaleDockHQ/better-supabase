@@ -10,6 +10,7 @@ import type {
 
 import {
   getQueueTopicPrefix,
+  mintedSpecVersion,
   parseQueueRoute,
   reenqueueActiveRuns,
 } from "@workflow/world";
@@ -49,6 +50,7 @@ import {
 } from "./crypto.ts";
 import { assertWorldMigrations } from "./drift.ts";
 import {
+  connectionStringFrom,
   env,
   isServerless,
   parseHeaders,
@@ -116,10 +118,7 @@ export function createSupabaseWorld(
   const deliveryTimeout = Math.max(lease, options.deliveryTimeout ?? 300);
 
   const connectionString =
-    options.connectionString ??
-    env("WORKFLOW_POSTGRES_URL") ??
-    env("SUPABASE_DB_URL") ??
-    env("DATABASE_URL");
+    options.connectionString ?? connectionStringFrom(env);
 
   const pooled = usesTransactionPooler(connectionString);
 
@@ -520,7 +519,10 @@ export function createSupabaseWorld(
     const timeoutSeconds = timeoutOf(text);
 
     if (timeoutSeconds !== undefined) {
-      await store({ ...message, attempt: attempt + 1 }, timeoutSeconds);
+      // A continuation starts `attempt` over, as world-postgres does for
+      // everything but a spec 9 orchestrator message: core fails a run past
+      // 48 deliveries of one message, and a long run hops far more often.
+      await store({ ...message, attempt: 1 }, timeoutSeconds);
     }
 
     await complete(job.id, job.attempts);
@@ -1040,6 +1042,16 @@ export function createSupabaseWorld(
       create: createEvent,
     },
     analytics: createAnalytics(pool),
+    // The queue is a pgmq table that runs any number of a run's messages at
+    // once and takes no run delivery lease, so the World declares neither
+    // `maxConcurrency` nor `inBandFence` and mints spec 8 runs whatever
+    // `WORKFLOW_SPEC_VERSION` says (ADR 1106).
+    capabilities: {
+      ...base.capabilities,
+      maxConcurrency: false,
+      inBandFence: false,
+    },
+    specVersion: mintedSpecVersion(),
     // Every delivery carries the HMAC that createQueueHandler checks before the
     // runtime sees it, so the runtime's loopback key check has nothing to add.
     queueAuthMode: "skip",
@@ -1095,12 +1107,13 @@ export function createSupabaseWorld(
 /**
  * The World from the environment, the factory the Workflow SDK calls for
  * `WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world`: the connection
- * from `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL` or `DATABASE_URL`, and
- * `WORKFLOW_DELIVERY`, `WORKFLOW_FLOW_URL`, `WORKFLOW_DELIVERY_SECRET`,
- * `WORKFLOW_ENCRYPTION_KEY`, `WORKFLOW_DELIVERY_QUEUE`,
- * `WORKFLOW_QUEUE_NAMESPACE`, `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`,
- * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`, and the pool settings
- * `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (or `WORKFLOW_POSTGRES_MAX_CONNECTIONS`),
+ * from `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL`,
+ * `POSTGRES_URL` or `POSTGRES_URL_NON_POOLING`, and `WORKFLOW_DELIVERY`,
+ * `WORKFLOW_FLOW_URL`, `WORKFLOW_DELIVERY_SECRET`, `WORKFLOW_ENCRYPTION_KEY`,
+ * `WORKFLOW_DELIVERY_QUEUE`, `WORKFLOW_QUEUE_NAMESPACE`,
+ * `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`, `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`,
+ * and the pool settings `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (or
+ * `WORKFLOW_POSTGRES_MAX_CONNECTIONS`),
  * `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`,
  * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`, `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`
  * and `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.

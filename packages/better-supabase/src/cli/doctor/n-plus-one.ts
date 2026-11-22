@@ -1277,6 +1277,9 @@ function analyzeAll(context: DoctorContext): FileAnalysis[] {
  * still run; BS634 and BS635 then lack the foreign keys that name includes.
  */
 export const SOURCE_ONLY_CODES: ReadonlySet<string> = new Set([
+  "BS513",
+  "BS514",
+  "BS515",
   "BS609",
   "BS634",
   "BS635",

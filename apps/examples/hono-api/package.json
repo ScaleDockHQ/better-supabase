@@ -17,6 +17,7 @@
   "dependencies": {
     "@supabase/server": "catalog:",
     "@supabase/supabase-js": "catalog:",
+    "@vercel/functions": "catalog:",
     "better-supabase": "workspace:*",
     "hono": "catalog:",
     "pg": "catalog:"
