@@ -1,0 +1,95 @@
+---
+title: MCP and OpenAPI connections
+description: Read connection tokens for eve's MCP and OpenAPI connections from Vault, Vercel Connect or your credential provider, and fill the tenant argument.
+---
+
+`credentialAuth` gives an MCP connection its token from a
+`CredentialProvider`. With `owner: "app"` every session shares the app's
+credential; with `owner: "user"` each signed-in user gets their own, and a
+session without a user is asked to sign in.
+
+```ts title="agent/connections/linear.ts"
+import { defineMcpClientConnection } from "eve/connections";
+import { vaultCredentials } from "better-supabase/credentials";
+import { credentialAuth } from "better-supabase/eve";
+
+import { transport } from "../lib/blocks";
+
+export default defineMcpClientConnection({
+  url: "https://mcp.linear.app/mcp",
+  description: "The team's Linear workspace",
+  auth: credentialAuth({
+    provider: vaultCredentials({ transport }),
+    ref: { provider: "vault", secret: "linear", scope: "user" },
+    owner: "user",
+    connection: "Linear",
+  }),
+});
+```
+
+A user without a stored credential gets eve's authorization flow when the
+provider can start one (Vercel Connect can, Vault can't): eve sends the
+user to the provider and resumes the turn after the callback. A provider
+that finishes the grant itself (Vercel Connect stores it on its side) has no
+`completeAuthorization`; eve's completion step then reads the token once,
+skipping the cache, to confirm it. A device code from `startAuthorization`
+shows up in eve's challenge as "Enter the code ...". Pass
+`interactive: false` to report `authorization.required` instead. Provider
+errors map to eve's errors: a missing or unauthorized credential becomes
+`ConnectionAuthorizationRequiredError`, a forbidden or invalid one
+`ConnectionAuthorizationFailedError`, and anything else a `DbException`.
+
+`openApiAuth` takes the same options for eve's `defineOpenAPIConnection`,
+which turns each operation of an OpenAPI document into a tool and sends the
+token as `Authorization: Bearer <token>`. `tenantArgument(name)` fills one
+argument of every call with the session's organization; eve removes it from
+the schemas the model sees, and a session without an organization fails
+the call.
+
+```ts title="agent/connections/crm.ts"
+import { defineOpenAPIConnection } from "eve/connections";
+import { openApiAuth, tenantArgument } from "better-supabase/eve";
+
+import { credentials } from "../lib/blocks";
+
+export default defineOpenAPIConnection({
+  spec: "https://crm.example.com/openapi.json",
+  description: "The organization's CRM: accounts, contacts and open deals",
+  auth: openApiAuth({
+    provider: credentials,
+    ref: { provider: "vault", secret: "crm", scope: "app" },
+    owner: "app",
+    connection: "CRM",
+  }),
+  toolCall: { providedArguments: tenantArgument("organization_id") },
+});
+```
+
+## Vercel Connect through eve's own helper
+
+`credentialAuth` reads Connect through `vercelConnectCredentials`. When you
+would rather use `connect()` from `@vercel/connect/eve`, which also handles
+the authorization flow, eviction and the device code itself, wrap it with
+`connectAuth`. It sets `createSubject` so a signed-in user is the same
+Connect subject (issuer `<supabaseUrl>/auth/v1`, subject the user id) that
+`vercelConnectCredentials` uses, and grants made through either path are
+shared. An app principal gets the app subject.
+
+```ts title="agent/connections/github.ts"
+import { connect } from "@vercel/connect/eve";
+import { defineMcpClientConnection } from "eve/connections";
+import { connectAuth } from "better-supabase/eve";
+
+export default defineMcpClientConnection({
+  url: "https://api.githubcopilot.com/mcp/",
+  description: "The signed-in user's GitHub",
+  auth: connectAuth(connect, {
+    connector: "github",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  }),
+});
+```
+
+`@vercel/connect` (`>=2.9.5`) is an optional peer, and you pass its
+`connect` function in. `principalType` (`user` by default) and any other
+option `connect()` takes go in `connect`.

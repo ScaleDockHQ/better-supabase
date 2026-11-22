@@ -128,3 +128,40 @@ setup endpoint. It answers 401 without a caller, 429 with `Retry-After` past the
 the short-lived token with your `mint` function (for example
 `gateway.experimental_realtime.getToken`) and calls `record` once per token for an audit or usage
 row.
+
+## Image, speech and video
+
+`createMediaRoute` serves one image or speech generation. It checks access first, then the quota,
+calls your `run` with the gateway tags, stores the output in Storage as `generated` files and
+answers `{ files }` with file parts. `onFinish` meters the call and never changes the response.
+
+```ts title="app/api/image/route.ts"
+import { generateImage } from "ai";
+import { createMediaRoute } from "better-supabase/ai-sdk/chat";
+
+const route = createMediaRoute({
+  kind: "image",
+  model: "openai/gpt-image-1",
+  files,
+  authorize: ({ userId }) => canGenerate(userId),
+  run: async ({ prompt, model, providerOptions, abortSignal }) =>
+    (await generateImage({ model, prompt, providerOptions, abortSignal }))
+      .images,
+  onFinish: ({ context }) => meter(context.organizationId),
+});
+
+export const POST = (request: Request) =>
+  route.respond(request, await contextOf(request));
+```
+
+A video outlives the request, so `createVideoRoutes` keeps a job row in a `VideoJobStore` you own.
+`start` answers 202 with a `jobId`, `poll` returns the row and asks the provider while it is
+pending, and `webhook` is the provider's callback. The gateway exports no signature verifier, so
+the webhook route treats a delivery only as a wake-up: it reads the `jobId`, asks the provider for
+the real status through `status` (your `experimental_getVideoStatus` call) and stores the finished
+video in Storage. A forged body cannot mark a job done.
+
+Both routes take a `gatewayPolicy` option, the reader that `gatewayPolicyReader` returns (see
+[a policy per organization](/docs/ai-sdk/gateway#a-policy-per-organization)). It runs after the
+quota check, and the policy is applied to the `providerOptions` that `run` and `start` receive. A
+policy that fails to load answers with its error, so a call never runs without the restriction.

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { NotifierInput } from "../../src/blocks/ports.ts";
 import type {
   DueSchedule,
   ScheduleProvider,
@@ -27,6 +28,7 @@ import {
   eveScheduleRun,
   queueDynamicSchedules,
   queueScheduleProvider,
+  validateExpression,
 } from "../../src/eve/index.ts";
 import { testScheduleProvider } from "../../src/testing/kits/schedule-provider.ts";
 
@@ -644,10 +646,21 @@ async function tick(
     >[1]["expression"];
     readonly payload?: unknown;
     readonly now?: Temporal.Instant;
+    readonly providerOptions?: Partial<
+      Parameters<typeof queueScheduleProvider>[0]
+    >;
+    readonly queueOptions?: Partial<
+      Parameters<typeof queueDynamicSchedules>[0]
+    >;
   } = {},
 ) {
   const scheduler = memoryScheduler();
-  const provider = queueScheduleProvider({ scheduler });
+
+  const provider = queueScheduleProvider({
+    scheduler,
+    ...options.providerOptions,
+  });
+
   const ctx = context();
   const def = options.collection ?? definition();
   const { queue, waiting, failures } = drainer(scheduler);
@@ -674,6 +687,7 @@ async function tick(
       provider,
       collections: { requests: def.collection },
       ...(options.now === undefined ? {} : { now: () => options.now! }),
+      ...options.queueOptions,
     })(args);
     await settle();
 
@@ -976,5 +990,308 @@ describe("queueDynamicSchedules", () => {
     expect(failures).toMatchObject([
       { message: expect.stringContaining('"unknown"') },
     ]);
+  });
+});
+
+describe("validateExpression", () => {
+  const check =
+    (
+      expression: Parameters<typeof validateExpression>[0],
+      options?: Parameters<typeof validateExpression>[1],
+    ) =>
+    () => {
+      validateExpression(expression, { now: NOW, ...options });
+    };
+
+  it("accepts a cron and a future single time", () => {
+    expect(check(cron("0 9 * * *", "Europe/Amsterdam"))).not.toThrow();
+    expect(check({ type: "single", at: "2026-12-01T09:00" })).not.toThrow();
+  });
+
+  it("names what is wrong", () => {
+    expect(check(cron("nope"))).toThrow(DbException);
+    expect(check(cron("0 9 * * *", "Mars/Olympus"))).toThrow(DbException);
+    expect(check({ type: "single", at: "2026-11-01T09:00" })).toThrow(/past/);
+    expect(check({ type: "cron", cron: "0 9 * * *", jitter: -1 })).toThrow(
+      /jitter/,
+    );
+    expect(check(cron("* * * * *"), { minIntervalMs: 3_600_000 })).toThrow(
+      /more often/,
+    );
+    expect(
+      check(cron("0 * * * *"), { minIntervalMs: 3_600_000 }),
+    ).not.toThrow();
+  });
+});
+
+describe("queueScheduleProvider scopes and expression checks", () => {
+  const scopes = {
+    user: {
+      tenantOf: (parts: readonly string[]) => parts[0],
+      maxSchedules: 1,
+      minIntervalMs: 60_000 * 60,
+    },
+  };
+
+  const create = (
+    provider: ReturnType<typeof queueScheduleProvider>,
+    name: string,
+    scope: string | readonly string[],
+    expression = cron("0 9 * * *"),
+  ) =>
+    provider.create(context(), {
+      name,
+      expression,
+      payload: stored("x", scope),
+    });
+
+  it("reads the tenant from a named scope and limits what a scope holds", async () => {
+    const scheduler = memoryScheduler();
+
+    const provider = queueScheduleProvider({
+      scheduler,
+      scopes,
+      now: () => NOW,
+    });
+
+    await create(provider, "a", ["user", ORG, USER]);
+
+    expect(scheduler.rows.get("eve:requests:eve-ns-user:a")?.tenant).toBe(ORG);
+    await expect(
+      create(provider, "b", ["user", ORG, USER]),
+    ).rejects.toMatchObject({ error: { hint: "EVE_SCHEDULE_LIMIT" } });
+  });
+
+  it("rejects a scope that is not named and a cron below the scope's interval", async () => {
+    const provider = queueScheduleProvider({
+      scheduler: memoryScheduler(),
+      scopes,
+      now: () => NOW,
+    });
+
+    await expect(create(provider, "a", ["team", ORG])).rejects.toMatchObject({
+      error: { kind: "validation" },
+    });
+    await expect(
+      create(provider, "a", ["user", ORG, USER], cron("* * * * *")),
+    ).rejects.toMatchObject({ error: { kind: "validation" } });
+  });
+
+  it("runs the app's own check and turns its error into a validation error", async () => {
+    const scheduler = memoryScheduler();
+
+    const provider = queueScheduleProvider({
+      scheduler,
+      now: () => NOW,
+      validateExpression: (expression) => {
+        if (expression.type === "cron" && expression.cron.startsWith("0 3")) {
+          throw new Error("nights are reserved");
+        }
+      },
+    });
+
+    await expect(
+      create(provider, "a", [ORG], cron("0 3 * * *")),
+    ).rejects.toMatchObject({
+      error: { kind: "validation", message: "nights are reserved" },
+    });
+    expect(scheduler.rows.size).toBe(0);
+    await create(provider, "a", [ORG]);
+    await expect(
+      provider.update(context(), "a", { expression: cron("0 3 * * *") }),
+    ).rejects.toBeInstanceOf(DbException);
+  });
+});
+
+describe("queueDynamicSchedules failure notice", () => {
+  const notice = () => {
+    const sent: { type: string; input: NotifierInput }[] = [];
+
+    return {
+      sent,
+      notify: {
+        type: "eve_schedule_failed",
+        notifier: {
+          send: (message: { type: string; input: NotifierInput }) => {
+            sent.push(message);
+          },
+        },
+      },
+    };
+  };
+
+  const tenant = { tenantOf: () => ORG };
+
+  it("tells the creator when the occurrence fails for good", async () => {
+    const { sent, notify } = notice();
+
+    const t = await tick({
+      collection: definition({ auth: () => null }),
+      providerOptions: tenant,
+      queueOptions: { notify },
+    });
+
+    t.due();
+    await t.fire();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.input).toMatchObject({
+      recipients: [USER],
+      tenant: ORG,
+      subject: { type: "eve_schedule", id: t.created.scheduleId },
+      data: { collection: "requests", reason: expect.any(String) },
+    });
+  });
+
+  it("does not tell anyone about a run that succeeds", async () => {
+    const { sent, notify } = notice();
+
+    const t = await tick({ providerOptions: tenant, queueOptions: { notify } });
+
+    t.due();
+    await t.fire();
+    expect(sent).toEqual([]);
+  });
+
+  it("skips a stale occurrence, reports it and keeps going when the notifier throws", async () => {
+    const t = await tick({
+      providerOptions: tenant,
+      queueOptions: {
+        staleAfterMs: 60_000,
+        notify: {
+          type: "eve_schedule_failed",
+          notifier: {
+            send: () => {
+              throw new Error("mail is down");
+            },
+          },
+        },
+      },
+      now: temporal().Now.instant().add({ hours: 2 }),
+    });
+
+    t.due();
+    expect(await t.fire()).toEqual([]);
+    expect(t.def.run).not.toHaveBeenCalled();
+    expect(t.def.events).toMatchObject([
+      { type: "occurrence.failed", reason: expect.stringContaining("late") },
+    ]);
+  });
+});
+
+describe("queueScheduleProvider mirror", () => {
+  const fake = () => {
+    const calls: { fn: string; input: Record<string, unknown> }[] = [];
+
+    const record =
+      (fn: string, data: unknown) => (input: Record<string, unknown>) => {
+        calls.push({ fn, input });
+
+        return AsyncResult.from(() => Promise.resolve(ok(data)));
+      };
+
+    const schedules = {
+      mirror: vi.fn(record("mirror", {})),
+      unmirror: vi.fn(record("unmirror", true)),
+      recordRun: vi.fn(record("recordRun", {})),
+    };
+
+    // SAFETY: the test fake implements the three methods the mirror reads.
+    return { calls, mocks: schedules, schedules: schedules as never };
+  };
+
+  const options = (mirror: ReturnType<typeof fake>) => ({
+    tenantOf: () => ORG,
+    mirror: { schedules: mirror.schedules },
+  });
+
+  it("writes a task with source eve when a schedule is created", async () => {
+    const mirror = fake();
+
+    const t = await tick({ providerOptions: options(mirror) });
+
+    expect(mirror.calls[0]).toMatchObject({
+      fn: "mirror",
+      input: {
+        organizationId: ORG,
+        userId: USER,
+        source: "eve",
+        externalId: "eve:requests:eve-ns-user:job",
+        task: { enabled: true, cron: "* * * * *" },
+      },
+    });
+    expect(t.created.name).toBe("job");
+  });
+
+  it("records running and completed for an occurrence", async () => {
+    const mirror = fake();
+
+    const t = await tick({
+      providerOptions: options(mirror),
+      queueOptions: {},
+    });
+
+    t.due();
+    await t.fire();
+
+    const runs = mirror.calls.filter((call) => call.fn === "recordRun");
+
+    expect(runs.map((call) => call.input["status"])).toEqual([
+      "running",
+      "completed",
+    ]);
+  });
+
+  it("records a failed occurrence with its reason", async () => {
+    const mirror = fake();
+
+    const t = await tick({
+      collection: definition({ auth: () => null }),
+      providerOptions: options(mirror),
+    });
+
+    t.due();
+    await t.fire();
+    expect(mirror.calls.at(-1)).toMatchObject({
+      fn: "recordRun",
+      input: { status: "failed", error: expect.any(String) },
+    });
+  });
+
+  it("ignores a mirror that fails to record", async () => {
+    const mirror = fake();
+
+    mirror.mocks.recordRun.mockImplementation(() => {
+      throw new Error("db down");
+    });
+
+    const t = await tick({
+      collection: definition({ auth: () => null }),
+      providerOptions: options(mirror),
+    });
+
+    t.due();
+    await expect(t.fire()).resolves.toBeDefined();
+  });
+
+  it("removes the task when the schedule is deleted", async () => {
+    const mirror = fake();
+
+    const t = await tick({ providerOptions: options(mirror) });
+
+    await t.provider.delete(context(), "job");
+    expect(mirror.calls.at(-1)).toMatchObject({
+      fn: "unmirror",
+      input: { source: "eve", externalId: "eve:requests:eve-ns-user:job" },
+    });
+  });
+
+  it("does not mirror a schedule without a tenant", async () => {
+    const mirror = fake();
+
+    await tick({
+      providerOptions: { mirror: { schedules: mirror.schedules } },
+    });
+    expect(mirror.calls).toEqual([]);
   });
 });

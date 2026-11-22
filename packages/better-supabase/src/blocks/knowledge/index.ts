@@ -1,5 +1,6 @@
 export {
   chunk,
+  type ChunkPosition,
   createKnowledge,
   type ChunkOptions,
   type EmbedResult,
@@ -19,7 +20,29 @@ export {
   type KnowledgeStatus,
   type KnowledgeSubject,
   type NewKnowledgeDocument,
+  textExtract,
 } from "./knowledge.ts";
+
+export {
+  DOCX_TYPE,
+  PDF_TYPE,
+  docxExtractor,
+  extractors,
+  pdfExtractor,
+  type DocxModule,
+  type ExtractorFile,
+  type KnowledgeExtractor,
+  type PdfModule,
+} from "./extractors.ts";
+
+export {
+  createUrlSource,
+  htmlToText,
+  type UrlIngestInput,
+  type UrlResyncResult,
+  type UrlSource,
+  type UrlSourceOptions,
+} from "./url-source.ts";
 
 export type {
   KnowledgeCollection,

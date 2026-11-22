@@ -14,7 +14,7 @@ pnpm add flags
 pnpm better-supabase add flags
 ```
 
-`flags` is an optional peer (`>=4.2 <5`). The entry types the SDK
+`flags` is an optional peer (`>=4.5.0 <5`). The entry types the SDK
 structurally and never imports it, so it adds nothing to a bundle that
 doesn't use it, and a type test fails when a new `flags` release changes the
 `Adapter` shape. The entry imports no Node built-ins, so it runs in
@@ -391,6 +391,22 @@ in a unit test, send `cookie.header` as the `cookie` header.
 (or `NODE_ENV` outside Vercel), for a rule that turns a flag on in preview
 only. Merge it into `identify`, and target it with a rule such as
 `{ variant: "on", contexts: { environment: ["preview"] } }`.
+
+## Running without `FLAGS_SECRET`
+
+Flags 4.5 works on Vercel without a `FLAGS_SECRET`. Flags Explorer overrides
+and the discovery endpoint use tokens that Vercel signs, and precompute signs
+its codes with a key Vercel provides for each deployment. Locally, run
+`vercel env pull` so the SDK can identify the project, and make sure the
+project exposes the system environment variables on Vercel. Nothing in
+better-supabase reads `FLAGS_SECRET` itself, so the flags block, `identify`
+and `flagsExplorerApiData` need no change. Projects that already have a
+secret keep working.
+
+You still need a `FLAGS_SECRET` to precompute flags outside Vercel or in a
+prebuilt deployment (`vercel build` and `vercel deploy --prebuilt`), to use
+Flags Explorer outside Vercel or without `vercel env pull`, and to create
+your own encrypted overrides, for example in end-to-end tests.
 
 ## Reporting exposures
 

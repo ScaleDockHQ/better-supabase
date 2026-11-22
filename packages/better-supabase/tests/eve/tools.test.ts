@@ -13,6 +13,7 @@ import { dbError, DbException } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 import {
   eveContext,
+  strictestApproval,
   supabaseTool,
   tenantToolApproval,
 } from "../../src/eve/index.ts";
@@ -104,6 +105,20 @@ describe("eveContext", () => {
       scope: ["tasks.*"],
       act: { kind: "agent", sub: "planner" },
     });
+  });
+
+  it("derives the scope claim from permission and merges it with scopes", () => {
+    expect(
+      eveContext(user, { agent: "planner", permission: "tasks.write" }).claims,
+    ).toMatchObject({ scope: ["tasks.write"] });
+
+    expect(
+      eveContext(user, {
+        agent: "planner",
+        scopes: ["tasks.*", "tasks.write"],
+        permission: ["tasks.write", "files.read"],
+      }).claims,
+    ).toMatchObject({ scope: ["tasks.*", "tasks.write", "files.read"] });
   });
 
   it("refuses a contact, the app principal and a missing one", () => {
@@ -302,5 +317,100 @@ describe("tenantToolApproval", () => {
 
     await expect(policy(approvalCtx(app))).resolves.toBe("not-applicable");
     expect(policies).not.toHaveBeenCalled();
+  });
+});
+
+describe("strictestApproval", () => {
+  const response = (status: "allowed" | "rejected") => () =>
+    status === "allowed"
+      ? ({ status } as const)
+      : ({ status, reason: "no" } as const);
+
+  const responseCtx = {
+    request: {
+      callId: "call_1",
+      interactionId: "i",
+      principal: user,
+      toolName: "t",
+    },
+    response: { decision: "approve", principal: user },
+    session: { id: "sess_1" },
+  } as const;
+
+  it("keeps the strictest request status and stops at a denial", async () => {
+    const later = vi.fn(() => true);
+
+    const policy = strictestApproval(
+      () => "approved",
+      { request: () => ({ type: "denied", reason: "off" }) },
+      later,
+    );
+
+    await expect(policy.request(approvalCtx(user))).resolves.toEqual({
+      type: "denied",
+      reason: "off",
+    });
+    expect(later).not.toHaveBeenCalled();
+
+    const ask = strictestApproval(
+      () => "approved",
+      () => true,
+      () => "not-applicable",
+    );
+
+    await expect(ask.request(approvalCtx(user))).resolves.toBe(true);
+  });
+
+  it("keeps the earlier answer on a tie", async () => {
+    const policy = strictestApproval(
+      () => ({ type: "approved", reason: "first" }),
+      () => ({ type: "approved", reason: "second" }),
+    );
+
+    await expect(policy.request(approvalCtx(user))).resolves.toEqual({
+      type: "approved",
+      reason: "first",
+    });
+  });
+
+  it("needs every response policy to allow and the first rejection wins", async () => {
+    const allowed = strictestApproval(() => true, {
+      request: () => true,
+      response: response("allowed"),
+    });
+
+    const refused = strictestApproval(
+      { request: () => true, response: response("allowed") },
+      { request: () => true, response: response("rejected") },
+    );
+
+    await expect(allowed.response?.(responseCtx)).resolves.toEqual({
+      status: "allowed",
+    });
+    await expect(refused.response?.(responseCtx)).resolves.toEqual({
+      status: "rejected",
+      reason: "no",
+    });
+  });
+
+  it("uses the first prompt and fits a tool's approval", () => {
+    const prompt = () => "Run it?";
+
+    const policy = strictestApproval(() => true, {
+      request: () => true,
+      prompt,
+    });
+
+    const tool = supabaseTool({
+      agent: "planner",
+      server: { forContext: () => AsyncResult.ok({}) },
+      description: "d",
+      inputSchema: title,
+      approval: policy,
+      execute: () => null,
+    });
+
+    expect(policy.prompt).toBe(prompt);
+    expect(tool.approval).toBeDefined();
   });
 });

@@ -66,7 +66,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 11. `@supabase/postgrest-typegen` is an optional peer that only the CLI loads.
 12. Imports stay at the top; lazy loads are listed in `.agents/rules/lazy-imports.mdc`.
 13. Splinter lints are fetched at a pinned commit and hash, never vendored.
-14. Never bypass `minimumReleaseAge`.
+14. Never bypass `minimumReleaseAge`. Two maintainer-approved, time-boxed exceptions list exact releases: ADR 1097 until 2026-11-21 16:53 UTC and ADR 1105 until 2026-11-21 23:29 UTC.
 15. better-supabase never depends on an authorization library; only the Create page names PermDock, as one optional choice.
 
 ## Conventions
@@ -130,15 +130,14 @@ fails on an ADR the index does not link.
 
 ## Pre-release pins
 
-| Package                           | Version        | Why                                                                                 |
-| --------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.50  | `better-supabase/orpc` targets oRPC 2, which has no stable                          |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.50  | move with `@orpc/server`                                                            |
-| `c12`                             | 4.0.0-rc.4     | loads a `.ts` config through Node type stripping (ADR 0003)                         |
-| `@supabase/pg-delta`              | 1.0.0-alpha.60 | `db diff` plans with its library; an optional peer (ADR 0108)                       |
-| `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer                                                                     |
-| `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097)       |
-| `eve`                             | 1.0.0-rc.13    | `better-supabase/eve` follows eve 1.0; trust exclusions until 2026-12-09 (ADR 1023) |
+| Package                           | Version        | Why                                                                           |
+| --------------------------------- | -------------- | ----------------------------------------------------------------------------- |
+| `@orpc/server`                    | 2.0.0-beta.50  | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.50  | move with `@orpc/server`                                                      |
+| `c12`                             | 4.0.0-rc.4     | loads a `.ts` config through Node type stripping (ADR 0003)                   |
+| `@supabase/pg-delta`              | 1.0.0-alpha.60 | `db diff` plans with its library; an optional peer (ADR 0108)                 |
+| `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer                                                               |
+| `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |
 
 Move each to its stable release when it ships, and update this list.
 
@@ -158,6 +157,7 @@ Agent notes, by topic: [`adapters`](docs/agents/adapters.md),
 [`blocks`](docs/agents/blocks.md), [`cli`](docs/agents/cli.md),
 [`commands`](docs/agents/commands.md),
 [`core`](docs/agents/core.md), [`database`](docs/agents/database.md),
+[`eve`](docs/agents/eve.md),
 [`formatting`](docs/agents/formatting.md), [`nextjs`](docs/agents/nextjs.md)
 and [`tooling`](docs/agents/tooling.md).
 

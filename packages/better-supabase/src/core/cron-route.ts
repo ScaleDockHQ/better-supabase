@@ -27,7 +27,48 @@ export interface CronRouteGuard {
    * keeps the route private: anyone can send the header to a public URL.
    */
   readonly caller?: CronCaller | undefined;
+  /**
+   * Skip a run that arrives later than this many seconds after the time the
+   * schedule named for it: `ce-vssscheduledat` on a Vercel schedule, else
+   * `ce-time`. Vercel Cron sends neither, so it always runs. Keep the value
+   * above the schedule's jitter, which delays a run on purpose. The route
+   * answers 200 with `{ "skipped": "late" }`.
+   */
+  readonly maxLateSeconds?: number | undefined;
+  /**
+   * Keeps two runs of the route from overlapping. A run that finds the lease
+   * taken answers 200 with `{ "skipped": "overlap" }`.
+   */
+  readonly overlap?: CronOverlap | undefined;
+  /** The clock for the late-run guard. Defaults to `Date.now`. */
+  readonly now?: (() => number) | undefined;
 }
+
+function isLate(request: Request, guard: CronRouteGuard): boolean {
+  if (guard.maxLateSeconds === undefined) {
+    return false;
+  }
+
+  const stamped = Date.parse(
+    request.headers.get("ce-vssscheduledat") ??
+      request.headers.get("ce-time") ??
+      "",
+  );
+
+  return (
+    Number.isFinite(stamped) &&
+    (guard.now ?? Date.now)() - stamped > guard.maxLateSeconds * 1000
+  );
+}
+
+/**
+ * Runs the handler under an overlap lease: it resolves to the handler's
+ * response, or `null` while another run holds the lease. `withLease` from
+ * `better-supabase/blocks/queue` fits through `leaseOverlap`.
+ */
+export type CronOverlap = (
+  run: () => Promise<Response>,
+) => Promise<Response | null>;
 
 function fromCaller(request: Request, caller: CronCaller | undefined): boolean {
   switch (caller) {
@@ -83,6 +124,17 @@ export function cronRoute(
       );
     }
 
-    return handle(request, instance);
+    if (isLate(request, guard)) {
+      return Response.json({ skipped: "late" });
+    }
+
+    if (guard.overlap === undefined) {
+      return handle(request, instance);
+    }
+
+    return (
+      (await guard.overlap(() => handle(request, instance))) ??
+      Response.json({ skipped: "overlap" })
+    );
   };
 }

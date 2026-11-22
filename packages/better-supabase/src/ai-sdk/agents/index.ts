@@ -49,3 +49,21 @@ export {
   type SyncedSkill,
   type SyncSkillOptions,
 } from "./skills.ts";
+
+export {
+  chatSteering,
+  type HarnessContext,
+  harnessRoute,
+  type HarnessRoute,
+  type HarnessRouteAgent,
+  type HarnessRouteOptions,
+  type HarnessRouteResult,
+  type HarnessRouteSession,
+  harnessStateCipher,
+  type HarnessStateCipher,
+  type HarnessStateKey,
+  type SteeringMailbox,
+  type SteeringMessage,
+  steerRoute,
+  type SteerRouteOptions,
+} from "./harness.ts";

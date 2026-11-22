@@ -21,8 +21,10 @@ the clients (`client`, `client/native`) and the local-first entries
 ## Loading in Node
 
 - `tests/bundle` imports each adapter in plain Node ESM (`NODE_LOADED`).
-  A new adapter goes on that list. Import peers by the specifier Node
-  resolves (`next/navigation`, not `next/navigation.js`).
+  A new adapter goes on that list. Import peers by a specifier Node ESM
+  resolves. `./next` is the exception that needs care: its server code imports
+  the `next/dist/client/components/*.js` files, because `next/navigation` does
+  not build in Turbopack route handlers (see `nextjs.md`).
 - `./expo` stays off the list: expo-server 58's ESM build has extensionless
   relative imports that only Metro resolves.
 - Frameworks are typed structurally where possible, so an adapter adds no

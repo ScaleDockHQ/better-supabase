@@ -145,6 +145,82 @@ const handlers = {
 };
 ```
 
+### PDF and Word files
+
+`createKnowledge({ extract })` takes the text extractor. `extractors` picks one
+by media type and falls back to the default text decoder, and `pdfExtractor`
+and `docxExtractor` read PDF and Word files with the optional peers `unpdf` and
+`mammoth`. Install the one you use (`pnpm add unpdf mammoth`) and the first
+file of that type imports it. Without the library, the extractor throws an
+error that names it.
+
+```ts title="lib/knowledge.ts"
+import {
+  DOCX_TYPE,
+  PDF_TYPE,
+  createKnowledge,
+  docxExtractor,
+  extractors,
+  pdfExtractor,
+} from "better-supabase/blocks/knowledge";
+
+export const knowledge = createKnowledge({
+  transport,
+  extract: extractors({
+    [PDF_TYPE]: pdfExtractor(),
+    [DOCX_TYPE]: docxExtractor(),
+  }),
+});
+```
+
+To bundle the library yourself or use another one, pass
+`load: () => import("unpdf")`. `load` has to return a module with `extractText(data, { mergePages: false })`
+(`unpdf`) or `extractRawText({ arrayBuffer })` (`mammoth`). The PDF extractor
+puts a form feed between pages, which gives chunks a `position.page`. A failed
+`load` is retried on the next file.
+
+### Pages from a URL
+
+`createUrlSource` fetches a web page and ingests it with the URL as the
+document's `source`. `resync` fetches it again and replaces the chunks, so a
+page that did not change costs no embedding calls, and `resyncAll` does that for
+every URL document of a tenant (call it from a cron route).
+
+```ts title="lib/url-source.ts"
+import { createUrlSource } from "better-supabase/blocks/knowledge";
+
+export const urls = createUrlSource({
+  knowledge,
+  allowedHosts: ["docs.example.com"],
+  maxBytes: 2_000_000,
+  timeoutMs: 10_000,
+});
+
+const doc = await urls
+  .ingest({ organizationId, url: "https://docs.example.com/refunds" })
+  .orThrow();
+
+await urls.resyncAll({ organizationId }).orThrow();
+```
+
+The source allows only `http` and `https` URLs without credentials, checks every
+redirect hop, reads at most `maxBytes` (5 MiB by default) and stops after
+`timeoutMs` (15 seconds). Without `allowedHosts` it refuses `localhost`, names
+without a dot, `.local` and `.internal` names, and private, loopback, link-local
+and multicast addresses. It cannot see what a name resolves to, so set
+`allowedHosts` when a user supplies the URL. HTML becomes text with `#`
+headings; other types go through `extract`.
+
+### Chunk positions
+
+Every chunk written by `chunk()` records where it sits in the document text:
+`position: { start, end, page?, heading? }`, stored under the chunk's
+`metadata.position`. `start` and `end` are offsets into the text after line
+endings are normalized and the text is trimmed, `page` counts form feeds (the
+PDF extractor adds them) and `heading` is the nearest Markdown heading above the
+chunk. Search hits return it as `hit.position`, so a citation can say
+"Refund policy, page 3".
+
 ## Search
 
 ```ts

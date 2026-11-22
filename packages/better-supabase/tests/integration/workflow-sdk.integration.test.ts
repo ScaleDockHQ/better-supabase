@@ -26,10 +26,19 @@ const created: string[] = [];
 async function createRun(
   workflowName: string,
   attributes: Record<string, string>,
+  allowReservedAttributes?: true,
 ): Promise<string> {
   const result = await world.events.create(null, {
     eventType: "run_created",
-    eventData: { deploymentId: "test", workflowName, input: [], attributes },
+    eventData: {
+      deploymentId: "test",
+      workflowName,
+      input: [],
+      attributes,
+      ...(allowReservedAttributes === undefined
+        ? {}
+        : { allowReservedAttributes }),
+    },
   });
 
   const runId = result.run.runId;
@@ -336,5 +345,69 @@ describe.skipIf(!live)("Supabase World", () => {
 
     expect(left.rows.map((row) => row.id)).toEqual([fresh]);
     expect(events.rowCount).toBe(0);
+  });
+
+  it("projects eve sessions, leases them and keeps unprojected runs on purge", async () => {
+    const runId = await createRun(
+      `workflow//./eve_${SUFFIX}//session`,
+      { "$eve.type": "session", "$eve.version": "1.0.0" },
+      true,
+    );
+
+    const store = world.eveSessions;
+    const open = await store.open({ limit: 1000 });
+    expect(open.find((row) => row.sessionId === runId)).toMatchObject({
+      eveVersion: "1.0.0",
+    });
+    expect(await store.behind({ olderThan: "0 seconds" })).toContain(runId);
+
+    await world.events.create(runId, { eventType: "run_started" });
+    await world.events.create(runId, {
+      eventType: "run_completed",
+      eventData: { output: null },
+    });
+    await pool.query(
+      "update workflow.workflow_runs set completed_at = completed_at - interval '40 days' where id = $1",
+      [runId],
+    );
+
+    // Never synced: the purge keeps the run when asked to.
+    await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
+
+    const kept = await pool.query(
+      "select 1 from workflow.workflow_runs where id = $1",
+      [runId],
+    );
+
+    expect(kept.rowCount).toBe(1);
+
+    const lease = await store.lease(runId);
+    expect(lease).toMatchObject({ sessionId: runId, cursor: 0 });
+    expect(await store.lease(runId)).toBeUndefined();
+    expect(
+      await store.commit({
+        sessionId: runId,
+        leaseId: lease?.leaseId ?? "",
+        cursor: 5,
+        status: "ended",
+      }),
+    ).toBe(true);
+    expect(
+      await store.commit({ sessionId: runId, leaseId: "stale", cursor: 1 }),
+    ).toBe(false);
+
+    // Synced and ended: the purge may delete it now.
+    await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
+
+    const gone = await pool.query(
+      "select 1 from workflow.workflow_runs where id = $1",
+      [runId],
+    );
+
+    expect(gone.rowCount).toBe(0);
+    await pool.query(
+      "delete from workflow.eve_sessions where session_id = $1",
+      [runId],
+    );
   });
 });

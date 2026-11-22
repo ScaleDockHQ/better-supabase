@@ -139,6 +139,14 @@ export interface InboxAdapterOptions {
    */
   readonly aiGeneratedStreams?: boolean;
   /**
+   * What happens to the model's reasoning chunks of a streamed reply. They
+   * never become part of the message a contact reads. `"drop"` (the default)
+   * discards them, and `"metadata"` keeps the text in `metadata.reasoning` of
+   * the stored message, for your own tooling. Only choose `"metadata"` when the
+   * contact's client does not show message metadata.
+   */
+  readonly reasoning?: "drop" | "metadata";
+  /**
    * The action id that stops the bot's turn: `dispatchAction` calls `abortTurn`
    * for the thread instead of the bot's handlers. Defaults to `chat:stop`.
    */
@@ -573,6 +581,7 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
   const adapter: InboxAdapter = {
     name: "inbox",
     userName,
+    supportsReasoningChunks: true,
     botUserId: userName,
     lockScope: "thread",
     initialize: (instance) => {
@@ -880,7 +889,20 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
     stream: async (threadId, source, streamOptions) => {
       const { conversationId, inboxId } = remember(threadId);
       let text = "";
-      const chunks = textOnly(source);
+      let reasoning = "";
+
+      const chunks = textOnly(
+        (async function* withoutReasoning() {
+          for await (const chunk of source) {
+            if (typeof chunk !== "string" && chunk.type === "reasoning") {
+              reasoning += chunk.text;
+            } else {
+              yield chunk;
+            }
+          }
+        })(),
+      );
+
       const store = options.streams;
 
       const streamId = store
@@ -935,6 +957,9 @@ export function inboxAdapter(options: InboxAdapterOptions): InboxAdapter {
       return post(threadId, text, "markdown", {
         ...(streamId === undefined ? {} : { stream_id: streamId }),
         ...(options.aiGeneratedStreams === false ? {} : { ai_generated: true }),
+        ...(options.reasoning === "metadata" && reasoning.length > 0
+          ? { reasoning }
+          : {}),
       });
     },
   };

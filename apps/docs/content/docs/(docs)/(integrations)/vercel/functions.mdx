@@ -11,7 +11,7 @@ opens, and the Runtime Cache as a shared store for the auth key set.
 pnpm add @vercel/functions
 ```
 
-`@vercel/functions` (`>=3.11.1 <4`) is an optional peer. better-supabase never
+`@vercel/functions` (`>=3.11.3 <4`) is an optional peer. better-supabase never
 imports it: you pass its functions in, so the options work without it.
 
 ## attachDatabasePool
@@ -86,3 +86,20 @@ set itself, and it writes new copies without waiting for the cache.
 [`verifyPassport`](/docs/vercel/passport) as `store`. Any object with
 `get(key)` and `set(key, value, { ttl })` that return promises is a
 `JwksStore`, so another shared cache works too.
+
+## Stop statements before the function ends
+
+Pass `getDeadline` from `@vercel/functions` to `createPostgres`. The pool then
+caps each statement at the time left in the invocation minus `deadlineMargin`
+(500 milliseconds by default), so Postgres cancels a query that could not
+return before Vercel stops the function. An explicit statement timeout still
+wins when it is shorter.
+
+```ts
+import { attachDatabasePool, getDeadline } from "@vercel/functions";
+
+createPostgres({ attachDatabasePool, getDeadline });
+```
+
+`getDeadline` returns `undefined` outside a Vercel invocation, and then the
+pool's own timeouts apply.

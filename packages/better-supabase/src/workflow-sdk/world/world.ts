@@ -8,122 +8,84 @@ import type {
   World,
 } from "@workflow/world";
 
-import { parseQueueRoute, reenqueueActiveRuns } from "@workflow/world";
+import {
+  getQueueTopicPrefix,
+  mintedSpecVersion,
+  parseQueueRoute,
+  reenqueueActiveRuns,
+} from "@workflow/world";
 import { createWorld as createPostgresWorld } from "@workflow/world-postgres";
 import { Pool } from "pg";
 
+import type { EveSessionStore } from "../../eve/store.ts";
 import type { WorkflowMaintenance } from "../run-keys.ts";
 import type {
   ClaimedJob,
   DeadLetter,
   StoredMessage,
   SupabaseWorldOptions,
+  WorldConnection,
 } from "./types.ts";
 
-import { dbError } from "../../core/errors.ts";
 import { consoleLogger } from "../../core/logger.ts";
 import { memoized } from "../../core/optional-peer.ts";
-import { problemResponse } from "../../core/problem.ts";
 import { sqlIdent } from "../../core/template.ts";
+import { createEveSessionStore } from "../../eve/store.ts";
 import { watchPoolErrors } from "../../postgres/pool-errors.ts";
 import { usesTransactionPooler } from "../../postgres/pooler.ts";
 import {
   WORKFLOW_DELIVERY_QUEUE,
+  WORKFLOW_GRAPHILE_SCHEMA as GRAPHILE_SHIM_SCHEMA,
   WORKFLOW_VAULT_SECRETS,
 } from "../../sql/modules/workflow-sdk.ts";
 import { createAnalytics } from "./analytics.ts";
 import {
   deriveRunKey,
+  parseKeyRing,
   parseMasterKey,
+  ringKeyFor,
   signDelivery,
   unsignedAllowed,
   verifyDelivery,
 } from "./crypto.ts";
 import { assertWorldMigrations } from "./drift.ts";
-import { env, resolveFlowUrl, worldOptionsFromEnv } from "./env.ts";
+import {
+  connectionStringFrom,
+  env,
+  isServerless,
+  parseHeaders,
+  resolveFlowUrl,
+  routeUrl,
+  worldOptionsFromEnv,
+} from "./env.ts";
 import { createMaintenance } from "./maintenance.ts";
-import { JOB_HEADER, MAX_DELIVERIES, SIGNATURE_HEADER } from "./types.ts";
-
-/**
- * JSON with Uint8Array values as `{ __type: "Uint8Array", data: <base64> }`, as
- * world-postgres sends them.
- */
-function serialize(value: unknown): Buffer {
-  return Buffer.from(
-    JSON.stringify(value, (_key, inner: unknown) =>
-      inner instanceof Uint8Array
-        ? { __type: "Uint8Array", data: Buffer.from(inner).toString("base64") }
-        : inner,
-    ),
-  );
-}
-
-function isStoredMessage(value: unknown): value is StoredMessage {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const record: Record<string, unknown> = { ...value };
-
-  return (
-    typeof record["queueName"] === "string" &&
-    typeof record["messageId"] === "string" &&
-    typeof record["attempt"] === "number" &&
-    typeof record["body"] === "string"
-  );
-}
-
-/** The run a flow message belongs to, when its body names one. */
-function runIdOf(message: StoredMessage): string | undefined {
-  try {
-    const body: unknown = JSON.parse(
-      Buffer.from(message.body, "base64").toString("utf-8"),
-    );
-
-    if (typeof body === "object" && body !== null && "runId" in body) {
-      return typeof body.runId === "string" ? body.runId : undefined;
-    }
-  } catch {
-    return undefined;
-  }
-
-  return undefined;
-}
-
-function deliveryProblem(
-  kind: "invalid_request" | "unauthorized" | "network",
-  detail: string,
-): Response {
-  return problemResponse(
-    dbError(kind, detail, { code: "WORKFLOW_DELIVERY_REJECTED" }),
-    { expose: true },
-  );
-}
-
-/**
- * Retry delay after a failed delivery, as world-postgres (exp(min(attempt, 10))
- * seconds).
- */
-const backoffSeconds = (attempt: number): number =>
-  Math.ceil(Math.exp(Math.min(attempt, 10)));
-
-const REGISTRY: unique symbol = Symbol.for("better-supabase.workflow.worlds");
-
-/**
- * The Worlds `createWorld()` made, on `globalThis`: the Workflow SDK imports
- * the factory once per bundle, and each copy must share one pool and poller.
- */
-function worldRegistry(): Map<string, SupabaseWorld> {
-  // SAFETY: only this function writes the symbol, always a Map of Worlds.
-  const holder = globalThis as { [REGISTRY]?: Map<string, SupabaseWorld> };
-  holder[REGISTRY] ??= new Map<string, SupabaseWorld>();
-
-  return holder[REGISTRY];
-}
+import {
+  backoffSeconds,
+  byPrefix,
+  deliveryProblem,
+  isStoredMessage,
+  runIdOf,
+  serialize,
+  transactionStorage,
+  worldRegistry,
+} from "./messages.ts";
+import { pollingStreamReader } from "./polling.ts";
+import { clearOwedWake, sweepOwedWakes } from "./recovery.ts";
+import {
+  DEFAULT_STREAM_FLUSH_MS,
+  JOB_HEADER,
+  KEY_ID_ATTRIBUTE,
+  MAX_DELIVERIES,
+  SIGNATURE_HEADER,
+} from "./types.ts";
+import { createVercelDelivery, timeoutOf } from "./vercel-delivery.ts";
+import { loadVercelQueue } from "./vercel-queue.ts";
 
 /** The World plus the delivery helpers the tests and routes use. */
 export type SupabaseWorld = World &
   WorkflowMaintenance & {
+    /** The eve projection's lease and cursor functions, for `syncSession`. */
+    readonly eveSessions: EveSessionStore;
     start(): Promise<void>;
     close(): Promise<void>;
     /**
@@ -155,15 +117,19 @@ export function createSupabaseWorld(
   const lease = Math.max(5, options.lease ?? 60);
   const deliveryTimeout = Math.max(lease, options.deliveryTimeout ?? 300);
 
+  const connectionString =
+    options.connectionString ?? connectionStringFrom(env);
+
+  const pooled = usesTransactionPooler(connectionString);
+
+  const connection: WorldConnection =
+    options.connection ?? (pooled ? "transaction" : "session");
+
   const pool =
     options.pool ??
     new Pool({
-      connectionString:
-        options.connectionString ??
-        env("WORKFLOW_POSTGRES_URL") ??
-        env("SUPABASE_DB_URL") ??
-        env("DATABASE_URL"),
-      max: Math.max(1, options.maxConnections ?? 10),
+      connectionString,
+      max: Math.max(1, options.maxConnections ?? (isServerless() ? 2 : 10)),
       connectionTimeoutMillis: options.connectionTimeout ?? 30_000,
       idleTimeoutMillis: options.idleTimeout ?? 10_000,
       statement_timeout: options.statementTimeout ?? 30_000,
@@ -172,18 +138,30 @@ export function createSupabaseWorld(
     });
 
   const logger = options.logger ?? consoleLogger;
+  const recoverAfter = Math.max(5, options.recoverAfter ?? 300);
+  const skipWorkers = options.skipWorkers === true;
 
-  if (
-    options.pool === undefined &&
-    usesTransactionPooler(
-      options.connectionString ??
-        env("WORKFLOW_POSTGRES_URL") ??
-        env("SUPABASE_DB_URL") ??
-        env("DATABASE_URL"),
-    )
-  ) {
+  // world-postgres reads it at call time for the add_job of a zero-retention
+  // run's purge backstop; the SQL module defines that add_job in workflow.
+  const graphileSchema = env("GRAPHILE_WORKER_SCHEMA");
+
+  if (graphileSchema === undefined) {
+    process.env["GRAPHILE_WORKER_SCHEMA"] = GRAPHILE_SHIM_SCHEMA;
+  } else if (graphileSchema !== GRAPHILE_SHIM_SCHEMA) {
     logger.warn(
-      "The workflow World connects through the transaction pooler (port 6543). world-postgres needs LISTEN/NOTIFY, which only a session connection (port 5432 or the session pooler) supports.",
+      `GRAPHILE_WORKER_SCHEMA is "${graphileSchema}": the workflow World sends the purge backstops of zero-retention runs to that schema's add_job, where no runner of this World claims them. Unset it or set it to "${GRAPHILE_SHIM_SCHEMA}".`,
+    );
+  }
+
+  if (delivery === "poll" && env("VERCEL") !== undefined) {
+    logger.warn(
+      'The workflow World delivers with "poll" on Vercel, where messages are only claimed while a function instance runs. Set delivery: "vercel-queue" (or "pg_net" with a flow URL Supabase can reach).',
+    );
+  }
+
+  if (options.pool === undefined && pooled && connection === "session") {
+    logger.warn(
+      'The workflow World connects through the transaction pooler (port 6543) with connection: "session". Streams, run status waits and run event feeds need LISTEN, which only a session connection (port 5432 or the session pooler) supports; use connection: "transaction" or a session URL.',
     );
   }
 
@@ -200,10 +178,15 @@ export function createSupabaseWorld(
     ...(options.enableInvoke === undefined
       ? {}
       : { enableInvoke: options.enableInvoke }),
-    ...(options.streamFlushIntervalMs === undefined
-      ? {}
-      : { streamFlushIntervalMs: options.streamFlushIntervalMs }),
+    streamFlushIntervalMs:
+      options.streamFlushIntervalMs ?? DEFAULT_STREAM_FLUSH_MS,
+    ...(skipWorkers ? { skipWorkers } : {}),
   });
+
+  const poller =
+    connection === "transaction"
+      ? pollingStreamReader(pool, options.streamPollInterval)
+      : undefined;
 
   /**
    * The Vault secret, `undefined` when no row has the name; a failed read
@@ -223,12 +206,46 @@ export function createSupabaseWorld(
       options.deliverySecret ?? vault(WORKFLOW_VAULT_SECRETS.deliverySecret),
   );
 
-  const masterKey = memoized(async () => {
+  /** Headers added to each post to the flow route; ours win over these. */
+  const extraHeaders = memoized(
+    async (): Promise<Readonly<Record<string, string>>> => {
+      if (options.deliveryHeaders !== undefined) {
+        return options.deliveryHeaders;
+      }
+
+      try {
+        return (
+          parseHeaders(await vault(WORKFLOW_VAULT_SECRETS.deliveryHeaders)) ??
+          {}
+        );
+      } catch {
+        return {};
+      }
+    },
+  );
+
+  const vercelSdk = memoized(
+    async () => options.vercelQueue ?? loadVercelQueue(),
+  );
+
+  const keyRing = memoized(async () => {
+    const ring =
+      options.encryptionKeys ??
+      (options.encryptionKey === undefined
+        ? await vault(WORKFLOW_VAULT_SECRETS.encryptionKeys)
+        : undefined);
+
+    if (ring !== undefined) {
+      return parseKeyRing(ring);
+    }
+
     const text =
       options.encryptionKey ??
       (await vault(WORKFLOW_VAULT_SECRETS.encryptionKey));
 
-    return text === undefined ? undefined : parseMasterKey(text);
+    return text === undefined
+      ? undefined
+      : [{ id: "default", key: parseMasterKey(text), from: 0 }];
   });
 
   const allowUnsigned = unsignedAllowed();
@@ -262,6 +279,62 @@ export function createSupabaseWorld(
     ]);
   };
 
+  const vercel = createVercelDelivery({
+    sdk: vercelSdk,
+    logger,
+    queueName,
+    deadLetter: (info) => deadLetter(info),
+    clearWake: (message) => clearWake(message),
+    headers: (message, attempt, count) =>
+      deliveryHeaders(message, attempt, count),
+    flowUrl: () => flowUrl(),
+    isStoredMessage,
+    runIdOf,
+    backoffSeconds,
+  });
+
+  const enqueueStored = (
+    message: StoredMessage,
+    delaySeconds: number | undefined,
+  ): Promise<void> =>
+    delivery === "vercel-queue"
+      ? vercel.send(message, delaySeconds)
+      : store(message, delaySeconds);
+
+  let dispatching = false;
+
+  /**
+   * Gets due messages moving at once: wakes the poller, or asks pg_net to
+   * dispatch now instead of at the next cron tick. A failed dispatch is left to
+   * the cron job.
+   */
+  const kick = async (delaySeconds: number): Promise<void> => {
+    // The runtime never calls start(), so the process that queues also polls.
+    startPolling();
+
+    if (delaySeconds > 0) {
+      return;
+    }
+
+    if (delivery === "poll") {
+      wake?.();
+
+      return;
+    }
+
+    if (delivery === "pg_net" && !dispatching) {
+      dispatching = true;
+
+      try {
+        await call("dispatch_workflow_deliveries", []);
+      } catch {
+        // The cron schedule dispatches it.
+      } finally {
+        dispatching = false;
+      }
+    }
+  };
+
   const queue = async (
     name: ValidQueueName,
     message: QueuePayload,
@@ -269,7 +342,7 @@ export function createSupabaseWorld(
   ): Promise<{ messageId: MessageId }> => {
     // SAFETY: MessageId is a branded string; any id the queue mints is valid.
     const messageId = `msg_${crypto.randomUUID()}` as MessageId;
-    await store(
+    await enqueueStored(
       {
         queueName: name,
         messageId,
@@ -283,8 +356,7 @@ export function createSupabaseWorld(
       },
       opts?.delaySeconds,
     );
-    // The runtime never calls start(), so the process that queues also polls.
-    startPolling();
+    await kick(opts?.delaySeconds ?? 0);
 
     return { messageId };
   };
@@ -322,6 +394,10 @@ export function createSupabaseWorld(
       };
     });
 
+    if (delivery === "vercel-queue") {
+      return vercel.sendBatch(prepared);
+    }
+
     try {
       // One statement, so the batch is enqueued together or not at all.
       await pool.query(
@@ -347,7 +423,7 @@ export function createSupabaseWorld(
       }));
     }
 
-    startPolling();
+    await kick(Math.min(...prepared.map(({ delay }) => delay)));
 
     return prepared.map(({ messageId }): QueueBatchResult => ({ messageId }));
   };
@@ -412,6 +488,14 @@ export function createSupabaseWorld(
     };
   };
 
+  const orchestratorPrefix = getQueueTopicPrefix(
+    "workflow",
+    options.namespace ?? env("WORKFLOW_QUEUE_NAMESPACE"),
+  );
+
+  const clearWake = (message: StoredMessage): Promise<void> =>
+    clearOwedWake(pool, orchestratorPrefix, message);
+
   /** Settles a delivered job from the flow route's response. */
   const settle = async (
     job: { readonly id: string; readonly attempts: number },
@@ -432,31 +516,20 @@ export function createSupabaseWorld(
       return;
     }
 
-    let timeoutSeconds: number | undefined;
-
-    try {
-      const parsed: unknown = JSON.parse(text);
-
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        "timeoutSeconds" in parsed
-      ) {
-        const value = Number(parsed.timeoutSeconds);
-
-        if (Number.isFinite(value) && value >= 0) {
-          timeoutSeconds = value;
-        }
-      }
-    } catch {
-      timeoutSeconds = undefined;
-    }
+    const timeoutSeconds = timeoutOf(text);
 
     if (timeoutSeconds !== undefined) {
-      await store({ ...message, attempt: attempt + 1 }, timeoutSeconds);
+      // A continuation starts `attempt` over, as world-postgres does for
+      // everything but a spec 9 orchestrator message: core fails a run past
+      // 48 deliveries of one message, and a long run hops far more often.
+      await store({ ...message, attempt: 1 }, timeoutSeconds);
     }
 
     await complete(job.id, job.attempts);
+
+    if (timeoutSeconds === undefined) {
+      await clearWake(message);
+    }
   };
 
   const deliveryHeaders = (
@@ -490,24 +563,6 @@ export function createSupabaseWorld(
   const handlers = new Map<QueuePrefix, RouteHandler>();
   const routes = new Map<QueuePrefix, string>();
 
-  /** The entry of the longest prefix `queueName` starts with. */
-  const byPrefix = <T>(
-    entries: ReadonlyMap<QueuePrefix, T>,
-    queueName: string,
-  ): T | undefined => {
-    let found: T | undefined;
-    let length = -1;
-
-    for (const [prefix, value] of entries) {
-      if (queueName.startsWith(prefix) && prefix.length > length) {
-        found = value;
-        length = prefix.length;
-      }
-    }
-
-    return found;
-  };
-
   /**
    * Sends a message to the handler registered for its prefix in this process,
    * else to its registered route, else to the flow route.
@@ -525,7 +580,7 @@ export function createSupabaseWorld(
     const route = byPrefix(routes, queueName);
 
     return fetch(
-      route === undefined ? flowUrl() : new URL(route, flowUrl()),
+      route === undefined ? flowUrl() : routeUrl(route, flowUrl()),
       init,
     );
   };
@@ -542,6 +597,13 @@ export function createSupabaseWorld(
     const attempt = payload.attempt + job.attempts - 1;
     const body = Buffer.from(payload.body, "base64");
     const headers = deliveryHeaders(payload, attempt, job.attempts);
+
+    for (const [name, value] of Object.entries(await extraHeaders())) {
+      if (!headers.has(name)) {
+        headers.set(name, value);
+      }
+    }
+
     const beat = heartbeat(job.id, job.attempts);
     const controller = new AbortController();
 
@@ -604,7 +666,23 @@ export function createSupabaseWorld(
   const inflight = new Set<Promise<void>>();
   let wake: (() => void) | undefined;
 
+  const sweepOwed = (): Promise<number> =>
+    sweepOwedWakes({
+      pool,
+      queue,
+      logger,
+      recoverAfter,
+      prefix: orchestratorPrefix,
+    });
+
+  const maintenance = createMaintenance(call, (runId) =>
+    getEncryptionKeyForRun(runId),
+  );
+
   const deliverOnce = async (): Promise<number> => {
+    await sweepOwed().catch(() => 0);
+    await maintenance.purgeBackstops().catch(() => 0);
+
     const jobs = await claim(concurrency);
     await Promise.all(jobs.map((job) => deliver(job)));
 
@@ -624,17 +702,19 @@ export function createSupabaseWorld(
 
   /** Waits `pollInterval`, or until a delivery finishes and frees a slot. */
   const idle = (): Promise<void> =>
-    new Promise<void>((resolve) => {
-      const timer = setTimeout(done, pollInterval);
+    running
+      ? new Promise<void>((resolve) => {
+          const timer = setTimeout(done, pollInterval);
 
-      function done(): void {
-        clearTimeout(timer);
-        wake = undefined;
-        resolve();
-      }
+          function done(): void {
+            clearTimeout(timer);
+            wake = undefined;
+            resolve();
+          }
 
-      wake = done;
-    });
+          wake = done;
+        })
+      : Promise.resolve();
 
   const claimInto = async (room: number): Promise<number> => {
     try {
@@ -652,8 +732,16 @@ export function createSupabaseWorld(
 
   const isRunning = (): boolean => running;
 
+  let lastSweep = 0;
+
   const poll = async (): Promise<void> => {
     while (isRunning()) {
+      if (Date.now() - lastSweep >= Math.max(30_000, recoverAfter * 500)) {
+        lastSweep = Date.now();
+        await sweepOwed().catch(() => 0);
+        await maintenance.purgeBackstops().catch(() => 0);
+      }
+
       const room = concurrency - inflight.size;
       const claimed = room > 0 ? await claimInto(room) : 0;
 
@@ -664,7 +752,7 @@ export function createSupabaseWorld(
   };
 
   function startPolling(): void {
-    if (delivery !== "poll" || running || closed) {
+    if (delivery !== "poll" || skipWorkers || running || closed) {
       return;
     }
 
@@ -677,6 +765,10 @@ export function createSupabaseWorld(
     handler: Parameters<World["createQueueHandler"]>[1],
   ): ((req: Request) => Promise<Response>) => {
     const inner = base.createQueueHandler(prefix, handler);
+
+    if (delivery === "vercel-queue") {
+      return vercel.handler(inner);
+    }
 
     return async (req) => {
       const job = req.headers.get(JOB_HEADER);
@@ -801,21 +893,165 @@ export function createSupabaseWorld(
     };
   };
 
+  /**
+   * Run data is plain text without a key; say so once at startup unless the
+   * process runs in development or test.
+   */
+  async function warnWithoutKey(): Promise<void> {
+    const mode = env("NODE_ENV");
+
+    if (mode === "development" || mode === "test") {
+      return;
+    }
+
+    try {
+      if ((await keyRing()) === undefined) {
+        logger.warn(
+          "The workflow World has no encryption key, so run inputs, outputs and stream data are stored unencrypted. Set WORKFLOW_ENCRYPTION_KEYS (or the Vault secret workflow_encryption_keys).",
+        );
+      }
+    } catch (cause) {
+      logger.error("The workflow encryption key could not be read", {
+        error: cause,
+      });
+    }
+  }
+
   async function getEncryptionKeyForRun(
     run: string | { readonly runId: string },
   ): Promise<Uint8Array | undefined> {
-    const master = await masterKey();
+    const ring = await keyRing();
 
-    if (master === undefined) {
+    if (ring === undefined) {
       return undefined;
     }
 
-    return deriveRunKey(master, typeof run === "string" ? run : run.runId);
+    const runId = typeof run === "string" ? run : run.runId;
+    const stored = ring.length > 1 ? await storedKeyId(runId) : undefined;
+    const entry = ring.find((candidate) => candidate.id === stored);
+
+    return deriveRunKey((entry ?? ringKeyFor(ring, runId)).key, runId);
   }
+
+  /**
+   * Run ids to the id of the ring key stamped on them; a run keeps its key
+   * through a rotation.
+   */
+  const stampedKeys = new Map<string, string | undefined>();
+
+  async function storedKeyId(runId: string): Promise<string | undefined> {
+    if (stampedKeys.has(runId)) {
+      return stampedKeys.get(runId);
+    }
+
+    const result = await pool.query<{ id: string | null }>(
+      `select attributes->>$2 as id from workflow.workflow_runs where id = $1`,
+      [runId, KEY_ID_ATTRIBUTE],
+    );
+
+    const id = result.rows[0]?.id ?? undefined;
+
+    if (id !== undefined) {
+      if (stampedKeys.size >= 1000) {
+        stampedKeys.clear();
+      }
+
+      stampedKeys.set(runId, id);
+    }
+
+    return id;
+  }
+
+  /**
+   * Writes the id of the ring key a new run uses into its attributes. The key
+   * is derived from the run's creation time, so without the stamp, editing the
+   * ring's `from` dates would change the key of runs that already exist.
+   */
+  async function stampKeyId(runId: string): Promise<void> {
+    const ring = await keyRing();
+
+    if (ring === undefined) {
+      return;
+    }
+
+    const id = ringKeyFor(ring, runId).id;
+    stampedKeys.set(runId, id);
+    await pool.query(
+      `update workflow.workflow_runs
+       set attributes = coalesce(attributes, '{}'::jsonb) || jsonb_build_object($2::text, $3::text)
+       where id = $1 and not coalesce(attributes ? $2::text, false)`,
+      [runId, KEY_ID_ATTRIBUTE, id],
+    );
+  }
+
+  // SAFETY: `create` is overloaded over its event types; this view keeps one loose signature,
+  // and the call below forwards every argument unchanged.
+  const looseEvents = base.events as {
+    readonly create: (...rest: unknown[]) => Promise<unknown>;
+  };
+
+  const forwardCreate = (...args: unknown[]): Promise<unknown> =>
+    looseEvents.create(...args);
+
+  const wrapped = async (...args: unknown[]): Promise<unknown> => {
+    const result = await forwardCreate(...args);
+    const data = args[1];
+
+    const created =
+      typeof data === "object" &&
+      data !== null &&
+      "eventType" in data &&
+      data.eventType === "run_created";
+
+    if (
+      created &&
+      typeof result === "object" &&
+      result !== null &&
+      "run" in result
+    ) {
+      const run: unknown = result.run;
+
+      if (
+        typeof run === "object" &&
+        run !== null &&
+        "runId" in run &&
+        typeof run.runId === "string"
+      ) {
+        await stampKeyId(run.runId).catch((cause: unknown) => {
+          logger.error("The run's encryption key id could not be stored", {
+            error: cause,
+          });
+        });
+      }
+    }
+
+    return result;
+  };
+
+  // SAFETY: `create` is overloaded over its event types; the wrapper forwards every argument and
+  // returns the base World's result unchanged.
+  const createEvent = wrapped as typeof base.events.create;
 
   return {
     ...base,
+    ...(poller === undefined ? {} : transactionStorage(base, poller)),
+    events: {
+      ...(poller === undefined
+        ? base.events
+        : transactionStorage(base, poller).events),
+      create: createEvent,
+    },
     analytics: createAnalytics(pool),
+    // The queue is a pgmq table that runs any number of a run's messages at
+    // once and takes no run delivery lease, so the World declares neither
+    // `maxConcurrency` nor `inBandFence` and mints spec 8 runs whatever
+    // `WORKFLOW_SPEC_VERSION` says (ADR 1106).
+    capabilities: {
+      ...base.capabilities,
+      maxConcurrency: false,
+      inBandFence: false,
+    },
+    specVersion: mintedSpecVersion(),
     // Every delivery carries the HMAC that createQueueHandler checks before the
     // runtime sees it, so the runtime's loopback key check has nothing to add.
     queueAuthMode: "skip",
@@ -833,10 +1069,18 @@ export function createSupabaseWorld(
     },
     getEncryptionKeyForRun,
     deliverOnce,
-    ...createMaintenance(call, (runId) => getEncryptionKeyForRun(runId)),
+    ...maintenance,
+    eveSessions: createEveSessionStore(call),
     async start() {
       await assertWorldMigrations();
+      await warnWithoutKey();
+
+      if (skipWorkers) {
+        return;
+      }
+
       startPolling();
+      await sweepOwed().catch(() => 0);
       await reenqueueActiveRuns(
         base.runs,
         queue,
@@ -847,6 +1091,7 @@ export function createSupabaseWorld(
     async close() {
       closed = true;
       running = false;
+      poller?.close();
       wake?.();
       await loop;
       await Promise.all(inflight);
@@ -862,12 +1107,13 @@ export function createSupabaseWorld(
 /**
  * The World from the environment, the factory the Workflow SDK calls for
  * `WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world`: the connection
- * from `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL` or `DATABASE_URL`, and
- * `WORKFLOW_DELIVERY`, `WORKFLOW_FLOW_URL`, `WORKFLOW_DELIVERY_SECRET`,
- * `WORKFLOW_ENCRYPTION_KEY`, `WORKFLOW_DELIVERY_QUEUE`,
- * `WORKFLOW_QUEUE_NAMESPACE`, `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`,
- * `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`, and the pool settings
- * `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (or `WORKFLOW_POSTGRES_MAX_CONNECTIONS`),
+ * from `WORKFLOW_POSTGRES_URL`, `SUPABASE_DB_URL`, `DATABASE_URL`,
+ * `POSTGRES_URL` or `POSTGRES_URL_NON_POOLING`, and `WORKFLOW_DELIVERY`,
+ * `WORKFLOW_FLOW_URL`, `WORKFLOW_DELIVERY_SECRET`, `WORKFLOW_ENCRYPTION_KEY`,
+ * `WORKFLOW_DELIVERY_QUEUE`, `WORKFLOW_QUEUE_NAMESPACE`,
+ * `WORKFLOW_POSTGRES_WORKER_CONCURRENCY`, `WORKFLOW_POSTGRES_POLL_INTERVAL_MS`,
+ * and the pool settings `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (or
+ * `WORKFLOW_POSTGRES_MAX_CONNECTIONS`),
  * `WORKFLOW_POSTGRES_CONNECTION_TIMEOUT_MS`,
  * `WORKFLOW_POSTGRES_IDLE_TIMEOUT_MS`, `WORKFLOW_POSTGRES_STATEMENT_TIMEOUT_MS`
  * and `WORKFLOW_POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT_MS`.

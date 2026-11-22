@@ -35,13 +35,19 @@ interface ConnectTokenParams {
 
 interface ConnectOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   forceRefresh?: boolean;
   region?: string;
 }
 
 interface ConnectAuthorizationOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   callbackUrl?: string;
+  webhook?: string;
+  expiresInMs?: number;
   deviceCode?: boolean;
   prompt?: string;
   region?: string;
@@ -96,7 +102,11 @@ export interface VercelConnectModule {
     params: ConnectTokenParams,
     options?: ConnectAuthorizationOptions,
   ): Promise<ConnectAuthorization>;
-  deleteTokenCacheEntry?(connector: string, params: ConnectTokenParams): void;
+  deleteTokenCacheEntry?(
+    connector: string,
+    params: ConnectTokenParams,
+    options?: Pick<ConnectOptions, "teamId" | "orgId" | "vercelToken">,
+  ): void;
   getConnectorMetadata?(
     connector: string,
     options?: ConnectOptions,
@@ -110,6 +120,8 @@ export interface VercelConnectModule {
 
 interface ConnectInstallationOptions {
   vercelToken?: string;
+  teamId?: string;
+  orgId?: string;
   returnUrl?: string;
   webhook?: string;
   tenantId?: string;
@@ -135,6 +147,7 @@ export type VercelConnectChannel =
   | "linear"
   | "linq"
   | "notion"
+  | "resend"
   | "sendblue"
   | "slack"
   | "teams"
@@ -155,6 +168,7 @@ const CHANNEL_HELPERS: Readonly<Record<VercelConnectChannel, string>> = {
   linear: "connectLinearAdapter",
   linq: "connectLinqAdapter",
   notion: "connectNotionAdapter",
+  resend: "connectResendAdapter",
   sendblue: "connectSendblueAdapter",
   slack: "connectSlackAdapter",
   teams: "connectTeamsAdapter",
@@ -245,6 +259,14 @@ export interface VercelConnectCredentialsOptions {
   readonly vercelToken?: string;
   /** The Connect region, for a project outside the default one. */
   readonly region?: string;
+  /**
+   * The Vercel team the connector belongs to, for a `vercelToken` that can
+   * reach more than one (needs `@vercel/connect` 2.9). Set at most one of
+   * `teamId` and `orgId`.
+   */
+  readonly teamId?: string;
+  /** The Vercel organization the connector belongs to (`@vercel/connect` 2.9). */
+  readonly orgId?: string;
   /**
    * Passed to `createConnectWebhookVerifier`: the project and environment a
    * forwarded webhook's OIDC token must name. Defaults to the deployment's.
@@ -481,6 +503,8 @@ export function vercelConnectCredentials(
       ? {}
       : { vercelToken: options.vercelToken }),
     ...(options.region === undefined ? {} : { region: options.region }),
+    ...(options.teamId === undefined ? {} : { teamId: options.teamId }),
+    ...(options.orgId === undefined ? {} : { orgId: options.orgId }),
   };
 
   const foreign = (): DbException =>
@@ -636,6 +660,12 @@ export function vercelConnectCredentials(
             undefined,
             invalidateOptions.installationId,
           ),
+          // The cache key holds the team and organization scope, so a scoped
+          // token stays cached unless the same scope is named here.
+          {
+            ...(options.teamId === undefined ? {} : { teamId: options.teamId }),
+            ...(options.orgId === undefined ? {} : { orgId: options.orgId }),
+          },
         );
 
         return Promise.resolve(true);
@@ -746,6 +776,12 @@ export function vercelConnectCredentials(
               ...(startOptions.prompt === undefined
                 ? {}
                 : { prompt: startOptions.prompt }),
+              ...(startOptions.webhook === undefined
+                ? {}
+                : { webhook: startOptions.webhook }),
+              ...(startOptions.expiresInMs === undefined
+                ? {}
+                : { expiresInMs: startOptions.expiresInMs }),
             },
           );
 

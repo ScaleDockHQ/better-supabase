@@ -1,0 +1,129 @@
+---
+title: Memory on eve
+description: Recall core and archival memory and tenant documents per turn, store eve's file memory in the memory module, and keep custom skills inside the tenant.
+---
+
+`supabaseMemory` is a memory provider over the memory block, with
+optional tenant documents from the knowledge block. Pass both blocks on a
+service transport, since eve calls the provider outside the user's request.
+
+```ts title="agent/memory/profile.ts"
+import { defineMemory, defineMemoryProvider } from "eve/memory";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseMemory } from "better-supabase/eve";
+
+import { knowledge, memory } from "../lib/blocks";
+
+export default defineMemory({
+  description: "What the agent knows about this user and their team",
+  scope: byPrincipal,
+  provider: defineMemoryProvider(supabaseMemory({ memory, knowledge })),
+});
+```
+
+On `turn.started` the provider returns the user's core memory, the
+archival memories and knowledge chunks closest to the new message (`k`,
+5 by default) and stores that answer under eve's operation id, so a
+replayed step recalls the same messages. Every read and write is
+partitioned by the memory scope key and the signed-in user; sessions
+without a user and tenant recall nothing. Knowledge search defaults to
+the tenant's shared documents, because the provider searches as the
+service role; widen `knowledgeScopes` only when every member may read the
+wider scope.
+
+The model gets `remember` and `forget` tools (eve shows them as
+`<slot>__remember`). Pass `extract(messages, ctx)`, an LLM call of yours, to
+also keep facts from every finished turn; `tools: false` drops the tools.
+
+Pass `scopes` to recall from and write to more than the user's own memory:
+`"user"` (the default), `"organization"` (shared by the tenant) and
+`{ scope: "record", subject }`, which names one record such as the inbox
+contact the conversation is about. Each scope recalls its own core memory (the
+message ids are `core`, `core:organization` and `core:record:<type>`), and
+`remember` and `forget` take a `scope` argument when more than one scope is
+writable. Shared scopes are read-only unless the entry sets `write: true`: the
+provider runs as the service role, so a writable shared scope lets the model
+change what every user of the tenant recalls.
+
+```ts
+supabaseMemory({
+  memory,
+  scopes: [
+    "user",
+    { scope: "organization", write: false },
+    { scope: "record", write: true, subject: (ctx) => recordFor(ctx.session) },
+  ],
+});
+```
+
+To keep eve's own file memory instead, store it in Postgres with
+`supabaseDocumentBackend`. A write with a stale version throws
+`MemoryDocumentConflictError`, and eve retries with the current document.
+
+```ts title="agent/memory/notes.ts"
+import { defineMemory } from "eve/memory";
+import { fileMemory } from "eve/memory/file";
+import { byPrincipal } from "eve/memory/scope";
+import { supabaseDocumentBackend } from "better-supabase/eve";
+
+import { memory } from "../lib/blocks";
+
+export default defineMemory({
+  description: "Notes the agent keeps for itself",
+  scope: byPrincipal,
+  provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
+});
+```
+
+## Custom skills
+
+eve's experimental custom skills extension lets the people who talk to the
+agent save their own versioned skills. Store them with
+`supabaseDocumentBackend` under their own scope, and pass
+`supabaseSkillScopes()` so every skill stays inside the caller's tenant:
+
+```ts title="agent/extensions/skills.ts"
+import customSkills from "eve/experimental/extensions/custom-skills";
+import {
+  supabaseDocumentBackend,
+  supabaseSkillScopes,
+} from "better-supabase/eve";
+
+import { memory } from "../lib/blocks";
+
+export default customSkills({
+  storage: supabaseDocumentBackend({ memory, scope: "skills" }),
+  scopes: supabaseSkillScopes({ organization: { writableBy: ["owner"] } }),
+});
+```
+
+The resolver reads the `tenantId`, `roles` and `isAnonymous` attributes that
+[`supabaseAuth`](/docs/eve/auth) sets and returns these scopes, in this
+order:
+
+| Scope          | Key                          | Who has it                                                         |
+| -------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `personal`     | `tenant:<id>:user:<user>`    | a signed-in user; anonymous and runtime callers have none          |
+| `persona`      | `tenant:<id>:persona:<name>` | everyone in the tenant, read-only, when `persona` returns a name   |
+| `channel`      | `tenant:<id>:space:<space>`  | everyone in a shared conversation space; `channel: false` drops it |
+| `organization` | `tenant:<id>`                | everyone in the tenant; `organization: false` drops it             |
+
+The `organization` scope is read-only unless the caller is a user who holds
+one of the roles in `writableBy`. A caller without a tenant gets only the
+`personal` and `channel` scopes, keyed `user:<user>` and `space:<space>` as
+eve's defaults are.
+
+`persona` picks a shared, read-only set of skills per turn. It receives the
+tenant, the caller, the session, the turn id and the parent session (for a
+subagent, the session that delegated to it; eve 1.3 added both), so a
+subagent can speak as the persona its parent chose:
+
+```ts
+supabaseSkillScopes({
+  persona: ({ parent, sessionId }) =>
+    personaFor(parent?.rootSessionId ?? sessionId),
+});
+```
+
+Give each agent that shares the memory tables its own `scope` (or eve's
+`namespace` option), or the agents share every user's skills.

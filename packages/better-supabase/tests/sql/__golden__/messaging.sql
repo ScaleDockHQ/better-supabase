@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:48e23a69e18ebb18702bf2ded6bdaace8e181f21f2483afa6cc0bca945e6d5ee
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:00b6fd34f118aeeb6d4876240322a48eb81bd8b1fe3d02887c59d7825970aed9
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -89,6 +89,8 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -1367,10 +1369,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -1991,21 +1998,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:46b1d9f0de4e4f0c192f4fb49bb169d78ba4c89fe7407f7f864976d1ca47ba90
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:65e8dec4f5558a73f69472aa83bf8bf0b12a76f99b4f982950afef31ad375d70
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2096,6 +2103,8 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -2442,7 +2451,7 @@ begin
   select * into v_msg from "better_supabase"."messages" m where m."id" = messaging_message_sent.message;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id";
   perform "better_supabase"."index_record_mentions"(v_msg."id");
-  perform "better_supabase".emit_event('message.sent', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'mentionIds', to_jsonb(v_msg."mentions"), 'recordMentions', (select coalesce(jsonb_agg(jsonb_build_object('type', x."subject_type", 'id', x."subject_id") order by x."subject_type", x."subject_id"), '[]'::jsonb) from "better_supabase"."message_record_mentions" x where x."message_id" = v_msg."id"))
+  perform "better_supabase".emit_event('message.sent', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'mentionIds', to_jsonb(v_msg."mentions"), 'recordMentions', (select coalesce(jsonb_agg(jsonb_build_object('type', x."subject_type", 'id', x."subject_id") order by x."subject_type", x."subject_id"), '[]'::jsonb) from "better_supabase"."message_record_mentions" x where x."message_id" = v_msg."id"))
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   -- Mentioned users who can read the conversation.
   v_mentioned := array(
@@ -3610,10 +3619,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -3737,7 +3751,7 @@ begin
   end;
   if v_msg."sent_at" is not null then
     perform "better_supabase"."index_record_mentions"(v_msg."id");
-    perform "better_supabase".emit_event('message.updated', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
+    perform "better_supabase".emit_event('message.updated', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   end if;
   declare
@@ -3786,7 +3800,7 @@ begin
   delete from "better_supabase"."attachments" a
   where a."subject_type" = 'message' and a."subject_id" = v_msg."id"::text;
   if v_msg."sent_at" is not null then
-    perform "better_supabase".emit_event('message.deleted', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
+    perform "better_supabase".emit_event('message.deleted', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   end if;
   return true;
@@ -3818,7 +3832,7 @@ begin
     "pinned_by" = case when pin_message.pinned then coalesce(m."pinned_by", auth.uid()) end
   where m."id" = v_msg."id"
   returning * into v_msg;
-  perform "better_supabase".emit_event('message.pinned', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'pinned', pin_message.pinned)
+  perform "better_supabase".emit_event('message.pinned', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'pinned', pin_message.pinned)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   return "better_supabase"."messaging_messages_json"(array[v_msg."id"]) -> 0;
 end;
@@ -3850,7 +3864,7 @@ begin
     "resolved_by" = case when resolve_message.resolved then coalesce(m."resolved_by", auth.uid()) end
   where m."id" = v_msg."id"
   returning * into v_msg;
-  perform "better_supabase".emit_event('message.resolved', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'resolved', resolve_message.resolved)
+  perform "better_supabase".emit_event('message.resolved', jsonb_build_object('organizationId', v_msg."tenant_id"::text, 'conversationId', v_msg."conversation_id", 'messageId', v_msg."id", 'authorId', v_msg."author_id", 'actorKind', v_msg."author_kind", 'actorName', v_msg."author_name", 'threadId', v_msg."thread_id", 'subjectType', 'message', 'subjectId', v_msg."id"::text, 'resolved', resolve_message.resolved)
       || coalesce((select jsonb_build_object('conversationKind', c."kind", 'recordType', c."subject_type", 'recordId', c."subject_id") from "better_supabase"."conversations" c where c."id" = v_msg."conversation_id"), '{}'::jsonb), 'messages/' || v_msg."id"::text, (v_msg."tenant_id"::text)::text, null, 'better-supabase/messaging');
   return "better_supabase"."messaging_messages_json"(array[v_msg."id"]) -> 0;
 end;
@@ -4294,21 +4308,21 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:1a8cf063fd99207800b2959f707d3637c9c06d1a943d69babe113428b4f55221
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:18528b9281618a21b09f1903093058fa732426704827936aee5f8ce546842a1e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4401,6 +4415,8 @@ create table "app_private"."messages" (
   "parent_id" uuid references "app_private"."messages" ("id") on delete set null,
   "thread_id" uuid references "app_private"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -5679,10 +5695,15 @@ begin
     end if;
   end;
   begin
-    insert into "app_private"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "app_private"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -6303,21 +6324,21 @@ create policy bsb_tenant_scope_delete on "app_private"."thread_summaries" as res
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:9fb582f26f8bc41983fb5f837959ef4f04391feccf6f56b93b77d677398f22d5
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:2ef2497f82f281b5d457113ecd9cc45c12f2297b3676cebc0c70d495b5bac455
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6405,6 +6426,8 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -7683,10 +7706,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -8590,21 +8618,21 @@ grant execute on function "api"."save_thread_summary"(uuid, uuid, text, jsonb) t
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:e7626af679d1777d8a8cd62408969f5c10ab3a015045162b266e5424e1286f45
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:240bb29fef83586f217c543295fb5cf1d58f2b817e62e10cce477e7aada03238
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8686,6 +8714,8 @@ alter table "better_supabase"."messages" add column if not exists "conversation_
 alter table "better_supabase"."messages" add column if not exists "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null;
 alter table "better_supabase"."messages" add column if not exists "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade;
 alter table "better_supabase"."messages" add column if not exists "author_id" uuid;
+alter table "better_supabase"."messages" add column if not exists "author_kind" text;
+alter table "better_supabase"."messages" add column if not exists "author_name" text;
 alter table "better_supabase"."messages" add column if not exists "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note'));
 alter table "better_supabase"."messages" add column if not exists "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000);
 alter table "better_supabase"."messages" add column if not exists "document" jsonb;
@@ -8705,6 +8735,8 @@ alter table "better_supabase"."messages" add column if not exists "sent_at" time
 alter table "better_supabase"."messages" add column if not exists "edited_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."messages" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."messages" add column if not exists "author_kind" text;
+alter table "better_supabase"."messages" add column if not exists "author_name" text;
 create index if not exists messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
 create index if not exists messaging_messages_conversation_all_idx on "better_supabase"."messages" ("conversation_id");
 create index if not exists messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
@@ -9953,10 +9985,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."tenant_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       better_supabase.as_column_type(case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end, (null::"better_supabase"."messages")."mention_scope"),
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -10577,21 +10614,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
--- @bsb-block messaging@1 managed
--- @bsb-hash sha256:4eae34ca2401194e7a768f641f806c4d0ac577da67746fcb1a4fe0dedc749846
+-- @bsb-block messaging@2 managed
+-- @bsb-hash sha256:245e487835f4b2f06ce5aed5441be9d828e5032206946e7b9709a84431603810
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10679,6 +10716,8 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
+  "author_kind" text,
+  "author_name" text,
   "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
   "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
@@ -11957,10 +11996,15 @@ begin
     end if;
   end;
   begin
-    insert into "better_supabase"."messages" ("org_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor",
+    insert into "better_supabase"."messages" ("org_id", "conversation_id", "parent_id", "thread_id", "author_id", "author_kind", "author_name", "body", "document", "anchor",
       "mentions", "mention_scope", "broadcast", "scheduled_at", "sent_at")
     values (v_conv."org_id", v_conv."id", v_parent, case when v_parent is null then null else coalesce(v_root, v_parent) end,
-      auth.uid(), coalesce(send_message.body, ''), send_message.attrs -> 'document',
+      auth.uid(), case
+      when send_message.attrs -> 'actor' ->> 'kind' ~ '^[a-z][a-z_-]{0,31}$' then send_message.attrs -> 'actor' ->> 'kind'
+      when auth.jwt() -> 'act' ->> 'kind' = 'agent' then 'agent'
+      when auth.role() = 'service_role' then 'service'
+      when auth.uid() is null then 'system'
+      else 'user' end, left(coalesce(nullif(send_message.attrs -> 'actor' ->> 'name', ''), auth.jwt() -> 'act' ->> 'name'), 120), coalesce(send_message.body, ''), send_message.attrs -> 'document',
       case when v_parent is null then send_message.attrs -> 'anchor' end, v_mentions,
       case when v_conv."access" = 'subject' then null else v_parsed ->> 'scope' end,
       v_parent is not null and coalesce((send_message.attrs ->> 'broadcast')::boolean, false),
@@ -12581,13 +12625,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."thread_summaries" as
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block-data messaging
--- @bsb-hash sha256:f6f663ad751dca539974d5acd6bfa3535c76b9f8c683cccee28ef362685c9b84
+-- @bsb-hash sha256:0e83164dcae527ea8ccd68b098e66804716ec959ac685c126b9100c721b4a768
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('messaging', 1, 'managed')
+values ('messaging', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

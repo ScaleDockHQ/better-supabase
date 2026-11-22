@@ -34,6 +34,8 @@ const messageRow = {
   thread_id: null,
   author_id: "u1",
   author: { id: "u1", name: "Ada", avatar_url: null },
+  author_kind: "agent",
+  author_name: "Scout",
   body: "Ship it @channel",
   document: { type: "doc" },
   mentions: ["u2"],
@@ -200,6 +202,7 @@ describe("createMessaging", () => {
           parentId: "m0",
           broadcast: true,
           scheduledFor: at,
+          actor: { kind: "agent", name: "Scout" },
           attachmentIds: ["f1"],
         },
       })
@@ -208,6 +211,8 @@ describe("createMessaging", () => {
     expect(sent).toMatchObject({
       id: "m1",
       author: { id: "u1", name: "Ada" },
+      authorKind: "agent",
+      authorName: "Scout",
       mentionIds: ["u2"],
       mentionScope: "channel",
       replyCount: 2,

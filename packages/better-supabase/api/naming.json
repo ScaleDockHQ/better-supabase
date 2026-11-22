@@ -18,6 +18,8 @@
       "EXPO_PUBLIC_",
       "PUBLIC_",
       "VERCEL_",
+      "POSTGRES_URL",
+      "NEXT_RUNTIME",
       "CRON_SECRET",
       "NODE_ENV",
       "CI",
@@ -2635,6 +2637,9 @@
       ],
       "vercel-marketplace": [
         "MISSING_CREDENTIALS"
+      ],
+      "workflow-sdk": [
+        "EVE_"
       ]
     }
   },

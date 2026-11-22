@@ -8,6 +8,8 @@ import type { RequestContext } from "../../src/core/plugin.ts";
 import type {
   EveApprovalResponseContext,
   EveSessionAuth,
+  EveSessionRead,
+  EveSyncEvent,
   EveTargetHandle,
 } from "../../src/eve/index.ts";
 
@@ -23,10 +25,10 @@ import {
   approvalPolicy,
   chatIdOf,
   ConnectionAuthorizationRequiredError,
+  createSessionSync,
   credentialAuth,
   eveAgentJob,
   eveScheduleRun,
-  persistSessions,
   queueDynamicSchedules,
   queueScheduleProvider,
   queueSchedules,
@@ -35,6 +37,7 @@ import {
   supabaseMemory,
   supabaseTool,
 } from "../../src/eve/index.ts";
+import { memoryStore } from "../eve/memory-store.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 import { wordEmbedder } from "./word-embedder.ts";
 
@@ -98,7 +101,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
 
   afterAll(() => pool.end());
 
-  it("stores each redelivered eve event once", async () => {
+  it("copies a session into the chat tables and replays it without duplicates", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -106,87 +109,83 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       const owner = await s.user("owner");
       const tenant = await s.organization(owner);
       const service = serviceTransport(s);
-
-      const hooks = persistSessions({
-        chats: createAiChat({ transport: service, service }),
-      });
-
-      const auth: EveSessionAuth = {
-        authenticator: "supabase",
-        principalType: "user",
-        principalId: owner.id,
-        attributes: { tenantId: tenant },
-      };
-
-      const ctx = {
-        session: { id: "sess_live", auth: { current: auth, initiator: auth } },
-      };
+      const store = memoryStore();
 
       const scope = { turnId: "t1" };
 
-      const twice = async (deliver: () => Promise<void>) => {
-        await deliver();
-        await deliver();
+      const line = (
+        index: number,
+        type: string,
+        data: unknown,
+        eventScope: { readonly turnId?: string } = scope,
+      ): EveSyncEvent => ({
+        type,
+        scope: eventScope,
+        data,
+        meta: { position: { line: index, index: 0 } },
+      });
+
+      const events: EveSyncEvent[] = [
+        line(0, "session.started", {}, {}),
+        line(1, "delivery.admitted", {
+          deliveryId: "d1",
+          principal: { id: owner.id, type: "user" },
+        }),
+        line(2, "turn.started", { turnId: "t1" }),
+        line(3, "delivery.consumed", {
+          deliveryId: "d1",
+          turnId: "t1",
+          parts: [{ kind: "text", text: "Plan my week" }],
+        }),
+        line(4, "model.started", { runId: "m1", modelId: "gpt", attempt: 1 }),
+        line(5, "content.completed", {
+          partId: "p1",
+          runId: "m1",
+          kind: "text",
+          value: "Here is a plan",
+          phase: "reply",
+        }),
+        line(6, "model.settled", { runId: "m1", outcome: "completed" }),
+        line(7, "turn.settled", { turnId: "t1", outcome: "completed" }),
+      ];
+
+      const read: EveSessionRead = async function* read(_id, startIndex) {
+        for (const event of events) {
+          if ((event.meta?.position?.line ?? 0) >= startIndex) {
+            yield event;
+          }
+        }
       };
 
-      await twice(() =>
-        hooks["session.started"]({ type: "session.started", data: {} }, ctx),
-      );
-      await twice(() =>
-        hooks["turn.started"](
-          { type: "turn.started", scope, data: { turnId: "t1" } },
-          ctx,
-        ),
-      );
-      await twice(() =>
-        hooks["delivery.consumed"](
-          {
-            type: "delivery.consumed",
-            scope,
-            data: {
-              deliveryId: "d1",
-              turnId: "t1",
-              parts: [{ kind: "text", text: "Plan my week" }],
-            },
-          },
-          ctx,
-        ),
-      );
-      await twice(() =>
-        hooks["content.completed"](
-          {
-            type: "content.completed",
-            scope,
-            data: {
-              partId: "p1",
-              runId: "r1",
-              kind: "text",
-              value: "Here is a plan",
-              phase: "reply",
-            },
-          },
-          ctx,
-        ),
-      );
-      await twice(() =>
-        hooks["turn.settled"](
-          {
-            type: "turn.settled",
-            scope,
-            data: { turnId: "t1", outcome: "completed" },
-          },
-          ctx,
-        ),
-      );
+      const sync = createSessionSync({
+        store,
+        chats: createAiChat({ transport: service, service }),
+        read,
+        resolve: ({ principal }) =>
+          principal === undefined
+            ? undefined
+            : {
+                organizationId: tenant,
+                ownerId: principal.id,
+                title: "Support",
+              },
+      });
+
+      expect((await sync.syncSession("sess_live")).status).toBe("synced");
+
+      // A second pass from a rewound cursor writes the same rows.
+      store.rewind("sess_live");
+      expect((await sync.syncSession("sess_live")).status).toBe("synced");
+      expect(store.cursorOf("sess_live")).toBe(8);
 
       await s.service();
       const chatId = await chatIdOf("sess_live");
       expect(
         await s.rows(
-          "select tenant_id, owner_id from better_supabase.ai_chats where id = $1",
+          "select tenant_id, owner_id, title from better_supabase.ai_chats where id = $1",
           [chatId],
         ),
-      ).toEqual([{ tenant_id: tenant, owner_id: owner.id }]);
+      ).toEqual([{ tenant_id: tenant, owner_id: owner.id, title: "Support" }]);
       expect(
         await s.rows(
           "select id, role, format, parent_id from better_supabase.ai_messages where chat_id = $1 order by role desc",
@@ -198,10 +197,16 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       ]);
       expect(
         await s.rows(
-          "select status from better_supabase.ai_runs where chat_id = $1",
+          "select status, engine from better_supabase.ai_runs where chat_id = $1",
           [chatId],
         ),
-      ).toEqual([{ status: "completed" }]);
+      ).toEqual([{ status: "completed", engine: "eve" }]);
+      expect(
+        await s.rows(
+          "select step_key as key, status from better_supabase.ai_run_steps where chat_id = $1 order by step_key",
+          [chatId],
+        ),
+      ).toEqual([{ key: "model:m1", status: "done" }]);
     } finally {
       await s.close();
     }

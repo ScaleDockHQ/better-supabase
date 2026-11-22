@@ -77,6 +77,32 @@ describe("createTanStackStart", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "NO_TENANT" } });
   });
 
+  it("guard adds the caller for a function middleware and refuses like require", async () => {
+    const guard = bsb.guard();
+    const next = (options: { context: object }) => Promise.resolve(options);
+
+    const passed = await serve(await requestAs({ role: "member" }), (context) =>
+      guard({ context, next }),
+    );
+
+    expect((passed as { context: object }).context).toMatchObject({
+      session: { user: { id: USER } },
+    });
+
+    const refused = await serve(await requestAs(), (context) =>
+      guard({ context, next }),
+    ).catch((error: unknown) => error);
+
+    expect((refused as Response).status).toBe(401);
+
+    const noTenant = await serve(
+      await requestAs({ role: "member" }),
+      (context) => bsb.guard({ requireTenant: true })({ context, next }),
+    ).catch((error: unknown) => error);
+
+    expect(noTenant).toBeInstanceOf(Response);
+  });
+
   it("require fails without the middleware", async () => {
     await expect(bsb.require({} as never)).rejects.toThrow(/middleware/);
   });

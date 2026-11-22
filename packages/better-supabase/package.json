@@ -1,10 +1,12 @@
 {
   "name": "better-supabase",
-  "version": "0.80.0",
-  "description": "Strongly typed Supabase: generated schema, typed repositories, plugins, auth glue, framework integrations and the better-supabase CLI.",
+  "version": "0.81.0",
+  "description": "A typed data layer for Supabase: generated repositories that return Results and run under RLS, auth helpers, framework adapters and a CLI.",
   "keywords": [
+    "auth",
     "cli",
     "codegen",
+    "expo",
     "hono",
     "mcp",
     "nextjs",
@@ -12,9 +14,17 @@
     "opentelemetry",
     "postgres",
     "postgrest",
+    "query-builder",
+    "react",
+    "repository",
     "rls",
+    "row-level-security",
+    "ssr",
     "supabase",
+    "supabase-js",
+    "sveltekit",
     "tanstack-query",
+    "type-safe",
     "typescript"
   ],
   "homepage": "https://bettersupabase.com",
@@ -33,6 +43,7 @@
   },
   "files": [
     "api/naming.json",
+    "api/workflow-sdk-world.json",
     "bin",
     "dist",
     "schemas",
@@ -199,6 +210,11 @@
       "@better-supabase/source": "./src/next/offline/index.ts",
       "types": "./dist/next/offline/index.d.ts",
       "default": "./dist/next/offline/index.js"
+    },
+    "./next/instrumentation": {
+      "@better-supabase/source": "./src/next/instrumentation/index.ts",
+      "types": "./dist/next/instrumentation/index.d.ts",
+      "default": "./dist/next/instrumentation/index.js"
     },
     "./hono": {
       "@better-supabase/source": "./src/hono/index.ts",
@@ -589,6 +605,11 @@
       "@better-supabase/source": "./src/credentials/index.ts",
       "types": "./dist/credentials/index.d.ts",
       "default": "./dist/credentials/index.js"
+    },
+    "./vercel": {
+      "@better-supabase/source": "./src/vercel/index.ts",
+      "types": "./dist/vercel/index.d.ts",
+      "default": "./dist/vercel/index.js"
     },
     "./vercel-connect": {
       "@better-supabase/source": "./src/vercel-connect/index.ts",
@@ -1172,6 +1193,11 @@
       "types": "./dist/otel/index.d.ts",
       "default": "./dist/otel/index.js"
     },
+    "./otel/vercel": {
+      "@better-supabase/source": "./src/otel/vercel/index.ts",
+      "types": "./dist/otel/vercel/index.d.ts",
+      "default": "./dist/otel/vercel/index.js"
+    },
     "./lint": {
       "@better-supabase/source": "./src/lint/index.ts",
       "types": "./dist/lint/index.d.ts",
@@ -1188,6 +1214,7 @@
       "default": "./dist/testing/index.js"
     },
     "./api/naming.json": "./api/naming.json",
+    "./workflow-sdk/world/package.json": "./api/workflow-sdk-world.json",
     "./schemas/*.json": "./schemas/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
@@ -1679,6 +1706,10 @@
         "types": "./dist/next/offline/index.d.ts",
         "default": "./dist/next/offline/index.js"
       },
+      "./next/instrumentation": {
+        "types": "./dist/next/instrumentation/index.d.ts",
+        "default": "./dist/next/instrumentation/index.js"
+      },
       "./hono": {
         "types": "./dist/hono/index.d.ts",
         "default": "./dist/hono/index.js"
@@ -1990,6 +2021,10 @@
       "./credentials": {
         "types": "./dist/credentials/index.d.ts",
         "default": "./dist/credentials/index.js"
+      },
+      "./vercel": {
+        "types": "./dist/vercel/index.d.ts",
+        "default": "./dist/vercel/index.js"
       },
       "./vercel-connect": {
         "types": "./dist/vercel-connect/index.d.ts",
@@ -2457,6 +2492,10 @@
         "types": "./dist/otel/index.d.ts",
         "default": "./dist/otel/index.js"
       },
+      "./otel/vercel": {
+        "types": "./dist/otel/vercel/index.d.ts",
+        "default": "./dist/otel/vercel/index.js"
+      },
       "./lint": {
         "types": "./dist/lint/index.d.ts",
         "default": "./dist/lint/index.js"
@@ -2470,6 +2509,7 @@
         "default": "./dist/testing/index.js"
       },
       "./api/naming.json": "./api/naming.json",
+      "./workflow-sdk/world/package.json": "./api/workflow-sdk-world.json",
       "./schemas/*.json": "./schemas/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {
@@ -2789,6 +2829,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/harness": "catalog:",
     "@ai-sdk/mcp": "catalog:",
     "@ai-sdk/react": "catalog:",
     "@ai-sdk/sandbox-vercel": "catalog:",
@@ -2874,6 +2915,7 @@
     "hono": "catalog:",
     "jsonpath-rfc9535": "catalog:",
     "koa": "catalog:",
+    "mammoth": "catalog:",
     "next": "catalog:",
     "nuqs": "catalog:",
     "nuxt": "catalog:",
@@ -2898,6 +2940,7 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "undici": "catalog:",
+    "unpdf": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
     "vue": "catalog:",
@@ -2908,6 +2951,7 @@
   },
   "peerDependencies": {
     "@ai-sdk/anthropic": "catalog:peers",
+    "@ai-sdk/harness": "catalog:peers",
     "@ai-sdk/mcp": "catalog:peers",
     "@ai-sdk/react": "catalog:peers",
     "@ai-sdk/sandbox-vercel": "catalog:peers",
@@ -2962,6 +3006,7 @@
     "hono": "catalog:peers",
     "jsonpath-rfc9535": "catalog:peers",
     "koa": "catalog:peers",
+    "mammoth": "catalog:peers",
     "next": "catalog:peers",
     "nuqs": "catalog:peers",
     "nuxt": "catalog:peers",
@@ -2976,6 +3021,7 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "undici": "catalog:peers",
+    "unpdf": "catalog:peers",
     "valibot": "catalog:peers",
     "vue": "catalog:peers",
     "workflow": "catalog:peers",
@@ -2984,6 +3030,9 @@
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/harness": {
       "optional": true
     },
     "@ai-sdk/mcp": {
@@ -3121,6 +3170,9 @@
     "koa": {
       "optional": true
     },
+    "mammoth": {
+      "optional": true
+    },
     "next": {
       "optional": true
     },
@@ -3167,6 +3219,9 @@
       "optional": true
     },
     "undici": {
+      "optional": true
+    },
+    "unpdf": {
       "optional": true
     },
     "valibot": {

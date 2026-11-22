@@ -160,11 +160,31 @@ export interface NewKnowledgeDocument {
   readonly collectionId?: string;
 }
 
+/** Where a chunk sits in its document, so a citation can point at it. */
+export interface ChunkPosition {
+  /**
+   * Offset of the first character in the document text, after line endings are
+   * normalized and the text is trimmed.
+   */
+  readonly start: number;
+  /** Offset after the last character. */
+  readonly end: number;
+  /**
+   * The 1-based page, when the text has form feeds between pages (the PDF
+   * extractor adds them).
+   */
+  readonly page?: number;
+  /** The nearest Markdown heading above the chunk. */
+  readonly heading?: string;
+}
+
 export interface KnowledgeChunk {
   readonly content: string;
   /** An estimate of the tokens in `content`. */
   readonly tokens?: number;
   readonly metadata?: Readonly<Record<string, unknown>>;
+  /** Stored in the chunk's metadata under `position`; `chunk()` sets it. */
+  readonly position?: ChunkPosition;
 }
 
 export interface KnowledgeHit {
@@ -172,6 +192,8 @@ export interface KnowledgeHit {
   readonly index: number;
   readonly content: string;
   readonly metadata: Readonly<Record<string, unknown>>;
+  /** Where the chunk sits in the document, when it was ingested with a position. */
+  readonly position?: ChunkPosition | undefined;
   readonly title: string;
   /** The fused reciprocal rank score; higher is better. */
   readonly score: number;
@@ -420,6 +442,59 @@ const BREAKS = ["\n\n", "\n", ". ", " "] as const;
 const TEXT_TYPES =
   /^(text\/|application\/(json|xml|yaml|x-yaml|ld\+json|x-ndjson)\b)/;
 
+const HEADING = /^#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$/gm;
+
+function positionAt(text: string, start: number, end: number): ChunkPosition {
+  let heading: string | undefined;
+
+  for (const match of text.slice(0, end).matchAll(HEADING)) {
+    if (match.index <= start || heading === undefined) {
+      heading = match[1];
+    }
+  }
+
+  const before = text.slice(0, start);
+  const page = text.includes("\f") ? before.split("\f").length : undefined;
+
+  return {
+    start,
+    end,
+    ...(page === undefined ? {} : { page }),
+    ...(heading === undefined ? {} : { heading }),
+  };
+}
+
+/**
+ * The chunks as `write_knowledge_chunks` takes them, with `position` in the
+ * metadata.
+ */
+function stored(chunks: readonly KnowledgeChunk[]): readonly unknown[] {
+  return chunks.map(({ position, ...rest }) =>
+    position === undefined
+      ? rest
+      : { ...rest, metadata: { ...rest.metadata, position } },
+  );
+}
+
+function positionOf(metadata: Readonly<Record<string, unknown>>) {
+  const value = metadata["position"];
+
+  if (!isRecord(value)) {
+    return;
+  }
+
+  const { start, end, page, heading } = value;
+
+  return typeof start === "number" && typeof end === "number"
+    ? {
+        start,
+        end,
+        ...(typeof page === "number" ? { page } : {}),
+        ...(typeof heading === "string" ? { heading } : {}),
+      }
+    : undefined;
+}
+
 /**
  * Splits text into chunks of at most `size` characters, preferring a paragraph,
  * line, sentence or word break in the second half of each chunk, and repeating
@@ -463,7 +538,14 @@ export function chunk(
     const content = clean.slice(start, end).trim();
 
     if (content !== "") {
-      chunks.push({ content, tokens: Math.ceil(content.length / 4) });
+      const raw = clean.slice(start, end);
+      const first = start + raw.length - raw.trimStart().length;
+
+      chunks.push({
+        content,
+        tokens: Math.ceil(content.length / 4),
+        position: positionAt(clean, first, first + content.length),
+      });
     }
 
     if (end >= clean.length) {
@@ -576,6 +658,7 @@ function hitOf(value: unknown): KnowledgeHit {
     index: Number(row["idx"]),
     content: textOf(row["content"]),
     metadata: recordOrEmpty(row["metadata"]),
+    position: positionOf(recordOrEmpty(row["metadata"])),
     title: textOf(row["title"]),
     score: Number(row["score"]),
     chunkId:
@@ -594,7 +677,14 @@ const notFound = (): DbError =>
 
 const decoder = /* @__PURE__ */ new TextDecoder("utf-8", { fatal: true });
 
-function defaultExtract(file: AiFile, data: Uint8Array): Promise<string> {
+/**
+ * Decodes `text/*`, JSON, XML and YAML as UTF-8 and rejects any other type. It
+ * is the extractor `createKnowledge` uses when `extract` is unset.
+ */
+export function textExtract(
+  file: { readonly mediaType: string },
+  data: Uint8Array,
+): Promise<string> {
   if (!TEXT_TYPES.test(file.mediaType)) {
     return Promise.reject(
       new TypeError(
@@ -623,7 +713,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
   );
 
   const batchSize = options.batchSize ?? 64;
-  const extract = options.extract ?? defaultExtract;
+  const extract = options.extract ?? textExtract;
   const embedder = injectableOf("embedder", options.embedder, [1, 2]);
 
   const found = (value: unknown): AsyncResult<KnowledgeDocument> =>
@@ -667,7 +757,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
       "write_knowledge_chunks",
       {
         document_id: documentId,
-        chunks: { items: chunks },
+        chunks: { items: stored(chunks) },
         model: embedder?.model,
       },
       (value) => value,
@@ -730,7 +820,7 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
                     "write_knowledge_chunks",
                     {
                       document_id: documentId,
-                      chunks: { items: chunks },
+                      chunks: { items: stored(chunks) },
                       model: embedder?.model,
                     },
                     (value) => value,

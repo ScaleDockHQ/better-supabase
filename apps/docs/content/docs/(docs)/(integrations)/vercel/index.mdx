@@ -8,16 +8,22 @@ SDK is an optional peer: you install it and pass the module or client in, and
 the library types it structurally, so an app that doesn't use one never
 installs it.
 
-| Product       | What it does here                                                                  | Peer                            | Page                                                               |
-| ------------- | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------ |
-| BotID         | Refuses bots on the sign-up, OTP and magic-link routes                             | `botid >=1.5.13 <2`             | [BotID and Firewall](/docs/vercel/security)                        |
-| Firewall      | Rate limits the same routes with a Firewall rule                                   | `@vercel/firewall >=1.2.6 <2`   | [BotID and Firewall](/docs/vercel/security)                        |
-| Passport      | Verifies the caller's Passport token and maps it to your user                      | `@vercel/passport >=1.2.0 <2`   | [Passport](/docs/vercel/passport)                                  |
-| Functions     | Keeps idle Postgres connections tidy and shares the JWKS between instances         | `@vercel/functions >=3.11.1 <4` | [Vercel Functions](/docs/vercel/functions)                         |
-| Domains (SDK) | Adds, verifies and removes an organization's hostname on your Vercel project       | `@vercel/sdk >=1.28.62 <2`      | [Domains block](/docs/blocks/domains#hosting-platforms)            |
-| KMS           | Signs the signing-keys block's tokens with keys that never leave KMS               | `@vercel/kms >=0.3.12 <0.4`     | [Signing keys block](/docs/blocks/signing-keys#keys-in-vercel-kms) |
-| Blob          | Stores the bytes of attachments and drive files, while Postgres keeps the policies | `@vercel/blob >=2.9.0 <3`       | [Attachments block](/docs/blocks/attachments#files-in-vercel-blob) |
-| v0            | Opens a UI recipe's registry items in a v0 chat                                    | none                            | [UI recipes](/docs/registry/ui-recipes)                            |
+| Product       | What it does here                                                                                        | Peer                            | Page                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------ |
+| BotID         | Refuses bots on the sign-up, OTP and magic-link routes                                                   | `botid >=1.5.13 <2`             | [BotID and Firewall](/docs/vercel/security)                        |
+| Firewall      | Rate limits the same routes with a Firewall rule                                                         | `@vercel/firewall >=1.2.6 <2`   | [BotID and Firewall](/docs/vercel/security)                        |
+| Passport      | Verifies the caller's Passport token and maps it to your user                                            | `@vercel/passport >=1.2.0 <2`   | [Passport](/docs/vercel/passport)                                  |
+| Functions     | Keeps idle Postgres connections tidy and shares the JWKS between instances                               | `@vercel/functions >=3.11.1 <4` | [Vercel Functions](/docs/vercel/functions)                         |
+| Cache         | Expires cached reads when a write comes from outside the process, and tags CDN and Runtime Cache entries | `@vercel/functions >=3.11.3 <4` | [Cache invalidation](/docs/vercel/cache)                           |
+| Observability | Sends query timings to Vercel metrics, reports server errors and workflow runs, mounts the run explorer  | `@vercel/functions >=3.11.1 <4` | [Observability](/docs/vercel/observability)                        |
+| Domains (SDK) | Adds, verifies and removes an organization's hostname on your Vercel project                             | `@vercel/sdk >=1.28.62 <2`      | [Domains block](/docs/blocks/domains#hosting-platforms)            |
+| KMS           | Signs the signing-keys block's tokens with keys that never leave KMS                                     | `@vercel/kms >=0.3.12 <0.4`     | [Signing keys block](/docs/blocks/signing-keys#keys-in-vercel-kms) |
+| Blob          | Stores the bytes of attachments and drive files, while Postgres keeps the policies                       | `@vercel/blob >=2.9.0 <3`       | [Attachments block](/docs/blocks/attachments#files-in-vercel-blob) |
+| v0            | Opens a UI recipe's registry items in a v0 chat                                                          | none                            | [UI recipes](/docs/registry/ui-recipes)                            |
+
+[Deploy on Vercel](/docs/vercel/deploy) covers the variables the Supabase
+integration sets, preview deployments, auth redirects, safe migrations and
+static IPs.
 
 The queue block's Vercel Queues backend and the Vercel Sandbox adapter have
 their own pages: [Queue](/docs/blocks/queue) and

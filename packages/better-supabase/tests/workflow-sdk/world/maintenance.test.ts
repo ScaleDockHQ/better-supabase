@@ -76,7 +76,7 @@ describe("createMaintenance", () => {
     });
 
     expect(total).toBe(3);
-    expect(sent[0]?.args).toEqual(["7 days", ["failed"], 2]);
+    expect(sent[0]?.args).toEqual(["7 days", ["failed"], 2, false]);
   });
 
   it("purges ended runs older than 30 days by default", async () => {
@@ -87,6 +87,30 @@ describe("createMaintenance", () => {
       "30 days",
       ["completed", "failed", "cancelled"],
       500,
+      false,
+    ]);
+  });
+
+  it("passes skipUnprojected so eve sessions keep their runs until synced", async () => {
+    const { sent, call } = fakeCall({});
+
+    await createMaintenance(call, noKey).purgeRuns({ skipUnprojected: true });
+
+    expect(sent[0]?.args[3]).toBe(true);
+  });
+
+  it("runs purge backstops in batches until one comes back short", async () => {
+    const { sent, call } = fakeCall({
+      workflow_purge_backstops: [
+        [{ workflow_purge_backstops: 100 }],
+        [{ workflow_purge_backstops: 4 }],
+      ],
+    });
+
+    expect(await createMaintenance(call, noKey).purgeBackstops()).toBe(104);
+    expect(sent).toEqual([
+      { fn: "workflow_purge_backstops", args: [100] },
+      { fn: "workflow_purge_backstops", args: [100] },
     ]);
   });
 

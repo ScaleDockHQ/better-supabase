@@ -54,7 +54,7 @@ const count = (value: number | undefined): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 
 /** Parses a USD amount (`"0.00042"` or a number) into micro-USD. */
-function microUsd(value: unknown): number | undefined {
+export function microUsd(value: unknown): number | undefined {
   const amount =
     typeof value === "number"
       ? value

@@ -1018,7 +1018,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "workflow-sdk",
       "title": "Workflow SDK World",
       "category": "Automation",
-      "description": "The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.",
+      "description": "The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs and the purge backstops of zero-retention runs.",
       "requires": [
         "workflows",
         "queue",
@@ -2614,6 +2614,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "pipelines"
       ],
       "integrates": [
+        "approvals",
         "outbox",
         "notifications",
         "numbering",
@@ -2624,6 +2625,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "templates",
         "tags",
         "catalog",
+        "relations",
+        "rank",
+        "messaging",
+        "housekeeping",
         "pipelines",
         "subjects"
       ],
@@ -2634,9 +2639,16 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "task.archived",
         "task.assigned",
+        "task.claim_expired",
+        "task.claimed",
         "task.closed",
         "task.created",
+        "task.delegated",
         "task.deleted",
+        "task.failed",
+        "task.held",
+        "task.hold_released",
+        "task.released",
         "task.reopened",
         "task.restored",
         "task.updated"

@@ -18,6 +18,7 @@ const manifest: {
  */
 const INTEGRATIONS = [
   "@ai-sdk/anthropic",
+  "@ai-sdk/harness",
   "@ai-sdk/sandbox-vercel",
   "@chat-adapter/catalog",
   "@chat-adapter/whatsapp",
@@ -37,10 +38,14 @@ const INTEGRATIONS = [
   "@vercel/sandbox",
   "@vercel/schedules",
   "@vercel/sdk",
+  "@workflow/world",
+  "@workflow/world-postgres",
   "botid",
   "eve",
   "flags",
+  "mammoth",
   "stripe",
+  "unpdf",
   "yjs",
   "fast-xml-parser",
   "redis",

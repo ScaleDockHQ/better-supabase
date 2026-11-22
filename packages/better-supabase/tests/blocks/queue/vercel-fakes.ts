@@ -66,6 +66,7 @@ export function fakeSchedules(): FakeSchedules {
     timezone: params.timezone ?? "UTC",
     target: { type: "queue", topic: params.target.topic },
     source,
+    state: "active",
     createdAt: 1_700_000_000_000 + created,
     ...(params.payload === undefined ? {} : { payload: params.payload }),
   });
@@ -79,7 +80,10 @@ export function fakeSchedules(): FakeSchedules {
         throw new FakeSchedulesApiError(409, "schedule_already_exists");
       }
 
-      if (/[A-Z]{3}|\b7\b/.test(params.expression.cron)) {
+      if (
+        params.expression.type === "cron" &&
+        /[A-Z]{3}|\b7\b/.test(params.expression.cron)
+      ) {
         throw new FakeSchedulesApiError(400, "invalid_cron_expression");
       }
 
@@ -111,6 +115,51 @@ export function fakeSchedules(): FakeSchedules {
       calls.push(`delete ${params.namespace ?? "default"}/${params.name}`);
 
       if (!space(params.namespace).delete(params.name)) {
+        throw new FakeSchedulesApiError(404, "not_found");
+      }
+    },
+    get: async (params) => {
+      calls.push(`get ${params.namespace ?? "default"}/${params.name}`);
+      const found = space(params.namespace).get(params.name);
+
+      if (found === undefined) {
+        throw new FakeSchedulesApiError(404, "not_found");
+      }
+
+      return found;
+    },
+    enable: async (params) => {
+      calls.push(`enable ${params.namespace ?? "default"}/${params.name}`);
+      const found = space(params.namespace).get(params.name);
+
+      if (found === undefined) {
+        throw new FakeSchedulesApiError(404, "not_found");
+      }
+
+      const next = { ...found, state: "active" as const };
+
+      space(params.namespace).set(params.name, next);
+
+      return next;
+    },
+    disable: async (params) => {
+      calls.push(`disable ${params.namespace ?? "default"}/${params.name}`);
+      const found = space(params.namespace).get(params.name);
+
+      if (found === undefined) {
+        throw new FakeSchedulesApiError(404, "not_found");
+      }
+
+      const next = { ...found, state: "inactive" as const };
+
+      space(params.namespace).set(params.name, next);
+
+      return next;
+    },
+    invoke: async (params) => {
+      calls.push(`invoke ${params.namespace ?? "default"}/${params.name}`);
+
+      if (!space(params.namespace).has(params.name)) {
         throw new FakeSchedulesApiError(404, "not_found");
       }
     },

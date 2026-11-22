@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type {
+  AiTask,
+  AiTaskRun,
+} from "../../src/blocks/ai-schedules/ai-schedules.ts";
+import type {
   EveAgentJob,
   EveQueueJob,
   EveScheduleOptions,
@@ -8,8 +12,9 @@ import type {
   EveTargetHandle,
 } from "../../src/eve/index.ts";
 
-import { AsyncResult } from "../../src/core/result.ts";
+import { AsyncResult, ok } from "../../src/core/result.ts";
 import {
+  aiScheduleDispatch,
   eveAgentJob,
   jobAuth,
   queueSchedules,
@@ -198,5 +203,73 @@ describe("eveAgentJob", () => {
       "issues",
     );
     expect(await validate("Hi")).toHaveProperty("issues");
+  });
+});
+
+describe("aiScheduleDispatch", () => {
+  const task = {
+    id: "t1",
+    organizationId: ORG,
+    userId: USER,
+    chatId: "C1",
+    title: "Digest",
+    prompt: "Summarize the week",
+  } as AiTask;
+
+  const run = { id: "r1" } as AiTaskRun;
+
+  it("sends each due task's prompt as its user", async () => {
+    const { args, sent, tasks } = scheduleArgs();
+
+    const dispatch = aiScheduleDispatch({
+      channels: { slack },
+      channel: "slack",
+    });
+
+    const drain = vi.fn(() =>
+      AsyncResult.from(async () => {
+        await dispatch.run(task, run, new AbortController().signal);
+
+        return ok(1);
+      }),
+    );
+
+    dispatch.handler({ drain })(args);
+    await Promise.all(tasks);
+
+    expect(sent).toEqual([
+      {
+        channel: slack,
+        target: "C1",
+        message: "Summarize the week",
+        auth: {
+          authenticator: "supabase",
+          principalType: "user",
+          principalId: USER,
+          subject: USER,
+          attributes: { tenantId: ORG },
+        },
+      },
+    ]);
+  });
+
+  it("fails a run that does not come from the handler, and a missing channel", async () => {
+    const dispatch = aiScheduleDispatch({ channels: {}, channel: "slack" });
+
+    await expect(
+      dispatch.run(task, run, new AbortController().signal),
+    ).rejects.toThrow(/handler/);
+
+    const { args, tasks } = scheduleArgs();
+
+    dispatch.handler({
+      drain: () =>
+        AsyncResult.from(async () => {
+          await dispatch.run(task, run, new AbortController().signal);
+
+          return AsyncResult.ok(1);
+        }),
+    })(args);
+    await expect(Promise.all(tasks)).rejects.toThrow(/no channel "slack"/);
   });
 });

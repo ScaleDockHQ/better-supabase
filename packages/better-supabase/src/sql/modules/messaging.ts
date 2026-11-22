@@ -167,7 +167,15 @@ export const MESSAGING: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [
+    {
+      from: 1,
+      description:
+        "Messages gain optional author_kind and author_name columns, set from the actor profile of send_message and carried on message.sent as actorKind and actorName. They are added where the table is managed or declares them.",
+      sql: () => "",
+    },
+  ],
   names: MESSAGING_NAMES,
   contract,
   build,

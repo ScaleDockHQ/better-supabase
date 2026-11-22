@@ -22,6 +22,44 @@ export type TasksSqlOptions = {
    * block. ADR 0244.
    */
   readonly templates?: boolean;
+  /**
+   * Prerequisites: `needs` rows keep a `waiting_on` count of the open
+   * prerequisites on each task, so a `ready` filter lists the tasks nothing
+   * blocks. `refuse` is what an unready task refuses: `claims` (default),
+   * `started` (claims and a move into a started stage) or `none`. Needs the
+   * relations block and the `waiting_on` column. ADR 1110.
+   */
+  readonly needs?: {
+    readonly kind: "blocks";
+    readonly refuse?: "claims" | "started" | "none";
+  };
+  /**
+   * Leases for claims, in seconds, and the stages a claim moves a task to:
+   * `startStage` when it starts and `expiredStage` when a lease runs out (stage
+   * keys of the task's pipeline). ADR 1112.
+   */
+  readonly claims?: {
+    readonly lease?: number;
+    readonly maxLease?: number;
+    readonly startStage?: string;
+    readonly expiredStage?: string;
+  };
+  /**
+   * `stage` is the stage key of the task's pipeline a hold moves the task to.
+   * Without it a hold only sets `held_at`. ADR 1114.
+   *
+   * `approval` files each hold with the approvals block, which needs the
+   * `held_at` column: `true` asks one approver (members with the manage
+   * permission), or give a `policy` (approvals policy without `run`). An
+   * approval releases the task; a rejection cancels it, or with `onReject:
+   * "keep"` leaves it on hold. ADR 1161.
+   */
+  readonly hold?: {
+    readonly stage?: string;
+    readonly approval?:
+      | boolean
+      | { readonly policy?: unknown; readonly onReject?: "cancel" | "keep" };
+  };
 };
 
 export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
@@ -33,4 +71,7 @@ export const tasksSqlOptions: BlockOptionsSchema<TasksSqlOptions> =
     actionPath: option.string(),
     searchColumn: option.boolean({ default: false }),
     templates: option.boolean({ default: false }),
+    needs: option.unknown(),
+    claims: option.unknown(),
+    hold: option.unknown(),
   });

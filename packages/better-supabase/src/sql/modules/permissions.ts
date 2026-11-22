@@ -21,6 +21,7 @@ import { roleNameOf } from "./memberships.ts";
 import { catalogRoles } from "./permissions-catalog-roles.ts";
 import { catalogAudit, membershipRoleKey } from "./permissions-catalog.ts";
 import { capFor, delegationSql } from "./permissions-delegation.ts";
+import { explainSql } from "./permissions-explain.ts";
 import {
   bootstrapPermissionsSql,
   myPermissionsSql,
@@ -393,6 +394,8 @@ as $$
     and better_supabase.cap_allows(tenant_ids_with.permission)
     and ${grants(ctx, n, "tenant_ids_with.permission")}
 $$;
+
+${explainSql(ctx, n, active)}
 
 -- Members assign roles up to their own permissions: every key the role
 -- grants must be one the member holds in the tenant.
@@ -1138,8 +1141,10 @@ export const ACCESS: BlockSqlDefinition = {
     },
     { name: "permission_claims", args: ["uuid"], returns: "jsonb" },
   ],
-  unusedPermissions: (ctx) =>
-    rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
+  unusedPermissions: (ctx) => [
+    ...(rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"]),
+    ...(accessModel(ctx) === "provider" ? ["explain"] : []),
+  ],
   data: catalogRoles,
   build: accessSql,
 };

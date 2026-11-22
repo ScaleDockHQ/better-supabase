@@ -129,6 +129,32 @@ describe("createTimeline", () => {
     });
   });
 
+  it("carries the actor kind and name from the event data", async () => {
+    const fake = fakeTransport({
+      list_activity: [
+        {
+          id: "a1",
+          organization_id: "org-1",
+          type: "task.claimed",
+          actor_id: ADA,
+          subject_type: "task",
+          subject_id: "t1",
+          data: { actorKind: "agent", actorName: "scout" },
+          occurred_at: "2026-10-06T12:00:00Z",
+        },
+      ],
+    });
+
+    const [entry] = await createTimeline({
+      transport: fake.transport,
+      tenant: "org-1",
+    })
+      .list()
+      .orThrow();
+
+    expect(entry).toMatchObject({ actorKind: "agent", actorName: "scout" });
+  });
+
   it("reads transition and message entries", async () => {
     const row = {
       organization_id: "org-1",

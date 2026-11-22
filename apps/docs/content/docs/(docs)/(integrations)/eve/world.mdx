@@ -1,0 +1,127 @@
+---
+title: The World under eve
+description: Select the Supabase World for eve, choose how deliveries reach the flow route (poll, pg_net or vercel-queue), the connection mode, the encryption key ring and the purge, and see which eve versions are supported.
+---
+
+eve runs every session as a Workflow SDK run. Select the Supabase World in
+the root `agent.ts`; the World reads its connection from the environment.
+
+```ts title="agent/agent.ts"
+import { defineAgent } from "eve";
+
+export default defineAgent({
+  model: "anthropic/claude-opus-5.5",
+  experimental: { workflow: { world: "better-supabase/workflow-sdk/world" } },
+});
+```
+
+```bash title=".env"
+SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+eve loads the World by name and refuses a World built for another
+`@workflow/*` major at startup. eve 1.3 bundles Workflow 5.7.1, which reads the
+5.3 protocol the World speaks (`WORKFLOW_WORLD_PROTOCOL`). The World wraps
+`@workflow/world-postgres` 5.4.1, so it inherits the atomic start hooks eve
+needs. The [Workflow SDK page](/docs/blocks/workflow-sdk) lists every
+variable and option. The sections below are the ones an eve app decides.
+
+## Delivery modes
+
+A delivery is the message that wakes the flow route for a run or a step.
+`WORKFLOW_DELIVERY` (or the `delivery` option) picks how it gets there.
+
+| Mode           | How a message reaches the route                                        | Use it for                                     |
+| -------------- | ---------------------------------------------------------------------- | ---------------------------------------------- |
+| `poll`         | the eve process claims jobs from Postgres and posts to its own route   | local development and a long-lived Node server |
+| `pg_net`       | the database posts to the route from a cron job                        | a stable, reachable URL                        |
+| `vercel-queue` | the World sends each message with `@vercel/queue` to the route's topic | eve on Vercel, behind deployment protection    |
+
+On Vercel, use `vercel-queue`. The database can't reach a deployment URL that
+changes, and a function that returned stops polling. Install the optional peer
+and enable Vercel Queues for the project:
+
+```bash
+pnpm add @vercel/queue
+```
+
+```bash title=".env"
+WORKFLOW_DELIVERY=vercel-queue
+```
+
+Vercel authenticates the callback, so the World does not check
+`x-bsb-signature` in this mode, starts no poller and schedules no cron job.
+Delays over 23 hours go in hops, a failed delivery retries after 5 to 900
+seconds, and the message is dead-lettered after 73 deliveries, as in the other
+modes. If you keep `pg_net` or `poll` behind deployment protection, add
+`x-vercel-protection-bypass` with `WORKFLOW_DELIVERY_HEADERS` (or the Vault
+secret `workflow_delivery_headers` for the database dispatcher).
+
+`vercel-queue` can't run locally. A fake queue client tests the World's side,
+and the Vercel side stays unproven until a maintainer runs
+`scripts/eve-vercel-check.ts` against a deployment (see the
+[Workflow SDK page](/docs/blocks/workflow-sdk#delivery-on-vercel)).
+
+A process that only starts runs and reads their state, such as a web server
+next to a separate eve worker, can set `skipWorkers: true` (or
+`WORKFLOW_POSTGRES_SKIP_WORKERS=1`). It still queues messages, but it never
+claims or posts a delivery and `world.start()` recovers nothing, so keep at
+least one process without it.
+
+## Connection modes
+
+`connection` (or `WORKFLOW_POSTGRES_CONNECTION`) is `session` or `transaction`.
+A connection string on port 6543, the Supabase transaction pooler, selects
+`transaction`, and anything else selects `session`. In `session` mode
+`LISTEN` and `NOTIFY` wake stream readers at once. In `transaction` mode the
+pooler accepts `LISTEN` without delivering a notification, so the World never
+relies on it and readers poll `workflow_stream_chunks` every
+`streamPollInterval` milliseconds (100 by default). Stream writes are buffered
+for 20 ms by default (`streamFlushIntervalMs`). The underlying World still
+holds one idle `LISTEN` connection in `transaction` mode that nothing waits
+on, and the upstream package gives no way to close it, so keep that in mind
+when you size a pooler. Point `SUPABASE_DB_URL` at the direct or session
+address when you can. The
+[Workflow SDK page](/docs/blocks/workflow-sdk#connection-modes) has the full
+table.
+
+## Encryption key ring
+
+The World encrypts run data with a key derived per run from a master key.
+Rotate with a ring: `WORKFLOW_ENCRYPTION_KEYS`, or the Vault secret
+`workflow_encryption_keys`, lists `{ id, key, from }` entries, and the World
+encrypts new runs with the newest key whose `from` has passed. When the ring
+holds more than one key, the World stamps the key's `id` on each new run as the
+attribute `$bsb.key_id` and reads that first, so moving a `from` date later
+does not change which key opens a run that exists. Keep every key until no run
+uses it. Outside development and test, `world.start()` warns when no key is
+set. See [Rotating the master key](/docs/blocks/workflow-sdk#rotating-the-master-key).
+
+## Purging runs
+
+`purgeRuns` deletes ended runs. In an eve app, keep the runs the session sync
+has not read yet:
+
+```ts
+await world.purgeRuns({ olderThan: "30 days", skipUnprojected: true });
+```
+
+`skipUnprojected` leaves the runs of sessions that are open or still unsynced
+(see [Sessions](/docs/eve/sessions)). The retention option runs the same
+purge hourly.
+
+A run started with a retention of 0 (the `$retention` attribute `'0'`) has its
+data cleared when it ends. world-postgres 5.4.1 also records a backstop for
+it, due a minute later, in case that purge does not finish. The World points
+`GRAPHILE_WORKER_SCHEMA` at `workflow` when you leave it unset, where
+`workflow.add_job` records the backstop, and `world.purgeBackstops()` clears
+the data of every due run whose purge did not finish. The World runs it while
+it polls; the `pg_net` and `vercel-queue` modes schedule it every minute under
+pg_cron.
+
+## Supported eve versions
+
+The peer ranges are `eve >=1.3.0 <2`, `workflow >=5.7.1 <6`,
+`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.1 <5.5`.
+Upgrade the `workflow-sdk` module to version 9 before you deploy them (see
+[the migration guide](/docs/migration/0.80-to-0.81)).

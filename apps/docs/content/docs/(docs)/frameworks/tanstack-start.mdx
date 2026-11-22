@@ -9,7 +9,11 @@ middleware so every request, server functions included, resolves the caller
 once and refreshed session cookies reach the response:
 
 ```ts title="src/start.ts"
-import { createMiddleware, createStart } from "@tanstack/react-start";
+import {
+  createCsrfMiddleware,
+  createMiddleware,
+  createStart,
+} from "@tanstack/react-start";
 import { createServer, withBetterSupabase } from "better-supabase/server";
 import { toTanStackStart } from "better-supabase/tanstack-start";
 import { betterSupabase } from "./lib/supabase";
@@ -22,10 +26,20 @@ export const supabase = createMiddleware().server(
   ]),
 );
 
+const csrf = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [supabase],
+  requestMiddleware: [csrf, supabase],
 }));
 ```
+
+TanStack Start protects server functions with its own CSRF middleware only
+while the app has no `src/start.ts`. Defining `createStart` replaces that
+default, and Start logs a warning on the first server function request, so
+list `createCsrfMiddleware` yourself as above (verified against
+`@tanstack/start-server-core` 1.169).
 
 Every key [`withBetterSupabase`](/docs/auth/middleware) contributes lands on
 `context`. A server function that uses the middleware reads it there:
@@ -54,7 +68,7 @@ request middleware open (`allow: ["user", "none"]`).
 The bridge makes the request body readable twice, so an entry that reads it
 and the server function both see it.
 
-`better-supabase init` detects TanStack Start from `@tanstack/react-start`, sets `gen.hooks` to `tanstack-start` and writes `lib/supabase/middleware.ts` with the middleware above, unless the file exists. Register it in `createStart` yourself.
+`better-supabase init` detects TanStack Start from `@tanstack/react-start`, sets `gen.hooks` to `tanstack-start` and writes `lib/supabase/middleware.ts` with the `supabase` and `csrf` middleware above, unless the file exists. Register both in `createStart` yourself.
 
 ## Session snapshot
 
@@ -73,3 +87,18 @@ of it (a spread, `structuredClone`, a serialized loader result) gets the
 `invalid` context, so pass plain values such as the user id onward instead.
 Prefetches refresh the session too. Parallel requests with the same refresh
 token share one call to Auth, so they never race on it.
+
+## Function middleware
+
+`bsb.guard(options)` is the `.server()` callback of a function middleware. It
+runs `require` with the same options, adds the caller to `context` and sends a
+refusal as `require` does. The request middleware must run first, as it does
+for every server function once it is registered in `src/start.ts`.
+
+```ts title="src/lib/guards.ts"
+import { createMiddleware } from "@tanstack/react-start";
+
+export const tenantOnly = createMiddleware({ type: "function" }).server(
+  bsb.guard({ requireTenant: true }),
+);
+```

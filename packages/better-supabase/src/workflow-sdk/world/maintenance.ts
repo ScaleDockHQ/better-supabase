@@ -91,7 +91,12 @@ export function createMaintenance(
       for (;;) {
         const [row] = await call<{ workflow_purge_runs: number }>(
           "workflow_purge_runs",
-          [options.olderThan ?? "30 days", [...statuses], batch],
+          [
+            options.olderThan ?? "30 days",
+            [...statuses],
+            batch,
+            options.skipUnprojected === true,
+          ],
         );
 
         const deleted = row?.workflow_purge_runs ?? 0;
@@ -99,6 +104,25 @@ export function createMaintenance(
         total += deleted;
 
         if (deleted < batch) {
+          return total;
+        }
+      }
+    },
+    async purgeBackstops(options = {}) {
+      const batch = Math.max(1, Math.trunc(options.batch ?? 100));
+      let total = 0;
+
+      for (;;) {
+        const [row] = await call<{ workflow_purge_backstops: number }>(
+          "workflow_purge_backstops",
+          [batch],
+        );
+
+        const purged = row?.workflow_purge_backstops ?? 0;
+
+        total += purged;
+
+        if (purged < batch) {
           return total;
         }
       }

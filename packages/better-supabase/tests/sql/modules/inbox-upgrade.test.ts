@@ -200,8 +200,8 @@ describe("inbox version 8 upgrade", BOOT, () => {
       { modules: { inbox: {}, identities: {} } },
     ).find((entry) => entry.module === "inbox");
 
-    expect(plan?.to).toBe(10);
-    expect(plan?.steps).toHaveLength(3);
+    expect(plan?.to).toBe(11);
+    expect(plan?.steps).toHaveLength(4);
 
     // The inbox renders before messaging and contacts, and its PL/pgSQL names
     // their tables, so the schema replays in one session with body checks off.

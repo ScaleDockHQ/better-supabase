@@ -105,6 +105,24 @@ type sends each outcome through the `notifier` port, the notifications block
 that [`createBlocks`](/docs/blocks/create-blocks#ports) passes:
 `aiSchedulesBlock.with({ notification: "ai_task.finished" })`.
 
+## Tasks from another scheduler
+
+A scheduler outside the block, such as [eve](/docs/eve/schedules#tasks-from-the-ai-schedules-block),
+can keep its tasks and runs in the same tables. These service calls, which
+`createAiSchedules` makes with the `service` transport, write them:
+
+- `mirror({ organizationId, userId, source, externalId, task, nextRunAt })`
+  creates or updates the task for that `source` and `externalId` and returns it.
+  `task` takes the same fields as `create`, plus `enabled`. The source
+  `ai-schedules` is refused.
+- `unmirror({ organizationId, source, externalId })` deletes it.
+- `recordRun({ organizationId, source, externalId, scheduledFor, status, error, chatId })`
+  records one occurrence as a run, once per `scheduledFor`, and returns a
+  `not_found` error for an unknown task. `status` is a run status.
+
+`tick()`, `drain()` and the other functions only touch tasks whose `source` is
+`ai-schedules`, so the other scheduler stays in charge of running its own.
+
 ## Your own fields
 
 Columns you add to the `ai_scheduled_tasks` table in your own schema files are fields of the block. Pass `createAiSchedules` a Standard Schema

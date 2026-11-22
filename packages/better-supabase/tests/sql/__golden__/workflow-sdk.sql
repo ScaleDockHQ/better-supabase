@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@5 managed
--- @bsb-hash sha256:309f92e9d2d216b6400f1b38ac5e2a606b560aadf987647b827901705ae9724a
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@9 managed
+-- @bsb-hash sha256:26714529d828d782ae1a2a2f147c4e6a721daeabbb1c2d497bdf4c7d87554588
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -91,6 +91,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -116,6 +126,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -202,8 +213,86 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
+alter table workflow.eve_session_runs enable row level security;
+revoke all on workflow.eve_session_runs from public, anon, authenticated;
+grant all on workflow.eve_session_runs to service_role;
+alter table workflow.eve_sessions enable row level security;
+revoke all on workflow.eve_sessions from public, anon, authenticated;
+grant all on workflow.eve_sessions to service_role;
 alter table workflow.workflow_event_slots enable row level security;
 revoke all on workflow.workflow_event_slots from public, anon, authenticated;
 grant all on workflow.workflow_event_slots to service_role;
@@ -219,6 +308,12 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_purge_backstops enable row level security;
+revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
+grant all on workflow.workflow_purge_backstops to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -330,6 +425,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -347,12 +443,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -412,10 +513,15 @@ $$;
 -- their events, steps, waits, streams, snapshots and invocations; hooks whose
 -- token is still reserved (token_retention_until) stay, so a token can't be
 -- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+-- With skip_unprojected, a run of an eve session stays until the session's
+-- copy in the blocks is current (the session was synced after its last change
+-- and is no longer open).
+
 create or replace function "better_supabase"."workflow_purge_runs"(
   older_than interval default '30 days',
   statuses text[] default array['completed', 'failed', 'cancelled'],
-  batch integer default 500
+  batch integer default 500,
+  skip_unprojected boolean default false
 )
 returns integer
 language plpgsql
@@ -435,6 +541,12 @@ begin
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
       and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
+      and not (coalesce(skip_unprojected, false) and exists (
+        select 1 from workflow.eve_session_runs sr
+        join workflow.eve_sessions es on es.session_id = sr.session_id
+        where sr.run_id = r.id
+          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)
+      ))
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -452,9 +564,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
+  delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function "better_supabase"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -492,21 +666,270 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
+-- Marks a session as behind and queues its sync job. The job is debounced: a
+-- job that has not started yet absorbs later wake-ups of the same session.
+create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into workflow.eve_sessions as s (session_id, dirty_at) values (sid, now())
+  on conflict (session_id) do update set dirty_at = now(), updated_at = now();
+  perform "better_supabase"."enqueue_job"(queue => 'eve_session_sync', payload => jsonb_build_object('sessionId', sid), delay => greatest(coalesce(delay_seconds, 0), 0), dedupe_key => 'eve:' || sid, dedupe_running => false);
+end;
+$$;
+
+-- Follows eve's runs: a run with an eve session type, or one that names its
+-- session, belongs to that session. The newest run decides the status.
+create or replace function "better_supabase"."workflow_sdk_track_eve_run"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+  v_status text;
+begin
+  if new.attributes ->> '$eve.type' is distinct from 'session' and nullif(new.attributes ->> '$eve.session', '') is null then
+    return null;
+  end if;
+  v_session := coalesce(nullif(new.attributes ->> '$eve.session', ''), new.id);
+  v_status := case new.status::text
+    when 'completed' then 'ended'
+    when 'failed' then 'failed'
+    when 'cancelled' then 'cancelled'
+    else 'open'
+  end;
+  insert into workflow.eve_sessions as s (session_id, eve_version, run_id, status)
+  values (v_session, new.attributes ->> '$eve.version', new.id, v_status)
+  on conflict (session_id) do update set
+    eve_version = coalesce(new.attributes ->> '$eve.version', s.eve_version),
+    run_id = new.id,
+    status = case when s.status = 'stranded' then s.status else v_status end,
+    updated_at = now()
+  where s.run_id is null or s.run_id = new.id
+    or new.created_at >= coalesce((select r.created_at from workflow.workflow_runs r where r.id = s.run_id), '-infinity'::timestamptz);
+  insert into workflow.eve_session_runs as sr (run_id, session_id, eve_version, status)
+  values (new.id, v_session, new.attributes ->> '$eve.version', new.status::text)
+  on conflict (run_id) do update set status = new.status::text, updated_at = now();
+  perform "better_supabase"."eve_session_wake"(v_session);
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_track_eve_run"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_runs" after insert or update of status on workflow.workflow_runs
+  for each row execute function "better_supabase"."workflow_sdk_track_eve_run"();
+
+-- Wakes the session of a run that wrote an event. Other runs cost one lookup.
+create or replace function "better_supabase"."workflow_sdk_wake_eve_session"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+begin
+  select sr.session_id into v_session from workflow.eve_session_runs sr where sr.run_id = new.run_id;
+  if v_session is not null then
+    perform "better_supabase"."eve_session_wake"(v_session);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_wake_eve_session"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_events" after insert on workflow.workflow_events
+  for each row execute function "better_supabase"."workflow_sdk_wake_eve_session"();
+
+-- Takes the lease on a session and returns its row, or no row while another
+-- sync job holds the lease.
+create or replace function "better_supabase"."eve_session_lease"(sid text, lease_seconds integer default 60)
+returns table (
+  session_id text,
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint,
+  status text,
+  lease_id text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_token text := gen_random_uuid()::text;
+begin
+  insert into workflow.eve_sessions (session_id) values (sid) on conflict (session_id) do nothing;
+  return query
+    update workflow.eve_sessions s set
+      lease_id = v_token,
+      leased_at = now(),
+      lease_until = now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1)),
+      updated_at = now()
+    where s.session_id = sid and (s.lease_until is null or s.lease_until < now())
+    returning s.session_id, s.tenant_id, s.principal_kind, s.principal_id, s.eve_version, s.chat_id,
+      s.record_type, s.record_id, s.run_id, s.read_cursor, s.status, s.lease_id;
+end;
+$$;
+
+-- Advances the cursor and stores what the job resolved, then frees the lease.
+-- synced_at is the time the lease began, so a change after that stays behind.
+create or replace function "better_supabase"."eve_session_commit"(
+  sid text,
+  token text,
+  cursor_line bigint,
+  tenant text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  chat text default null,
+  record_type text default null,
+  record_id text default null,
+  session_status text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status is not null and session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_commit: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions s set
+    read_cursor = greatest(s.read_cursor, coalesce(cursor_line, 0)),
+    tenant_id = coalesce(tenant, s.tenant_id),
+    principal_kind = coalesce(eve_session_commit.principal_kind, s.principal_kind),
+    principal_id = coalesce(eve_session_commit.principal_id, s.principal_id),
+    chat_id = coalesce(chat, s.chat_id),
+    record_type = coalesce(eve_session_commit.record_type, s.record_type),
+    record_id = coalesce(eve_session_commit.record_id, s.record_id),
+    status = coalesce(session_status, s.status),
+    synced_at = coalesce(s.leased_at, now()),
+    lease_id = null,
+    lease_until = null,
+    updated_at = now()
+  where s.session_id = sid and s.lease_id = token;
+  return found;
+end;
+$$;
+
+-- Frees a lease without advancing the cursor, so the next job starts at once.
+create or replace function "better_supabase"."eve_session_release"(sid text, token text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.eve_sessions set lease_id = null, lease_until = null, updated_at = now()
+  where session_id = sid and lease_id = token
+  returning true;
+$$;
+
+-- The sessions whose copy is behind, oldest first: changed since the last sync,
+-- or open and not synced for older_than.
+create or replace function "better_supabase"."eve_sessions_behind"(older_than interval default '5 minutes', max integer default 100)
+returns table (session_id text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id
+  from workflow.eve_sessions s
+  where (s.lease_until is null or s.lease_until < now())
+    and (
+      (s.dirty_at is not null and (s.synced_at is null or s.synced_at < s.dirty_at))
+      or (s.status = 'open' and coalesce(s.synced_at, s.created_at) < now() - coalesce(older_than, interval '5 minutes'))
+    )
+  order by coalesce(s.synced_at, s.created_at)
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- The open sessions that a release other than not_version started, oldest first.
+create or replace function "better_supabase"."eve_open_sessions"(not_version text default null, tenant text default null, max integer default 100)
+returns table (
+  session_id text,
+  eve_version text,
+  tenant_id text,
+  principal_id text,
+  chat_id text,
+  run_id text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id, s.eve_version, s.tenant_id, s.principal_id, s.chat_id, s.run_id, s.created_at
+  from workflow.eve_sessions s
+  where s.status = 'open'
+    and (not_version is null or s.eve_version is distinct from not_version)
+    and (tenant is null or s.tenant_id = tenant)
+  order by s.created_at
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- Sets a session's status (for instance stranded) and queues a sync.
+create or replace function "better_supabase"."eve_session_mark"(sid text, session_status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_mark: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions set status = session_status, updated_at = now() where session_id = sid;
+  if not found then
+    return false;
+  end if;
+  perform "better_supabase"."eve_session_wake"(sid, 0);
+  return true;
+end;
+$$;
 revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
 revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
 revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
-revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_backstops"(integer) to service_role;
 revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_wake"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_wake"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_lease"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_lease"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."eve_session_release"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_release"(text, text) to service_role;
+revoke execute on function "better_supabase"."eve_sessions_behind"(interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_sessions_behind"(interval, integer) to service_role;
+revoke execute on function "better_supabase"."eve_open_sessions"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_open_sessions"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_mark"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_mark"(text, text) to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
+-- @bsb-hash sha256:fe96f31e4db441475b0b8df35cedb14473b1efb14d92a7c69ea65350e54f83ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -525,19 +948,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 5, 'managed')
+values ('workflow-sdk', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@5 managed
--- @bsb-hash sha256:309f92e9d2d216b6400f1b38ac5e2a606b560aadf987647b827901705ae9724a
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@9 managed
+-- @bsb-hash sha256:26714529d828d782ae1a2a2f147c4e6a721daeabbb1c2d497bdf4c7d87554588
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -622,6 +1045,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -647,6 +1080,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -733,8 +1167,86 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
+alter table workflow.eve_session_runs enable row level security;
+revoke all on workflow.eve_session_runs from public, anon, authenticated;
+grant all on workflow.eve_session_runs to service_role;
+alter table workflow.eve_sessions enable row level security;
+revoke all on workflow.eve_sessions from public, anon, authenticated;
+grant all on workflow.eve_sessions to service_role;
 alter table workflow.workflow_event_slots enable row level security;
 revoke all on workflow.workflow_event_slots from public, anon, authenticated;
 grant all on workflow.workflow_event_slots to service_role;
@@ -750,6 +1262,12 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_purge_backstops enable row level security;
+revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
+grant all on workflow.workflow_purge_backstops to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -861,6 +1379,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -878,12 +1397,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -943,10 +1467,15 @@ $$;
 -- their events, steps, waits, streams, snapshots and invocations; hooks whose
 -- token is still reserved (token_retention_until) stay, so a token can't be
 -- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+-- With skip_unprojected, a run of an eve session stays until the session's
+-- copy in the blocks is current (the session was synced after its last change
+-- and is no longer open).
+
 create or replace function "better_supabase"."workflow_purge_runs"(
   older_than interval default '30 days',
   statuses text[] default array['completed', 'failed', 'cancelled'],
-  batch integer default 500
+  batch integer default 500,
+  skip_unprojected boolean default false
 )
 returns integer
 language plpgsql
@@ -966,6 +1495,12 @@ begin
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
       and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
+      and not (coalesce(skip_unprojected, false) and exists (
+        select 1 from workflow.eve_session_runs sr
+        join workflow.eve_sessions es on es.session_id = sr.session_id
+        where sr.run_id = r.id
+          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)
+      ))
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -983,9 +1518,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
+  delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function "better_supabase"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -1023,21 +1620,270 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
+-- Marks a session as behind and queues its sync job. The job is debounced: a
+-- job that has not started yet absorbs later wake-ups of the same session.
+create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into workflow.eve_sessions as s (session_id, dirty_at) values (sid, now())
+  on conflict (session_id) do update set dirty_at = now(), updated_at = now();
+  perform "better_supabase"."enqueue_job"(queue => 'eve_session_sync', payload => jsonb_build_object('sessionId', sid), delay => greatest(coalesce(delay_seconds, 0), 0), dedupe_key => 'eve:' || sid, dedupe_running => false);
+end;
+$$;
+
+-- Follows eve's runs: a run with an eve session type, or one that names its
+-- session, belongs to that session. The newest run decides the status.
+create or replace function "better_supabase"."workflow_sdk_track_eve_run"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+  v_status text;
+begin
+  if new.attributes ->> '$eve.type' is distinct from 'session' and nullif(new.attributes ->> '$eve.session', '') is null then
+    return null;
+  end if;
+  v_session := coalesce(nullif(new.attributes ->> '$eve.session', ''), new.id);
+  v_status := case new.status::text
+    when 'completed' then 'ended'
+    when 'failed' then 'failed'
+    when 'cancelled' then 'cancelled'
+    else 'open'
+  end;
+  insert into workflow.eve_sessions as s (session_id, eve_version, run_id, status)
+  values (v_session, new.attributes ->> '$eve.version', new.id, v_status)
+  on conflict (session_id) do update set
+    eve_version = coalesce(new.attributes ->> '$eve.version', s.eve_version),
+    run_id = new.id,
+    status = case when s.status = 'stranded' then s.status else v_status end,
+    updated_at = now()
+  where s.run_id is null or s.run_id = new.id
+    or new.created_at >= coalesce((select r.created_at from workflow.workflow_runs r where r.id = s.run_id), '-infinity'::timestamptz);
+  insert into workflow.eve_session_runs as sr (run_id, session_id, eve_version, status)
+  values (new.id, v_session, new.attributes ->> '$eve.version', new.status::text)
+  on conflict (run_id) do update set status = new.status::text, updated_at = now();
+  perform "better_supabase"."eve_session_wake"(v_session);
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_track_eve_run"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_runs" after insert or update of status on workflow.workflow_runs
+  for each row execute function "better_supabase"."workflow_sdk_track_eve_run"();
+
+-- Wakes the session of a run that wrote an event. Other runs cost one lookup.
+create or replace function "better_supabase"."workflow_sdk_wake_eve_session"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+begin
+  select sr.session_id into v_session from workflow.eve_session_runs sr where sr.run_id = new.run_id;
+  if v_session is not null then
+    perform "better_supabase"."eve_session_wake"(v_session);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_wake_eve_session"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_events" after insert on workflow.workflow_events
+  for each row execute function "better_supabase"."workflow_sdk_wake_eve_session"();
+
+-- Takes the lease on a session and returns its row, or no row while another
+-- sync job holds the lease.
+create or replace function "better_supabase"."eve_session_lease"(sid text, lease_seconds integer default 60)
+returns table (
+  session_id text,
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint,
+  status text,
+  lease_id text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_token text := gen_random_uuid()::text;
+begin
+  insert into workflow.eve_sessions (session_id) values (sid) on conflict (session_id) do nothing;
+  return query
+    update workflow.eve_sessions s set
+      lease_id = v_token,
+      leased_at = now(),
+      lease_until = now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1)),
+      updated_at = now()
+    where s.session_id = sid and (s.lease_until is null or s.lease_until < now())
+    returning s.session_id, s.tenant_id, s.principal_kind, s.principal_id, s.eve_version, s.chat_id,
+      s.record_type, s.record_id, s.run_id, s.read_cursor, s.status, s.lease_id;
+end;
+$$;
+
+-- Advances the cursor and stores what the job resolved, then frees the lease.
+-- synced_at is the time the lease began, so a change after that stays behind.
+create or replace function "better_supabase"."eve_session_commit"(
+  sid text,
+  token text,
+  cursor_line bigint,
+  tenant text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  chat text default null,
+  record_type text default null,
+  record_id text default null,
+  session_status text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status is not null and session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_commit: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions s set
+    read_cursor = greatest(s.read_cursor, coalesce(cursor_line, 0)),
+    tenant_id = coalesce(tenant, s.tenant_id),
+    principal_kind = coalesce(eve_session_commit.principal_kind, s.principal_kind),
+    principal_id = coalesce(eve_session_commit.principal_id, s.principal_id),
+    chat_id = coalesce(chat, s.chat_id),
+    record_type = coalesce(eve_session_commit.record_type, s.record_type),
+    record_id = coalesce(eve_session_commit.record_id, s.record_id),
+    status = coalesce(session_status, s.status),
+    synced_at = coalesce(s.leased_at, now()),
+    lease_id = null,
+    lease_until = null,
+    updated_at = now()
+  where s.session_id = sid and s.lease_id = token;
+  return found;
+end;
+$$;
+
+-- Frees a lease without advancing the cursor, so the next job starts at once.
+create or replace function "better_supabase"."eve_session_release"(sid text, token text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.eve_sessions set lease_id = null, lease_until = null, updated_at = now()
+  where session_id = sid and lease_id = token
+  returning true;
+$$;
+
+-- The sessions whose copy is behind, oldest first: changed since the last sync,
+-- or open and not synced for older_than.
+create or replace function "better_supabase"."eve_sessions_behind"(older_than interval default '5 minutes', max integer default 100)
+returns table (session_id text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id
+  from workflow.eve_sessions s
+  where (s.lease_until is null or s.lease_until < now())
+    and (
+      (s.dirty_at is not null and (s.synced_at is null or s.synced_at < s.dirty_at))
+      or (s.status = 'open' and coalesce(s.synced_at, s.created_at) < now() - coalesce(older_than, interval '5 minutes'))
+    )
+  order by coalesce(s.synced_at, s.created_at)
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- The open sessions that a release other than not_version started, oldest first.
+create or replace function "better_supabase"."eve_open_sessions"(not_version text default null, tenant text default null, max integer default 100)
+returns table (
+  session_id text,
+  eve_version text,
+  tenant_id text,
+  principal_id text,
+  chat_id text,
+  run_id text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id, s.eve_version, s.tenant_id, s.principal_id, s.chat_id, s.run_id, s.created_at
+  from workflow.eve_sessions s
+  where s.status = 'open'
+    and (not_version is null or s.eve_version is distinct from not_version)
+    and (tenant is null or s.tenant_id = tenant)
+  order by s.created_at
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- Sets a session's status (for instance stranded) and queues a sync.
+create or replace function "better_supabase"."eve_session_mark"(sid text, session_status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_mark: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions set status = session_status, updated_at = now() where session_id = sid;
+  if not found then
+    return false;
+  end if;
+  perform "better_supabase"."eve_session_wake"(sid, 0);
+  return true;
+end;
+$$;
 revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
 revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
 revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
-revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_backstops"(integer) to service_role;
 revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_wake"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_wake"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_lease"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_lease"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."eve_session_release"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_release"(text, text) to service_role;
+revoke execute on function "better_supabase"."eve_sessions_behind"(interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_sessions_behind"(interval, integer) to service_role;
+revoke execute on function "better_supabase"."eve_open_sessions"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_open_sessions"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_mark"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_mark"(text, text) to service_role;
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
+-- @bsb-hash sha256:fe96f31e4db441475b0b8df35cedb14473b1efb14d92a7c69ea65350e54f83ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1056,15 +1902,15 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 5, 'managed')
+values ('workflow-sdk', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@5 managed
--- @bsb-hash sha256:f688965bb9de5c7bb0b01fa6685673769feb907733d66d0c44d325324384fab1
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@9 managed
+-- @bsb-hash sha256:2153d10d162979eece0a0ce692a884d7531fd9599e29bd8bef9c78f7ce80634d
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1073,7 +1919,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1158,6 +2004,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -1183,6 +2039,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -1269,8 +2126,86 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
+alter table workflow.eve_session_runs enable row level security;
+revoke all on workflow.eve_session_runs from public, anon, authenticated;
+grant all on workflow.eve_session_runs to service_role;
+alter table workflow.eve_sessions enable row level security;
+revoke all on workflow.eve_sessions from public, anon, authenticated;
+grant all on workflow.eve_sessions to service_role;
 alter table workflow.workflow_event_slots enable row level security;
 revoke all on workflow.workflow_event_slots from public, anon, authenticated;
 grant all on workflow.workflow_event_slots to service_role;
@@ -1286,6 +2221,12 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_purge_backstops enable row level security;
+revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
+grant all on workflow.workflow_purge_backstops to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -1397,6 +2338,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -1414,12 +2356,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -1479,10 +2426,15 @@ $$;
 -- their events, steps, waits, streams, snapshots and invocations; hooks whose
 -- token is still reserved (token_retention_until) stay, so a token can't be
 -- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+-- With skip_unprojected, a run of an eve session stays until the session's
+-- copy in the blocks is current (the session was synced after its last change
+-- and is no longer open).
+
 create or replace function "app_private"."workflow_purge_runs"(
   older_than interval default '30 days',
   statuses text[] default array['completed', 'failed', 'cancelled'],
-  batch integer default 500
+  batch integer default 500,
+  skip_unprojected boolean default false
 )
 returns integer
 language plpgsql
@@ -1502,6 +2454,12 @@ begin
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
       and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
+      and not (coalesce(skip_unprojected, false) and exists (
+        select 1 from workflow.eve_session_runs sr
+        join workflow.eve_sessions es on es.session_id = sr.session_id
+        where sr.run_id = r.id
+          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)
+      ))
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -1519,9 +2477,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
+  delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function "app_private"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -1559,21 +2579,270 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
+-- Marks a session as behind and queues its sync job. The job is debounced: a
+-- job that has not started yet absorbs later wake-ups of the same session.
+create or replace function "app_private"."eve_session_wake"(sid text, delay_seconds integer default 2)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into workflow.eve_sessions as s (session_id, dirty_at) values (sid, now())
+  on conflict (session_id) do update set dirty_at = now(), updated_at = now();
+  perform "better_supabase"."enqueue_job"(queue => 'eve_session_sync', payload => jsonb_build_object('sessionId', sid), delay => greatest(coalesce(delay_seconds, 0), 0), dedupe_key => 'eve:' || sid, dedupe_running => false);
+end;
+$$;
+
+-- Follows eve's runs: a run with an eve session type, or one that names its
+-- session, belongs to that session. The newest run decides the status.
+create or replace function "app_private"."workflow_sdk_track_eve_run"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+  v_status text;
+begin
+  if new.attributes ->> '$eve.type' is distinct from 'session' and nullif(new.attributes ->> '$eve.session', '') is null then
+    return null;
+  end if;
+  v_session := coalesce(nullif(new.attributes ->> '$eve.session', ''), new.id);
+  v_status := case new.status::text
+    when 'completed' then 'ended'
+    when 'failed' then 'failed'
+    when 'cancelled' then 'cancelled'
+    else 'open'
+  end;
+  insert into workflow.eve_sessions as s (session_id, eve_version, run_id, status)
+  values (v_session, new.attributes ->> '$eve.version', new.id, v_status)
+  on conflict (session_id) do update set
+    eve_version = coalesce(new.attributes ->> '$eve.version', s.eve_version),
+    run_id = new.id,
+    status = case when s.status = 'stranded' then s.status else v_status end,
+    updated_at = now()
+  where s.run_id is null or s.run_id = new.id
+    or new.created_at >= coalesce((select r.created_at from workflow.workflow_runs r where r.id = s.run_id), '-infinity'::timestamptz);
+  insert into workflow.eve_session_runs as sr (run_id, session_id, eve_version, status)
+  values (new.id, v_session, new.attributes ->> '$eve.version', new.status::text)
+  on conflict (run_id) do update set status = new.status::text, updated_at = now();
+  perform "app_private"."eve_session_wake"(v_session);
+  return null;
+end;
+$$;
+revoke execute on function "app_private"."workflow_sdk_track_eve_run"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_runs" after insert or update of status on workflow.workflow_runs
+  for each row execute function "app_private"."workflow_sdk_track_eve_run"();
+
+-- Wakes the session of a run that wrote an event. Other runs cost one lookup.
+create or replace function "app_private"."workflow_sdk_wake_eve_session"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+begin
+  select sr.session_id into v_session from workflow.eve_session_runs sr where sr.run_id = new.run_id;
+  if v_session is not null then
+    perform "app_private"."eve_session_wake"(v_session);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "app_private"."workflow_sdk_wake_eve_session"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_events" after insert on workflow.workflow_events
+  for each row execute function "app_private"."workflow_sdk_wake_eve_session"();
+
+-- Takes the lease on a session and returns its row, or no row while another
+-- sync job holds the lease.
+create or replace function "app_private"."eve_session_lease"(sid text, lease_seconds integer default 60)
+returns table (
+  session_id text,
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint,
+  status text,
+  lease_id text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_token text := gen_random_uuid()::text;
+begin
+  insert into workflow.eve_sessions (session_id) values (sid) on conflict (session_id) do nothing;
+  return query
+    update workflow.eve_sessions s set
+      lease_id = v_token,
+      leased_at = now(),
+      lease_until = now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1)),
+      updated_at = now()
+    where s.session_id = sid and (s.lease_until is null or s.lease_until < now())
+    returning s.session_id, s.tenant_id, s.principal_kind, s.principal_id, s.eve_version, s.chat_id,
+      s.record_type, s.record_id, s.run_id, s.read_cursor, s.status, s.lease_id;
+end;
+$$;
+
+-- Advances the cursor and stores what the job resolved, then frees the lease.
+-- synced_at is the time the lease began, so a change after that stays behind.
+create or replace function "app_private"."eve_session_commit"(
+  sid text,
+  token text,
+  cursor_line bigint,
+  tenant text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  chat text default null,
+  record_type text default null,
+  record_id text default null,
+  session_status text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status is not null and session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_commit: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions s set
+    read_cursor = greatest(s.read_cursor, coalesce(cursor_line, 0)),
+    tenant_id = coalesce(tenant, s.tenant_id),
+    principal_kind = coalesce(eve_session_commit.principal_kind, s.principal_kind),
+    principal_id = coalesce(eve_session_commit.principal_id, s.principal_id),
+    chat_id = coalesce(chat, s.chat_id),
+    record_type = coalesce(eve_session_commit.record_type, s.record_type),
+    record_id = coalesce(eve_session_commit.record_id, s.record_id),
+    status = coalesce(session_status, s.status),
+    synced_at = coalesce(s.leased_at, now()),
+    lease_id = null,
+    lease_until = null,
+    updated_at = now()
+  where s.session_id = sid and s.lease_id = token;
+  return found;
+end;
+$$;
+
+-- Frees a lease without advancing the cursor, so the next job starts at once.
+create or replace function "app_private"."eve_session_release"(sid text, token text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.eve_sessions set lease_id = null, lease_until = null, updated_at = now()
+  where session_id = sid and lease_id = token
+  returning true;
+$$;
+
+-- The sessions whose copy is behind, oldest first: changed since the last sync,
+-- or open and not synced for older_than.
+create or replace function "app_private"."eve_sessions_behind"(older_than interval default '5 minutes', max integer default 100)
+returns table (session_id text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id
+  from workflow.eve_sessions s
+  where (s.lease_until is null or s.lease_until < now())
+    and (
+      (s.dirty_at is not null and (s.synced_at is null or s.synced_at < s.dirty_at))
+      or (s.status = 'open' and coalesce(s.synced_at, s.created_at) < now() - coalesce(older_than, interval '5 minutes'))
+    )
+  order by coalesce(s.synced_at, s.created_at)
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- The open sessions that a release other than not_version started, oldest first.
+create or replace function "app_private"."eve_open_sessions"(not_version text default null, tenant text default null, max integer default 100)
+returns table (
+  session_id text,
+  eve_version text,
+  tenant_id text,
+  principal_id text,
+  chat_id text,
+  run_id text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id, s.eve_version, s.tenant_id, s.principal_id, s.chat_id, s.run_id, s.created_at
+  from workflow.eve_sessions s
+  where s.status = 'open'
+    and (not_version is null or s.eve_version is distinct from not_version)
+    and (tenant is null or s.tenant_id = tenant)
+  order by s.created_at
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- Sets a session's status (for instance stranded) and queues a sync.
+create or replace function "app_private"."eve_session_mark"(sid text, session_status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_mark: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions set status = session_status, updated_at = now() where session_id = sid;
+  if not found then
+    return false;
+  end if;
+  perform "app_private"."eve_session_wake"(sid, 0);
+  return true;
+end;
+$$;
 revoke execute on function "app_private"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_claim_run_key"(text, interval) to service_role;
 revoke execute on function "app_private"."workflow_set_run_key"(text, text) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_set_run_key"(text, text) to service_role;
 revoke execute on function "app_private"."workflow_release_run_key"(text) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_release_run_key"(text) to service_role;
-revoke execute on function "app_private"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
-grant execute on function "app_private"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "app_private"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+revoke execute on function "app_private"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "app_private"."workflow_purge_backstops"(integer) to service_role;
 revoke execute on function "app_private"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "app_private"."workflow_open_hooks"(text, text, integer) to service_role;
+revoke execute on function "app_private"."eve_session_wake"(text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."eve_session_wake"(text, integer) to service_role;
+revoke execute on function "app_private"."eve_session_lease"(text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."eve_session_lease"(text, integer) to service_role;
+revoke execute on function "app_private"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "app_private"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) to service_role;
+revoke execute on function "app_private"."eve_session_release"(text, text) from public, anon, authenticated;
+grant execute on function "app_private"."eve_session_release"(text, text) to service_role;
+revoke execute on function "app_private"."eve_sessions_behind"(interval, integer) from public, anon, authenticated;
+grant execute on function "app_private"."eve_sessions_behind"(interval, integer) to service_role;
+revoke execute on function "app_private"."eve_open_sessions"(text, text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."eve_open_sessions"(text, text, integer) to service_role;
+revoke execute on function "app_private"."eve_session_mark"(text, text) from public, anon, authenticated;
+grant execute on function "app_private"."eve_session_mark"(text, text) to service_role;
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
+-- @bsb-hash sha256:fe96f31e4db441475b0b8df35cedb14473b1efb14d92a7c69ea65350e54f83ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1592,19 +2861,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 5, 'managed')
+values ('workflow-sdk', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@5 managed
--- @bsb-hash sha256:0532e7f90e7fefe194d88f8454918e9fb48c5b2e03f0f3154fb43b237a6c4167
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@9 managed
+-- @bsb-hash sha256:dfc86b833bea7dbbf1d073f754c8cd6a57586f4113c793268543fb5210276c69
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.4.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on, a purge of ended runs, the purge backstops of zero-retention runs and the eve projection tables with the jobs that copy eve sessions into the blocks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.4.1).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1689,6 +2958,16 @@ create table workflow.workflow_job_lock_holders (
   constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
 );
 
+create table workflow.workflow_run_delivery_leases (
+  "run_id" character varying not null,
+  "owner_job_id" bigint not null,
+  "wake" jsonb,
+  "wake_resume" boolean not null default false,
+  "deferred" jsonb not null default '[]'::jsonb,
+  "claimed_at" timestamp with time zone not null default now(),
+  constraint "workflow_run_delivery_leases_pkey" PRIMARY KEY (run_id)
+);
+
 create table workflow.workflow_runs (
   "id" character varying not null,
   "output" jsonb,
@@ -1714,6 +2993,7 @@ create table workflow.workflow_runs (
   "dynamic_workflow_code_cbor" bytea,
   "start_hook_cbor" bytea,
   "job_prefix" character varying,
+  "wake_pending" boolean not null default false,
   constraint "workflow_runs_pkey" PRIMARY KEY (id)
 );
 
@@ -1800,8 +3080,86 @@ create table workflow.workflow_run_keys (
   claimed_at timestamptz not null default now()
 );
 create index workflow_run_keys_run_id_idx on workflow.workflow_run_keys (run_id);
+-- The purge backstops of zero-retention runs. world-postgres adds one through
+-- Graphile Worker's add_job in the transaction that finishes such a run; this
+-- World runs no Graphile Worker, so it points GRAPHILE_WORKER_SCHEMA at
+-- workflow, where add_job records the run here and workflow_purge_backstops
+-- deletes its data once due if the purge after the commit did not.
+create table workflow.workflow_purge_backstops (
+  run_id character varying primary key,
+  due_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index workflow_purge_backstops_due_at_idx on workflow.workflow_purge_backstops (due_at);
+create or replace function workflow.add_job(
+  identifier text,
+  payload json default null,
+  run_at timestamptz default null,
+  max_attempts integer default null,
+  job_key text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_run text := payload ->> 'runId';
+begin
+  if identifier not like '%purge' or v_run is null then
+    raise exception 'Only the purge backstops of @workflow/world-postgres go through workflow.add_job'
+      using errcode = '0A000', hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED', detail = 'task ' || coalesce(identifier, 'null');
+  end if;
+  insert into workflow.workflow_purge_backstops (run_id, due_at)
+    values (v_run, coalesce(run_at, now()))
+    on conflict (run_id) do nothing;
+end;
+$$;
+revoke execute on function workflow.add_job(text, json, timestamptz, integer, text) from public, anon, authenticated;
+grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;
+-- The eve projection (eve sessions copied into the blocks by syncSession).
+-- session_id is the id of the session's first run. read_cursor is the next
+-- line of the session stream to read. A session is behind while dirty_at is
+-- later than synced_at; the lease keeps two sync jobs off one session.
+create table workflow.eve_sessions (
+  session_id text primary key constraint bsb_eve_sessions_session_id_check check (length(session_id) >= 1 and length(session_id) <= 200),
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint not null default 0 constraint bsb_eve_sessions_read_cursor_check check (read_cursor >= 0),
+  status text not null default 'open' constraint bsb_eve_sessions_status_check check (status in ('open', 'ended', 'failed', 'cancelled', 'stranded')),
+  dirty_at timestamptz,
+  synced_at timestamptz,
+  lease_id text,
+  leased_at timestamptz,
+  lease_until timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_sessions_dirty_idx on workflow.eve_sessions (dirty_at) where dirty_at is not null;
+create index eve_sessions_open_idx on workflow.eve_sessions (eve_version) where status = 'open';
+create table workflow.eve_session_runs (
+  run_id text primary key,
+  session_id text not null references workflow.eve_sessions (session_id) on delete cascade,
+  eve_version text,
+  status text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index eve_session_runs_session_idx on workflow.eve_session_runs (session_id);
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
+alter table workflow.eve_session_runs enable row level security;
+revoke all on workflow.eve_session_runs from public, anon, authenticated;
+grant all on workflow.eve_session_runs to service_role;
+alter table workflow.eve_sessions enable row level security;
+revoke all on workflow.eve_sessions from public, anon, authenticated;
+grant all on workflow.eve_sessions to service_role;
 alter table workflow.workflow_event_slots enable row level security;
 revoke all on workflow.workflow_event_slots from public, anon, authenticated;
 grant all on workflow.workflow_event_slots to service_role;
@@ -1817,6 +3175,12 @@ grant all on workflow.workflow_invocations to service_role;
 alter table workflow.workflow_job_lock_holders enable row level security;
 revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
 grant all on workflow.workflow_job_lock_holders to service_role;
+alter table workflow.workflow_purge_backstops enable row level security;
+revoke all on workflow.workflow_purge_backstops from public, anon, authenticated;
+grant all on workflow.workflow_purge_backstops to service_role;
+alter table workflow.workflow_run_delivery_leases enable row level security;
+revoke all on workflow.workflow_run_delivery_leases from public, anon, authenticated;
+grant all on workflow.workflow_run_delivery_leases to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -1928,6 +3292,7 @@ as $$
 declare
   v_url text;
   v_secret text;
+  v_extra jsonb;
   v_job record;
   v_body jsonb;
   v_t text;
@@ -1945,12 +3310,17 @@ begin
   if v_url is null or v_secret is null then
     raise exception 'Set the Vault secrets workflow_flow_url and workflow_delivery_secret before dispatching' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
   end if;
+  -- Extra headers (a deployment protection bypass, for one) as a JSON object.
+  select ds.decrypted_secret::jsonb into v_extra from vault.decrypted_secrets ds where ds.name = 'workflow_delivery_headers';
+  if v_extra is not null and pg_catalog.jsonb_typeof(v_extra) <> 'object' then
+    raise exception 'The Vault secret workflow_delivery_headers must be a JSON object of header names and values' using hint = 'WORKFLOW_DELIVERY_UNCONFIGURED';
+  end if;
   for v_job in select * from "better_supabase"."claim_jobs"('workflow_deliveries', 60, greatest(coalesce(batch, 20), 1)) loop
     v_body := coalesce(v_job.message -> 'payload', '{}'::jsonb);
     v_t := floor(extract(epoch from now()))::bigint::text;
     v_job_header := 'workflow_deliveries' || ':' || v_job.id::text || ':' || v_job.attempts::text;
     execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
-      using v_url, v_body, jsonb_build_object(
+      using v_url, v_body, coalesce(v_extra, '{}'::jsonb) || jsonb_build_object(
         'content-type', 'application/json',
         'x-bsb-job', v_job_header,
         'x-bsb-signature', 't=' || v_t || ',v1=' || encode(extensions.hmac(v_t || '.' || v_job_header || '.' || v_body::text, v_secret, 'sha256'), 'hex')
@@ -2010,10 +3380,15 @@ $$;
 -- their events, steps, waits, streams, snapshots and invocations; hooks whose
 -- token is still reserved (token_retention_until) stay, so a token can't be
 -- reused. The copies in workflow_runs follow purge_workflow_runs instead.
+-- With skip_unprojected, a run of an eve session stays until the session's
+-- copy in the blocks is current (the session was synced after its last change
+-- and is no longer open).
+
 create or replace function "better_supabase"."workflow_purge_runs"(
   older_than interval default '30 days',
   statuses text[] default array['completed', 'failed', 'cancelled'],
-  batch integer default 500
+  batch integer default 500,
+  skip_unprojected boolean default false
 )
 returns integer
 language plpgsql
@@ -2033,6 +3408,12 @@ begin
     select r.id from workflow.workflow_runs r
     where r.status::text = any (v_statuses)
       and coalesce(r.completed_at, r.updated_at) < now() - coalesce(older_than, interval '30 days')
+      and not (coalesce(skip_unprojected, false) and exists (
+        select 1 from workflow.eve_session_runs sr
+        join workflow.eve_sessions es on es.session_id = sr.session_id
+        where sr.run_id = r.id
+          and (es.status = 'open' or es.synced_at is null or es.dirty_at > es.synced_at)
+      ))
     order by coalesce(r.completed_at, r.updated_at)
     limit least(greatest(coalesce(batch, 500), 1), 10000)
     for update skip locked
@@ -2050,9 +3431,71 @@ begin
   delete from workflow.workflow_hooks
     where run_id = any (v_ids) and (token_retention_until is null or token_retention_until < now());
   delete from workflow.workflow_run_keys where run_id = any (v_ids);
+  delete from workflow.workflow_purge_backstops where run_id = any (v_ids);
+  delete from workflow.eve_session_runs where run_id = any (v_ids);
   delete from workflow.workflow_runs where id = any (v_ids);
   get diagnostics v_count = row_count;
   return v_count;
+end;
+$$;
+
+-- Runs up to batch due purge backstops: a run that ended with the $retention
+-- attribute 0 and still has its data (expired_at is null) gets the purge
+-- @workflow/world-postgres runs after the terminal write, in one transaction.
+-- The run row is updated first, so late step and stream writes, which lock it
+-- to read expired_at, wait for the purge. Returns how many runs it purged.
+create or replace function "better_supabase"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_due text[];
+  v_ids text[];
+begin
+  with due as (
+    delete from workflow.workflow_purge_backstops b
+    where b.run_id in (
+      select d.run_id from workflow.workflow_purge_backstops d
+      where d.due_at <= now()
+      order by d.due_at
+      limit least(greatest(coalesce(batch, 100), 1), 1000)
+      for update skip locked
+    )
+    returning b.run_id
+  )
+  select coalesce(array_agg(due.run_id), '{}') into v_due from due;
+  if cardinality(v_due) = 0 then
+    return 0;
+  end if;
+  select coalesce(array_agg(x.id), '{}') into v_ids from (
+    select r.id from workflow.workflow_runs r
+    where r.id = any (v_due)
+      and r.status::text in ('completed', 'failed', 'cancelled')
+      and r.attributes ->> '$retention' = '0'
+      and r.expired_at is null
+    for update
+  ) x;
+  if cardinality(v_ids) = 0 then
+    return 0;
+  end if;
+  update workflow.workflow_runs set expired_at = now(),
+    input_cbor = null, input = null, output_cbor = null, output = null,
+    error_cbor = null, error = null, dynamic_workflow_code_cbor = null
+    where id = any (v_ids);
+  update workflow.workflow_steps set input_cbor = null, input = null,
+    output_cbor = null, output = null, error_cbor = null, error = null
+    where run_id = any (v_ids);
+  update workflow.workflow_events set payload_cbor = null, payload = null, resume_payload_digest = null
+    where run_id = any (v_ids);
+  update workflow.workflow_hooks set metadata_cbor = null, metadata = null, resume_context = null
+    where run_id = any (v_ids);
+  update workflow.workflow_stream_chunks set data = ''::bytea where run_id = any (v_ids);
+  update workflow.workflow_invocations set payload = null, result = null, fingerprint = null, expired_at = now()
+    where run_id = any (v_ids);
+  delete from workflow.workflow_snapshots where run_id = any (v_ids);
+  return cardinality(v_ids);
 end;
 $$;
 
@@ -2090,16 +3533,265 @@ as $$
   order by h.created_at desc
   limit least(greatest(coalesce(workflow_open_hooks.max, 50), 1), 500);
 $$;
+-- Marks a session as behind and queues its sync job. The job is debounced: a
+-- job that has not started yet absorbs later wake-ups of the same session.
+create or replace function "better_supabase"."eve_session_wake"(sid text, delay_seconds integer default 2)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into workflow.eve_sessions as s (session_id, dirty_at) values (sid, now())
+  on conflict (session_id) do update set dirty_at = now(), updated_at = now();
+  perform "better_supabase"."enqueue_job"(queue => 'eve_session_sync', payload => jsonb_build_object('sessionId', sid), delay => greatest(coalesce(delay_seconds, 0), 0), dedupe_key => 'eve:' || sid, dedupe_running => false);
+end;
+$$;
+
+-- Follows eve's runs: a run with an eve session type, or one that names its
+-- session, belongs to that session. The newest run decides the status.
+create or replace function "better_supabase"."workflow_sdk_track_eve_run"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+  v_status text;
+begin
+  if new.attributes ->> '$eve.type' is distinct from 'session' and nullif(new.attributes ->> '$eve.session', '') is null then
+    return null;
+  end if;
+  v_session := coalesce(nullif(new.attributes ->> '$eve.session', ''), new.id);
+  v_status := case new.status::text
+    when 'completed' then 'ended'
+    when 'failed' then 'failed'
+    when 'cancelled' then 'cancelled'
+    else 'open'
+  end;
+  insert into workflow.eve_sessions as s (session_id, eve_version, run_id, status)
+  values (v_session, new.attributes ->> '$eve.version', new.id, v_status)
+  on conflict (session_id) do update set
+    eve_version = coalesce(new.attributes ->> '$eve.version', s.eve_version),
+    run_id = new.id,
+    status = case when s.status = 'stranded' then s.status else v_status end,
+    updated_at = now()
+  where s.run_id is null or s.run_id = new.id
+    or new.created_at >= coalesce((select r.created_at from workflow.workflow_runs r where r.id = s.run_id), '-infinity'::timestamptz);
+  insert into workflow.eve_session_runs as sr (run_id, session_id, eve_version, status)
+  values (new.id, v_session, new.attributes ->> '$eve.version', new.status::text)
+  on conflict (run_id) do update set status = new.status::text, updated_at = now();
+  perform "better_supabase"."eve_session_wake"(v_session);
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_track_eve_run"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_runs" after insert or update of status on workflow.workflow_runs
+  for each row execute function "better_supabase"."workflow_sdk_track_eve_run"();
+
+-- Wakes the session of a run that wrote an event. Other runs cost one lookup.
+create or replace function "better_supabase"."workflow_sdk_wake_eve_session"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_session text;
+begin
+  select sr.session_id into v_session from workflow.eve_session_runs sr where sr.run_id = new.run_id;
+  if v_session is not null then
+    perform "better_supabase"."eve_session_wake"(v_session);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."workflow_sdk_wake_eve_session"() from public, anon, authenticated;
+create trigger "bsb_workflow_sdk_eve_events" after insert on workflow.workflow_events
+  for each row execute function "better_supabase"."workflow_sdk_wake_eve_session"();
+
+-- Takes the lease on a session and returns its row, or no row while another
+-- sync job holds the lease.
+create or replace function "better_supabase"."eve_session_lease"(sid text, lease_seconds integer default 60)
+returns table (
+  session_id text,
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint,
+  status text,
+  lease_id text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_token text := gen_random_uuid()::text;
+begin
+  insert into workflow.eve_sessions (session_id) values (sid) on conflict (session_id) do nothing;
+  return query
+    update workflow.eve_sessions s set
+      lease_id = v_token,
+      leased_at = now(),
+      lease_until = now() + make_interval(secs => greatest(coalesce(lease_seconds, 60), 1)),
+      updated_at = now()
+    where s.session_id = sid and (s.lease_until is null or s.lease_until < now())
+    returning s.session_id, s.tenant_id, s.principal_kind, s.principal_id, s.eve_version, s.chat_id,
+      s.record_type, s.record_id, s.run_id, s.read_cursor, s.status, s.lease_id;
+end;
+$$;
+
+-- Advances the cursor and stores what the job resolved, then frees the lease.
+-- synced_at is the time the lease began, so a change after that stays behind.
+create or replace function "better_supabase"."eve_session_commit"(
+  sid text,
+  token text,
+  cursor_line bigint,
+  tenant text default null,
+  principal_kind text default null,
+  principal_id text default null,
+  chat text default null,
+  record_type text default null,
+  record_id text default null,
+  session_status text default null
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status is not null and session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_commit: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions s set
+    read_cursor = greatest(s.read_cursor, coalesce(cursor_line, 0)),
+    tenant_id = coalesce(tenant, s.tenant_id),
+    principal_kind = coalesce(eve_session_commit.principal_kind, s.principal_kind),
+    principal_id = coalesce(eve_session_commit.principal_id, s.principal_id),
+    chat_id = coalesce(chat, s.chat_id),
+    record_type = coalesce(eve_session_commit.record_type, s.record_type),
+    record_id = coalesce(eve_session_commit.record_id, s.record_id),
+    status = coalesce(session_status, s.status),
+    synced_at = coalesce(s.leased_at, now()),
+    lease_id = null,
+    lease_until = null,
+    updated_at = now()
+  where s.session_id = sid and s.lease_id = token;
+  return found;
+end;
+$$;
+
+-- Frees a lease without advancing the cursor, so the next job starts at once.
+create or replace function "better_supabase"."eve_session_release"(sid text, token text)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  update workflow.eve_sessions set lease_id = null, lease_until = null, updated_at = now()
+  where session_id = sid and lease_id = token
+  returning true;
+$$;
+
+-- The sessions whose copy is behind, oldest first: changed since the last sync,
+-- or open and not synced for older_than.
+create or replace function "better_supabase"."eve_sessions_behind"(older_than interval default '5 minutes', max integer default 100)
+returns table (session_id text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id
+  from workflow.eve_sessions s
+  where (s.lease_until is null or s.lease_until < now())
+    and (
+      (s.dirty_at is not null and (s.synced_at is null or s.synced_at < s.dirty_at))
+      or (s.status = 'open' and coalesce(s.synced_at, s.created_at) < now() - coalesce(older_than, interval '5 minutes'))
+    )
+  order by coalesce(s.synced_at, s.created_at)
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- The open sessions that a release other than not_version started, oldest first.
+create or replace function "better_supabase"."eve_open_sessions"(not_version text default null, tenant text default null, max integer default 100)
+returns table (
+  session_id text,
+  eve_version text,
+  tenant_id text,
+  principal_id text,
+  chat_id text,
+  run_id text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.session_id, s.eve_version, s.tenant_id, s.principal_id, s.chat_id, s.run_id, s.created_at
+  from workflow.eve_sessions s
+  where s.status = 'open'
+    and (not_version is null or s.eve_version is distinct from not_version)
+    and (tenant is null or s.tenant_id = tenant)
+  order by s.created_at
+  limit least(greatest(coalesce(max, 100), 1), 1000);
+$$;
+
+-- Sets a session's status (for instance stranded) and queues a sync.
+create or replace function "better_supabase"."eve_session_mark"(sid text, session_status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if session_status not in ('open', 'ended', 'failed', 'cancelled', 'stranded') then
+    raise exception 'eve_session_mark: unknown status %', session_status using errcode = '22023', hint = 'EVE_SESSION_STATUS';
+  end if;
+  update workflow.eve_sessions set status = session_status, updated_at = now() where session_id = sid;
+  if not found then
+    return false;
+  end if;
+  perform "better_supabase"."eve_session_wake"(sid, 0);
+  return true;
+end;
+$$;
 revoke execute on function "better_supabase"."workflow_claim_run_key"(text, interval) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_claim_run_key"(text, interval) to service_role;
 revoke execute on function "better_supabase"."workflow_set_run_key"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_set_run_key"(text, text) to service_role;
 revoke execute on function "better_supabase"."workflow_release_run_key"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_release_run_key"(text) to service_role;
-revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
-grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+revoke execute on function "better_supabase"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_purge_backstops"(integer) to service_role;
 revoke execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_open_hooks"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_wake"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_wake"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_lease"(text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_lease"(text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) to service_role;
+revoke execute on function "better_supabase"."eve_session_release"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_release"(text, text) to service_role;
+revoke execute on function "better_supabase"."eve_sessions_behind"(interval, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_sessions_behind"(interval, integer) to service_role;
+revoke execute on function "better_supabase"."eve_open_sessions"(text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_open_sessions"(text, text, integer) to service_role;
+revoke execute on function "better_supabase"."eve_session_mark"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."eve_session_mark"(text, text) to service_role;
 
 -- blocks.workflow-sdk.api: entry points for the Data API.
 create schema if not exists "api";
@@ -2141,14 +3833,23 @@ as $$ select "better_supabase"."workflow_release_run_key"($1) $$;
 revoke execute on function "api"."workflow_release_run_key"(text) from public, anon, authenticated;
 grant execute on function "api"."workflow_release_run_key"(text) to service_role;
 
-create or replace function "api"."workflow_purge_runs"(older_than interval default '30 days', statuses text[] default array['completed', 'failed', 'cancelled'], batch integer default 500)
+create or replace function "api"."workflow_purge_runs"(older_than interval default '30 days', statuses text[] default array['completed', 'failed', 'cancelled'], batch integer default 500, skip_unprojected boolean default false)
 returns integer
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."workflow_purge_runs"($1, $2, $3) $$;
-revoke execute on function "api"."workflow_purge_runs"(interval, text[], integer) from public, anon, authenticated;
-grant execute on function "api"."workflow_purge_runs"(interval, text[], integer) to service_role;
+as $$ select "better_supabase"."workflow_purge_runs"($1, $2, $3, $4) $$;
+revoke execute on function "api"."workflow_purge_runs"(interval, text[], integer, boolean) from public, anon, authenticated;
+grant execute on function "api"."workflow_purge_runs"(interval, text[], integer, boolean) to service_role;
+
+create or replace function "api"."workflow_purge_backstops"(batch integer default 100)
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_purge_backstops"($1) $$;
+revoke execute on function "api"."workflow_purge_backstops"(integer) from public, anon, authenticated;
+grant execute on function "api"."workflow_purge_backstops"(integer) to service_role;
 
 create or replace function "api"."workflow_open_hooks"(tenant text default null, workflow_name text default null, max integer default 50)
 returns table (
@@ -2169,10 +3870,96 @@ as $$ select * from "better_supabase"."workflow_open_hooks"($1, $2, $3) $$;
 revoke execute on function "api"."workflow_open_hooks"(text, text, integer) from public, anon, authenticated;
 grant execute on function "api"."workflow_open_hooks"(text, text, integer) to service_role;
 
+create or replace function "api"."eve_session_wake"(sid text, delay_seconds integer default 2)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."eve_session_wake"($1, $2) $$;
+revoke execute on function "api"."eve_session_wake"(text, integer) from public, anon, authenticated;
+grant execute on function "api"."eve_session_wake"(text, integer) to service_role;
+
+create or replace function "api"."eve_session_lease"(sid text, lease_seconds integer default 60)
+returns table (
+  session_id text,
+  tenant_id text,
+  principal_kind text,
+  principal_id text,
+  eve_version text,
+  chat_id text,
+  record_type text,
+  record_id text,
+  run_id text,
+  read_cursor bigint,
+  status text,
+  lease_id text
+)
+language sql
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."eve_session_lease"($1, $2) $$;
+revoke execute on function "api"."eve_session_lease"(text, integer) from public, anon, authenticated;
+grant execute on function "api"."eve_session_lease"(text, integer) to service_role;
+
+create or replace function "api"."eve_session_commit"(sid text, token text, cursor_line bigint, tenant text default null, principal_kind text default null, principal_id text default null, chat text default null, record_type text default null, record_id text default null, session_status text default null)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."eve_session_commit"($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) $$;
+revoke execute on function "api"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function "api"."eve_session_commit"(text, text, bigint, text, text, text, text, text, text, text) to service_role;
+
+create or replace function "api"."eve_session_release"(sid text, token text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."eve_session_release"($1, $2) $$;
+revoke execute on function "api"."eve_session_release"(text, text) from public, anon, authenticated;
+grant execute on function "api"."eve_session_release"(text, text) to service_role;
+
+create or replace function "api"."eve_sessions_behind"(older_than interval default '5 minutes', max integer default 100)
+returns table (session_id text)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."eve_sessions_behind"($1, $2) $$;
+revoke execute on function "api"."eve_sessions_behind"(interval, integer) from public, anon, authenticated;
+grant execute on function "api"."eve_sessions_behind"(interval, integer) to service_role;
+
+create or replace function "api"."eve_open_sessions"(not_version text default null, tenant text default null, max integer default 100)
+returns table (
+  session_id text,
+  eve_version text,
+  tenant_id text,
+  principal_id text,
+  chat_id text,
+  run_id text,
+  created_at timestamptz
+)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select * from "better_supabase"."eve_open_sessions"($1, $2, $3) $$;
+revoke execute on function "api"."eve_open_sessions"(text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."eve_open_sessions"(text, text, integer) to service_role;
+
+create or replace function "api"."eve_session_mark"(sid text, session_status text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."eve_session_mark"($1, $2) $$;
+revoke execute on function "api"."eve_session_mark"(text, text) from public, anon, authenticated;
+grant execute on function "api"."eve_session_mark"(text, text) to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
+-- @bsb-hash sha256:fe96f31e4db441475b0b8df35cedb14473b1efb14d92a7c69ea65350e54f83ab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2191,6 +3978,6 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 5, 'managed')
+values ('workflow-sdk', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

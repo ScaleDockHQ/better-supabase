@@ -181,6 +181,7 @@ describe("approvals client", () => {
       .delegate({ id: "r1", userId: "u3", comment: "on leave" })
       .orThrow();
     expect((await approvals.cancel("r1").orThrow()).status).toBe("cancelled");
+    await approvals.cancel("r1", { reason: "session ended" }).orThrow();
     expect(fake.calls).toEqual([
       [
         "request_approval",
@@ -205,7 +206,8 @@ describe("approvals client", () => {
         "delegate_approval",
         { request_id: "r1", to_user: "u3", comment: "on leave" },
       ],
-      ["cancel_approval", { request_id: "r1" }],
+      ["cancel_approval", { request_id: "r1", reason: null }],
+      ["cancel_approval", { request_id: "r1", reason: "session ended" }],
     ]);
   });
 

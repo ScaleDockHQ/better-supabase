@@ -85,6 +85,8 @@ describe("vercelConnectCredentials", () => {
     const started = await provider.startAuthorization!(ref, {
       subject: user,
       redirectUri: "https://app.test/callback",
+      webhook: "https://app.test/hook",
+      expiresInMs: 60_000,
     }).orThrow();
 
     expect(started.url).toContain("vercel.com");
@@ -95,6 +97,8 @@ describe("vercelConnectCredentials", () => {
     expect(calls[1]?.[3]).toEqual({
       vercelToken: "vt",
       callbackUrl: "https://app.test/callback",
+      webhook: "https://app.test/hook",
+      expiresInMs: 60_000,
     });
 
     expect(await provider.revoke(ref, { subject: user }).orThrow()).toBe(true);
@@ -342,11 +346,25 @@ describe("vercelConnectCredentials", () => {
     expect(
       await provider.invalidateToken(ref, { subject: user }).orThrow(),
     ).toBe(true);
-    expect(deleteTokenCacheEntry).toHaveBeenCalledWith("github", {
-      subject: user,
-      installationId: "inst_1",
-      scopes: ["repo"],
+    expect(deleteTokenCacheEntry).toHaveBeenCalledWith(
+      "github",
+      { subject: user, installationId: "inst_1", scopes: ["repo"] },
+      {},
+    );
+
+    const scoped = vercelConnectCredentials({
+      load: async () => ({ ...module, deleteTokenCacheEntry }),
+      teamId: "team_1",
+      orgId: "org_1",
     });
+
+    await scoped.invalidateToken(ref, { subject: user }).orThrow();
+
+    expect(deleteTokenCacheEntry).toHaveBeenLastCalledWith(
+      "github",
+      expect.objectContaining({ installationId: "inst_1" }),
+      { teamId: "team_1", orgId: "org_1" },
+    );
 
     const old = vercelConnectCredentials({ load: async () => module });
     expect(await old.invalidateToken(ref, { subject: user }).orThrow()).toBe(
@@ -462,6 +480,36 @@ describe("vercelConnectCredentials", () => {
 
     const missing = await provider.channelConfig(ref, "teams");
     expect(missing.ok ? undefined : missing.error.kind).toBe("invalid_request");
+  });
+
+  it("passes the team and organization scope and builds the Resend config", async () => {
+    const connectResendAdapter = vi.fn(() => ({
+      apiKey: async () => "re_1",
+      webhookVerifier: () => true,
+    }));
+
+    const { module, calls } = fakeConnect();
+
+    const provider = vercelConnectCredentials({
+      teamId: "team_1",
+      orgId: "org_1",
+      load: async () => module,
+      loadChat: async () => ({
+        createConnectWebhookVerifier: () => () => true,
+        connectResendAdapter,
+      }),
+    });
+
+    await provider.getToken(ref, { subject: { type: "app" } }).orThrow();
+    expect(calls[0]?.[3]).toEqual({ teamId: "team_1", orgId: "org_1" });
+
+    const config = await provider.channelConfig(ref, "resend").orThrow();
+    expect("apiKey" in config).toBe(true);
+    expect(connectResendAdapter).toHaveBeenCalledWith(
+      "github",
+      { installationId: "inst_1", scopes: ["repo"] },
+      { teamId: "team_1", orgId: "org_1" },
+    );
   });
 
   it("pins the Supabase Auth issuer on a user subject", () => {

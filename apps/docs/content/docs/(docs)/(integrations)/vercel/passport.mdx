@@ -139,3 +139,56 @@ passes in production.
 
 `problemResponse(error)` answers the `unauthorized` errors with a 401 and a
 `WWW-Authenticate: Bearer` challenge.
+
+## Read the Passport cookie
+
+Vercel can also leave the token in the `_vercel_passport` cookie, split into
+chunks when it is large. Set `headers: "cookie"` to read only the cookie, or
+`headers: "all"` to try the header, the bearer token and then the cookie. The
+chunks are joined and checked against the checksum in the first cookie before
+the signature is verified, so a partial or mixed cookie is refused. Reading
+the cookie is opt-in because a cookie is sent by the browser on its own.
+
+## Let a Vercel project call your API
+
+A Vercel Function, a Workflow step or a sandbox can call your API with its own
+OIDC token (`VERCEL_OIDC_TOKEN`, or `getVercelOidcToken()` from
+`@vercel/oidc`). `vercelOidcResolver` is an `AuthResolver` that verifies that
+token against Vercel's JWKS and turns it into an `apiKey` caller, the same
+caller type the API keys block produces. `map` decides which Vercel callers
+you accept: it returns the name, scopes and tenant, or `undefined` to refuse.
+
+```ts title="src/lib/supabase/server.ts"
+import { resolveAuth } from "better-supabase/server";
+import { vercelOidcResolver } from "better-supabase/vercel-passport";
+
+const vercel = vercelOidcResolver({
+  projectId: process.env.VERCEL_PROJECT_ID ?? "",
+  environment: "production",
+  map: (claims) =>
+    claims.environment === "production"
+      ? {
+          name: "Vercel production",
+          organizationId: "org_1",
+          scopes: ["notes:read"],
+        }
+      : undefined,
+});
+
+const state = await resolveAuth(request, { env, resolvers: [vercel] });
+```
+
+See [custom credentials](/docs/auth#custom-credentials) for where resolvers
+plug in.
+
+The resolver ignores a token whose issuer is not `https://oidc.vercel.com`, so
+it sits next to the session resolvers. It checks `project_id`, `environment`
+and the optional `ownerId` against the options, the signature against the
+JWKS, and the usual `exp`, `nbf` and `aud` claims. A refused token becomes an
+`invalid` state with a `VERCEL_OIDC_*` hint.
+
+The caller is a `Result` for the app, not a Postgres role: the resolver does
+not give Supabase a token. Row Level Security still sees the role your
+`apiKey` handling uses. Signing a Supabase JWT with Vercel KMS for third
+party auth is not supported; see
+[ADR 1150](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1150-vercel-oidc-resolver-and-the-kms-spike.md).

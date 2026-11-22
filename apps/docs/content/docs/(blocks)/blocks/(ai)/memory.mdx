@@ -180,6 +180,36 @@ stays pending. A wrong number of vectors, mixed lengths or non-finite
 numbers fail with the hint `EMBEDDING_INVALID`. Search sets
 `hnsw.iterative_scan` for its query and puts the caller's value back.
 
+## Importing an existing table
+
+`importMemories` copies the rows of a table you already have into archival
+memory and keeps the embeddings they carry, so a large history needs no new
+embedding calls. It reads in id order, stores each row through
+`archival.upsert({ embedding })` and returns `lastId`, so a failed or sliced
+run continues with `after`.
+
+```ts title="scripts/import-memories.ts"
+import { importMemories } from "better-supabase/blocks/memory";
+
+const result = await importMemories({
+  memory, // createMemory on a service transport
+  source: pool, // any client with queryRaw, such as createPostgres()
+  table: "legacy.agent_memories",
+  organizationId,
+  columns: { category: "kind", confidence: "score" },
+  embeddingModel: "text-embedding-3-small",
+  limit: 5000,
+}).orThrow();
+
+// result.imported, result.skipped (rows without content), result.lastId
+```
+
+The embedding column has to match the memory block's `halfvec(1536)` length.
+Rows are not deduplicated, so continue from `lastId` instead of running the
+same range twice. `table` and the column names have to be plain identifiers.
+`archival.upsert` also takes `embedding` and `embeddingModel` for a single
+memory whose vector you already have.
+
 ## Documents for agent runtimes
 
 `memory.documents` stores versioned text documents under an opaque scope

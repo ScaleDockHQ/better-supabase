@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import type { EventHub } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
+import type { VercelQueueSdk } from "./vercel-queue.ts";
 
 /**
  * The `@workflow/world` protocol this World speaks: the package version its
@@ -10,9 +11,27 @@ import type { WorkflowDeliveryMode } from "../../sql/modules/workflow-sdk.ts";
  * one. Its tables come from `@workflow/world-postgres` at
  * `WORLD_POSTGRES_VERSION`.
  */
-export const WORKFLOW_WORLD_PROTOCOL = "5.2.0";
+export const WORKFLOW_WORLD_PROTOCOL = "5.3.0";
 
 export type { WorkflowDeliveryMode };
+
+/**
+ * How the World's connection behaves. `session` supports `LISTEN`, which stream
+ * readers, run status waits and live run event feeds use. `transaction` is a
+ * transaction pooler (Supabase port 6543), which has none: the World then polls
+ * the stream rows and leaves `events.subscribe` and
+ * `runs.waitForTerminalStatus` out, so the runtime polls instead.
+ */
+export type WorldConnection = "session" | "transaction";
+
+/** Milliseconds core waits to batch stream writes when no option sets it. */
+export const DEFAULT_STREAM_FLUSH_MS = 20;
+
+/**
+ * The run attribute that names the key ring entry a run's data is encrypted
+ * with.
+ */
+export const KEY_ID_ATTRIBUTE = "$bsb.key_id";
 
 /** A message the queue gave up on after `MAX_DELIVERIES` failed deliveries. */
 export interface DeadLetter {
@@ -39,10 +58,22 @@ export interface SupabaseWorldOptions {
    */
   readonly enableInvoke?: boolean;
   /**
-   * Milliseconds between flushes of buffered stream writes (world-postgres
-   * default 10; 0 flushes at once).
+   * Milliseconds core waits before it flushes buffered stream writes into the
+   * World (default 20; core's own default is 0, one insert per chunk).
+   * `WORKFLOW_STREAM_FLUSH_INTERVAL_MS` overrides this option.
    */
   readonly streamFlushIntervalMs?: number;
+  /**
+   * `session` or `transaction`; detected from the connection string (port 6543
+   * is a transaction pooler) when unset, and read from
+   * `WORKFLOW_POSTGRES_CONNECTION`.
+   */
+  readonly connection?: WorldConnection;
+  /**
+   * Milliseconds between reads of an open stream in `transaction` mode (default
+   * 100).
+   */
+  readonly streamPollInterval?: number;
   /**
    * A Postgres connection string with access to the `workflow` schema and the
    * jobs functions.
@@ -54,7 +85,9 @@ export interface SupabaseWorldOptions {
    * How messages reach the flow route. `poll` (default) claims them in this
    * process and posts to the route; `pg_net` leaves delivery to
    * `dispatch_workflow_deliveries()` on a pg_cron schedule, for serverless
-   * hosts with no long-running process.
+   * hosts with no long-running process; `vercel-queue` sends each message
+   * through Vercel Queues (an optional peer, `@vercel/queue`) and Vercel calls
+   * the flow route, which suits a function deployed on Vercel.
    */
   readonly delivery?: WorkflowDeliveryMode;
   /**
@@ -63,6 +96,25 @@ export interface SupabaseWorldOptions {
    * `/.well-known/workflow/v1/flow`.
    */
   readonly flowUrl?: string;
+  /**
+   * Headers the poller adds to every post to the flow route (a deployment
+   * protection bypass, for one). `WORKFLOW_DELIVERY_HEADERS` (a JSON object)
+   * and, for `pg_net`, the Vault secret `workflow_delivery_headers` set the
+   * same. The World's own headers win over these.
+   */
+  readonly deliveryHeaders?: Readonly<Record<string, string>>;
+  /**
+   * The `@vercel/queue` client `delivery: "vercel-queue"` sends and receives
+   * with (`new QueueClient({ ... })`); default `new QueueClient()` from the
+   * installed package.
+   */
+  readonly vercelQueue?: VercelQueueSdk;
+  /**
+   * Seconds a run's wake-up may stay owed before `deliverOnce()` and `start()`
+   * send it again (default 300). A wake-up is owed from the event that wakes
+   * the run until a delivery of it completes.
+   */
+  readonly recoverAfter?: number;
   /**
    * The secret deliveries are signed with. Required to accept `pg_net`
    * deliveries; read from the Vault secret `workflow_delivery_secret` when
@@ -77,6 +129,13 @@ export interface SupabaseWorldOptions {
    */
   readonly encryptionKey?: string;
   /**
+   * A key ring as JSON (`[{ "id", "key", "from" }]`), read from the Vault
+   * secret `workflow_encryption_keys` when unset. A run uses the latest key
+   * that started before it was created, so appending a key rotates without
+   * changing any run's key. It replaces `encryptionKey`.
+   */
+  readonly encryptionKeys?: string;
+  /**
    * The jobs queue the messages wait in
    * (`blocks["workflow-sdk"].options.queue`).
    */
@@ -85,6 +144,14 @@ export interface SupabaseWorldOptions {
   readonly schema?: string;
   /** Deliveries in flight at once in poll mode (default 50). */
   readonly concurrency?: number;
+  /**
+   * Starts, resumes, cancels and reads runs without delivering any message: the
+   * process never polls the queue, and `start()` skips the owed wake-up sweep
+   * and the re-enqueue of active runs. For a web tier next to separate workers,
+   * as world-postgres's own `skipWorkers`. Read from
+   * `WORKFLOW_POSTGRES_SKIP_WORKERS=1`.
+   */
+  readonly skipWorkers?: boolean;
   /**
    * Milliseconds between polls of an empty queue (default 250; world-postgres
    * polls graphile-worker on its own schedule).
@@ -104,8 +171,9 @@ export interface SupabaseWorldOptions {
   /** The queue namespace, as `WORKFLOW_QUEUE_NAMESPACE`. */
   readonly namespace?: string;
   /**
-   * Connections the World's own pool opens (default 10). Each delivery holds
-   * one only for its short claim, settle and heartbeat statements, so more
+   * Connections the World's own pool opens (default 10, or 2 on serverless
+   * hosts, where every instance holds its own pool). Each delivery holds one
+   * only for its short claim, settle and heartbeat statements, so more
    * deliveries than connections wait for one instead of failing.
    */
   readonly maxConnections?: number;
@@ -170,6 +238,11 @@ export interface StoredMessage {
   readonly body: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly idempotencyKey?: string;
+  /**
+   * Seconds still to wait when the message was delayed past what Vercel Queues
+   * allows (23 hours): each hop sends the message on until none remain.
+   */
+  readonly remainingDelay?: number;
 }
 
 export interface ClaimedJob {

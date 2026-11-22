@@ -9,11 +9,12 @@ packages:
 catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
   # sandbox-vercel and workflow move together.
-  "@ai-sdk/anthropic": 4.0.103
-  "@ai-sdk/mcp": 2.0.98
-  "@ai-sdk/react": 4.0.175
-  "@ai-sdk/sandbox-vercel": 1.0.182
-  "@ai-sdk/workflow": 2.0.103
+  "@ai-sdk/anthropic": 4.0.107
+  "@ai-sdk/harness": 1.0.190
+  "@ai-sdk/mcp": 2.0.102
+  "@ai-sdk/react": 4.0.183
+  "@ai-sdk/sandbox-vercel": 1.0.190
+  "@ai-sdk/workflow": 2.0.111
   # Released 2026-10-15, past minimumReleaseAge; the example runs axe over its declared pages.
   "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
@@ -90,32 +91,31 @@ catalog:
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
   "@vercel/blob": 2.9.0
-  # eve's release candidates peer on ^2.7.0. 2.7.0 is the release excluded from
-  # trustPolicy (ADR 1023); later releases pin an @vercel/oidc nobody excluded.
-  "@vercel/connect": 2.7.0
-  "@vercel/detect-agent": 1.2.5
+  # 2.9.5 is excluded from trustPolicy (ADR 1097). eve 1.3 no longer peers on it.
+  "@vercel/connect": 2.9.5
+  "@vercel/detect-agent": 1.2.7
   "@vercel/firewall": 1.2.6
-  # @workflow/core 5.5 depends on ^3.11.1. 3.11.1 is the release excluded from
-  # trustPolicy (ADR 1023); 3.11.2 pins @vercel/oidc 4.0.9, which nobody excluded.
-  "@vercel/functions": 3.11.1
-  "@vercel/kms": 0.3.4
+  # @workflow/core 5.7.1 depends on ^3.11.3. 3.11.3 and the @vercel/oidc it pins are
+  # excluded from trustPolicy (ADR 1097).
+  "@vercel/functions": 3.11.3
+  "@vercel/kms": 0.3.12
   "@vercel/passport": 1.2.0
   "@vercel/queue": 0.11.0
-  "@vercel/sandbox": 4.0.0
+  "@vercel/sandbox": 4.1.0
   "@vercel/schedules": 0.0.3
-  "@vercel/sdk": 1.28.62
+  "@vercel/sdk": 1.28.67
   "@vercel/speed-insights": 2.1.0
   "@vitejs/plugin-react": 6.2.1
   # The World's `if not exists` DDL can't alter existing columns, so a
   # world-postgres migration that does needs its own upgrade step in the
   # workflow-sdk SQL module before these move.
-  "@workflow/vitest": 5.0.9
-  "@workflow/world": 5.2.0
-  "@workflow/world-postgres": 5.2.0
-  "@workflow/world-testing": 5.1.0
+  "@workflow/vitest": 5.0.13
+  "@workflow/world": 5.3.0
+  "@workflow/world-postgres": 5.4.1
+  "@workflow/world-testing": 5.1.4
   "@wrksz/themes": 2.1.1
   "@xyflow/react": 12.12.1
-  ai: 7.0.171
+  ai: 7.0.179
   ajv: 8.20.0
   ajv-formats: 3.0.1
   astro: 7.4.11
@@ -126,11 +126,11 @@ catalog:
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.4
-  "@chat-adapter/catalog": 4.44.0
-  "@chat-adapter/state-pg": 4.44.0
-  "@chat-adapter/tests": 4.44.0
-  "@chat-adapter/whatsapp": 4.44.0
-  chat: 4.44.0
+  "@chat-adapter/catalog": 4.45.0
+  "@chat-adapter/state-pg": 4.45.0
+  "@chat-adapter/tests": 4.45.0
+  "@chat-adapter/whatsapp": 4.45.0
+  chat: 4.45.0
   citty: 0.2.2
   class-variance-authority: 0.7.1
   clsx: 2.1.1
@@ -144,10 +144,9 @@ catalog:
   # @effect/platform-node.
   effect: 4.1.2
   elysia: 1.4.32
-  # A pre-release (AGENTS.md "Pre-release pins"): the newest release candidate
-  # older than minimumReleaseAge when it was set. It bundles Workflow 5.5
-  # (ADR 1023).
-  eve: 1.0.0-rc.13
+  # eve 1.3.0 bundles Workflow 5.7.1. It is younger than minimumReleaseAge and
+  # sits in minimumReleaseAgeExclude until 2026-11-21 23:29 UTC (ADR 1105).
+  eve: 1.3.0
   expo: 58.0.23
   expo-constants: 58.0.15
   expo-linking: 58.0.16
@@ -161,7 +160,7 @@ catalog:
   express: 5.3.0
   fastest-levenshtein: 1.0.16
   fastify: 5.12.8
-  flags: 4.4.0
+  flags: 4.5.0
   fumadocs-core: 16.17.5
   fumadocs-mdx: 15.4.7
   fumadocs-typescript: 5.5.2
@@ -201,6 +200,8 @@ catalog:
   resumable-stream: 2.2.13
   rxjs: 7.8.2
   undici: 8.12.4
+  unpdf: 2.2.1
+  mammoth: 1.13.0
   yjs: 13.6.33
   fast-xml-parser: 5.12.0
   react-dom: 19.3.1
@@ -239,7 +240,7 @@ catalog:
   vite: 8.3.6
   vitest: 5.1.0
   vue: 3.5.45
-  workflow: 5.5.0
+  workflow: 5.7.1
   yaml: 2.9.1
   # Parts the shadcn CLI installs into the Next.js example (chat, command,
   # chart, calendar, resizable) and the helpers its chat tests script with.
@@ -279,10 +280,11 @@ catalogs:
   peers:
     # The AI SDK set moves together: @ai-sdk/react and @ai-sdk/workflow pin ai
     # exactly, and all of them share one @ai-sdk/provider-utils.
-    "@ai-sdk/mcp": ">=2.0.98 <3"
-    "@ai-sdk/react": ">=4.0.175 <5"
-    "@ai-sdk/workflow": ">=2.0.103 <3"
-    ai: ">=7.0.171 <8"
+    "@ai-sdk/harness": ">=1.0.190 <2"
+    "@ai-sdk/mcp": ">=2.0.102 <3"
+    "@ai-sdk/react": ">=4.0.183 <5"
+    "@ai-sdk/workflow": ">=2.0.111 <3"
+    ai: ">=7.0.179 <8"
     "@json-render/core": ">=0.22.0 <1"
     "@modelcontextprotocol/server": ">=2.4.0 <3"
     "@solidjs/start": ">=2.2.2 <3"
@@ -290,9 +292,9 @@ catalogs:
     "@tanstack/react-start": ">=1.169.5 <2"
     astro: ">=7.4.11 <8"
     # The Chat SDK packages release together.
-    "@chat-adapter/catalog": ">=4.44.0 <5"
-    "@chat-adapter/whatsapp": ">=4.44.0 <5"
-    chat: ">=4.44.0 <5"
+    "@chat-adapter/catalog": ">=4.45.0 <5"
+    "@chat-adapter/whatsapp": ">=4.45.0 <5"
+    chat: ">=4.45.0 <5"
     "@nestjs/common": ">=12.5.0 <13"
     "@next/playwright": ">=16.4.6 <17"
     # 1.10 is newer, but @supabase/lite 0.11 depends on @sentry/node 10, whose
@@ -321,7 +323,7 @@ catalogs:
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"
     # A pre-release line (AGENTS.md "Pre-release pins"); <2 admits 1.0 stable.
-    eve: ">=1.0.0-rc.13 <2"
+    eve: ">=1.3.0 <2"
     express: ">=5.3.0 <6"
     fastify: ">=5.12.8 <6"
     # Two majors: H3 1 is the h3/v1 entry that Nitro 2 and Nuxt 4 run
@@ -347,35 +349,37 @@ catalogs:
     stripe: ">=23.1.0 <24"
     temporal-polyfill: ">=1.0.8"
     valibot: ">=1.5.0 <2"
-    workflow: ">=5.5.0 <6"
+    workflow: ">=5.7.1 <6"
     yjs: ">=13.6.33 <14"
     zod: ">=4.6.7 <5"
     undici: ">=8.12.4 <9"
+    unpdf: ">=2.2.1 <3"
+    mammoth: ">=1.13.0 <2"
     fast-xml-parser: ">=5.12.0 <6"
-    # The Supabase World speaks the 5.2 world protocol; world-postgres moves with it.
-    "@workflow/world": ">=5.2.0 <5.3"
-    "@workflow/world-postgres": ">=5.2.0 <5.3"
+    # The Supabase World speaks the 5.3 world protocol; world-postgres moves with it.
+    "@workflow/world": ">=5.3.0 <5.4"
+    "@workflow/world-postgres": ">=5.4.1 <5.5"
     # The integrations below are typed structurally or loaded on first use, so
     # better-supabase imports none of them. The peer range still tells
     # package managers which releases the conformance tests cover (ADR 0036).
-    "@ai-sdk/anthropic": ">=4.0.103 <5"
+    "@ai-sdk/anthropic": ">=4.0.107 <5"
     "@openfeature/server-sdk": ">=1.23.0 <2"
     "@supabase-labs/middleware-openfeature": ">=0.2.0 <0.3"
     "@powersync/common": ">=2.5.0 <3"
-    "@vercel/connect": ">=2.7.0 <3"
+    "@vercel/connect": ">=2.9.5 <3"
     "@vercel/queue": ">=0.11.0 <0.12"
     # 4.0 talks to api.vercel.com over undici 8 and needs Node 22.19 or later.
-    "@vercel/sandbox": ">=4.0.0 <5"
-    "@ai-sdk/sandbox-vercel": ">=1.0.182 <2"
+    "@vercel/sandbox": ">=4.1.0 <5"
+    "@ai-sdk/sandbox-vercel": ">=1.0.190 <2"
     "@vercel/schedules": ">=0.0.3 <0.1"
     botid: ">=1.5.13 <2"
     "@vercel/firewall": ">=1.2.6 <2"
     "@vercel/passport": ">=1.2.0 <2"
-    "@vercel/sdk": ">=1.28.62 <2"
-    "@vercel/functions": ">=3.11.1 <4"
-    "@vercel/kms": ">=0.3.4 <0.4"
+    "@vercel/sdk": ">=1.28.67 <2"
+    "@vercel/functions": ">=3.11.3 <4"
+    "@vercel/kms": ">=0.3.12 <0.4"
     "@vercel/blob": ">=2.9.0 <3"
-    flags: ">=4.4.0 <5"
+    flags: ">=4.5.0 <5"
 
 catalogMode: strict
 nodeLinker: isolated
@@ -393,23 +397,62 @@ trustPolicy: no-downgrade
 # transitive packages predate npm provenance.
 trustPolicyIgnoreAfter: 43200
 trustPolicyExcludePrune: true
-# Maintainer-approved exceptions for Workflow 5.5 and eve's release candidates
-# (ADR 1023). These releases dropped the provenance earlier releases had, so
+# Maintainer-approved, time-boxed deviations from invariant 14 for the eve 1.2.0 and
+# Workflow 5.7 line (ADR 1097) and the eve 1.3.0 and Workflow 5.7.1 line (ADR 1105).
+# Exact package@version only, no wildcards.
+# minimumReleaseAge itself is unchanged. Delete each block once its date has passed.
+minimumReleaseAgeExclude:
+  # The @ai-sdk packages of the ai 7.0.178 set that 7.0.179 still uses, flags 4.5.0,
+  # @vercel/sandbox 4.1.0 and @vercel/sdk 1.28.67 (ADR 1097), published 2026-11-20.
+  # Each passes minimumReleaseAge by 2026-11-21 16:53 UTC; remove this block after that.
+  - "@ai-sdk/anthropic@4.0.107"
+  - "@ai-sdk/mcp@2.0.102"
+  - "@ai-sdk/provider-utils@5.0.83"
+  - "@vercel/sandbox@4.1.0"
+  - "@vercel/sdk@1.28.67"
+  - "flags@4.5.0"
+  # eve 1.3.0 and Workflow 5.7.1 with the ai 7.0.179 set (ADR 1105), published
+  # 2026-11-20 between 20:37 and 23:29 UTC. Remove this block after
+  # 2026-11-21 23:29 UTC; the Workflow entries pass by 20:44 UTC.
+  - "@ai-sdk/gateway@4.0.152"
+  - "@ai-sdk/harness@1.0.190"
+  - "@ai-sdk/react@4.0.183"
+  - "@ai-sdk/sandbox-vercel@1.0.190"
+  - "@ai-sdk/workflow@2.0.111"
+  - "@workflow/astro@5.0.13"
+  - "@workflow/builders@5.1.4"
+  - "@workflow/cli@5.3.1"
+  - "@workflow/core@5.7.1"
+  - "@workflow/errors@5.1.5"
+  - "@workflow/nest@5.1.11"
+  - "@workflow/next@5.1.4"
+  - "@workflow/nitro@5.0.13"
+  - "@workflow/nuxt@5.0.13"
+  - "@workflow/rollup@5.0.13"
+  - "@workflow/sveltekit@5.0.13"
+  - "@workflow/vite@5.0.13"
+  - "@workflow/vitest@5.0.13"
+  - "@workflow/web@5.3.1"
+  - "@workflow/world-local@5.5.1"
+  - "@workflow/world-postgres@5.4.1"
+  - "@workflow/world-testing@5.1.4"
+  - "@workflow/world-vercel@5.7.1"
+  - "ai@7.0.179"
+  - "eve@1.3.0"
+  - "workflow@5.7.1"
+# Maintainer-approved exceptions for Workflow 5.5 and 5.7 and eve (ADR 1023 and
+# ADR 1097). These releases dropped the provenance earlier releases had, so
 # no-downgrade rejects them until trustPolicyIgnoreAfter trusts them. Remove
 # each entry after its date; every one still passes minimumReleaseAge.
 trustPolicyExclude:
-  # eve's release candidates peer on it; trusted after 2026-11-30 00:48 UTC.
-  - "@vercel/connect@2.7.0"
-  # Pinned by @vercel/connect 2.7.0; trusted after 2026-11-28 19:38 UTC.
-  - "@vercel/oidc@4.0.5"
-  # Pinned by @vercel/oidc 4.0.5; trusted after 2026-11-28 19:38 UTC.
-  - "@vercel/cli-config@0.3.5"
-  # @workflow/core 5.5.0 depends on it; trusted after 2026-12-09 17:48 UTC.
-  - "@vercel/functions@3.11.1"
-  # Pinned by @vercel/functions 3.11.1; trusted after 2026-12-09 17:48 UTC.
-  - "@vercel/oidc@4.0.8"
-  # Pinned by @vercel/oidc 4.0.8; trusted after 2026-12-09 17:48 UTC.
-  - "@vercel/cli-config@0.3.8"
+  # better-supabase's own dev pin; trusted after 2026-12-19 20:39 UTC.
+  - "@vercel/connect@2.9.5"
+  # @workflow/core 5.7.1 depends on it; trusted after 2026-12-13 23:55 UTC.
+  - "@vercel/functions@3.11.3"
+  # Pinned by @vercel/functions 3.11.3; trusted after 2026-12-12 15:58 UTC.
+  - "@vercel/oidc@4.0.9"
+  # Pinned by @vercel/oidc 4.0.9; trusted after 2026-12-12 16:00 UTC.
+  - "@vercel/cli-config@0.4.0"
 # The native TypeScript 7 compiler resolves its platform binary from the root.
 publicHoistPattern:
   - "@typescript/*"
@@ -501,6 +544,9 @@ peerDependencyRules:
     # @supabase/server lists NestJS 10 or 11 as an optional peer it never
     # loads on our paths.
     "@supabase/server>@nestjs/common": "12.5.0"
+    # eve 1.3 peers optionally on Solid 2 for eve/solid, which better-supabase
+    # never loads; its own solid entry targets Solid 1.
+    "eve>solid-js": "1.9.19"
     # The World conformance suite peers on Vitest 4; it runs on the repo's
     # Vitest 5 through the same describe and test API.
     "@workflow/world-testing>vitest": "5.1.0"

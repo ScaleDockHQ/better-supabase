@@ -131,6 +131,12 @@ export interface MessageReaction {
 
 export type MessageKind = "message" | "note";
 
+/** The kind and name a sender gives for itself. A label, never an access check. */
+export interface ActorProfile {
+  readonly kind?: string;
+  readonly name?: string;
+}
+
 /** A message. `F` types the extra columns the `fields` schema describes. */
 export interface Message<F extends object = Record<never, never>> {
   readonly id: string;
@@ -144,6 +150,13 @@ export interface Message<F extends object = Record<never, never>> {
   readonly authorId: string | undefined;
   /** The author's name and avatar, with the `profiles` module. */
   readonly author: Author | undefined;
+  /**
+   * How the author acted (`user`, `agent`, `service`, `system` or the kind the
+   * sender gave), with a table that has an `author_kind` column.
+   */
+  readonly authorKind: string | undefined;
+  /** The acting profile's name, with a table that has an `author_name` column. */
+  readonly authorName: string | undefined;
   /** `note` is an inbox's internal note, which only its staff read. */
   readonly kind: MessageKind;
   /** Empty for a deleted message. */
@@ -207,6 +220,12 @@ export interface NewMessage<F extends object = Record<never, never>> {
   readonly broadcast?: boolean;
   /** Sends later: with the `jobs` module, or a cron that runs `publishDue`. */
   readonly scheduledFor?: Temporal.Instant;
+  /**
+   * Who acts, for an agent or a service sending as the user: its kind (a short
+   * lowercase word) and name. Stored with the message and carried on
+   * `message.sent` when the table has `author_kind` and `author_name`.
+   */
+  readonly actor?: ActorProfile;
   /** Files the caller uploaded to the conversation (`attachments`). */
   readonly attachmentIds?: readonly string[];
   readonly fields?: Partial<F>;
@@ -779,6 +798,7 @@ export function createMessaging<
               ...(message.scheduledFor === undefined
                 ? {}
                 : { scheduledFor: message.scheduledFor.toString() }),
+              ...(message.actor === undefined ? {} : { actor: message.actor }),
               ...(checked === undefined ? {} : { fields: checked }),
             },
             attachments: [...(message.attachmentIds ?? [])],

@@ -370,6 +370,31 @@ await jobs.unscheduleAll({ tenant: organizationId }).orThrow();
 Under pg_cron, `listSchedules` returns pg_cron's jobs with only the name and
 cron, and a schedule with a tenant returns an error.
 
+A scheduler can also run a schedule once, pause it, run it now and read one back. `scheduleOnce`
+enqueues the payload at an instant and the schedule ends. `disableSchedule` and `enableSchedule`
+pause and resume a schedule without losing it (`enableSchedule` takes `until`), `runSchedule` runs
+it once now with its stored payload, and `getSchedule` returns one `ScheduleInfo` with `enabled`
+and `once`. Each returns `false` or `null` for a name that does not exist.
+
+```ts
+await jobs
+  .scheduleOnce({
+    name: `trial-end:${organizationId}`,
+    at: Temporal.Instant.from("2026-12-01T10:00:00Z"),
+    queue: "send_mail",
+    payload: { template: "trial-ended" },
+    context: { tenant: organizationId },
+  })
+  .orThrow();
+
+await jobs.disableSchedule("digest", { tenant: organizationId }).orThrow();
+```
+
+`vercelScheduler` implements all five (a one-time schedule rounds up to the next whole minute in
+its time zone, and the client needs `get`, `enable`, `disable` and `invoke`, which
+`@vercel/schedules` has). The SQL scheduler has none of them yet: it answers `invalid_request`,
+and `testScheduleProvider` checks the members a scheduler defines.
+
 `ensureSchedules` keeps a whole set in step with a source of truth, such as
 the app's built-in schedules on deploy or a tenant's workflow settings after
 an edit. It writes every definition, removes the schedules under `prefix`
@@ -942,7 +967,7 @@ on a Supabase queue (runs go to Vercel Queues topics that nothing reads). Any
 from [conformance kits](/docs/extending/conformance). `transportScheduler`
 takes a `BlockTransport` instead of a SQL connection. eve's dynamic schedules
 store their schedules in a scheduler through `queueScheduleProvider` (see
-[eve on Supabase](/docs/eve#dynamic-schedules)); they need the drain
+[eve on Supabase](/docs/eve/schedules#dynamic-schedules)); they need the drain
 scheduler, which returns each schedule's payload.
 
 #### Supabase Queues with Supabase Cron

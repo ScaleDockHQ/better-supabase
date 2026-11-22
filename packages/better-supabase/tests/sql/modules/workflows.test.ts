@@ -145,12 +145,49 @@ describe("workflow-sdk module", () => {
     expect(body).not.toContain("perform net.http_post");
   });
 
+  it("keeps the dispatcher but schedules no cron job in vercel-queue mode", () => {
+    const body = moduleBody("workflow-sdk", {
+      modules: { "workflow-sdk": { options: { delivery: "vercel-queue" } } },
+    })!;
+
+    expect(body).toContain("workflow_delivery_headers");
+    expect(body).toContain("WORKFLOW_DELIVERY_UNCONFIGURED");
+    expect(body).not.toContain("cron.schedule('better-supabase-workflow");
+  });
+
+  it("schedules the purge backstops only where no World polls", () => {
+    const backstops = "cron.schedule('better-supabase-workflow-backstops'";
+
+    expect(dataOf("workflow-sdk")).not.toContain(backstops);
+
+    for (const delivery of ["pg_net", "vercel-queue"]) {
+      expect(
+        dataOf("workflow-sdk", { "workflow-sdk": { options: { delivery } } }),
+      ).toContain(
+        `${backstops}, '* * * * *', 'select "better_supabase"."workflow_purge_backstops"()')`,
+      );
+    }
+  });
+
+  it("records only world-postgres's purge backstops in workflow.add_job", () => {
+    const body = moduleBody("workflow-sdk")!;
+
+    expect(body).toContain("create or replace function workflow.add_job(");
+    expect(body).toContain("hint = 'WORKFLOW_GRAPHILE_UNSUPPORTED'");
+    expect(body).toContain(
+      "grant execute on function workflow.add_job(text, json, timestamptz, integer, text) to service_role;",
+    );
+    expect(body).toContain(
+      "delete from workflow.workflow_purge_backstops where run_id = any (v_ids);",
+    );
+  });
+
   it("rejects an unknown delivery mode or queue name", () => {
     expect(() =>
       dataOf("workflow-sdk", {
         "workflow-sdk": { options: { delivery: "http" } },
       }),
-    ).toThrow('must be "poll" or "pg_net", got "http"');
+    ).toThrow('must be "poll", "pg_net" or "vercel-queue", got "http"');
     expect(() =>
       moduleBody("workflow-sdk", {
         modules: { "workflow-sdk": { options: { queue: "Bad-Name" } } },
@@ -171,7 +208,15 @@ describe("workflow-sdk module", () => {
       "workflow_set_run_key",
       "workflow_release_run_key",
       "workflow_purge_runs",
+      "workflow_purge_backstops",
       "workflow_open_hooks",
+      "eve_session_wake",
+      "eve_session_lease",
+      "eve_session_commit",
+      "eve_session_release",
+      "eve_sessions_behind",
+      "eve_open_sessions",
+      "eve_session_mark",
     ]);
     expect(contract!.functions[0]).toEqual({
       name: "dispatch_workflow_deliveries",

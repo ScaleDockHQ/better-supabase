@@ -253,10 +253,11 @@ a per-call `integrations` list.
 
 `createWorkflowAgentRuntime` from `better-supabase/ai-sdk/workflow` builds a
 `WorkflowAgent` from the same options: the same tools, instructions, runtime
-context, gateway attribution and `authorizeModel` check. `WorkflowAgent` has
-no `toolApproval` setting, so the tenant's `ask` tools, high-risk operations
-and your `toolApproval` check run as each tool's `needsApproval`: a call that
-asks waits for the user and a denied call throws. `toolApprovalSecret`
+context, gateway attribution and `authorizeModel` check. The tenant's `ask`
+tools, high-risk operations and your `toolApproval` check go to the agent's
+`toolApproval` setting, which runs in workflow context: a call that asks waits
+for the user, and a denied call becomes an `execution-denied` tool result that
+the model sees, where earlier versions threw from the tool. `toolApprovalSecret`
 (`{ environmentVariable }`) signs the approval requests with AI SDK 7's
 `experimental_toolApprovalSecret`.
 
@@ -322,3 +323,44 @@ const providerOptions = anthropicSkillOptions(skills);
 ```
 
 The `agents` SQL module moves to version 2, so run `better-supabase upgrade`.
+
+## Harness agents
+
+`harnessRoute` runs a `HarnessAgent` (`@ai-sdk/harness/agent`) as a chat turn that survives between
+requests. It authorizes the caller, locks the chat (a second turn answers 409), resumes the
+session from the stored state, streams the turn, then detaches the session and stores the resume
+state sealed with `harnessStateCipher`. The cipher uses AES-GCM with the chat and harness ids as
+associated data, so a value moved to another chat does not open, and a key list lets you rotate
+keys.
+
+```ts title="app/api/harness/route.ts"
+import {
+  harnessRoute,
+  harnessStateCipher,
+} from "better-supabase/ai-sdk/agents";
+
+const route = harnessRoute({
+  agent,
+  sessions,
+  cipher: harnessStateCipher([{ id: "2026-11", key: process.env.HARNESS_KEY }]),
+  authorize: ({ userId }, chatId) => canUseChat(userId, chatId),
+  steering: chatSteering(chat),
+});
+```
+
+A message sent while a turn runs goes through `steerRoute`. It is saved as a chat message, and the
+running turn reads new messages and passes them to `session.experimental_steerTurn`. This reuses
+the chat table instead of a queue: the queue block has static named queues and cannot claim a
+message by chat (ADR 1157).
+
+## Tenant tool context
+
+`tenantToolsContext(tools, { organizationId, userId })` fills the SDK's `toolsContext` for every
+tool that declares `tenantContextSchema` as its `contextSchema`, so a tool reads the tenant from
+its typed context instead of a closure.
+
+## Tool guardrails
+
+`guardTools(tools, guardrails)` wraps each tool's `execute`. The input is checked before the tool
+runs: a block returns the refusal as the tool result and a redaction rewrites the input. The
+output is checked after, and each chunk of a streaming tool is checked as it passes.

@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@6 managed
--- @bsb-hash sha256:67846e646a13d60fc15399165440d4cab7786d53a74e4680c7a09712dd35efb6
+-- @bsb-hash sha256:f695d6ffcc6b25c3cf8da8dbc0f81d03def0c3b0c6e469dacd7310ce065f7c35
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1791,7 +1791,11 @@ $$;
 revoke execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."cancel_approval"(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+
+create or replace function "better_supabase"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1821,7 +1825,7 @@ begin
     category => 'data',
     target_type => 'approval_request',
     record_id => v_req."id"::text,
-    summary => 'cancelled' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id",
+    summary => 'cancelled' || ' ' || v_req."action" || ' on ' || v_req."subject_type" || ' ' || v_req."subject_id" || coalesce(': ' || left(nullif(btrim(cancel_approval.reason), ''), 500), ''),
     tenant => (v_req."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_req."tenant_id"::text, 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step")
   );
@@ -1832,8 +1836,8 @@ begin
   return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'action', v_req."action", 'status', v_req."status", 'step', v_req."step", 'steps', v_req."policy" -> 'steps', 'requestedBy', v_req."requested_by", 'reason', v_req."reason", 'payload', v_req."payload", 'expiresAt', v_req."expires_at", 'decidedAt', v_req."decided_at", 'mode', coalesce(v_req."policy" ->> 'mode', 'authorize'), 'fingerprint', v_req."fingerprint", 'consumedAt', v_req."consumed_at", 'createdAt', v_req."created_at");
 end;
 $$;
-revoke execute on function "better_supabase"."cancel_approval"(uuid) from public, anon;
-grant execute on function "better_supabase"."cancel_approval"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."get_approval"(request_id uuid)
 returns jsonb
@@ -3364,14 +3368,14 @@ as $$ select "better_supabase"."delegate_approval"($1, $2, $3) $$;
 revoke execute on function "api"."delegate_approval"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."delegate_approval"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."cancel_approval"(request_id uuid)
+create or replace function "api"."cancel_approval"(request_id uuid, reason text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."cancel_approval"($1) $$;
-revoke execute on function "api"."cancel_approval"(uuid) from public, anon;
-grant execute on function "api"."cancel_approval"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."cancel_approval"($1, $2) $$;
+revoke execute on function "api"."cancel_approval"(uuid, text) from public, anon;
+grant execute on function "api"."cancel_approval"(uuid, text) to authenticated, service_role;
 
 create or replace function "api"."get_approval"(request_id uuid)
 returns jsonb

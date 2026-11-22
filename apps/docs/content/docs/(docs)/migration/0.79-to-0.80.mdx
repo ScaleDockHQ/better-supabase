@@ -1,0 +1,107 @@
+---
+title: From 0.79 to 0.80
+description: What to change when upgrading from better-supabase 0.79 to 0.80. eve 1.2 and Workflow 5.7, SQL modules at new versions, persistSessions that only wakes the session sync, WorkflowAgent toolApproval, the key ring and Vercel Queues delivery.
+---
+
+0.80 moves `better-supabase/eve` and the Supabase World to eve 1.2 and
+Workflow 5.7 (ADR 1097), projects eve sessions into the chat tables from a
+cursor (ADR 1098), and delivers over Vercel Queues (ADR 1101). It is a minor
+release, and below 1.0 a minor version may carry breaking changes. Each change
+is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+| Section                                               | Needs code                                           |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| [Peer versions](#peer-versions)                       | Upgrade eve, Workflow and the World packages         |
+| [SQL modules](#sql-modules)                           | Run `better-supabase upgrade`, then deploy           |
+| [Session sync](#session-sync)                         | Change `persistSessions` and add `createSessionSync` |
+| [Workflow agents](#workflow-agents)                   | None; a denied tool call is now a result             |
+| [Failed assistant streams](#failed-assistant-streams) | None; a failed stream is stored as `error`           |
+| [Key ring](#key-ring)                                 | None; add a ring when you rotate the master key      |
+| [Vercel Queues](#vercel-queues)                       | Set `WORKFLOW_DELIVERY=vercel-queue` on Vercel       |
+
+## Peer versions
+
+The World speaks protocol 5.3.0 and eve 1.2 bundles Workflow 5.7. Upgrade eve
+first with eve's own [upgrade guide](https://eve.dev/docs/guides/upgrade), then:
+
+```bash
+pnpm add workflow@5.7.0 @workflow/world@5.3.0 @workflow/world-postgres@5.4.0 eve@1.2.0
+```
+
+The ranges are `eve >=1.2.0 <2`, `workflow >=5.7.0 <6`,
+`@workflow/world >=5.3.0 <5.4` and `@workflow/world-postgres >=5.4.0 <5.5`. eve 1.0 release
+candidates are not supported, and `assertWorldMigrations` throws on a
+`@workflow/world-postgres` older than 5.4.0. The `@workflow` packages of this
+line are released within `minimumReleaseAge`, so a project that sets the policy
+may have to wait or pin the previous release (ADR 1097).
+
+## SQL modules
+
+```bash
+pnpm better-supabase upgrade
+```
+
+Apply the migrations it writes before you deploy Workflow 5.7:
+
+| Module         | Version | Change                                                                                                   |
+| -------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `workflow-sdk` | 6       | `workflow_run_delivery_leases` and `workflow_runs.wake_pending`; runs that exist start with the flag set |
+| `workflow-sdk` | 7       | `eve_sessions`, `eve_session_runs`, their triggers; `workflow_purge_runs` takes `skip_unprojected`       |
+| `workflow-sdk` | 8       | `dispatch_workflow_deliveries()` reads the headers in `workflow_delivery_headers`; no new table          |
+| `ai-schedules` | 3       | tasks have `source` and `externalId`; the dispatcher claims only `ai-schedules` tasks                    |
+| `inbox`        | 11      | one `ai` draft per conversation and `replyKey` (`inbox_drafts_ai_key`)                                   |
+| `approvals`    | 6       | `cancel_approval(request_id, reason)` replaces `cancel_approval(request_id)` in the module's SQL         |
+
+A module upgrade runs every step from your version in order, so you can skip
+releases (ADR 1100). Calls to `workflow_purge_runs` or `cancel_approval` from
+your own SQL need the new argument.
+
+## Session sync
+
+`persistSessions` no longer writes chats. It wakes the sync job, and the job
+writes:
+
+| Before                                       | After                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| `persistSessions({ chats, agentId, title })` | `persistSessions({ store: createSupabaseWorld().eveSessions })`        |
+| `agentId` and `title` on the hook            | the `resolve` option of `createSessionSync`                            |
+| none                                         | `createSessionSync({ store, chats, read, resolve })` in the eve server |
+| none                                         | `sync.sweepSessions()` from an eve schedule, `sync.job` on the queue   |
+
+See [Sessions in the chat tables](/docs/eve/sessions) and the
+[eve example](/docs/examples). `purgeRuns({ olderThan, skipUnprojected: true })`
+keeps the runs the sync has not read. Before you deploy an eve version that
+can't resume old sessions, run `endStrandedSessions`.
+
+## Workflow agents
+
+`better-supabase/ai-sdk/workflow` passes the tool approval policy to
+`WorkflowAgent` as `toolApproval`, not as `needsApproval` on each tool. A denied
+call ends as an `execution-denied` result, which the model sees, where it was an
+error before. A custom tool wrapper that read `needsApproval` from the tools
+reads `toolApproval` from the agent options now.
+
+## Failed assistant streams
+
+`createAssistant` stores a stream that failed after it started as an `error`
+message, releases the run as `failed` with the error text and calls `onFinish`
+with `status: "failed"`. Before, the partial answer was stored as `complete`.
+A UI that treats `complete` as the only finished state needs no change; one
+that retries on `error` now sees these messages.
+
+## Key ring
+
+`WORKFLOW_ENCRYPTION_KEYS` (or the Vault secret `workflow_encryption_keys`)
+holds a ring of `{ id, key, from }` entries. With more than one key, new runs
+carry the key id as the attribute `$bsb.key_id`, so you can change a `from`
+date without losing runs that exist. Runs created before the ring had a second
+key match by date. See
+[Rotating the master key](/docs/blocks/workflow-sdk#rotating-the-master-key).
+Outside development and test, `world.start()` warns when no key is set.
+
+## Vercel Queues
+
+On Vercel, set `WORKFLOW_DELIVERY=vercel-queue`, install `@vercel/queue` and
+enable Vercel Queues for the project (see [The World](/docs/eve/world)). The
+`poll` mode on Vercel logs a warning.

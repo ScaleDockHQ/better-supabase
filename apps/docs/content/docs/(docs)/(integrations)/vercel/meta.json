@@ -1,4 +1,13 @@
 {
   "title": "Vercel",
-  "pages": ["index", "security", "passport", "functions"]
+  "pages": [
+    "index",
+    "deploy",
+    "security",
+    "passport",
+    "functions",
+    "cache",
+    "observability",
+    "connect-events"
+  ]
 }

@@ -180,6 +180,9 @@ export const permissions = {
     manage: "passes.manage",
     checkIn: "passes.check_in",
   },
+  permissions: {
+    explain: "members.read",
+  },
   reminders: {
     manage: "reminders.manage",
     read: "reminders.read",

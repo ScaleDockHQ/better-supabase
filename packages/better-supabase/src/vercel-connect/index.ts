@@ -16,3 +16,20 @@ export {
   type VercelConnectTokenResponse,
   type VercelConnectorMetadata,
 } from "./vercel-connect.ts";
+
+export type {
+  ConnectEventDelivery,
+  ConnectEventOutcome,
+  ConnectEventRouteOptions,
+  ConnectEventStatus,
+  ConnectEventSubscription,
+  ConnectEventSubscriptions,
+  ConnectEventSubscriptionsOptions,
+  ConnectEventVerifier,
+  ConnectEventVerifyOptions,
+} from "./events.ts";
+
+export {
+  connectEventRoute,
+  postgresConnectEventSubscriptions,
+} from "./events.ts";

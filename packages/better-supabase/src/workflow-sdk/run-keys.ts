@@ -30,6 +30,12 @@ export interface PurgeRunsOptions {
   readonly statuses?: readonly WorkflowTerminalStatus[];
   /** Runs per statement; `purgeRuns` repeats until none are left. Defaults to 500. */
   readonly batch?: number;
+  /**
+   * Keeps the runs of an eve session whose copy in the blocks is not current:
+   * the session is open, was never synced, or changed after its last sync. The
+   * runs go once `syncSession` has caught up.
+   */
+  readonly skipUnprojected?: boolean;
 }
 
 export interface OpenHooksOptions {
@@ -58,6 +64,13 @@ export interface WorkflowMaintenance {
   readonly runKeys: WorkflowRunKeys;
   /** Deletes ended runs and their rows; resolves with how many runs it deleted. */
   purgeRuns(options?: PurgeRunsOptions): Promise<number>;
+  /**
+   * Deletes the data of zero-retention runs whose purge did not complete when
+   * they finished, once their backstop is due (a minute after the run ended).
+   * The World runs it while it polls and pg_cron every minute; resolves with
+   * how many runs it purged.
+   */
+  purgeBackstops(options?: { readonly batch?: number }): Promise<number>;
   /** The hooks of pending and running runs, newest first. */
   openHooks(options?: OpenHooksOptions): Promise<readonly OpenWorkflowHook[]>;
 }

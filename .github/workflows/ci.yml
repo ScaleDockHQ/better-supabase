@@ -209,6 +209,9 @@ jobs:
               --filter @better-supabase/validation-recipes
               --filter @better-supabase/validation-presets
               --filter @better-supabase/validation-request-context
+          # eve's own server on the Supabase World, in every delivery mode the stack supports.
+          - name: eve on the World
+            filters: --filter @better-supabase/eve-world
     steps:
       - uses: actions/checkout@v7
         with:

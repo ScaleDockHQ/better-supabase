@@ -39,6 +39,12 @@ export interface EveContextOptions {
    */
   readonly scopes?: readonly string[];
   /**
+   * The permission key (or keys) the tool needs, such as `"tasks.write"`. It
+   * joins `scopes`, so the agent token holds exactly the keys the tool's
+   * policies check and a tool never names a scope twice.
+   */
+  readonly permission?: string | readonly string[];
+  /**
    * The user to run as when the principal is not a Supabase user, such as an
    * inbox contact or a scheduled run's app principal. A function decides per
    * principal; `undefined` refuses it.
@@ -56,6 +62,21 @@ const tenantAttribute = (
   const tenant = auth?.attributes["tenantId"];
 
   return typeof tenant === "string" && tenant !== "" ? tenant : undefined;
+};
+
+const scopesOf = (options: EveContextOptions): string[] | undefined => {
+  if (options.scopes === undefined && options.permission === undefined) {
+    return undefined;
+  }
+
+  const permission =
+    options.permission === undefined
+      ? []
+      : typeof options.permission === "string"
+        ? [options.permission]
+        : options.permission;
+
+  return [...new Set([...(options.scopes ?? []), ...permission])];
 };
 
 /**
@@ -91,11 +112,13 @@ export function eveContext(
     );
   }
 
+  const scopes = scopesOf(options);
+
   const claims = agentClaims(
     {
       sub: user.userId,
       ...(user.tenant === undefined ? {} : { tenant_id: user.tenant }),
-      ...(options.scopes === undefined ? {} : { scope: [...options.scopes] }),
+      ...(scopes === undefined ? {} : { scope: scopes }),
     },
     {
       agent: options.agent,
@@ -225,6 +248,56 @@ export function tenantToolApproval(
     const theirs = await inner(ctx);
 
     return rankOf(theirs) >= rankOf(own) ? theirs : own;
+  };
+}
+
+const configOf = (approval: EveToolApproval): EveApprovalConfiguration =>
+  typeof approval === "function" ? { request: approval } : approval;
+
+/**
+ * Combines approval policies for one tool: the strictest request result wins
+ * (`denied`, then `user-approval`, then `approved`, then `not-applicable`; on a
+ * tie the earlier policy's answer, with its reason, is kept) and every policy's
+ * `response` must allow the answer, the first rejection winning. A policy
+ * function has no `response` and allows it. The prompt is the first one a
+ * policy defines. Use it to stack a tenant's rules on a tool's own.
+ */
+export function strictestApproval(
+  ...policies: readonly EveToolApproval[]
+): EveApprovalConfiguration {
+  const configs = policies.map(configOf);
+  const prompt = configs.find((config) => config.prompt !== undefined)?.prompt;
+
+  return {
+    ...(prompt === undefined ? {} : { prompt }),
+    async request(ctx) {
+      let strictest: EveApprovalStatus;
+
+      for (const config of configs) {
+        const status = await config.request(ctx);
+
+        if (rankOf(status) > rankOf(strictest)) {
+          strictest = status;
+        }
+
+        if (rankOf(strictest) === RANK.denied) {
+          break;
+        }
+      }
+
+      return strictest;
+    },
+    async response(ctx) {
+      for (const config of configs) {
+        const decision = await config.response?.(ctx);
+
+        if (decision?.status === "rejected") {
+          return decision;
+        }
+      }
+
+      return { status: "allowed" };
+    },
   };
 }
 

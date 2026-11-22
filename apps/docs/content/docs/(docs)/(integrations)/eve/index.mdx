@@ -1,10 +1,8 @@
 ---
 title: eve on Supabase
-description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, tools that run as the user, approvals, queue schedules, dynamic schedules on the queue block, MCP and OpenAPI connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
+description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, tools that run as the user, approvals, queue schedules, MCP and OpenAPI connections, memory, sessions in the chat tables and the inbox as a channel.
 ---
 
-`better-supabase/eve` connects [eve](https://eve.dev/docs) agents to the
-blocks you already run. It adds no tables of its own: sessions land in the
 [AI chat](/docs/blocks/ai-chat) tables, memory in the
 [memory](/docs/blocks/memory) and [knowledge](/docs/blocks/knowledge)
 blocks, tokens in a [credential provider](/docs/extending/credentials), and the
@@ -17,606 +15,63 @@ pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
 pnpm better-supabase add approvals queue
 ```
 
-`eve` is an optional peer (`>=1.0.0-rc.13 <2`), a 1.0 release candidate until
-1.0 ships. The entry types eve structurally
+`eve` is an optional peer (`>=1.3.0 <2`). The entry types eve structurally
 and imports nothing from it at load time; the memory provider loads
 `eve/tools` the first time it builds its tools. eve runs on Node, so the
 entry is Node-only, like the World. The inbox channel also needs `chat`
 (see [Chat SDK](/docs/chat-sdk)).
 
-| Export                    | Plugs into                                      | Does                                                                         |
-| ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
-| `supabaseAuth`            | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal  |
-| `supabaseJwtAuth`         | `mcpChannel({ auth })` and other channel `auth` | the same for a bearer access token only, with an RFC 6750 `Bearer` challenge |
-| `supabaseTool`            | `defineTool()`                                  | runs the tool's `execute` as the session's user, under row-level security    |
-| `eveContext`              | `server.forContext()`                           | builds the user's request context with the agent's `act` claim               |
-| `approvalPolicy`          | a tool's `approval`                             | files each call as an approvals block request and settles it per decision    |
-| `tenantToolApproval`      | a tool's `approval`                             | applies the tenants' `auto`, `ask` and `deny` tool policies                  |
-| `queueSchedules`          | `defineSchedule({ run })`                       | enqueues the queue block's due schedules and starts a session for each job   |
-| `scheduleAgent`           | the queue block                                 | writes a schedule that sends a prompt to a channel target, per tenant        |
-| `agentJobHandler`         | `drain()` or a queue route                      | starts a session for one `eve` queue job, as the job's user                  |
-| `jobAuth`                 | `to(...).send(..., { auth })`                   | the session auth for a job: its user as a Supabase principal, else the app's |
-| `eveAgentJob`             | `createQueue({ queues })`                       | the Standard Schema of an `eve` queue job                                    |
-| `queueScheduleProvider`   | `defineDynamicSchedules({ provider })`          | stores eve's dynamic schedules in a queue block scheduler                    |
-| `queueDynamicSchedules`   | `defineSchedule({ run })`                       | fires the due dynamic schedules into their definition's `auth` and `run`     |
-| `eveScheduleRun`          | `createQueue({ queues })`                       | the Standard Schema of an `eve_schedules` queue job                          |
-| `credentialAuth`          | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider          |
-| `openApiAuth`             | `defineOpenAPIConnection({ auth })`             | the same tokens for an OpenAPI service, sent as a bearer token               |
-| `tenantArgument`          | a connection's `toolCall.providedArguments`     | fills one argument with the session's organization, hidden from the model    |
-| `supabaseMemory`          | `defineMemory({ provider })`                    | recalls core and archival memory and tenant documents per turn               |
-| `supabaseDocumentBackend` | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table     |
-| `persistSessions`         | `defineHook({ events })`                        | copies each session into `ai_chats`, `ai_messages` and `ai_runs`             |
-| `routeInbox`              | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal  |
-
-The [eve example](/docs/examples) wires all of them into a Next.js app.
-
-## The World
-
-eve runs every session as a Workflow SDK run. Select the Supabase World in
-the root `agent.ts`; the World reads its connection from the environment.
-
-```ts title="agent/agent.ts"
-import { defineAgent } from "eve";
-
-export default defineAgent({
-  model: "anthropic/claude-opus-5.5",
-  experimental: { workflow: { world: "better-supabase/workflow-sdk/world" } },
-});
-```
-
-```bash title=".env"
-SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-```
-
-eve 1.0 runs its sessions on the Workflow SDK it bundles and loads the World
-by name; it refuses a World built for another `@workflow/*` major at startup.
-eve 1.0.0-rc.13 bundles Workflow 5.5, which reads the 5.2 protocol the World
-speaks (`WORKFLOW_WORLD_PROTOCOL`), and needs a World with atomic start
-hooks, which the World inherits from `@workflow/world-postgres`. The
-[Workflow SDK page](/docs/blocks/workflow-sdk) lists the other variables.
-
-## Sign-in on eve routes
-
-`supabaseAuth` is an eve route `AuthFn`. It reads the Supabase session from
-the cookie or the bearer token and verifies it locally against the
-project's keys, so it never calls the Auth server. A request without a
-session falls through to the next entry, and an invalid token gets a 401.
-
-```ts title="agent/channels/eve.ts"
-import { eveChannel } from "eve/channels/eve";
-import { localDev } from "eve/channels/auth";
-import { loadEnv } from "better-supabase/env";
-import { supabaseAuth } from "better-supabase/eve";
-
-export default eveChannel({
-  auth: [supabaseAuth({ env: loadEnv() }), localDev()],
-});
-```
-
-The principal is `{ principalType: "user", principalId: <user id> }`, and
-its attributes carry `tenantId` (the `tenant_id` claim, or the claim in
-`tenantClaim`), the user's `roles` in that tenant and `isAnonymous`. The
-roles come from the `memberships` claim, or the claim in `membershipsClaim`
-when your authorization hook writes memberships elsewhere.
-`attributes(claims)` adds your own. `principalOf(auth)` builds the same
-principal from an `AuthState` you already have.
-
-### Bearer tokens for agents and MCP clients
-
-`supabaseJwtAuth` is the `AuthFn` for callers that send a Supabase access
-token as `Authorization: Bearer`: MCP clients, other agents and mobile apps.
-It verifies the token the same way, locally against the project's keys, and
-never reads the session cookie, so a browser can't authorize a request another
-site makes it send. A request without a bearer token falls through to the next
-entry. A token that fails verification gets a 401 with
-`WWW-Authenticate: Bearer error="invalid_token"` and never reaches a later
-entry such as `none()`. It declares the `Bearer` scheme, so eve's own 401 and
-`oauthResource` advertise it:
-
-```ts title="agent/channels/mcp.ts"
-import { mcpChannel } from "eve/channels/mcp";
-import { oauthResource } from "eve/channels/auth";
-import { loadEnv } from "better-supabase/env";
-import { supabaseJwtAuth } from "better-supabase/eve";
-
-const env = loadEnv();
-
-export default mcpChannel({
-  auth: oauthResource(supabaseJwtAuth({ env }), {
-    issuer: `${env.url}/auth/v1`,
-  }),
-});
-```
-
-It takes the options of `supabaseAuth` except the cookie, `verifySession` and
-`secret` ones, and builds the same principal.
-
-## Tools that run as the user
-
-`supabaseTool` builds the definition for eve's `defineTool`. Its `execute`
-gets `db` from `server.forContext()` for the session's user and tenant, so
-every query runs under row-level security. The token carries the agent's
-`act` claim (`auth.jwt() -> 'act'`), so your policies can tell the agent's
-calls from the user's own.
-
-```ts title="agent/tools/add_note.ts"
-import { toStandardJsonSchema } from "@valibot/to-json-schema";
-import { supabaseTool } from "better-supabase/eve";
-import { defineTool } from "eve/tools";
-import * as v from "valibot";
-
-import { server } from "../lib/server";
-
-export default defineTool(
-  supabaseTool({
-    server,
-    agent: "assistant",
-    description: "Adds a note to one of the organization's customers",
-    // eve sends the model the input's JSON Schema.
-    inputSchema: toStandardJsonSchema(
-      v.object({ customerId: v.string(), body: v.string() }),
-    ),
-    async execute({ customerId, body }, { db, context }) {
-      const note = await db.notes
-        .create({ customerId, body, organizationId: context.tenant ?? "" })
-        .orThrow();
-
-      return { id: note.id };
-    },
-  }),
-);
-```
-
-`server` is `createServer(betterSupabase, { postgres: createPostgres() })`;
-`forContext` needs the direct Postgres connection. A session without a
-signed-in user fails the call, unless `runAs` names the user an app-owned
-session (a schedule, a contact in the inbox) acts for.
-
-An agent claim is delegated: the token holds no permission keys unless
-`scopes` grants them. `scopes: ["tasks.*"]` lends the agent the user's
-`tasks.*` keys, and `["*"]` every key the user holds. `permissions` narrows
-the call further, the way `forContext({ permissions })` does. `readOnly: true`
-makes `actor_may_write()` refuse the block writes, and `tools` lists the
-tools the claim allows.
-
-Pass `policies` (such as `chats.approvals` from the AI chat block) to apply
-the tenants' tool settings: `deny` refuses the call, `ask` waits for a
-person, and `auto` leaves the decision to the tool's own `approval`. The
-stricter answer wins. `tenantToolApproval(source, inner)` does the same for
-a tool you define without `supabaseTool`.
-
-## Approvals
-
-`approvalPolicy` is a tool `approval` backed by the
-[approvals](/docs/blocks/approvals) block. Each call files one request as
-the session's user, with the subject `{ type: "eve_tool_call", id: callId }`
-and the tool name as the action, so a replayed call finds the request it
-filed. The agent gets the `approvals.read` and `approvals.request` scopes
-for this on its own.
-
-```ts title="agent/tools/add_note.ts"
-approval: approvalPolicy({ server, agent: "assistant" }),
-```
-
-Set who approves each tool in the block's policies, under the subject type
-`eve_tool_call`:
-
-```ts title="better-supabase.config.ts"
-blocks: {
-  approvals: {
-    options: {
-      policies: {
-        eve_tool_call: {
-          add_note: {
-            steps: [
-              { approvers: { role: "owner" }, required: 1 },
-              { approvers: { role: "admin" }, required: 1 },
-            ],
-          },
-        },
-      },
-    },
-  },
-},
-```
-
-When someone answers eve's prompt, `approvalPolicy` approves or rejects as
-that person through `forContext`, so the block decides whether they may.
-The requester can always withdraw the call. A multi-step policy keeps the
-prompt open until the last step, and a call whose request is already
-approved or rejected settles without asking. `action` and `subjectType`
-file requests under other names.
-
-## Schedules
-
-The [queue](/docs/blocks/queue) block keeps schedules per tenant, with a
-time zone and the user to run as. `queueSchedules` is the `run` of one
-eve schedule that fires every minute: it enqueues the due schedules, then
-drains the `eve` queue and sends each job's prompt to its channel target as
-the job's user.
-
-```ts title="agent/lib/server.ts"
-import { createQueue } from "better-supabase/blocks/queue";
-import { eveAgentJob } from "better-supabase/eve";
-
-export const agentJobs = createQueue({
-  sql: postgres.admin,
-  queues: { eve: eveAgentJob },
-});
-```
-
-```ts title="agent/schedules/dispatch.ts"
-import { queueSchedules } from "better-supabase/eve";
-import { defineSchedule } from "eve/schedules";
-
-import eve from "../channels/eve";
-import { agentJobs } from "../lib/server";
-
-export default defineSchedule({
-  cron: "* * * * *",
-  run: queueSchedules({ queue: agentJobs, channels: { eve } }),
-});
-```
-
-A member schedules their own run with `scheduleAgent`. `context` is the
-user the session runs as and `timeZone` the zone the cron is read in:
-
-```ts
-await scheduleAgent(
-  agentJobs,
-  `digest-${userId}`,
-  "0 9 * * 1-5",
-  { prompt: "Send my morning digest", channel: "eve", target: {} },
-  {
-    tenant,
-    timeZone: "Europe/Amsterdam",
-    context: { actor: { id: userId, kind: "user" }, tenant },
-  },
-).orThrow();
-```
-
-`channel` names a key of `channels`, and `target` is that channel's
-proactive target. A job without a user runs as eve's app principal. To
-drain the queue from your own route instead, pass
-`agentJobHandler({ channels }, args)` to `drain`.
-
-## Dynamic schedules
-
-eve's `defineDynamicSchedules` (from `eve/experimental/schedules`) lets
-members and the model create, list, update, pause and delete schedules while
-the agent runs, with eve's management tools, `scope`, approvals and its
-`auth` check of the creator before each run. `queueScheduleProvider` stores
-those schedules in a [queue block](/docs/blocks/queue) scheduler, and
-`queueDynamicSchedules` fires them from a minute schedule, the way eve's
-application-managed scheduling pattern does.
-
-```ts title="agent/lib/server.ts"
-import { createQueue, sqlScheduler } from "better-supabase/blocks/queue";
-import { eveScheduleRun, queueScheduleProvider } from "better-supabase/eve";
-
-const scheduler = sqlScheduler(postgres.admin, { mode: "drain" });
-
-export const memberSchedules = queueScheduleProvider({
-  scheduler,
-  // The scope below is [tenant, member].
-  tenantOf: (scope) => (Array.isArray(scope) ? scope[0] : undefined),
-});
-
-export const scheduleRuns = createQueue({
-  sql: postgres.admin,
-  scheduler,
-  queues: { eve_schedules: eveScheduleRun },
-});
-```
-
-```ts title="agent/schedules/requests.ts"
-import { toStandardJsonSchema } from "@valibot/to-json-schema";
-import { defineDynamicSchedules } from "eve/experimental/schedules";
-import * as v from "valibot";
-
-import eve from "../channels/eve";
-import { memberSchedules } from "../lib/server";
-
-export default defineDynamicSchedules({
-  inputSchema: toStandardJsonSchema(v.object({ task: v.string() })),
-  provider: memberSchedules,
-  scope: ({ session }) => {
-    const auth = session.auth.current;
-    const tenant = auth?.attributes.tenantId;
-
-    return auth?.principalType === "user" && typeof tenant === "string"
-      ? [tenant, auth.principalId]
-      : null;
-  },
-  // findMember is application code: it looks up the creator's current access
-  // and returns null to fail the run without a retry.
-  auth: ({ principal }) => findMember(principal.principalId),
-  run: ({ payload, to }) => to(eve, {}).send(payload.task),
-});
-```
-
-```ts title="agent/schedules/dispatch.ts"
-import { queueDynamicSchedules } from "better-supabase/eve";
-import { defineSchedule } from "eve/schedules";
-
-import { memberSchedules, scheduleRuns } from "../lib/server";
-import requests from "./requests";
-
-export default defineSchedule({
-  cron: "* * * * *",
-  run: queueDynamicSchedules({
-    queue: scheduleRuns,
-    provider: memberSchedules,
-    // The key is the collection name: the definition's `id`, or its path
-    // under agent/schedules/ when it sets none.
-    collections: { requests },
-  }),
-});
-```
-
-Each eve schedule is one queue block schedule named
-`eve:<collection>:<namespace>:<name>`, whose payload holds eve's record: the
-timing, state, timestamps and eve's stored payload with the creator and
-scope. A `single` time becomes the cron of its local minute, hour, day and
-month, and completes after its run. `get`, `list`, `update`, `enable`,
-`disable` and `delete` read and write those schedules, always inside eve's
-collection and namespace. `tenantOf` reads the tenant from the scope eve
-resolved, so `unscheduleAll({ tenant })` removes a tenant's schedules with
-the rest of its data.
-
-Every minute, `queueDynamicSchedules` calls `runSchedules`, then drains
-`eve_schedules`. For each run it reads the schedule again and skips it when
-it was paused or deleted after it was enqueued, validates the stored payload
-with `inputSchema` (unless `preparePayload` shaped it), calls the
-definition's `auth` with the creator and then its `run`. Both receive eve's
-`schedule` handle, whose `disable()` and `delete()` act on the schedule that
-fired, and `auth` may return only `{ attributes }` to run as the stored
-creator. Sessions start through the minute schedule's `to()`, as the
-creator. A send without an
-`idempotencyKey` gets one from the occurrence and the message, so a retried
-run reaches the session the first attempt started. `null` from `auth`, a
-different creator, an invalid payload or an unknown collection fail the
-occurrence for good and call `occurrence.failed`; a thrown error retries the
-job, and the last attempt calls `occurrence.failed` too. A run that finishes
-calls `occurrence.dispatched` with the session ids. eve's `invoke` (a
-manual run) delivers through the target eve passes with the call.
-
-The provider needs a scheduler that lists schedules with their payloads,
-because eve's `update` keeps the stored payload, `invoke` delivers it and
-`get` returns the timing and state: the drain scheduler
-(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
-"drain" })` and `transportScheduler`). It pairs with Supabase Queues and
-Vercel Queues alike. pg_cron keeps only the command, in UTC and without a
-tenant, and Vercel Schedules returns no payloads, so the provider throws a
-`TypeError` for a scheduler that can't list and an `unsupported`
-`DbException` (`EVE_SCHEDULE_PAYLOAD_UNREADABLE`) for one that lists without
-payloads.
-
-eve gives a provider its delivery target only during a management call, and
-fires a timed run only through its own Vercel Queues route, so a provider has
-no public way to hand eve a run at the scheduled minute (still true in
-1.0.0-rc.13). `queueDynamicSchedules`
-runs the definition's `auth` and `run` itself instead. Runs fire at the next
-minute tick, and a session it starts is an ordinary session of the minute
-schedule: `ctx.session.schedule` names that schedule, not the dynamic one, and
-the session could ask for input that nobody answers, so give scheduled work
-tools that don't wait for a person.
-
-## Connections
-
-`credentialAuth` gives an MCP connection its token from a
-`CredentialProvider`. With `owner: "app"` every session shares the app's
-credential; with `owner: "user"` each signed-in user gets their own, and a
-session without a user is asked to sign in.
-
-```ts title="agent/connections/linear.ts"
-import { defineMcpClientConnection } from "eve/connections";
-import { vaultCredentials } from "better-supabase/credentials";
-import { credentialAuth } from "better-supabase/eve";
-
-import { transport } from "../lib/blocks";
-
-export default defineMcpClientConnection({
-  url: "https://mcp.linear.app/mcp",
-  description: "The team's Linear workspace",
-  auth: credentialAuth({
-    provider: vaultCredentials({ transport }),
-    ref: { provider: "vault", secret: "linear", scope: "user" },
-    owner: "user",
-    connection: "Linear",
-  }),
-});
-```
-
-A user without a stored credential gets eve's authorization flow when the
-provider can start one (Vercel Connect can, Vault can't): eve sends the
-user to the provider and resumes the turn after the callback. A provider
-that finishes the grant itself (Vercel Connect stores it on its side) has no
-`completeAuthorization`; eve's completion step then reads the token once,
-skipping the cache, to confirm it. A device code from `startAuthorization`
-shows up in eve's challenge as "Enter the code ...". Pass
-`interactive: false` to report `authorization.required` instead. Provider
-errors map to eve's errors: a missing or unauthorized credential becomes
-`ConnectionAuthorizationRequiredError`, a forbidden or invalid one
-`ConnectionAuthorizationFailedError`, and anything else a `DbException`.
-
-`openApiAuth` takes the same options for eve's `defineOpenAPIConnection`,
-which turns each operation of an OpenAPI document into a tool and sends the
-token as `Authorization: Bearer <token>`. `tenantArgument(name)` fills one
-argument of every call with the session's organization; eve removes it from
-the schemas the model sees, and a session without an organization fails
-the call.
-
-```ts title="agent/connections/crm.ts"
-import { defineOpenAPIConnection } from "eve/connections";
-import { openApiAuth, tenantArgument } from "better-supabase/eve";
-
-import { credentials } from "../lib/blocks";
-
-export default defineOpenAPIConnection({
-  spec: "https://crm.example.com/openapi.json",
-  description: "The organization's CRM: accounts, contacts and open deals",
-  auth: openApiAuth({
-    provider: credentials,
-    ref: { provider: "vault", secret: "crm", scope: "app" },
-    owner: "app",
-    connection: "CRM",
-  }),
-  toolCall: { providedArguments: tenantArgument("organization_id") },
-});
-```
-
-## Memory
-
-`supabaseMemory` is a memory provider over the memory block, with
-optional tenant documents from the knowledge block. Pass both blocks on a
-service transport, since eve calls the provider outside the user's request.
-
-```ts title="agent/memory/profile.ts"
-import { defineMemory, defineMemoryProvider } from "eve/memory";
-import { byPrincipal } from "eve/memory/scope";
-import { supabaseMemory } from "better-supabase/eve";
-
-import { knowledge, memory } from "../lib/blocks";
-
-export default defineMemory({
-  description: "What the agent knows about this user and their team",
-  scope: byPrincipal,
-  provider: defineMemoryProvider(supabaseMemory({ memory, knowledge })),
-});
-```
-
-On `turn.started` the provider returns the user's core memory, the
-archival memories and knowledge chunks closest to the new message (`k`,
-5 by default) and stores that answer under eve's operation id, so a
-replayed step recalls the same messages. Every read and write is
-partitioned by the memory scope key and the signed-in user; sessions
-without a user and tenant recall nothing. Knowledge search defaults to
-the tenant's shared documents, because the provider searches as the
-service role; widen `knowledgeScopes` only when every member may read the
-wider scope.
-
-The model gets `remember` and `forget` tools (eve shows them as
-`<slot>__remember`). Pass `extract(messages, ctx)`, an LLM call of yours, to
-also keep facts from every finished turn; `tools: false` drops the tools.
-
-To keep eve's own file memory instead, store it in Postgres with
-`supabaseDocumentBackend`. A write with a stale version throws
-`MemoryDocumentConflictError`, and eve retries with the current document.
-
-```ts title="agent/memory/notes.ts"
-import { defineMemory } from "eve/memory";
-import { fileMemory } from "eve/memory/file";
-import { byPrincipal } from "eve/memory/scope";
-import { supabaseDocumentBackend } from "better-supabase/eve";
-
-import { memory } from "../lib/blocks";
-
-export default defineMemory({
-  description: "Notes the agent keeps for itself",
-  scope: byPrincipal,
-  provider: fileMemory({ backend: supabaseDocumentBackend({ memory }) }),
-});
-```
-
-## Sessions in the chat tables
-
-`persistSessions` returns hook handlers that copy eve sessions into the
-canonical chat tables, so the chat UI, search, memory recall and analytics
-read them like any other chat.
-
-```ts title="agent/hooks/persist.ts"
-import { defineHook } from "eve/hooks";
-import { persistSessions } from "better-supabase/eve";
-
-import { chats } from "../lib/blocks";
-
-export default defineHook({
-  events: persistSessions({ chats, agentId: "support" }),
-});
-```
-
-The handlers follow eve's session events (stream version 27):
-
-| eve event           | Written                                                                                                   |
-| ------------------- | --------------------------------------------------------------------------------------------------------- |
-| `session.started`   | an `ai_chats` row with the id `chatIdOf(sessionId)`, owned by the user                                    |
-| `turn.started`      | an `ai_runs` row with the engine `eve`                                                                    |
-| `delivery.consumed` | the text the user sent, in the canonical format, with the id `<turnId>:<deliveryId>`                      |
-| `content.completed` | each text part, format `eve`, with eve's event as the native copy; a part that isn't the reply is interim |
-| `turn.settled`      | the run's status from the outcome: `completed`, `failed` or `cancelled`                                   |
-
-Each write is keyed by the event, so a redelivered event stores nothing
-new. The chat id is a UUID derived from the session id, so a client that
-knows the chat can open the eve session with
-`useEveAgent({ initialSession: { sessionId, streamIndex: 0 } })`. Sessions
-without a signed-in user and tenant are skipped.
-
-## The inbox as a channel
-
-`routeInbox` connects the [inbox](/docs/blocks/inbox) to eve's Chat SDK
-channel. Build the channel over [`inboxAdapter`](/docs/chat-sdk/inbox-adapter)
-and the Postgres state, then hand it to `routeInbox`:
-
-```ts title="agent/channels/inbox.ts"
-import { chatSdkChannel } from "eve/channels/chat-sdk";
-import { createSupabaseState, inboxAdapter } from "better-supabase/chat-sdk";
-import { routeInbox } from "better-supabase/eve";
-
-import { inbox, transport } from "../lib/blocks";
-
-const bridge = chatSdkChannel({
-  userName: "Acme agent",
-  adapters: {
-    inbox: inboxAdapter({
-      inbox,
-      userName: "Acme agent",
-      verify: (request) =>
-        request.headers.get("authorization") ===
-        `Bearer ${process.env.INBOX_BOT_SECRET}`,
-    }),
-  },
-  state: createSupabaseState({ transport }),
-});
-
-routeInbox(bridge, { inbox });
-
-export default bridge.channel;
-```
-
-A contact's message in a conversation in bot mode queues an `inbox_bot`
-job. Drain the queue with a route that posts each job to the adapter's
-webhook, which eve mounts at `/eve/v1/inbox`:
-
-```ts title="app/api/jobs/drain/route.ts"
-import "server-only";
-
-import { jobs } from "@/lib/jobs";
-
-export const GET = jobs.drainRoute({
-  secret: process.env.CRON_SECRET,
-  handlers: {
-    inbox_bot: async (payload) => {
-      const response = await fetch(`${process.env.APP_URL}/eve/v1/inbox`, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${process.env.INBOX_BOT_SECRET}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) throw new Error(`eve answered ${response.status}`);
-    },
-  },
-});
-```
-
-The agent's replies post back into the conversation as the bot. A message
-reaches eve only while the conversation's `bot_mode` is `bot`, so a staff
-handoff pauses the agent. The turn's principal is the contact
-(`principalType: "contact"`, with `tenantId` and `conversationId`), never a
-user, so `owner: "user"` connections and per-user memory stay closed to
-contacts.
+| Export                                | Plugs into                                      | Does                                                                                      |
+| ------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `supabaseAuth`                        | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal               |
+| `supabaseJwtAuth`                     | `mcpChannel({ auth })` and other channel `auth` | the same for a bearer access token only, with an RFC 6750 `Bearer` challenge              |
+| `supabaseTool`                        | `defineTool()`                                  | runs the tool's `execute` as the session's user, under row-level security                 |
+| `eveContext`                          | `server.forContext()`                           | builds the user's request context with the agent's `act` claim                            |
+| `approvalPolicy`                      | a tool's `approval`                             | files each call as an approvals block request and settles it per decision                 |
+| `tenantToolApproval`                  | a tool's `approval`                             | applies the tenants' `auto`, `ask` and `deny` tool policies                               |
+| `strictestApproval`                   | a tool's `approval`                             | combines approval policies: the strictest request wins, all responses allow               |
+| `queueSchedules`                      | `defineSchedule({ run })`                       | enqueues the queue block's due schedules and starts a session for each job                |
+| `scheduleAgent`                       | the queue block                                 | writes a schedule that sends a prompt to a channel target, per tenant                     |
+| `agentJobHandler`                     | `drain()` or a queue route                      | starts a session for one `eve` queue job, as the job's user                               |
+| `jobAuth`                             | `to(...).send(..., { auth })`                   | the session auth for a job: its user as a Supabase principal, else the app's              |
+| `eveAgentJob`                         | `createQueue({ queues })`                       | the Standard Schema of an `eve` queue job                                                 |
+| `queueScheduleProvider`               | `defineDynamicSchedules({ provider })`          | stores eve's dynamic schedules in a queue block scheduler                                 |
+| `queueDynamicSchedules`               | `defineSchedule({ run })`                       | fires the due dynamic schedules into their definition's `auth` and `run`                  |
+| `eveScheduleRun`                      | `createQueue({ queues })`                       | the Standard Schema of an `eve_schedules` queue job                                       |
+| `credentialAuth`                      | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider                       |
+| `openApiAuth`                         | `defineOpenAPIConnection({ auth })`             | the same tokens for an OpenAPI service, sent as a bearer token                            |
+| `tenantArgument`                      | a connection's `toolCall.providedArguments`     | fills one argument with the session's organization, hidden from the model                 |
+| `supabaseMemory`                      | `defineMemory({ provider })`                    | recalls core and archival memory and tenant documents per turn                            |
+| `supabaseDocumentBackend`             | `fileMemory({ backend })`                       | stores eve's file memory in the memory module's `memory_documents` table                  |
+| `supabaseSkillScopes`                 | `customSkills({ scopes })`                      | keeps custom skills inside the tenant: personal, persona, channel and organization scopes |
+| `persistSessions`                     | `defineHook({ events })`                        | wakes the session sync when eve records an event (wake-only)                              |
+| `createSessionSync`                   | the `eve_session_sync` queue                    | projects sessions into `ai_chats`, `ai_messages` and `ai_runs` from a cursor              |
+| `sweepSessions`                       | an eve schedule                                 | queues the sync for sessions the triggers missed                                          |
+| `sessionHistory`                      | a session on a new eve version                  | returns a synced session's messages in eve's `history` shape                              |
+| `openSessions`, `endStrandedSessions` | a deploy script                                 | lists and ends sessions a new eve version can't resume                                    |
+| `routeInbox`                          | `chatSdkChannel()` over `inboxAdapter`          | hands inbox conversations in bot mode to eve, with the contact as principal               |
+| `inboxConnectionWebhook`              | a route per channel connection                  | verifies each request with its connection's credential and stores the event               |
+| `inboxHandoff`                        | a schedule or `waitUntil`                       | stores the message and sends bot-mode conversations to eve, keyed by message              |
+| `inboxRunAs`                          | `supabaseTool({ runAs })`                       | runs an inbox session's tools as a service user in the conversation's tenant              |
+| `inboxReplies`                        | `createSessionSync({ reply })`                  | sends each reply as a bot message, or stores it as an ai draft                            |
+
+## Guide
+
+| Page                                 | Covers                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------- |
+| [The World](/docs/eve/world)         | delivery modes, `vercel-queue`, connection modes, the key ring, purge, versions |
+| [Sign-in](/docs/eve/auth)            | `supabaseAuth`, bearer tokens and the memberships claim                         |
+| [Tools](/docs/eve/tools)             | `supabaseTool` under row-level security and permission scopes                   |
+| [Approvals](/docs/eve/approvals)     | `approvalPolicy`, `strictestApproval` and approval scopes                       |
+| [Schedules](/docs/eve/schedules)     | queue schedules, dynamic schedules, the ai-schedules mirror                     |
+| [Connections](/docs/eve/connections) | MCP and OpenAPI tokens                                                          |
+| [Memory](/docs/eve/memory)           | recall and file memory                                                          |
+| [Sessions](/docs/eve/sessions)       | the projection, sync, sweep, history and upgrades                               |
+| [Inbox](/docs/eve/inbox)             | the inbox as an eve channel                                                     |
+
+The [eve example](/docs/examples) wires all of them into a Next.js app. The
+breaking changes of this line are in
+[the 0.79 to 0.80 guide](/docs/migration/0.79-to-0.80).
 
 ## Limitations
 
@@ -634,17 +89,7 @@ contacts.
 - `queueSchedules` starts the sessions from the eve schedule's own task, so
   a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
   wait for the next minute.
-- The tested range starts at eve 1.0.0-rc.13, which peers on
-  `@vercel/connect` 2.7 and bundles Workflow 5.5 (ADR 1023).
-
-## Queue schedulers
-
-`queueSchedules` calls `runSchedules` and then drains the
-[queue block](/docs/blocks/queue), so its schedules need the drain scheduler
-(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
-"drain" })`). Under pg_cron or Vercel Schedules, `runSchedules` enqueues
-nothing and the runs reach the queue another way (see
-[Queues and schedulers](/docs/blocks/queue#queues-and-schedulers)).
-`ScheduleProvider` from `better-supabase/blocks/queue` is the port a
-scheduler implements, and the one `queueScheduleProvider` stores eve's dynamic
-schedules in.
+- The tested range starts at eve 1.2.0, which peers on `@vercel/connect` 2.9
+  and bundles Workflow 5.7 (ADRs 1023 and 1097).
+- `vercel-queue` delivery, the Vercel build and the live inbox channel have not
+  run against real services (see `docs/agents/eve.md` in the repository).

@@ -27,6 +27,8 @@ export interface NuxtImportLike {
 export interface NuxtLike {
   readonly options: {
     readonly betterSupabase?: NuxtModuleOptions | undefined;
+    /** Nuxt's own record of the Nitro major (2 or 3), when it sets one. */
+    readonly _nitroMajor?: number | undefined;
     nitro: {
       // Nitro 2 and 3 type these entries differently; the module only
       // appends its own, so it reads them as unknown.
@@ -34,6 +36,11 @@ export interface NuxtLike {
       handlers?: unknown[];
     };
   };
+  /**
+   * Set by Nuxt once Nitro is created; absent while modules run on some
+   * versions.
+   */
+  readonly _nitro?: { readonly meta?: { readonly majorVersion?: number } };
   hook(name: "imports:extend", fn: (imports: NuxtImportLike[]) => void): void;
 }
 
@@ -53,8 +60,39 @@ export const VUE_COMPOSABLES: readonly string[] = [
 
 const MIDDLEWARE_ID = "#better-supabase/middleware";
 
-/** The virtual Nitro middleware: the app's entries through `toH3V1`. */
-export function middlewareSource(server: string): string {
+/**
+ * The Nitro major Nuxt reports: `options._nitroMajor`, then
+ * `_nitro.meta.majorVersion`, the two places `@nuxt/kit`'s `getNitroVersion`
+ * reads. `undefined` means Nuxt did not say, which the module treats as Nitro 2.
+ */
+export function nitroMajorOf(nuxt: NuxtLike): number | undefined {
+  // Nuxt's own private field; it is the only place kit reads the major (2 findings).
+  // eslint-disable-next-line no-underscore-dangle
+  const declared = nuxt.options._nitroMajor;
+
+  if (declared === 2 || declared === 3) {
+    return declared;
+  }
+
+  // eslint-disable-next-line no-underscore-dangle
+  const reported = nuxt._nitro?.meta?.majorVersion;
+
+  return typeof reported === "number" ? reported : undefined;
+}
+
+/**
+ * The virtual Nitro middleware: the app's entries through `toH3V1` (Nitro 2, h3 1)
+ * or `toH3` (Nitro 3, h3 2).
+ */
+export function middlewareSource(server: string, nitroMajor = 2): string {
+  if (nitroMajor >= 3) {
+    return [
+      `import { toH3 } from "better-supabase/h3";`,
+      `import entries from ${JSON.stringify(server)};`,
+      `export default toH3(entries);`,
+    ].join("\n");
+  }
+
   return [
     `import { defineEventHandler } from "h3";`,
     `import { toH3V1 } from "better-supabase/h3/v1";`,
@@ -76,7 +114,7 @@ function setup(inline: NuxtModuleOptions | undefined, nuxt: NuxtLike): void {
     const nitro = nuxt.options.nitro;
     nitro.virtual = {
       ...nitro.virtual,
-      [MIDDLEWARE_ID]: middlewareSource(options.server),
+      [MIDDLEWARE_ID]: middlewareSource(options.server, nitroMajorOf(nuxt)),
     };
 
     const middleware: NitroHandlerLike = {

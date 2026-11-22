@@ -7,6 +7,7 @@ import type { Result } from "./result.ts";
 
 import { fromPgError } from "../postgres/pg-error.ts";
 import { rawError } from "./block-transport.ts";
+import { errorText } from "./error-text.ts";
 import { dbError, dbErrorOf, mapDbError } from "./errors.ts";
 import { isRecord } from "./guards.ts";
 import { AsyncResult, err, ok, toDbError } from "./result.ts";
@@ -192,7 +193,7 @@ export function leaseHeartbeat(
   };
 }
 
-export { isRecord };
+export { errorText, isRecord };
 
 export const textOf = (value: unknown): string =>
   typeof value === "string" ? value : String(value);
@@ -747,18 +748,6 @@ export function intervalOf(value: unknown): Temporal.Duration {
   }
 
   return durationOfFields(fields, text);
-}
-
-export function errorText(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === "object" && error !== null && "message" in error) {
-    return String(error.message);
-  }
-
-  return String(error);
 }
 
 /**

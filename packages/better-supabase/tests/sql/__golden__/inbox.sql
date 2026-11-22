@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:b12e95540cce67940cbd8933bbf4640bfaae78232a868795e9a8d8995dbacbce
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:6ecf0a48b6f14cd27b1b44d106770911f01f9975db62851bfd6ff90b9058f7e3
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -275,6 +275,7 @@ create table "better_supabase"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
@@ -2919,6 +2920,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
+  end if;
   insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -3269,21 +3278,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:90c7d1ca59c981fba1d9720cf45bb957331d5b554069386a6d02a45fb6190547
+-- @bsb-hash sha256:9045ee8a193bfd3f3ab23e6e1032762c7a2316519b8b426fc39e22c728da7275
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:eaaa289558762087efd18f6faaf80c7dc5f489b17cde9fad3481c731df7d7292
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:b45b9721b5e6e9372fc4d5f76872ad25118b86fc31ddfb374256df7b98fbc444
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3557,6 +3566,7 @@ create table "better_supabase"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
@@ -6355,6 +6365,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
+  end if;
   insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -6708,7 +6726,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:7259b70cff8d1d2e2555b3ace9fcdf9255640197698ddac311c46b834b36d7e2
+-- @bsb-hash sha256:5c4c01ee552ce77d4a2a027397fec667e586339ef470dba7a556390e8a6d33da
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6719,14 +6737,14 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:10a55881132be2c17a750a959d8f61d134debfb0615cbe50a1c333941ee7d36c
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:9baff66b099c5afc26b401b96af0d11a36ff427786507e60c9ec907277389d6f
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7005,6 +7023,7 @@ create table "app_private"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "app_private"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "app_private"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "app_private"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "app_private"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "app_private"."inbox_drafts"
@@ -9649,6 +9668,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "app_private"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
+  end if;
   insert into "app_private"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -9999,21 +10026,21 @@ create policy bsb_tenant_scope_delete on "app_private"."inbox_drafts" as restric
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:90c7d1ca59c981fba1d9720cf45bb957331d5b554069386a6d02a45fb6190547
+-- @bsb-hash sha256:9045ee8a193bfd3f3ab23e6e1032762c7a2316519b8b426fc39e22c728da7275
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:20be986d42b86fd54e17a77adfac88c8a83cc27a5b673cbd96d77a8653c3dc19
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:69ed0c19483c52596b902524f503e293a0f9404cbf754fb87de85d0ff5dcbacd
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10287,6 +10314,7 @@ create table "better_supabase"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
@@ -12931,6 +12959,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
+  end if;
   insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -13753,21 +13789,21 @@ grant execute on function "api"."seed_inbox_defaults"(uuid, text, text) to servi
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:90c7d1ca59c981fba1d9720cf45bb957331d5b554069386a6d02a45fb6190547
+-- @bsb-hash sha256:9045ee8a193bfd3f3ab23e6e1032762c7a2316519b8b426fc39e22c728da7275
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:116f2e4144090af619bc834343416e53c9f828552e187962203596c7e7850892
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:40c021ca6682a6784518f79e30a644ffca92688ffb5f6f732bf171f5ef7a0cf8
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14021,6 +14057,7 @@ alter table "better_supabase"."inbox_drafts" add column if not exists "metadata"
 alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."inbox_drafts" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index if not exists inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index if not exists inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index if not exists inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
@@ -16670,6 +16707,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'conversation_id', v_row."conversation_id", 'author_id', v_row."author_id", 'source', v_row."source", 'input', v_row."input", 'status', v_row."status", 'metadata', v_row."metadata", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+    end if;
+  end if;
   insert into "better_supabase"."inbox_drafts" ("tenant_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."tenant_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -17020,21 +17065,21 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:90c7d1ca59c981fba1d9720cf45bb957331d5b554069386a6d02a45fb6190547
+-- @bsb-hash sha256:9045ee8a193bfd3f3ab23e6e1032762c7a2316519b8b426fc39e22c728da7275
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@10 managed
--- @bsb-hash sha256:d28c16cf1acd3c98b7d76bb6a7dcd6ad5f34486cf36962fb6cf29b5eadb88d6e
+-- @bsb-block inbox@11 managed
+-- @bsb-hash sha256:d795a5c117c5afa5f6f499026e2dece04ba61ddea8688a6a67549b7600672997
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17308,6 +17353,7 @@ create table "better_supabase"."inbox_drafts" (
   constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
+create unique index inbox_drafts_ai_key on "better_supabase"."inbox_drafts" ("conversation_id", ("metadata" ->> 'replyKey')) where "source" = 'ai' and "metadata" ? 'replyKey';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
 create index inbox_drafts_author_idx on "better_supabase"."inbox_drafts" ("author_id");
 create trigger bsb_updated_at before update on "better_supabase"."inbox_drafts"
@@ -19952,6 +19998,14 @@ begin
   if v_metadata is not null and jsonb_typeof(v_metadata) <> 'object' then
     raise exception 'metadata must be an object' using errcode = '22023', hint = 'INBOX_DRAFT_METADATA';
   end if;
+  if v_metadata ? 'replyKey' then
+    select * into v_row from "better_supabase"."inbox_drafts" x
+    where x."conversation_id" = v_conv."id" and x."source" = 'ai'
+      and x."metadata" ->> 'replyKey' = v_metadata ->> 'replyKey';
+    if found then
+      return to_jsonb(v_row);
+    end if;
+  end if;
   insert into "better_supabase"."inbox_drafts" ("org_id", "conversation_id", "author_id", "source", "input", "metadata")
   values (v_conv."org_id", v_conv."id", null, 'ai', v_input, coalesce(v_metadata, '{}'::jsonb))
   returning * into v_row;
@@ -20302,13 +20356,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:90c7d1ca59c981fba1d9720cf45bb957331d5b554069386a6d02a45fb6190547
+-- @bsb-hash sha256:9045ee8a193bfd3f3ab23e6e1032762c7a2316519b8b426fc39e22c728da7275
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 10, 'managed')
+values ('inbox', 11, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

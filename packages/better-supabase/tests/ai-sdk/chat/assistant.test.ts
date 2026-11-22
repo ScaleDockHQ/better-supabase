@@ -598,7 +598,10 @@ describe("createAssistant", () => {
       }),
     });
 
-    const { assistant, context, pending } = setup({
+    const onFinish = vi.fn();
+
+    const { assistant, context, fake, pending } = setup({
+      onFinish,
       run: (args) => streamText({ model: failing, messages: args.messages }),
     });
 
@@ -613,6 +616,22 @@ describe("createAssistant", () => {
 
     expect(body).toContain("The model provider refused the credentials.");
     expect(body).not.toContain("sk-123");
+    expect(fake.saved).toEqual([
+      expect.objectContaining({
+        opts: expect.objectContaining({ status: "error" }),
+      }),
+    ]);
+    expect(fake.released).toEqual([
+      expect.objectContaining({
+        opts: expect.objectContaining({
+          status: "failed",
+          error: expect.stringContaining("key sk-123 is invalid"),
+        }),
+      }),
+    ]);
+    expect(onFinish).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" }),
+    );
   });
 
   describe("tool approvals", () => {

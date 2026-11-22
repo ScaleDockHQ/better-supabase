@@ -386,7 +386,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       fail("APPROVAL_INVALID", message, "22023"),
   } as const;
 
-  const record = (event: string, row: string, audit: boolean): string =>
+  const record = (
+    event: string,
+    row: string,
+    audit: boolean,
+    note?: string,
+  ): string =>
     ctx.record({
       type: event,
       payload: `jsonb_build_object('organizationId', ${row}.${c("tenant")}::text, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'id', ${row}.${c("id")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)})`,
@@ -397,7 +402,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
             category: "data",
             targetType: "approval_request",
             recordId: `${row}.${c("id")}::text`,
-            summary: `${sqlString(event.replace("approval.", ""))} || ' ' || ${row}.${c("action")} || ' on ' || ${row}.${c("subjectType")} || ' ' || ${row}.${c("subjectId")}`,
+            summary: `${sqlString(event.replace("approval.", ""))} || ' ' || ${row}.${c("action")} || ' on ' || ${row}.${c("subjectType")} || ' ' || ${row}.${c("subjectId")}${note === undefined ? "" : ` || coalesce(': ' || ${note}, '')`}`,
           }
         : false,
     });
@@ -1223,7 +1228,11 @@ end;
 $$;
 ${userGrant(`${fn("delegate_approval")}(uuid, uuid, text)`)}
 
-create or replace function ${fn("cancel_approval")}(request_id uuid)
+-- reason (up to 500 characters) goes into the audit entry, so a system that
+-- cancels requests on the user's behalf, such as an agent session that ended,
+-- says why.
+drop function if exists ${fn("cancel_approval")}(uuid);
+create or replace function ${fn("cancel_approval")}(request_id uuid, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1244,11 +1253,11 @@ begin
   end if;
   update ${requests} r set ${c("status")} = 'cancelled'${decided}
     where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-  ${record("approval.cancelled", "v_req", true)}${contributedCancel}
+  ${record("approval.cancelled", "v_req", true, `left(nullif(btrim(cancel_approval.reason), ''), 500)`)}${contributedCancel}
   return ${json("v_req")};
 end;
 $$;
-${userGrant(`${fn("cancel_approval")}(uuid)`)}
+${userGrant(`${fn("cancel_approval")}(uuid, text)`)}
 
 create or replace function ${fn("get_approval")}(request_id uuid)
 returns jsonb

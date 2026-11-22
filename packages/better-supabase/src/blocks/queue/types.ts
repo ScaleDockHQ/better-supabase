@@ -366,6 +366,13 @@ export interface ScheduleInfo {
   readonly leasedUntil: Temporal.Instant | null;
   readonly createdAt: Temporal.Instant | null;
   readonly probe: string | null;
+  /**
+   * `false` while the schedule is disabled. Absent when the scheduler can't
+   * pause.
+   */
+  readonly enabled?: boolean;
+  /** `true` for a one-time schedule. Absent when the scheduler has none. */
+  readonly once?: boolean;
 }
 
 export interface ScheduleFilter {
@@ -543,6 +550,48 @@ export interface Queue<Q extends QueueSchemas> {
     } & ScheduleOptions,
   ): AsyncResult<void>;
   unschedule(name: string, options?: UnscheduleOptions): AsyncResult<boolean>;
+  /**
+   * Enqueues `payload` once at `at`, then the schedule ends. Re-scheduling a
+   * name replaces it. Needs a scheduler with one-time schedules (Vercel
+   * Schedules); the SQL scheduler answers `invalid_request`.
+   */
+  scheduleOnce<N extends Extract<keyof Q, string>>(
+    input: {
+      name: string;
+      at: Temporal.Instant;
+      queue: N;
+      payload: PayloadIn<Q, N>;
+    } & ScheduleOptions,
+  ): AsyncResult<void>;
+  /**
+   * One schedule by name; `null` when none has it. Needs `getSchedule` on the
+   * scheduler.
+   */
+  getSchedule(
+    name: string,
+    options?: UnscheduleOptions,
+  ): AsyncResult<ScheduleInfo | null>;
+  /**
+   * Turns a disabled schedule on, optionally only until `until`. `false` when
+   * no schedule has the name.
+   */
+  enableSchedule(
+    name: string,
+    options?: UnscheduleOptions & { readonly until?: Temporal.Instant },
+  ): AsyncResult<boolean>;
+  /**
+   * Pauses a schedule without removing it. `false` when no schedule has the
+   * name.
+   */
+  disableSchedule(
+    name: string,
+    options?: UnscheduleOptions,
+  ): AsyncResult<boolean>;
+  /**
+   * Runs a schedule once now with its stored payload. `false` when no schedule
+   * has the name.
+   */
+  runSchedule(name: string, options?: UnscheduleOptions): AsyncResult<boolean>;
   /**
    * Makes the schedules under `prefix` (and `tenant`) exactly `definitions`:
    * writes each one, keeping the next run of a schedule whose cron and time

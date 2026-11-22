@@ -437,6 +437,26 @@ export interface BetterNext<
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B, D>>;
   /**
+   * First statement of a plain `"use cache"` function: sets `cacheLife` (the
+   * shared defaults, `stale` 300, `revalidate` 300 and `expire` 3600, unless
+   * `life` says otherwise), tags the entry with its `tables` and `id`, and
+   * returns an anonymous context. Its reads run as the `anon` role, so row
+   * level security decides what every visitor may see, instead of the service
+   * role of `bsb.admin()`. It never reads the request, which `"use cache"`
+   * forbids, so a signed-in caller gets the same rows as a visitor.
+   *
+   * ```ts
+   * async function getPlans() {
+   *   "use cache";
+   *   const { db } = await bsb.public({ tables: ["plans"] });
+   *   return db.plans.list().orThrow();
+   * }
+   * ```
+   */
+  public(
+    options?: PublicCachedOptions<Extract<keyof M, string>>,
+  ): Promise<CachedContext<M, F, E, C, P, B, D>>;
+  /**
    * The signed-in user as plain data (`id`, `email`, `name`, `organizationId`),
    * never the token or the session, or `null` for anyone else. Call it inside a
    * `"use cache: private"` function: it sets `cacheLife({ stale: 300 })` and
@@ -1133,6 +1153,21 @@ export interface RemoteCachedOptions<
 export type CachedOptions<T extends string = string> =
   | PrivateCachedOptions<T>
   | RemoteCachedOptions<T>;
+
+/**
+ * Options of `bsb.public()`: the entry options of `bsb.cached()` without a
+ * session, `stage` or scope, plus the tenant.
+ */
+export interface PublicCachedOptions<
+  T extends string = string,
+> extends CachedEntryOptions<T> {
+  /**
+   * The tenant the read is for, as for `bsb.context({ tenant })`. Next.js keys
+   * a `"use cache"` entry on your function's arguments, so take the tenant as
+   * an argument and pass it through; never read it from the request.
+   */
+  readonly tenant?: string;
+}
 
 export type BootstrapOptions<
   T extends string = string,

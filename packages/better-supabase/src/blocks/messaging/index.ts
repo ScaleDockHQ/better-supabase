@@ -16,6 +16,7 @@ export {
   type MessageReaction,
   type Messaging,
   type MessagingOptions,
+  type ActorProfile,
   type NewMessage,
   type NotifyLevel,
   type OpenConversation,

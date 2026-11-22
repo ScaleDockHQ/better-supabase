@@ -200,6 +200,17 @@ const config: KnipConfig = {
       // make Turbo build them first.
       ignoreDependencies: ["better-supabase"],
     },
+    // The eve app under agent/ and the World it loads by name resolve these
+    // packages at run time; no file of the suite imports them.
+    "tests/eve-world": {
+      ignoreDependencies: [
+        "@workflow/world",
+        "@workflow/world-postgres",
+        "better-supabase",
+        "temporal-polyfill",
+        "workflow",
+      ],
+    },
     "tests/types/shared": { entry: ["*.ts"] },
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],

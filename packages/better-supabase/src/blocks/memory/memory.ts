@@ -221,10 +221,23 @@ export function createMemory(options: MemoryOptions): Memory {
     saveOptions: MemorySaveOptions = {},
     viaService = false,
     embedded?: string,
-  ): AsyncResult<MemoryRecord> =>
-    (embedded === undefined
-      ? embedOne(content)
-      : AsyncResult.ok<string | undefined>(embedded)
+  ): AsyncResult<MemoryRecord> => {
+    const given =
+      embedded ??
+      (saveOptions.embedding === undefined
+        ? undefined
+        : vectorLiteral(saveOptions.embedding));
+
+    if (saveOptions.embedding !== undefined && given === undefined) {
+      return AsyncResult.err(
+        dbError("invalid_input", "options.embedding is not a vector"),
+      );
+    }
+
+    return (
+      given === undefined
+        ? embedOne(content)
+        : AsyncResult.ok<string | undefined>(given)
     ).andThen((embedding) =>
       (viaService ? service : call)(
         "memory_save",
@@ -233,7 +246,10 @@ export function createMemory(options: MemoryOptions): Memory {
           content,
           ns: nsArg(ns),
           embedding,
-          model: embedding === undefined ? undefined : embedder?.model,
+          model:
+            embedding === undefined
+              ? undefined
+              : (saveOptions.embeddingModel ?? embedder?.model),
           source_message_id: saveOptions.sourceMessageId,
           category: saveOptions.category,
           confidence: saveOptions.confidence,
@@ -242,6 +258,7 @@ export function createMemory(options: MemoryOptions): Memory {
         memoryOf,
       ),
     );
+  };
 
   const search = (
     organizationId: string | null,

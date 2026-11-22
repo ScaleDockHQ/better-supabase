@@ -6,6 +6,7 @@
   "scripts": {
     "analyze": "turbo run analyze",
     "audit:high": "pnpm audit --audit-level high",
+    "bench:eve-world": "pnpm --filter @better-supabase/eve-world bench",
     "better-supabase": "node packages/better-supabase/bin/better-supabase.js",
     "boundaries": "turbo boundaries",
     "build": "turbo run build",

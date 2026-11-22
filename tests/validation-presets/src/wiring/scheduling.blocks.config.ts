@@ -163,6 +163,9 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  permissions: {
+    explain: "members.read",
+  },
   reminders: {
     manage: "reminders.manage",
     read: "reminders.read",

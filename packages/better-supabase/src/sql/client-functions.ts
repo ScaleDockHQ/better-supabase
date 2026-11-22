@@ -29,7 +29,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "ai-keys":
     "ai_provider_keys_for delete_ai_provider_key delete_ai_provider_keys due_ai_batches get_ai_batch get_ai_provider_key list_ai_batch_items list_ai_batches list_ai_provider_keys page_ai_batches page_ai_provider_keys record_ai_batch save_ai_batch_items save_ai_provider_key update_ai_batch",
   "ai-schedules":
-    "claim_due_ai_tasks delete_ai_task finish_ai_task_run get_ai_task list_ai_task_runs list_ai_tasks page_ai_tasks save_ai_task schedule_ai_tasks start_ai_task_run",
+    "claim_due_ai_tasks delete_ai_task delete_mirrored_ai_task finish_ai_task_run get_ai_task list_ai_task_runs list_ai_tasks mirror_ai_task page_ai_tasks record_ai_task_run save_ai_task schedule_ai_tasks start_ai_task_run",
   announcements:
     "active_announcements archive_announcement dismiss_announcement get_announcement list_announcements page_announcements purge_announcement restore_announcement save_announcement",
   "api-keys":
@@ -224,7 +224,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "archive_option_set_item ensure_option_set get_option_set list_option_sets page_option_sets rank_option_set_item restore_option_set_item save_option_set save_option_set_item",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
-  permissions: "can list_roles my_permissions set_permission_override",
+  permissions:
+    "can explain_permission list_roles my_permissions set_permission_override",
   pipelines:
     "archive_pipeline archive_pipeline_stage get_pipeline list_pipelines page_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:
@@ -290,7 +291,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_subject_member can_subject can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag get_tag list_tags page_tags rank_tag subject_tags tag untag update_tag",
   tasks:
-    "archive_task archive_tasks clone_task create_task delete_task delete_task_checklist_item delete_tasks get_project get_task list_task_checklist list_tasks page_projects page_tasks save_iteration save_project save_task_checklist_item set_task_assignees task_tree update_tasks",
+    "archive_task archive_tasks claim_next_task claim_task clone_task close_task create_task create_tasks delegate_task delete_task delete_task_checklist_item delete_tasks get_project get_task hold_task list_task_checklist list_tasks page_projects page_tasks release_task_claim release_task_hold renew_task_claim save_iteration save_project save_task_checklist_item set_task_assignees task_stage_times task_tree update_tasks",
   teams:
     "add_team_member archive_team create_team get_team list_teams purge_team purge_teams remove_team_member update_team",
   templates:

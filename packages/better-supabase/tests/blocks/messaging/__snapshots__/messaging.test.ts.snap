@@ -166,6 +166,10 @@ exports[`createMessaging > calls every function with snake_case arguments 1`] = 
         "f1",
       ],
       "attrs": {
+        "actor": {
+          "kind": "agent",
+          "name": "Scout",
+        },
         "broadcast": true,
         "document": {
           "type": "doc",

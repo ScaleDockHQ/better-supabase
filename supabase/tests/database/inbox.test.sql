@@ -2,7 +2,7 @@
 -- conversation from Road Runner and the member …a2; Globex (…0002) has the
 -- owner …a3 (supabase/seed.sql).
 begin;
-select plan(16);
+select plan(18);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -133,6 +133,29 @@ select is(
   (select x -> 'source' ->> 'url' from jsonb_array_elements(api.pending_inbox_files(10)) x limit 1),
   'https://files.test/invoice.pdf',
   'a channel file waits as a pending attachment with its source'
+);
+
+-- An ai draft keyed by replyKey is created once, even after it is discarded.
+create temp table draft_ids (id uuid);
+grant all on draft_ids to service_role;
+insert into draft_ids
+select (api.suggest_inbox_draft(
+  (select id from ids where name = 'conversation'),
+  '{"body":"first"}', '{"replyKey":"t1:p"}'
+) ->> 'id')::uuid;
+select api.discard_inbox_draft((select id from draft_ids));
+select is(
+  (api.suggest_inbox_draft(
+    (select id from ids where name = 'conversation'),
+    '{"body":"first"}', '{"replyKey":"t1:p"}'
+  ) ->> 'id')::uuid,
+  (select id from draft_ids),
+  'a replayed suggestion returns the discarded draft'
+);
+select is(
+  (select count(*)::int from better_supabase.inbox_drafts where metadata ->> 'replyKey' = 't1:p'),
+  1,
+  'the replayed suggestion adds no second draft'
 );
 
 -- Anonymous.

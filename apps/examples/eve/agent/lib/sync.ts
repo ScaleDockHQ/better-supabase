@@ -1,0 +1,53 @@
+import { createSessionSync, inboxReplies } from "better-supabase/eve";
+import { createSupabaseWorld } from "better-supabase/workflow-sdk/world";
+import { sessions } from "eve/server";
+
+import { chats, inbox } from "./blocks";
+import { postgres } from "./server";
+
+// Reads each session through eve's own reader, from the stored cursor, and
+// writes it into the chat tables. Every write is keyed by the event, so a
+// pass that fails halfway runs again without duplicates.
+export const sync = createSessionSync({
+  store: createSupabaseWorld().eveSessions,
+  chats,
+  read: (sessionId, startIndex) =>
+    sessions.attach(sessionId).stream({ startIndex, follow: false }),
+  // A session's tenant is not in eve's principal: take the member's first
+  // organization from your own tables.
+  // An inbox contact's principal id is its conversation, which names the
+  // organization.
+  // A finished reply of an inbox session goes to its conversation as a bot
+  // message; pass `mode: "draft"` to store an ai draft for staff instead.
+  reply: inboxReplies({ inbox }),
+  resolve: async ({ principal }) => {
+    if (principal === undefined) {
+      return;
+    }
+
+    if (principal.type === "contact") {
+      const found = await inbox.conversations.getConversation(principal.id);
+
+      return found.ok
+        ? {
+            organizationId: found.data.tenant,
+            ownerId: found.data.contactId,
+            agentId: "acme-assistant",
+          }
+        : undefined;
+    }
+
+    const [row] = await postgres.admin.queryRaw<{ organization_id: string }>(
+      "select organization_id from public.memberships where user_id = $1 limit 1",
+      [principal.id],
+    );
+
+    return row === undefined
+      ? undefined
+      : {
+          organizationId: row.organization_id,
+          ownerId: principal.id,
+          agentId: "acme-assistant",
+        };
+  },
+});

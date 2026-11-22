@@ -33,6 +33,12 @@ export const messageInputSchema: EntitySchema<NewMessage> =
       parentId: { kind: "uuid", optional: true },
       broadcast: { kind: "boolean", optional: true },
       scheduledFor: { kind: "instant", optional: true },
+      actor: {
+        kind: "json",
+        optional: true,
+        description:
+          "Who acts: { kind, name }, stored as the author's kind and name.",
+      },
       attachmentIds: { kind: "uuid", optional: true, array: true },
       fields: FIELDS,
     },

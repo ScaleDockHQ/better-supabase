@@ -284,7 +284,7 @@ on conflict (name) do update
 -- ==== permissions
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:095ad04e28b96d3c9075d54c058be52af6baa4d4869836c524d8a3ed66141b3c
+-- @bsb-hash sha256:9a7197189ec351d2686954b9d172adb80fc2f9ef159e91757adf7e6281cccc87
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -457,6 +457,7 @@ as $$
     when 'organizations.transferOwnership' then 'organization.transfer_ownership'
     when 'organizations.update' then 'organization.update'
     when 'organizations.updateRole' then 'members.update_role'
+    when 'permissions.explain' then 'members.read'
     when 'permissions.listRoles' then 'members.read'
     when 'permissions.setOverride' then 'roles.manage'
     when 'teams.manage' then 'teams.manage'
@@ -589,6 +590,62 @@ as $$
     and better_supabase.cap_allows(tenant_ids_with.permission)
     and exists (select 1 from "better_supabase"."membership_roles" mr where mr."organization_id" = m."organization_id" and mr."user_id" = m."user_id" and better_supabase.role_grants(mr."role", tenant_ids_with.permission))
 $$;
+
+
+-- Why a member does or doesn't hold one key in a tenant: the answer member_can
+-- gives, the roles the member holds, the granted keys that match and a reason.
+create or replace function better_supabase.explain_permission(tenant uuid, member uuid, permission text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_allowed boolean;
+  v_member boolean;
+  v_roles jsonb;
+  v_matched text[];
+  v_override boolean;
+  v_reason text;
+begin
+  if not (coalesce(auth.jwt() ->> 'role', '') = 'service_role' or explain_permission.member is not distinct from auth.uid()
+    or coalesce(better_supabase.member_can(auth.uid(), explain_permission.tenant, 'members.read'), false)) then
+    raise exception 'Not allowed to explain this member''s permissions' using errcode = '42501', hint = 'PERMISSIONS_FORBIDDEN';
+  end if;
+  v_allowed := coalesce(better_supabase.member_can(explain_permission.member, explain_permission.tenant, explain_permission.permission), false);
+  select count(*) > 0, coalesce(jsonb_agg(m."role"::text), '[]'::jsonb) into v_member, v_roles
+  from "better_supabase"."memberships" m
+  where m."organization_id" = explain_permission.tenant and m."user_id" = explain_permission.member and m."disabled_at" is null;
+  v_matched := coalesce((
+    select array_agg(k.key order by k.key)
+    from unnest(better_supabase.member_permissions(explain_permission.member, explain_permission.tenant)) k(key)
+    where better_supabase.permission_matches(k.key, explain_permission.permission)
+  ), '{}'::text[]);
+  v_override := null::boolean;
+  v_reason := case
+    when v_allowed then case when v_override is true then 'granted_by_override' else 'granted_by_role' end
+    when better_supabase.user_disabled(explain_permission.member) then 'member_disabled'
+    when better_supabase.tenant_disabled(explain_permission.tenant) then 'organization_disabled'
+    when not v_member then 'not_a_member'
+    when v_override is false then 'denied_by_override'
+    when (explain_permission.member is distinct from auth.uid() or better_supabase.cap_allows(explain_permission.permission)) is not true then 'not_in_scope'
+    else 'role_lacks_key'
+  end;
+  return jsonb_build_object(
+    'permission', explain_permission.permission,
+    'userId', explain_permission.member,
+    'organizationId', explain_permission.tenant,
+    'allowed', v_allowed,
+    'reason', v_reason,
+    'roles', v_roles,
+    'matchedBy', to_jsonb(v_matched),
+    'override', v_override
+  );
+end;
+$$;
+revoke execute on function better_supabase.explain_permission(uuid, uuid, text) from public, anon;
+grant execute on function better_supabase.explain_permission(uuid, uuid, text) to authenticated, service_role;
 
 -- Members assign roles up to their own permissions: every key the role
 -- grants must be one the member holds in the tenant.

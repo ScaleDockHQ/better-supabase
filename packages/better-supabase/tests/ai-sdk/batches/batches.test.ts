@@ -112,6 +112,25 @@ async function* results(count: number) {
 }
 
 describe("batchItemOf", () => {
+  it("keeps the parsed output or the reason it is missing next to the text", () => {
+    expect(
+      batchItemOf({ ...textItem("r1"), output: { city: "Oslo" } } as never),
+    ).toMatchObject({
+      output: { text: "answer r1", output: { city: "Oslo" } },
+    });
+
+    const failed = batchItemOf({
+      ...textItem("r2"),
+      outputError: { message: "not JSON" },
+    } as never);
+
+    expect(failed.output).toMatchObject({
+      text: "answer r2",
+      outputError: { message: "not JSON" },
+    });
+    expect(failed.output).not.toHaveProperty("output");
+  });
+
   it("stores text, images and failures", () => {
     expect(batchItemOf(textItem("r1"))).toMatchObject({
       requestId: "r1",
@@ -283,6 +302,27 @@ describe("aiBatches", () => {
     expect(saved).toEqual([
       [{ requestId: "r0", status: "succeeded", output: "custom" }],
     ]);
+  });
+
+  it("hands the output specification to the provider's results call", async () => {
+    const { store } = fakeStore([batch({ status: "completed" })]);
+    const output = { name: "object" } as never;
+    const seen: unknown[] = [];
+
+    const batches = aiBatches({
+      providers: { batches: store },
+      output,
+      api: {
+        results: (options) => {
+          seen.push(options.output);
+
+          return results(1);
+        },
+      },
+    });
+
+    await batches.poll().orThrow();
+    expect(seen).toEqual([output]);
   });
 
   it("notes a poll error on the batch and keeps polling the rest", async () => {

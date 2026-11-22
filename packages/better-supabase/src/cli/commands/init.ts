@@ -40,6 +40,7 @@ import {
   presetSpec,
   resolvePreset,
 } from "../../preset/index.ts";
+import { agentsBlockFile } from "../agents-block.ts";
 import { findConfig, loadConfig } from "../config.ts";
 import { contentMapperFiles } from "../content-mapper.ts";
 import {
@@ -607,6 +608,21 @@ async function runInit(
     );
 
     lines.push(...changeLines(wrote));
+  }
+
+  const agentsFile = await agentsBlockFile(config.root);
+
+  if (agentsFile !== undefined) {
+    const wrote = await applyPlan(
+      {
+        root: config.root,
+        regenerate: "better-supabase init",
+        files: [agentsFile],
+      },
+      { ...args, force: true },
+    );
+
+    lines.push("", ...changeLines(wrote));
   }
 
   let snapshotTables: number | undefined;

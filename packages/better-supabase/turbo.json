@@ -7,6 +7,7 @@
       "passThroughEnv": [
         "BS_TOML_SITE_URL",
         "DATABASE_URL",
+        "GRAPHILE_WORKER_SCHEMA",
         "UPDATE_PRACTICES",
         "INIT_FIXTURE_UPDATE"
       ],

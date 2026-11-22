@@ -91,7 +91,11 @@ export const MODULE_PERMISSION_SCOPES: {
   numbering: { read: "tenant", assign: "tenant" },
   teams: { manage: "tenant", read: "tenant" },
   subjects: { manage: "tenant" },
-  permissions: { listRoles: "tenant", setOverride: "tenant" },
+  permissions: {
+    listRoles: "tenant",
+    setOverride: "tenant",
+    explain: "tenant",
+  },
   tags: { manage: "tenant", read: "tenant", apply: "tenant" },
   catalog: { manage: "tenant", read: "tenant" },
   inventory: {
