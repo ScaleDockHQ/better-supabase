@@ -16,6 +16,7 @@ import type { PlannedFile } from "./core/files.ts";
 import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
 import { accountCallsCodemod } from "./codemod-account-calls.ts";
+import { adoptNamesCodemod } from "./codemod-adopt-names.ts";
 import { blocksListCodemod } from "./codemod-blocks-list.ts";
 import { configCodemod } from "./codemod-config.ts";
 import { doctorBaselineCodemod } from "./codemod-doctor-baseline.ts";
@@ -47,6 +48,8 @@ export interface CodemodProject {
   readonly symbols?: ProjectSymbols;
   /** False when the config did not load and `config` is the default one. */
   readonly configLoaded?: boolean;
+  /** `adopt-names`: the table to rename, as `<block>.<table>`. */
+  readonly table?: string;
   /** `config --prune`: remove every entry that equals its default. */
   readonly prune?: boolean;
   /**
@@ -146,6 +149,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "blocks-list": blocksListCodemod(),
   "record-types": recordTypesCodemod(),
   "table-tags": tableTagsCodemod(),
+  "adopt-names": adoptNamesCodemod(),
   "doctor-baseline": doctorBaselineCodemod(),
   "table-modules": tableModulesCodemod(),
   "account-calls": accountCallsCodemod(),

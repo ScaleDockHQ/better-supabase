@@ -1,4 +1,4 @@
-import type { SupportedVersion } from "@supabase/pg-parser";
+import type { ScanToken, SupportedVersion } from "@supabase/pg-parser";
 
 import {
   PgParser,
@@ -162,4 +162,19 @@ export function factsOf(text: string): FileFacts {
   }
 
   return known;
+}
+
+/**
+ * The tokens of a SQL text, comments included, with byte offsets. A codemod
+ * rewrites names through them, so a string or a comment never matches.
+ *
+ * @param text - The SQL file contents.
+ * @param options - The Postgres major version.
+ * @returns The scanner's tokens.
+ */
+export async function scanSql(
+  text: string,
+  options: { majorVersion?: number } = {},
+): Promise<readonly ScanToken[]> {
+  return unwrapScanResult(parserFor(options.majorVersion).scan(text));
 }

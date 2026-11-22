@@ -49,6 +49,10 @@ const CODEMOD_ARGS = {
     type: "boolean",
     description: "Write nothing; exit 1 with a diff when a file would change",
   },
+  table: {
+    type: "string",
+    description: "adopt-names: the table to rename, as <block>.<table>",
+  },
   prune: {
     type: "boolean",
     description:
@@ -425,6 +429,7 @@ async function runWithSymbols(
     ...(symbols === undefined ? {} : { symbols }),
     configLoaded: configError === undefined,
     ...(args.prune === true ? { prune: true } : {}),
+    ...(args.table === undefined ? {} : { table: args.table }),
     sql: await projectSqlFiles(config.root),
     ...(env === undefined
       ? {}

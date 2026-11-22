@@ -885,6 +885,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "adopt-names",
+        description:
+          "Rename a block table in the migrations and schema files to the name the block expects, and drop its tables entry",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "doctor-baseline",
         description:
           "Rewrite a { code: { reason, targets } } baseline file as the grouped list doctor reads",

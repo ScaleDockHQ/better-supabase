@@ -142,6 +142,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod adopt-names",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("adopt-names"),
+      ),
+  ],
+  [
     "codemod doctor-baseline",
     () =>
       import("./commands/codemod.ts").then((m) =>
