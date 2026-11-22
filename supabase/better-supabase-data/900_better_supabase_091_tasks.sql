@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:d1bdfe7ee1abf09f3ee4d5465cc3549abd1d4032256bf95f03f07916ec1aabdf
+-- @bsb-hash sha256:a51c1de97450918610ac4e8e04e1c48429df7fcb4bd811317c87788a9fd10ce7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -12,6 +12,6 @@ from "better_supabase"."work_projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 6, 'managed')
+values ('tasks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

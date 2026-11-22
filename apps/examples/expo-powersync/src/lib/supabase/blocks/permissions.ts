@@ -42,7 +42,6 @@ export const permissions = {
   permissions: {
     listRoles: "members.read",
     setOverride: "roles.manage",
-    explain: "members.read",
   },
   subjects: {
     manage: "subjects.manage",

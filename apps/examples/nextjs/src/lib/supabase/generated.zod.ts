@@ -1668,7 +1668,7 @@ export const activityChange: z.ZodType<{ type?: string; title?: string; body?: s
   fields: z.json().meta({ description: "Values for the extra columns, by column name." }).exactOptional(),
 }).meta({ title: "ActivityChange" });
 
-export const messageInput: z.ZodType<{ body: string; document?: unknown; anchor?: unknown; mentionIds?: string[]; parentId?: string; broadcast?: boolean; scheduledFor?: Temporal.Instant; actor?: Json; attachmentIds?: string[]; fields?: Json }> = z.object({
+export const messageInput: z.ZodType<{ body: string; document?: unknown; anchor?: unknown; mentionIds?: string[]; parentId?: string; broadcast?: boolean; scheduledFor?: Temporal.Instant; attachmentIds?: string[]; fields?: Json }> = z.object({
   body: z.string(),
   document: z.unknown().meta({ description: "A rich-text document (any JSON)." }).exactOptional(),
   anchor: z.unknown().meta({ description: "Where on the record a top-level message points." }).exactOptional(),
@@ -1676,7 +1676,6 @@ export const messageInput: z.ZodType<{ body: string; document?: unknown; anchor?
   parentId: z.guid().exactOptional(),
   broadcast: z.boolean().exactOptional(),
   scheduledFor: z.custom<Temporal.Instant>(isInstant).exactOptional(),
-  actor: z.json().meta({ description: "Who acts: { kind, name }, stored as the author's kind and name." }).exactOptional(),
   attachmentIds: z.array(z.guid()).exactOptional(),
   fields: z.json().meta({ description: "The extra columns to set, keyed by database name." }).exactOptional(),
 }).meta({ title: "NewMessage" });
