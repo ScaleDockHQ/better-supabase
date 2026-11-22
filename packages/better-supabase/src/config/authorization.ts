@@ -543,9 +543,13 @@ export interface AuthorizationProvider<Key extends string = string> {
    * "exec", "provider", "doctor", "--json"]`. `better-supabase doctor` runs it
    * in the project root and reads `{ findings: [{ code, severity?, title?,
    * message, target?, help? }] }` from its output. Its findings join the report
-   * as BS705 and the baseline.
+   * as BS705 and the baseline. A command that runs longer than `timeoutMs`
+   * (60000 by default) is stopped and reported as a BS705 finding.
    */
-  readonly doctor?: { readonly command: readonly string[] };
+  readonly doctor?: {
+    readonly command: readonly string[];
+    readonly timeoutMs?: number;
+  };
   readonly memberships?: readonly AuthorizationMembership[];
   /** Rows that say whether a user or a tenant is active. */
   readonly suspension?: {

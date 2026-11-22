@@ -3105,6 +3105,13 @@ the JSON. Each finding is reported as BS705 with the provider's code first in
 its target, so `tooling.doctor.baseline` can accept it. A command that prints
 nothing, or JSON of another shape, is itself reported.
 
+The command is stopped after `authorization.doctor.timeoutMs` milliseconds
+(60000 by default). A command that runs longer is reported as a BS705 finding
+that names the setting. A finding the provider gives `severity: "error"` fails
+the run under the default `--fail-on error`, like any other error. When
+`--update-baseline` adds a new BS705 entry, it copies a reason only from an
+entry with the same provider code, never from a different one.
+
 ### BS706
 
 **Warning: shim of a feature the library ships.** The project rebuilds

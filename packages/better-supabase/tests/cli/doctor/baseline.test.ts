@@ -162,6 +162,25 @@ describe("applyBaseline", () => {
 });
 
 describe("updatedBaseline", () => {
+  it("does not copy a reason between provider findings with different codes", () => {
+    expect(
+      updatedBaseline(
+        [
+          finding("BS705", "PD001 public.a", "warning"),
+          finding("BS705", "PD002 public.b", "warning"),
+          finding("BS705", "PD001 public.c", "warning"),
+        ],
+        [{ code: "BS705", target: "PD001 public.a", reason: "known" }],
+        new Set(["BS705"]),
+        offline,
+      ),
+    ).toEqual([
+      { code: "BS705", target: "PD001 public.a", reason: "known" },
+      { code: "BS705", target: "PD001 public.c", reason: "known" },
+      { code: "BS705", target: "PD002 public.b", reason: "" },
+    ]);
+  });
+
   it("accepts errors and warnings, keeping reasons and unjudged entries", () => {
     expect(
       updatedBaseline(

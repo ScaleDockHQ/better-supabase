@@ -1125,6 +1125,10 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "timeoutMs": {
+                  "type": "integer",
+                  "minimum": 1
                 }
               },
               "required": ["command"],
