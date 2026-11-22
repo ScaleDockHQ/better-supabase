@@ -45,7 +45,7 @@ body:
     id: typescript
     attributes:
       label: TypeScript and Node.js
-      placeholder: "7.0.2, Node 24.20.0"
+      placeholder: "7.0.2, Node 26.13.1"
     validations:
       required: true
   - type: input

@@ -13,7 +13,7 @@ a rule.
 
 ## Commands
 
-- `pnpm install` (pnpm 12, Node 24), then `pnpm check` before you push: lint,
+- `pnpm install` (pnpm 12, Node 26), then `pnpm check` before you push: lint,
   typecheck and the mirrored tests of the changed workspaces only (about 7 s
   on one library file). It is also what the hooks run.
 - `pnpm verify` is the full gate (format, lint, prose, typecheck, Knip,
