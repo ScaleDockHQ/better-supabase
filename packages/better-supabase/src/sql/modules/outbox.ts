@@ -448,7 +448,10 @@ drop function if exists ${ctx.fn("purge_outbox")}(interval);
 drop function if exists ${ctx.fn("purge_outbox")}(interval, integer);
 
 -- Registers a consumer. A new one starts after the latest event, or at the
--- first with from_start. Registering again changes only its types.
+-- first with from_start. Registering again changes only its types. The start
+-- never passes the snapshot's xmax: an event stamped with a transaction id the
+-- database has not reached (rows restored from another database) would
+-- otherwise hide every new event until the counter caught up.
 create or replace function ${ctx.fn("outbox_register")}(consumer text, types text[] default null, from_start boolean default false)
 returns bigint
 language sql
@@ -456,7 +459,7 @@ security definer
 set search_path = ''
 as $$
   insert into ${n.c} (${n.k("name")}, ${n.k("cursorXid")}, ${n.k("cursor")}, ${n.k("types")})
-  select consumer, coalesce(latest.xid, '0'), coalesce(latest.position, 0), types
+  select consumer, least(coalesce(latest.xid, '0'), pg_snapshot_xmax(pg_current_snapshot())), coalesce(latest.position, 0), types
   from (select 1) one
   left join lateral (
     select ${xidOf("e")} as xid, ${pos("e")} as position from ${n.t} e

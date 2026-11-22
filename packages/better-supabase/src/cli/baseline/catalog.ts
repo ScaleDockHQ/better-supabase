@@ -151,6 +151,43 @@ export async function sequenceSql(client: PgQueryable): Promise<string> {
     .join("\n");
 }
 
+/**
+ * Moves every `xid8` or `xid` value of the restored tables that is ahead of the
+ * restoring transaction back to its id. The rows keep the build database's
+ * transaction ids, which a fresh stack has not reached, so an outbox consumer
+ * would wait for its counter to catch up before it saw a new event.
+ */
+export function xidSql(tables: readonly TableRef[]): string {
+  if (tables.length === 0) {
+    return "";
+  }
+
+  const list = tables
+    .map((table) => `'${quoted(table).replaceAll("'", "''")}'`)
+    .join(", ");
+
+  return `do $$
+declare
+  col record;
+begin
+  for col in
+    select a.attrelid::regclass as tbl, a.attname, a.atttypid = 'pg_catalog.xid8'::regtype as wide
+    from pg_catalog.pg_attribute a
+    where a.attrelid = any (array[${list}]::regclass[])
+      and a.atttypid in ('pg_catalog.xid8'::regtype, 'pg_catalog.xid'::regtype)
+      and a.attnum > 0 and not a.attisdropped and a.attgenerated = ''
+  loop
+    if col.wide then
+      execute format('update %s set %I = pg_catalog.pg_current_xact_id() where %I > pg_catalog.pg_current_xact_id()', col.tbl, col.attname, col.attname);
+    else
+      execute format('update %s set %I = pg_catalog.xid(pg_catalog.pg_current_xact_id()) where pg_catalog.age(%I) < 0', col.tbl, col.attname, col.attname);
+    end if;
+  end loop;
+end;
+$$;
+`;
+}
+
 export type Fingerprint = Readonly<Record<string, string>>;
 
 /**

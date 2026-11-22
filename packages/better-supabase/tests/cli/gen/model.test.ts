@@ -866,3 +866,113 @@ describe("app tables over the app's own tables", () => {
     expect(workspaces.meta.flags.tenant).not.toBe("id");
   });
 });
+
+describe("buildModel bucket meta", () => {
+  it("writes the id, limits, versioning, lifecycle and tenant claim", async () => {
+    const { meta } = await model(() => ({}), {
+      claims: { tenant: "app_metadata.org" },
+      database: {
+        buckets: {
+          userDocs: {
+            id: "docs",
+            path: "{organizationId}/{name}",
+            policy: "tenant",
+            fileSizeLimit: "5MB",
+            allowedMimeTypes: ["image/png"],
+            versioning: true,
+            lifecycle: { expireAfterDays: 30 },
+          },
+          avatarImages: { path: "{userId}" },
+        },
+      },
+    } as unknown as ResolveInput);
+
+    expect(meta.buckets?.["userDocs"]).toMatchObject({
+      id: "docs",
+      public: false,
+      policy: "tenant",
+      tenant: { claim: expect.anything() },
+      fileSizeLimit: "5MB",
+      allowedMimeTypes: ["image/png"],
+      versioning: true,
+      lifecycle: { expireAfterDays: 30 },
+    });
+    expect(meta.buckets?.["avatarImages"]).toEqual({
+      id: "avatar-images",
+      public: false,
+      path: "{userId}",
+    });
+  });
+});
+
+describe("buildModel config edges", () => {
+  const column = (built: Awaited<ReturnType<typeof model>>, name: string) =>
+    built.tables
+      .find((table) => table.key === "tags")!
+      .columns.find((each) => each.db === name)!;
+
+  it("makes a numbered column optional and skips malformed entries", async () => {
+    const plain = await model(() => ({}));
+
+    const built = await model(() => ({}), {
+      blocks: {
+        numbering: {
+          options: {
+            entities: {
+              tag: {
+                period: "none",
+                format: "T-{n}",
+                table: "public.tags",
+                column: "name",
+              },
+              broken: { table: 1 },
+            },
+          },
+        },
+      },
+    } as unknown as ResolveInput);
+
+    expect(column(plain, "name").optional).toBe(false);
+    expect(column(built, "name").optional).toBe(true);
+  });
+
+  it("marks sensitive columns by table or by schema and table", async () => {
+    const built = await model(() => ({}), {
+      sensitive: ["tags.name", "public.tags.id"],
+    } as ResolveInput);
+
+    const meta = built.tables.find((table) => table.key === "tags")!.meta;
+
+    expect(meta.columns["name"]?.sensitive).toBe(true);
+    expect(meta.columns["id"]?.sensitive).toBe(true);
+  });
+
+  it("rejects a json import without a type name", async () => {
+    await expect(
+      model(() => ({}), {
+        json: {
+          "accounting_budget_lines.dimensions": { import: "./types.ts" },
+        },
+        schemas: BOTH,
+      } as ResolveInput),
+    ).rejects.toThrow(
+      'json["accounting_budget_lines.dimensions"].import must look like "./path.ts#TypeName"',
+    );
+  });
+
+  it("keeps only the actor columns a table has", async () => {
+    const flags = async (options: Record<string, string>) =>
+      (
+        await model(() => ({}), { blocks: { "created-by": { options } } })
+      ).tables.find((table) => table.key === "tags")!.meta.flags;
+
+    expect(
+      (await flags({ createdBy: "name", updatedBy: "x", impersonatedBy: "y" }))
+        .actor,
+    ).toEqual({ createdBy: "name" });
+    expect(
+      (await flags({ createdBy: "x", updatedBy: "name", impersonatedBy: "id" }))
+        .actor,
+    ).toEqual({ updatedBy: "name", impersonatedBy: "id" });
+  });
+});

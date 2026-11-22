@@ -182,16 +182,18 @@ export async function realtimeTopicAccess(
   try {
     await postgres.transaction(async (sql) => {
       if (input.action === "receive") {
-        const [probe] = await sql.queryRaw<{ id: string }>(
-          `${insert} returning id::text as id`,
+        const [probe] = await sql.queryRaw<{ id: string; at: string }>(
+          `${insert} returning id::text as id, inserted_at::text as at`,
           [input.topic, extension],
         );
 
         await assume(sql);
 
+        // Typed values keep the primary key and the partition pruning usable;
+        // a cast on the column scans every partition.
         const [row] = await sql.queryRaw<{ allowed: boolean }>(
-          "select exists (select 1 from realtime.messages m where m.id::text = $1) as allowed",
-          [probe?.id ?? ""],
+          "select exists (select 1 from realtime.messages m where m.id = $1::uuid and m.inserted_at = $2::timestamp) as allowed",
+          [probe?.id ?? null, probe?.at ?? null],
         );
 
         throw new Verdict(row?.allowed === true);

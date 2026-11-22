@@ -874,6 +874,55 @@ describe("BS411", () => {
   });
 });
 
+describe("BS411 optional templates", () => {
+  const config = (options?: { decider: string }): BetterSupabaseConfig => ({
+    auth: { authorization: stubProvider },
+    blocks: {
+      permissions: { model: "provider" },
+      expenses: options ? { options } : {},
+    },
+  });
+
+  const optional = async (options?: { decider: string }) =>
+    (await findings("BS411", config(options), { snapshot: withAuthz(ALL) }))
+      .filter((finding) => finding.severity === "info")
+      .map((finding) => finding.target);
+
+  it("notes optional templates an installed module would read", async () => {
+    expect(await optional()).toEqual([
+      "authorization.functions.approverFor",
+      "authorization.functions.managedUsers",
+    ]);
+  });
+
+  it("drops approverFor when the module names its own decider", async () => {
+    expect(await optional({ decider: "app.decider" })).toEqual([
+      "authorization.functions.managedUsers",
+    ]);
+  });
+});
+
+describe("BS427 notNull", () => {
+  it("reports a gen.functions notNull an installed block already declares", async () => {
+    const result = await findings("BS427", {
+      blocks: { webhooks: {} },
+      gen: {
+        functions: {
+          dispatch_webhook: { notNull: true },
+          "public.own": { notNull: true },
+        },
+      },
+    });
+
+    expect(result.map((finding) => finding.target)).toContain(
+      "gen.functions.dispatch_webhook.notNull",
+    );
+    expect(result.map((finding) => finding.target)).not.toContain(
+      "gen.functions.public.own.notNull",
+    );
+  });
+});
+
 describe("BS414", () => {
   const withContractPolicy = (): Snapshot => {
     const copy = structuredClone(toCatalog(base)) as {
@@ -1009,6 +1058,72 @@ describe("BS334", () => {
   });
 });
 
+describe("app functions that call built-in role checks", () => {
+  const withFunctions = (
+    sources: Record<string, string>,
+    schema = "public",
+  ): Snapshot => {
+    const snapshot = structuredClone(base);
+
+    const functions = snapshot.generator.functions as {
+      -readonly [
+        K in keyof Snapshot["generator"]["functions"][number]
+      ]: Snapshot["generator"]["functions"][number][K];
+    }[];
+
+    for (const [name, definition] of Object.entries(sources)) {
+      functions.push({ ...functions[0]!, schema, name, definition });
+    }
+
+    return snapshot;
+  };
+
+  const sources = {
+    can_read: "select better_supabase.can('posts.read')",
+    admins: "select better_supabase.member_organization_ids('{owner}')",
+    plain: "select 1",
+    empty: "",
+  };
+
+  it("BS414 names an app function that calls the access contract", async () => {
+    const result = await findings(
+      "BS414",
+      {
+        auth: { authorization: stubProvider },
+        blocks: { memberships: {}, permissions: { model: "roles" } },
+      },
+      { snapshot: withFunctions(sources) },
+    );
+
+    expect(result.map((finding) => finding.target)).toEqual([
+      "public.can_read",
+    ]);
+    expect(result[0]!.message).toMatch(
+      /^public\.can_read calls better_supabase\.can\(\), but /,
+    );
+  });
+
+  it("BS334 names an app function that calls a role helper", async () => {
+    const result = await findings(
+      "BS334",
+      { blocks: ["memberships", "permissions"] },
+      { snapshot: withFunctions(sources) },
+    );
+
+    expect(result.map((finding) => finding.target)).toEqual(["public.admins"]);
+  });
+
+  it("skips functions outside the configured schemas", async () => {
+    expect(
+      await findings(
+        "BS334",
+        { blocks: ["memberships", "permissions"] },
+        { snapshot: withFunctions(sources, "private") },
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("BS413", () => {
   it("warns when support sessions run under a provider without actorMayWrite", async () => {
     const config = {
@@ -1043,6 +1158,12 @@ describe("BS413", () => {
       await findings("BS413", {
         auth: { authorization: stubProvider },
         blocks: { permissions: { model: "provider" } },
+      }),
+    ).toEqual([]);
+    expect(
+      await findings("BS413", {
+        auth: { authorization: stubProvider },
+        blocks: { permissions: { model: "roles" }, impersonation: {} },
       }),
     ).toEqual([]);
   });

@@ -1,6 +1,6 @@
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:14c101d8dea4d68b403cab60cfa5bb9d5eb42f73577db1b44f0a0b63c3a8a901
+-- @bsb-hash sha256:ae1a9b21eee3566f8558480041de094f1cec57c042aa996fce05d9b21e44eb42
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,7 +821,7 @@ begin
   if v_row."cancelled_at" is not null then
     raise exception 'this leave request is already cancelled' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
-  if v_row."rejected_at" is not null then
+  if v_row."approved_at" is null and v_row."rejected_at" is not null then
     raise exception 'this leave request was rejected' using errcode = 'PT409', hint = 'LEAVE_REQUEST_CLOSED';
   end if;
   if not v_manager and v_row."approved_at" is not null and v_row."starts_on" <= current_date then

@@ -4,6 +4,7 @@ import {
   changedTables,
   leaveAlone,
   tablesToClear,
+  xidSql,
 } from "../../../src/cli/baseline/catalog.ts";
 
 describe("changedTables", () => {
@@ -57,5 +58,16 @@ describe("leaveAlone", () => {
         new Set(["extensions.x"]),
       ),
     ]).toEqual(["public.a", "extensions.x"]);
+  });
+});
+
+describe("xidSql", () => {
+  it("moves the xid columns of the restored tables back, and nothing without tables", () => {
+    const sql = xidSql([{ schema: "app", name: "it's" }]);
+
+    expect(sql).toContain(`array['"app"."it''s"']::regclass[]`);
+    expect(sql).toContain("where %I > pg_catalog.pg_current_xact_id()");
+    expect(sql).toContain("where pg_catalog.age(%I) < 0");
+    expect(xidSql([])).toBe("");
   });
 });

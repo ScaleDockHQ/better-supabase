@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -265,10 +265,23 @@ describe("buckets", () => {
     ).rejects.toThrow("tar failed: tar: cannot open");
   });
 
-  it("reports a failed unpack", async () => {
+  it("reports a failed unpack and removes its folder", async () => {
+    let folder = "";
+
+    const tar = context(
+      () => ({ code: 0, stdout: "", stderr: "" }),
+      (_command, args) => {
+        folder = args.at(-1) ?? "";
+
+        return { code: 2, stdout: "", stderr: "tar: cannot open\n" };
+      },
+    );
+
     await expect(
-      unpackBuckets(failing, join(dir, "missing.tar.gz")),
+      unpackBuckets(tar, join(dir, "missing.tar.gz")),
     ).rejects.toThrow("tar failed: tar: cannot open");
+    expect(folder).toContain("bsb-objects-");
+    await expect(access(folder)).rejects.toThrow("ENOENT");
   });
 
   it("uploads nothing from an empty folder", async () => {

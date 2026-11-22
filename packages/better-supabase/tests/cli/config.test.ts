@@ -8,7 +8,10 @@ import {
   databaseUrl,
   defaultConfig,
   discoverConfig,
+  findConfig,
+  importExport,
   loadConfig,
+  stdinDatabaseUrl,
 } from "../../src/cli/config.ts";
 import { run } from "../../src/cli/core/run.ts";
 import { configEnvironment } from "../../src/cli/env.ts";
@@ -350,5 +353,91 @@ describe("databaseUrl", () => {
     expect(
       await databaseUrl(resolveConfig({}, root), { SUPABASE_BIN: bin }),
     ).toBe("postgresql://postgres:postgres@127.0.0.1:55432/postgres");
+  });
+});
+
+describe("config helpers", () => {
+  it("resolves an explicit config path against the directory", () => {
+    expect(findConfig("/project", "conf/bs.config.ts")).toBe(
+      "/project/conf/bs.config.ts",
+    );
+    expect(defaultConfig("/project", "conf/bs.config.ts")).toMatchObject({
+      root: "/project",
+    });
+  });
+
+  it("falls back to the default export of a module", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "better-supabase-export-"));
+    const file = join(dir, "mod.mjs");
+
+    await writeFile(file, "export default 1;\nexport const named = 2;\n");
+
+    expect(await importExport(file, "named")).toBe(2);
+    expect(await importExport(file, "missing")).toBe(1);
+  });
+
+  it("reads a trimmed database URL from stdin only when asked", async () => {
+    const io = {
+      stdout: () => undefined,
+      stderr: () => undefined,
+      stdin: async () => " postgres://x \n",
+    };
+
+    expect(await stdinDatabaseUrl(undefined, io)).toBeUndefined();
+    expect(await stdinDatabaseUrl(true, io)).toBe("postgres://x");
+    await expect(
+      stdinDatabaseUrl(true, { ...io, stdin: async () => "  " }),
+    ).rejects.toThrow("--db-url-stdin read nothing from stdin.");
+  });
+
+  it("reads the removed tables and records keys as appTables and recordTypes", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "better-supabase-legacy-"));
+    const file = join(dir, "better-supabase.config.mjs");
+
+    await writeFile(
+      file,
+      "export default { tables: { notes: { columns: { body: { type: 'text' } } } }, records: { note: { table: 'notes' } }, recordTypes: { memo: { table: 'memos' } } };\n",
+    );
+
+    const config = await loadConfig(dir, undefined, undefined, file, {
+      legacyTables: true,
+    });
+
+    expect(Object.keys(config.appTables)).toEqual(["notes"]);
+    expect(Object.keys(config.subjects).toSorted()).toEqual(["memo", "note"]);
+  });
+
+  it("roots the defaults at a found config file's folder", () => {
+    expect(
+      defaultConfig(
+        "/elsewhere",
+        undefined,
+        undefined,
+        "/project/app/better-supabase.config.ts",
+      ),
+    ).toMatchObject({ root: "/project/app" });
+  });
+
+  it("keeps a value an environment block leaves undefined", () => {
+    expect(
+      applyEnvironment(
+        {
+          gen: { watchInterval: 5 },
+          $test: { gen: { watchInterval: undefined } },
+        } as unknown as Parameters<typeof applyEnvironment>[0],
+        "test",
+      ),
+    ).toEqual({ gen: { watchInterval: 5 } });
+  });
+
+  it("rejects a legacy config that is not an object", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "better-supabase-list-"));
+    const file = join(dir, "better-supabase.config.mjs");
+
+    await writeFile(file, "export default ['tags'];\n");
+
+    await expect(
+      loadConfig(dir, undefined, undefined, file, { legacyTables: true }),
+    ).rejects.toMatchObject({ code: "config_invalid" });
   });
 });

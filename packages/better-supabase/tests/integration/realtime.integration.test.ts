@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { TopicMessage } from "../../src/realtime/index.ts";
 
 import { createSupabase } from "../../src/core/define.ts";
@@ -481,6 +482,49 @@ describe.skipIf(!live)("Realtime module", async () => {
       );
 
       expect(left.rows[0]).toEqual({ n: 0 });
+    } finally {
+      await postgres.end();
+    }
+  });
+
+  it("reads the receive probe back through the primary key, not a scan", async () => {
+    const postgres = createPostgres({ connectionString: dbUrl, max: 1 });
+    const topic = notifications.topic({ organizationId: ACME, userId: USER });
+    const plans: string[] = [];
+
+    const explaining = {
+      transaction: <T>(fn: (sql: SqlClient) => Promise<T>) =>
+        postgres.transaction((sql) =>
+          fn({
+            queryRaw: async <R>(text: string, values?: unknown[]) => {
+              if (text.startsWith("select exists")) {
+                await sql.queryRaw("set local enable_seqscan = off");
+
+                const plan = await sql.queryRaw<{ "QUERY PLAN": string }>(
+                  `explain (costs off) ${text}`,
+                  values,
+                );
+
+                plans.push(plan.map((line) => line["QUERY PLAN"]).join("\n"));
+              }
+
+              return sql.queryRaw<R>(text, values);
+            },
+          }),
+        ),
+    };
+
+    try {
+      expect(
+        await realtimeTopicAccess(explaining, {
+          claims: { sub: USER, role: "authenticated", tenant_id: ACME },
+          topic,
+          action: "receive",
+        }),
+      ).toBe(true);
+      expect(plans).toHaveLength(1);
+      expect(plans[0]).toMatch(/Index Scan using messages_\S*pkey/);
+      expect(plans[0]).not.toMatch(/Seq Scan on messages/);
     } finally {
       await postgres.end();
     }

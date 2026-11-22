@@ -29,7 +29,10 @@ better-supabase, Supabase CLI and Postgres versions. It holds:
 - `schema.sql`, the pg-delta plan from an empty catalog to the migrated one.
 - `data.sql`, the rows the migrations insert, and the
   `supabase_migrations.schema_migrations` rows, so `migration up` sees every
-  version as applied.
+  version as applied. A restore moves every `xid8` or `xid` value of these
+  rows that is ahead of the new database's transaction counter back to the
+  restoring transaction, so an outbox consumer registered afterwards still
+  sees the next event.
 - `catalog.snapshot` and `manifest.json`, which `verify` compares against.
 - With `--with-seed`, the same three files for the seeded state under `seed/`,
   plus `seed/storage.tar.gz` with the bucket objects.

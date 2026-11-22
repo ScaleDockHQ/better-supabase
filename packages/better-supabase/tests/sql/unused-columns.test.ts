@@ -53,4 +53,15 @@ describe("unusedDeclaredColumns", () => {
   it("reports nothing without a columns entry", () => {
     expect(unusedDeclaredColumns({ modules: { accounting: {} } })).toEqual([]);
   });
+
+  it("skips block instances and blocks that do not render", () => {
+    expect(
+      unusedDeclaredColumns({
+        modules: {
+          books: { block: "accounting" },
+          nope: { columns: { things: { name: "title" } } },
+        },
+      }),
+    ).toEqual([]);
+  });
 });

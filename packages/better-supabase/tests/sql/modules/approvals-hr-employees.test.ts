@@ -341,7 +341,7 @@ $$;`),
       ).resolves.toBeUndefined();
     });
 
-    it("keeps a request rejected before the approvals mode closed without an approval", async () => {
+    it("keeps a request rejected before the approvals mode closed, unless it was approved after", async () => {
       await expect(
         run(`do $$
 declare
@@ -375,6 +375,13 @@ begin
       raise;
     end if;
   end;
+  update better_supabase.leave_requests set approved_at = now() where id = v_id;
+  if better_supabase.get_leave_request(v_id) ->> 'status' <> 'approved' then
+    raise exception 'approved_at does not win over rejected_at';
+  end if;
+  if better_supabase.cancel_leave_request(v_id) ->> 'status' <> 'cancelled' then
+    raise exception 'an approved request with a stale rejected_at was not cancelled';
+  end if;
 end;
 $$;`),
       ).resolves.toBeUndefined();

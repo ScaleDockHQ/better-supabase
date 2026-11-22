@@ -329,6 +329,35 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("lets the manager or the manage key resubmit a rejected expense of an employee without a login", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_id uuid;
+begin
+  insert into better_supabase.employees (id, tenant_id, user_id, name, manager_id) values ('${DAVE_EMPLOYEE}', '${TENANT}', null, 'Dave', '${BOB_EMPLOYEE}');
+  insert into public.denied values ('${ALICE}', 'expenses.manage');
+  ${as(BOB)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 1250, 'EUR', employee_id => '${DAVE_EMPLOYEE}') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  ${as(CAROL)}
+  perform better_supabase.decide_expense(v_id, false, 'needs a receipt');
+  ${as(ALICE)}
+  ${refused("perform better_supabase.submit_expense(v_id)", "42501", "not allowed to change")}
+  ${as(BOB)}
+  if better_supabase.submit_expense(v_id) ->> 'status' <> 'submitted' then
+    raise exception 'the manager could not resubmit';
+  end if;
+  ${as(CAROL)}
+  perform better_supabase.decide_expense(v_id, false, 'still no receipt');
+  if better_supabase.submit_expense(v_id) ->> 'status' <> 'submitted' then
+    raise exception 'the manage key could not resubmit';
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("keeps the creator out of an approval request's decision", async () => {
     await expect(
       run(

@@ -342,3 +342,35 @@ $$;`,
     ).toThrow(/endedAt can be null only over your own entries table/u);
   });
 });
+
+describe("time-entries userTimeZone", () => {
+  const render = (userTimeZone: unknown): string =>
+    renderBlocks(["time-entries"], {
+      modules: { "time-entries": { options: { userTimeZone } } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+  it.each([
+    [
+      3,
+      'blocks.time-entries.options.userTimeZone must be { column: "schema.table.column", key? }',
+    ],
+    [
+      { column: "a.b" },
+      'blocks.time-entries.options.userTimeZone.column must be "schema.table.column"',
+    ],
+    [
+      { column: "public.profiles.tz", key: 3 },
+      "blocks.time-entries.options.userTimeZone.key must be the column holding the user id",
+    ],
+  ])("rejects %j", (value, message) => {
+    expect(() => render(value)).toThrow(message);
+  });
+
+  it("reads the user's time zone from the configured column", () => {
+    expect(render({ column: "public.profiles.tz", key: "user_id" })).toContain(
+      `(select nullif(p."tz"::text, '') from "public"."profiles" p where p."user_id" = time_week.user_id)`,
+    );
+  });
+});

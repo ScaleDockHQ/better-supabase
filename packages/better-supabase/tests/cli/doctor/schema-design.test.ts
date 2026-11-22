@@ -226,6 +226,84 @@ describe("schema design rules", () => {
     ]);
   });
 
+  it("accepts an app trigger that compares the tenant column (BS217)", async () => {
+    const snap = (uniqueIndex: boolean) =>
+      snapshot((tables) => {
+        const notes = table(tables, "notes");
+        notes.foreignKeys = notes.foreignKeys.map((key) =>
+          key.refTable === "customers"
+            ? { ...key, columns: ["customer_id"], refColumns: ["id"] }
+            : key,
+        );
+
+        const customers = table(tables, "customers");
+
+        customers.uniques = [];
+        customers.indexes = [
+          ...customers.indexes.filter((index) => !index.unique),
+          ...(uniqueIndex
+            ? [
+                {
+                  ...customers.indexes[0]!,
+                  name: "customers_id_org",
+                  unique: true,
+                  columns: ["organization_id", "id"],
+                },
+              ]
+            : []),
+        ];
+      });
+
+    const trigger = (compare: string) => ({
+      path: "supabase/schemas/notes.sql",
+      text: `create function public.check_customer() returns trigger language plpgsql as $$
+begin
+  if (select ${compare} from public.customers c where c.id = new.customer_id) then
+    raise exception 'other tenant';
+  end if;
+  return new;
+end
+$$;
+create trigger notes_customer before insert or update on public.notes for each row execute function public.check_customer();`,
+    });
+
+    const migration = {
+      ...trigger("c.organization_id <> new.organization_id"),
+      path: "supabase/migrations/1_notes.sql",
+    };
+
+    expect(
+      await run(
+        context(snap(false), {
+          sqlFiles: [trigger("c.organization_id <> new.organization_id")],
+        }),
+        "BS217",
+      ),
+    ).toEqual([]);
+    expect(
+      await run(
+        context(snap(true), {
+          sqlFiles: [trigger("c.organization_id <> new.organization_id")],
+        }),
+        "BS217",
+      ),
+    ).toMatchObject([
+      {
+        severity: "info",
+        message: expect.stringContaining("unique (id, organization_id)"),
+      },
+    ]);
+    expect(
+      await run(
+        context(snap(false), { sqlFiles: [trigger("false")] }),
+        "BS217",
+      ),
+    ).toMatchObject([{ severity: "warning" }]);
+    expect(
+      await run(context(snap(false), { sqlFiles: [migration] }), "BS217"),
+    ).toMatchObject([{ severity: "warning" }]);
+  });
+
   it("flags soft-delete tables without a partial index (BS218)", async () => {
     const snap = snapshot((tables) => {
       const customers = table(tables, "customers");

@@ -176,3 +176,53 @@ describe("splitAppTables", () => {
     );
   });
 });
+
+describe("splitAppTables edges", () => {
+  const base = resolveConfig({ blocks: {} }, "/tmp");
+
+  it("keeps unclosed comments, dollar quotes and positional parameters in one statement", () => {
+    const sql =
+      'create table "public"."c" (id int);\nselect $1;\ncreate function f() as $body$ no end; -- tail';
+
+    const files = splitAppTables(base, sql, ["c", "missing"]);
+
+    expect(files.map((file) => file.path)).toEqual([
+      "public/tables/c.sql",
+      "public/tables/missing.sql",
+      "public/_custom/app_tables.sql",
+    ]);
+    expect(files[1]?.contents).not.toContain("create");
+    expect(files[2]?.contents).toContain("select $1;");
+    expect(files[2]?.contents).toContain("$body$ no end; -- tail");
+    expect(
+      splitAppTables(base, "select 1; /* open", [])[0]?.contents,
+    ).toContain("/* open");
+  });
+
+  it("writes search tags and skips subjects and json entries without an argument", () => {
+    const config = {
+      ...base,
+      subjects: { watched: { table: "a", search: { watch: ["x"] } } },
+      realtime: { ...base.realtime, tables: ["a"], global: [], users: {} },
+      json: { "a.raw": {} },
+      appTables: {
+        a: { search: true as const },
+        b: { search: { columns: ["title", "body"] } },
+      },
+    } as unknown as Parameters<typeof splitAppTables>[0];
+
+    const files = splitAppTables(
+      config,
+      'create table "public"."a" (id int); create table "public"."b" (id int);',
+      ["a", "b"],
+    );
+
+    const a = files[0]?.contents ?? "";
+
+    expect(a).toContain("@bsb realtime");
+    expect(a).toContain("search");
+    expect(a).not.toContain("subject");
+    expect(a).not.toContain("json");
+    expect(files[1]?.contents).toContain('search columns="title, body"');
+  });
+});

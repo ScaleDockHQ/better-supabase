@@ -162,4 +162,19 @@ select better_supabase.audit('public.ai_harness_sessions', redact => '{locked_un
 
     expect(keys.length).toBeGreaterThan(0);
   });
+
+  it("skips non-SQL files, null trigger lists, the tenant key and unrenamed keys", () => {
+    expect(
+      staleRenameKeys([
+        { path: "src/app.ts", text: "payload ->> 'locked_until'" },
+        {
+          path: "supabase/schemas/app.sql",
+          text: `create trigger bsb_audit after update on better_supabase.api_keys
+  for each row execute function better_supabase.audit_row_change('null');
+select payload ->> 'organization_id', payload ->> 'title';
+select better_supabase.audit('notes', redact => '{body}');`,
+        },
+      ]),
+    ).toEqual([]);
+  });
 });
