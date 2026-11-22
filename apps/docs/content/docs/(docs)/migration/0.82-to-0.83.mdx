@@ -22,17 +22,18 @@ pnpm better-supabase codemod config --prune
 pnpm better-supabase gen sql
 ```
 
-| Section                                                                   | Needs code                                           |
-| ------------------------------------------------------------------------- | ---------------------------------------------------- |
-| [Direct dependencies](#direct-dependencies)                               | Remove pg-delta and pg-topo from your `package.json` |
-| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`                            |
-| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column                   |
-| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`                         |
-| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider                 |
-| [Record types](#record-types)                                             | Run `codemod record-types`                           |
-| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`                             |
-| [Schemas by module reference](#schemas-by-module-reference)               | None                                                 |
-| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                        |
+| Section                                                                   | Needs code                                                                                |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [Direct dependencies](#direct-dependencies)                               | Remove pg-delta and pg-topo from your `package.json`                                      |
+| [The blocks list](#the-blocks-list)                                       | Run `codemod blocks-list`                                                                 |
+| [Project-level defaults](#project-level-defaults)                         | Review the numbering tenant column                                                        |
+| [Config the render already supplies](#config-the-render-already-supplies) | Run `codemod config --prune`                                                              |
+| [Provider fields](#provider-fields)                                       | Move keys and floors to the provider                                                      |
+| [Record types](#record-types)                                             | Run `codemod record-types`                                                                |
+| [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`                                                                  |
+| [Optional columns](#optional-columns)                                     | Declare `startPart`, `endPart` or `confidential` columns, or run `codemod config --prune` |
+| [Schemas by module reference](#schemas-by-module-reference)               | None                                                                                      |
+| [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
 ## What the codemods did to CentraKit
 
@@ -42,24 +43,56 @@ reported these config lines per top-level key of `better-supabase.config.ts`.
 
 | Section       | Before | After |
 | ------------- | -----: | ----: |
-| `blocks`      |   2930 |  2816 |
+| `blocks`      |   2931 |  2707 |
 | preamble      |    239 |   239 |
 | `recordTypes` |    225 |   225 |
 | `database`    |    174 |   104 |
-| `gen`         |     54 |    21 |
+| `gen`         |     54 |    20 |
 | `auth`        |     27 |    27 |
 | `tooling`     |      7 |     7 |
-| **Total**     |   3656 |  3439 |
+| **Total**     |   3657 |  3329 |
 
-The target of 3000 lines is not met: 439 lines remain, 2816 of them in `blocks`, led by
-`memberships` (274), `calendar` (123), `invoices` (116), `audit` (112) and `data-lifecycle` (105). Those
-entries hold values that differ from the defaults (column names, options, hooks), so no codemod can
-remove them. Reaching 3000 needs the app to drop options it no longer uses (doctor BS707 lists them)
-or to move more facts into the provider and the schema comments.
+The target of 2500 lines is not met: 829 lines remain over it, 2707 of them in `blocks`, led by
+`memberships` (274), `calendar` (126), `invoices` (115), `audit` (112) and `data-lifecycle` (105). The 565
+entries that stay each state a fact the SQL does not hold.
 
-The render differs in 15 files. The expected changes are the tax code index, the cancel hooks, the
-numbering default, template clone and import functions, and the render comments. Twelve files carry
-other changes from block updates between the two builds that the report's allowlist does not name; read them in the diff before you deploy.
+| Kept entries | Reason                                                          |
+| -----------: | --------------------------------------------------------------- |
+|          206 | the database column differs from the convention's name          |
+|          128 | a choice the SQL does not declare: it exists only in the config |
+|           68 | the database table differs from the block's default             |
+|           60 | drops a generated column the database lacks                     |
+|           40 | the api schema or exposure differs from the preset              |
+|           33 | a block setting the convention does not cover                   |
+|           22 | the block has no table here                                     |
+|            8 | an api object with an explicit function list                    |
+
+No codemod can remove these. Reaching 2500 needs the app to drop options it no longer uses (doctor
+BS707 lists them), to rename database columns to the convention, or to move more facts into the
+provider and the schema comments.
+
+The render differs in 16 files. These changes are expected: the tax code index, the cancel hooks, the
+numbering default, template clone and import functions, and the render comments. The other files
+come from block fixes and features that landed between 0.82.0 and this release, not from the
+codemods:
+
+| File                                                                       | Change                                                                                       |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `module_145_tax.sql`                                                       | the tax data module is at version 2                                                          |
+| `module_023_outbox.sql`                                                    | a consumer's start never passes the snapshot's xmax                                          |
+| `module_034_attachments.sql`                                               | a subject id that is not a uuid reads as not found instead of failing the cast               |
+| `module_064_imports.sql`                                                   | supplier and customer entities resolve earlier records; a dry run's cancel clears chunks     |
+| `module_069_catalog.sql`                                                   | a supplier item takes its supplier from an earlier imported entity                           |
+| `module_077_approvals.sql`                                                 | cancelling an approval calls the timesheet and expense cancel functions                      |
+| `module_088_time_entries.sql`                                              | `timesheet_approval_cancelled` returns a submitted week to open                              |
+| `module_121_expenses.sql`                                                  | `expense_approval_cancelled`; a rejected expense stays visible to an employee without a user |
+| `module_091_tasks.sql`, `module_097_quotes.sql`, `module_098_invoices.sql` | a clone may move to another tenant with `tenantId`, checked against the target               |
+| `module_110_leave.sql`                                                     | a request that was approved and later rejected is no longer treated as rejected              |
+
+The report found one regression of this branch and fixed it: the `table-tags` codemod appends
+`; grant ...` after a `@bsb fields` list, and the list reader dropped its last column
+(`start_time`, `vat_regime`, `workflow_run_id`, `description`). That rendered fields away in five
+files. The reader now ends the list at the next tag.
 Five adopter files become deletable: `secret_fields.sql`, `packages/supabase-runtime/src/db.ts`
 field helpers, the `gen.functions` section, and the two import runner files.
 
@@ -224,6 +257,24 @@ for BS315 is not moved either: the baseline lists accepted findings, not
 exemptions, so add the `audit-exempt` tag with its reason instead. Doctor rule BS702
 lists the facts a comment can hold, and BS703 reports a tag that cannot take
 effect.
+
+## Optional columns
+
+A block's optional column is on when your table declares it. The config entry that said so is
+no longer read for leave: `startPart` and `endPart` switch the parts of the day on and
+`confidential` filters confidential types, both from the columns of your own `requests` and
+`types` tables. A requests table that declares only one of the two part columns is refused.
+
+| 0.82                                                       | 0.83                                                  |
+| ---------------------------------------------------------- | ----------------------------------------------------- |
+| `columns.requests.startPart: "start_part"` turns parts on  | the table declares `start_part` and `end_part`        |
+| `columns.types.confidential` on your own types table threw | the table declares `confidential`; no entry is needed |
+| `null` for an optional column your table lacks             | remove it; `codemod config --prune` does              |
+| BS622 asked for optional columns a block could use         | BS622 reports required columns only                   |
+
+`codemod config --prune` also drops an entry that repeats the convention's name. Other modules
+still read their entries (catalog, invoices, profiles, webhooks); they convert one at a time.
+The reasons are in [ADR 1184](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1184-optional-columns-follow-the-table.md).
 
 ## Schemas by module reference
 
