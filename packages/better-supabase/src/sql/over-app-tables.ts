@@ -311,15 +311,43 @@ function unquote(name: string): string {
  * `primary key` or `unique`, and nullable unless it has a default.
  */
 function addable(definition: string): string {
-  const column = definition
-    .replaceAll(/\s+primary\s+key\b/gi, "")
-    .replaceAll(/\s+unique\b(?!\s*\()/gi, "");
+  const column = withoutTopLevel(definition, /\s+primary\s+key\b/gi);
+  const unique = withoutTopLevel(column, /\s+unique\b(?!\s*\()/gi);
 
-  const nullable = /\b(?:default|generated)\b/i.test(column)
-    ? column
-    : column.replaceAll(/\s+not\s+null\b/gi, "");
+  const nullable = /\b(?:default|generated)\b/i.test(unique)
+    ? unique
+    : withoutTopLevel(unique, /\s+not\s+null\b/gi);
 
   return nullable.replaceAll(/\s+/g, " ").trim();
+}
+
+/**
+ * `text` without the matches of `pattern` that sit outside parentheses,
+ * brackets and quotes, so a `not null` inside a `check (...)` stays.
+ */
+function withoutTopLevel(text: string, pattern: RegExp): string {
+  let depth = 0;
+  let quote: string | undefined;
+  const depths: number[] = [];
+
+  for (const char of text) {
+    if (quote !== undefined) {
+      quote = char === quote ? undefined : quote;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(" || char === "[") {
+      depth += 1;
+    } else if (char === ")" || char === "]") {
+      depth -= 1;
+    }
+
+    depths.push(quote === undefined ? depth : depth + 1);
+  }
+
+  // The patterns have no capture groups, so the offset follows the match.
+  return text.replaceAll(pattern, (match: string, offset: number) =>
+    depths[offset] === 0 ? "" : match,
+  );
 }
 
 /**

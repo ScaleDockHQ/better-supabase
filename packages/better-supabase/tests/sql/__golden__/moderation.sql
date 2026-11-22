@@ -5050,7 +5050,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:e23fe4a13f080f68d0b7de413d9ba915025d43459288c28915eb01d8edee0841
+-- @bsb-hash sha256:449f8810344612da8f195731c57764e6b3ba53e710e16cf8e9607b460768f512
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5125,7 +5125,7 @@ alter table "better_supabase"."moderation_statements" add column if not exists "
 alter table "better_supabase"."moderation_statements" add column if not exists "terms_ground" text constraint bsb_moderation_statements_terms_ground_check check ("terms_ground" is null or length("terms_ground") <= 2000);
 alter table "better_supabase"."moderation_statements" add column if not exists "automated_detection" boolean not null default false;
 alter table "better_supabase"."moderation_statements" add column if not exists "automated_decision" boolean not null default false;
-alter table "better_supabase"."moderation_statements" add column if not exists "redress" text[] not null default array['internal_complaint';
+alter table "better_supabase"."moderation_statements" add column if not exists "redress" text[] not null default array['internal_complaint', 'out_of_court', 'judicial'];
 alter table "better_supabase"."moderation_statements" add column if not exists "issued_by" uuid;
 alter table "better_supabase"."moderation_statements" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "moderation_statements_item_idx" on "better_supabase"."moderation_statements" ("item_id", "created_at" desc);

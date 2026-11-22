@@ -1795,7 +1795,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:7cb58cbfba6b72a640b2af88bc5a59c78943f502aede52bcc7355e4061bb646f
+-- @bsb-hash sha256:89ff7aa8745dcc4245d2386ccf6153d885c1797b00f876d614cd45d5523961e3
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1832,7 +1832,7 @@ alter table "better_supabase"."invite_codes" add column if not exists "max_uses"
 alter table "better_supabase"."invite_codes" add column if not exists "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0);
 alter table "better_supabase"."invite_codes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."invite_codes" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."invite_codes" add column if not exists "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is);
+alter table "better_supabase"."invite_codes" add column if not exists "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null);
 alter table "better_supabase"."invite_codes" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."invite_codes" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."invite_codes" add column if not exists "revoked_at" timestamptz;
