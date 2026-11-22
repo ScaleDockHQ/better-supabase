@@ -7,6 +7,7 @@ import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 import type { ProjectSymbols } from "./typescript-symbols/index.ts";
 
+import { suggestSqlApi } from "../config/api-default.ts";
 import { restatedEntries } from "../config/index.ts";
 import { clientNotNull, redundantNulls, SQL_MODULES } from "../sql/index.ts";
 import { settleGroups, withoutConfigPaths } from "./codemod-prune.ts";
@@ -220,6 +221,80 @@ function firstDifference(
 }
 
 /**
+ * `sql.api` for a project that has none when most blocks name the same schema:
+ * the new default goes in, the matching `api` entries go out, and each block
+ * with no entry gets `api: false`, since it would write wrappers otherwise. The
+ * edit is kept only when the render stays the same.
+ */
+async function withSqlApi(
+  project: CodemodProject,
+  before: ReadonlyMap<string, string>,
+): Promise<{ text: string; review: readonly string[] }> {
+  const { config, configFile, configText } = project;
+
+  if (configFile === undefined || configText === undefined) {
+    return { text: configText ?? "", review: [] };
+  }
+
+  const found = suggestSqlApi(config.blockApis, config.sql.blockDefaults?.api);
+
+  if (found === undefined) {
+    return { text: configText, review: [] };
+  }
+
+  const document = ConfigDocument.parse(configText);
+
+  const edits = [
+    document.ensure(["database", "sql", "api"], JSON.stringify(found.schema)),
+    ...found.drop.map((name) => document.remove(["blocks", name, "api"])),
+    ...found.disable.map((name) =>
+      document.ensure(["blocks", name, "api"], "false"),
+    ),
+  ];
+
+  const where = `${configFile}: database.sql.api "${found.schema}" covers the api entries of ${found.drop.join(", ")}`;
+
+  if (
+    edits.some((edit) => edit.status !== "done") ||
+    document.review.length > 0
+  ) {
+    return {
+      text: configText,
+      review: [
+        `${where}, but the codemod could not edit every block in place; set it by hand.`,
+        ...document.review,
+      ],
+    };
+  }
+
+  const copy = join(
+    dirname(configFile),
+    `.${basename(configFile, extname(configFile))}.api-${String(process.pid)}${extname(configFile)}`,
+  );
+
+  try {
+    await writeFile(copy, document.text);
+
+    const after = await loadConfig(dirname(configFile), copy);
+
+    if (firstDifference(before, await renderedFiles(after)) === undefined) {
+      return { text: document.text, review: [] };
+    }
+  } catch {
+    // A config that no longer renders counts as a difference.
+  } finally {
+    await rm(copy, { force: true });
+  }
+
+  return {
+    text: configText,
+    review: [
+      `${where}, but setting it changes the render, so the entries stay.`,
+    ],
+  };
+}
+
+/**
  * `config --prune`: removes every entry `restatedEntries` reports, then renders
  * with the old and the new config and refuses to write when a file differs.
  */
@@ -270,8 +345,12 @@ async function prune(
     };
   }
 
+  const before = await renderedFiles(config);
+
+  const api = await withSqlApi(project, before);
+  const baseText = api.text;
   const allPaths = entries.map((entry) => entry.path);
-  const first = withoutConfigPaths(configText, allPaths);
+  const first = withoutConfigPaths(baseText, allPaths);
 
   const review: { message: string }[] = first.missed
     .filter(
@@ -281,9 +360,11 @@ async function prune(
       message: `${path} repeats its default, but the codemod could not find it in ${configFile}; remove it by hand.`,
     }));
 
-  review.push(...first.review.map((message) => ({ message })));
+  review.push(
+    ...[...api.review, ...first.review].map((message) => ({ message })),
+  );
 
-  if (first.text === configText) {
+  if (first.text === baseText && baseText === configText) {
     return { files: [], review };
   }
 
@@ -292,15 +373,13 @@ async function prune(
     `.${basename(configFile, extname(configFile))}.prune-${String(process.pid)}${extname(configFile)}`,
   );
 
-  const before = await renderedFiles(config);
-
   // Whether the config without these paths renders the same files. A config that no longer
   // renders at all counts as a difference, because an option may need the entry it restates.
   const renderUnchanged = async (
     paths: readonly string[],
   ): Promise<boolean> => {
     try {
-      await writeFile(copy, withoutConfigPaths(configText, paths).text);
+      await writeFile(copy, withoutConfigPaths(baseText, paths).text);
 
       const after = await loadConfig(dirname(configFile), copy);
 
@@ -333,7 +412,7 @@ async function prune(
     });
   }
 
-  const pruned = withoutConfigPaths(configText, kept);
+  const pruned = withoutConfigPaths(baseText, kept);
 
   if (pruned.text === configText) {
     return { files: [], review };
