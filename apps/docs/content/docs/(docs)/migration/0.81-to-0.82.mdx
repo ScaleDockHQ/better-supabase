@@ -243,8 +243,8 @@ Four generator items from the 0.82 plan did not change code, and the reasons are
   `gen`), so there is no such command to extend. The per-block breakdown lives in the existing size checks.
 
 Block function not-null results are declared in the block manifests (announcements, settings and webhooks list
-their eleven client functions), and `gen` reads them before it falls back to inferring from the function source.
-`gen.functions.<name>.notNull` stays the override that wins. `codemod config --prune` and doctor BS427 report a
+their eleven client functions), and `gen` reads them after the function's own `@notNull` tag and before it infers from the function source.
+`gen.functions.<name>.notNull` stays the override that wins, so the order is config, tag, block, inference. `codemod config --prune` and doctor BS427 report a
 `gen.functions` entry whose `notNull` repeats what the block declares, so the entry can be deleted.
 
 Every block slice exports `fields`, built from the block's columns plus the `@bsb fields` and adopted extra

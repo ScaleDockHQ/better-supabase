@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { Snapshot } from "../../../src/cli/introspect/types.ts";
 
 import { generatorBlocks } from "../../../src/cli/gen/blocks.ts";
+import { notNullPrecedence } from "../../../src/cli/gen/model-functions.ts";
 import { buildModel, generatorModel } from "../../../src/cli/gen/model.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { libraryFixture } from "../fixtures/library.ts";
@@ -182,6 +183,18 @@ describe("block not-null results", () => {
 
   it("leaves another project's function of that name nullable", async () => {
     expect(await returnsOf({})).toBe("boolean | null");
+  });
+
+  it("orders config, tag, block declaration, then the body", () => {
+    expect(
+      notNullPrecedence({ configured: [], tagged: true, declared: true }),
+    ).toEqual([]);
+    expect(
+      notNullPrecedence({ tagged: ["a"], declared: true, inferred: true }),
+    ).toEqual(["a"]);
+    expect(notNullPrecedence({ declared: true, inferred: true })).toBe(true);
+    expect(notNullPrecedence({ inferred: true })).toBe(true);
+    expect(notNullPrecedence({})).toBeUndefined();
   });
 
   it("lets the app's own entry win", async () => {

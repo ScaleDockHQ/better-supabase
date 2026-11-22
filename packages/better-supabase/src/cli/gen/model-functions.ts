@@ -49,6 +49,22 @@ export function notNullTag(
         .filter((name) => name !== "");
 }
 
+/**
+ * Which not-null declaration applies: the app's `gen.functions` entry, the
+ * function's own `@notNull` tag, what its block declares, then what the body
+ * shows. A closer one wins whole, `notNull: []` included.
+ */
+export function notNullPrecedence(sources: {
+  readonly configured?: true | readonly string[] | undefined;
+  readonly tagged?: true | readonly string[] | undefined;
+  readonly declared?: true | readonly string[] | undefined;
+  readonly inferred?: true | undefined;
+}): true | readonly string[] | undefined {
+  return (
+    sources.configured ?? sources.tagged ?? sources.declared ?? sources.inferred
+  );
+}
+
 /** `@bsb returns=./file.ts#Schema` from a function comment. */
 export function returnsTag(comment: string | undefined): string | undefined {
   const match = comment === undefined ? null : RETURNS_TAG.exec(comment);
@@ -148,20 +164,26 @@ export function buildFunctions(
         fn.name,
       )?.notNull;
 
+      const tagged = notNullTag(fn.comment);
       const declared = blockNotNull(config.blocks, fn.schema, fn.name);
 
-      const notNull =
-        configured ??
-        declared ??
-        inferNotNull(fn.source) ??
-        notNullTag(fn.comment);
+      // Config, then the function's own tag, then what its block declares, then
+      // what the body shows.
+      const notNull = notNullPrecedence({
+        configured,
+        tagged,
+        declared,
+        inferred: inferNotNull(fn.source),
+      });
 
-      const source =
-        configured === undefined
-          ? declared === undefined
-            ? `the @notNull tag on ${fn.schema}.${fn.name}`
-            : `the block's not-null results for ${fn.name}`
-          : `functions.${fn.name}.notNull`;
+      let source = `functions.${fn.name}.notNull`;
+
+      if (configured === undefined) {
+        source =
+          tagged === undefined && declared !== undefined
+            ? `the block's not-null results for ${fn.name}`
+            : `the @notNull tag on ${fn.schema}.${fn.name}`;
+      }
 
       const notNullColumns = new Set(Array.isArray(notNull) ? notNull : []);
 
