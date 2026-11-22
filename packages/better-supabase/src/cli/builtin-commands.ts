@@ -48,6 +48,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
     "db partition",
     () => import("./commands/partition.ts").then((m) => m.dbPartitionCommand),
   ],
+  ["db rows", () => import("./commands/rows.ts").then((m) => m.dbRowsCommand)],
   [
     "db squash",
     () => import("./commands/squash.ts").then((m) => m.dbSquashCommand),

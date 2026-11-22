@@ -674,6 +674,24 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [{ kind: "database", access: "write" }],
       },
       {
+        name: "rows",
+        description:
+          "Writes a data migration for each file in supabase/rows whose upserts changed, stamped with the hash of its statements",
+        docs: "/docs/cli/db#rows",
+        examples: [
+          {
+            command: "better-supabase db rows",
+            description:
+              "Writes one migration for each rows file whose hash no migration carries",
+          },
+          {
+            command: "better-supabase db rows --check",
+            description: "Exits 1 when a rows file has no current migration",
+          },
+        ],
+        effects: [FILES],
+      },
+      {
         name: "squash",
         description:
           "Replaces the migrations with one baseline of the declarative schema, keeping the module extensions and the data migrations --keep names",

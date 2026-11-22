@@ -178,3 +178,52 @@ export async function scanSql(
 ): Promise<readonly ScanToken[]> {
   return unwrapScanResult(parserFor(options.majorVersion).scan(text));
 }
+
+/** One statement of a parsed file, with its byte range in the text. */
+export interface ParsedStatement {
+  /** `{ InsertStmt: {...} }`: one key that names the node type. */
+  readonly stmt: unknown;
+  readonly start: number;
+  /** Zero means the statement runs to the end of the text. */
+  readonly length: number;
+}
+
+/**
+ * The parse tree of each statement, for a reader that checks a file's shape
+ * instead of collecting facts (the declared rows). A text that does not parse
+ * throws a `SchemaReadFailure` that names `path`.
+ *
+ * @param text - The SQL file contents.
+ * @param options - The file path for errors and the Postgres major version.
+ * @returns The statements in source order.
+ */
+export async function parseStatements(
+  text: string,
+  options: { path?: string; majorVersion?: number } = {},
+): Promise<readonly ParsedStatement[]> {
+  const parsed = await parserFor(options.majorVersion).parse(text);
+
+  if (parsed.error !== undefined) {
+    const source = new Source(text, []);
+
+    throw new SchemaReadFailure({
+      path: options.path ?? "<sql>",
+      message: parsed.error.message,
+      line: source.lineAt(parsed.error.position),
+      column: source.columnAt(parsed.error.position),
+    });
+  }
+
+  // SAFETY: `stmts` is the parser's list of `{ stmt, stmt_location, stmt_len }`.
+  const statements = (parsed.tree.stmts ?? []) as readonly {
+    readonly stmt: unknown;
+    readonly stmt_location?: number;
+    readonly stmt_len?: number;
+  }[];
+
+  return statements.map((statement) => ({
+    stmt: statement.stmt,
+    start: statement.stmt_location ?? 0,
+    length: statement.stmt_len ?? 0,
+  }));
+}
