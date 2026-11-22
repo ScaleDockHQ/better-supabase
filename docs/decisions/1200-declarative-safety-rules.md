@@ -1,4 +1,4 @@
-# 1253: Doctor rules for what pg-delta cannot see in schema files
+# 1200: Doctor rules for what pg-delta cannot see in schema files
 
 - Status: accepted
 - Date: 2026-11-22

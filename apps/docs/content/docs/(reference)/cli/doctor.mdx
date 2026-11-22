@@ -3232,39 +3232,53 @@ resolves to and whether the config, the provider or the block's default named
 it. A key equal to the provider's is BS427; BS715 is about keys the provider
 does not name yet. Move each key into the provider's `actionKeys` so one place
 names the keys the provider checks.
+
 ### BS720
+
 **Error: a schema file does not parse.** pg-topo, the analysis behind BS720 to
 BS724, could not parse a file under `supabase/schemas`. pg-delta loads the same
 files and stops on the same statement. The analysis skips the whole file, so
 fix this first. The group needs no database and runs in every project that has
 files under `supabase/schemas`.
+
 ### BS721
+
 **Warning: a schema file uses an object no file creates.** A statement refers
 to a table, view, type, sequence or schema that no schema file creates, outside
 the platform's schemas (`auth`, `storage`, `extensions` and the others pg-delta
 treats as provided). Create the object in a schema file. When dynamic SQL
 creates it, say so above the statement that does:
+
 ```sql
 -- pg-topo:provides table:app.orders
 select app.create_orders();
 ```
+
 pg-topo also reads `-- pg-topo:depends_on <schema.name>`,
 `-- pg-topo:requires <kind>:<schema.name>` and `-- pg-topo:phase <phase>`
 annotations, for a dependency inside a function or `do` body that it cannot
 read.
+
 ### BS722
+
 **Warning: two schema statements create the same object.** A policy or function
 copied between files. pg-delta keeps the last one it loads, so the result
 depends on file order. Keep one definition.
+
 ### BS723
+
 **Warning: schema statements depend on each other in a cycle.** pg-delta cannot
 order a cycle and loads it in a fixed order that can fail. Break it with a
 deferred reference, or drop a wrong edge with `-- pg-topo:depends_on`.
+
 ### BS724
+
 **Error: a pg-topo annotation is invalid.** A `-- pg-topo:` comment names a
 directive pg-topo does not know (`phase`, `depends_on`, `requires` and
 `provides` are the four) or a value it cannot read.
+
 ### BS725
+
 **Warning: a statement pg-delta cannot see in a schema file.** Under pg-delta
 the doctor reads every file in `supabase/schemas`, the module files better-supabase
 writes included, for four patterns: a `do` block that runs DDL (a catalog
@@ -3274,40 +3288,53 @@ privileges` without `for role`. pg-delta reads the database the files load
 into, so what runs later is invisible to it, and default privileges without a
 role attach to whichever role loads the file. Write each as a plain top-level
 statement:
+
 ```sql
 select cron.schedule('process_embeddings', '10 seconds', 'select process()');
 alter publication supabase_realtime add table public.messages;
 alter default privileges for role postgres in schema app
   revoke all on tables from anon, authenticated;
 ```
+
 ### BS726
+
 **Error: a reserved name in a declarative tree.** pg-delta reserves `_cluster/`
 and `_custom/` as root folders of the tree. A schema named `_cluster` or
 `_custom`, or a folder that differs from `_cluster` only in case, would write
 into them. Pick another name.
+
 ### BS727
+
 **Warning: `schema_paths` with pg-delta.** `[db.migrations] schema_paths` is set
 and `[experimental.pgdelta] enabled = true`. pg-delta loads every file under
 `supabase/schemas` and ignores the list. Remove it.
+
 ### BS728
+
 **Warning: a `_custom/` file without its migration.** pg-delta loads
 `supabase/schemas/_custom` files into the shadow database only, never into
 yours, so what they hold has to ship in a migration. Record which one at the
 top of the file, or say there is none:
+
 ```sql
 -- pgdelta-migration: ../../migrations/20261122120000_add_cast.sql
 -- pgdelta-migration: none
 ```
+
 The rule also reports a directive whose migration file does not exist.
 `db diff` stops under strict coverage while an object that lives only in
 `_custom/` is missing from the target.
+
 ### BS729
+
 **Warning: a modeled object in `_custom/`.** The file creates a table, view,
 function, policy, index, trigger, sequence, schema, type or domain. pg-delta
 models those, so put them next to their table. `_custom/` is for casts,
 operators, text search objects, statistics objects, transforms and idempotent
 data.
+
 ### BS730
+
 **Warning: a published table without a replication key.** A table listed in a
 publication other than `supabase_realtime` has no primary key and no `replica
 identity full`. A Pipeline (replication) source cannot replicate its updates and

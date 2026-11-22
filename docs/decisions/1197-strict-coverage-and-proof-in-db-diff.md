@@ -1,4 +1,4 @@
-# 1250: `db diff` runs with strict coverage, and `--prove` checks the plan on a clone
+# 1197: `db diff` runs with strict coverage, and `--prove` checks the plan on a clone
 
 - Status: accepted
 - Date: 2026-11-22
@@ -30,4 +30,4 @@ the files with no delivery directive or a dangling one, without failing.
 A diff that would have dropped an object silently now stops with the object's
 name. The proof is opt in because it touches the stack's connections. A parity
 run compares the CLI's bundled pg-delta with the pinned alpha on the validation
-projects (ADR 1251).
+projects (ADR 1198).

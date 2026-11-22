@@ -17,7 +17,7 @@ Imports stay at the top of the module. The exceptions are optional
     `src/cli/in-stack-diff.ts` (a dependency of the package that loads on
     first use to keep CLI startup fast, with a reinstall message; ADR 1171), `@supabase/pg-topo` in
     `src/cli/doctor/pg-topo.ts` (the doctor group skips when it fails to load;
-    ADR 1252), `oxfmt` in the same file (unformatted output with a
+    ADR 1199), `oxfmt` in the same file (unformatted output with a
     notice), `stripe` through a variable specifier in
     `src/blocks/stripe.ts` (an install message, or pass a client) and by
     name in `src/stripe/stripe.ts`, so bundlers include it for

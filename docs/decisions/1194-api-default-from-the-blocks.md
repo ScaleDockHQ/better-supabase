@@ -1,4 +1,4 @@
-# 1240: Set sql.api from the blocks and compare api entries by form
+# 1194: Set sql.api from the blocks and compare api entries by form
 
 - Status: accepted
 - Date: 2026-11-22

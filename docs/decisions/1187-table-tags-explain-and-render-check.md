@@ -1,4 +1,4 @@
-# 1201: Explain table tag moves and check that the tag reaches the render
+# 1187: Explain table tag moves and check that the tag reaches the render
 
 - Status: accepted
 - Date: 2026-11-22

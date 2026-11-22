@@ -1,4 +1,4 @@
-# 1251: Compare the CLI's pg-delta with the pinned one on a stack
+# 1198: Compare the CLI's pg-delta with the pinned one on a stack
 
 - Status: accepted
 - Date: 2026-11-22

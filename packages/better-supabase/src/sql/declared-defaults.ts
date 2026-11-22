@@ -4,7 +4,7 @@ import { createTable, enableRowSecurity } from "./emit/table.ts";
 
 /**
  * The kinds of default a block function reads from
- * `better_supabase.declared_defaults` (ADR 1220). The app declares the rows in
+ * `better_supabase.declared_defaults` (ADR 1191). The app declares the rows in
  * `supabase/rows/*.sql`; a function that finds none falls back to what the
  * config renders.
  */

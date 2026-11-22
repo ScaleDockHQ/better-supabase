@@ -81,7 +81,7 @@ function pipelineRows(
 
   const stageKey = ctx.has("stages", "systemKey") ? "systemKey" : "key";
 
-  // Stages the app declared as rows replace the template (ADR 1220).
+  // Stages the app declared as rows replace the template (ADR 1191).
   const declaredExists = (binding: PipelineBinding): string =>
     `better_supabase.declared_defaults_of('pipeline_stage', ${stageSubject(binding)}) is not null`;
 

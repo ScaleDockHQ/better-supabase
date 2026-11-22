@@ -174,7 +174,7 @@ export function defaultPipeline(
       ${insertStages(binding.stages)}
       end if;`;
 
-    // A tenant of a brand reads the rows of `<type>@<brand>` first (ADR 1220).
+    // A tenant of a brand reads the rows of `<type>@<brand>` first (ADR 1191).
     const declaredOf = (subject: string): string =>
       `better_supabase.declared_defaults_of('pipeline_stage', ${subject})`;
 

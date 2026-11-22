@@ -1,4 +1,4 @@
-# 1200: Derive same-tenant checks from every foreign key and move entries by proof
+# 1186: Derive same-tenant checks from every foreign key and move entries by proof
 
 - Status: accepted
 - Date: 2026-11-22

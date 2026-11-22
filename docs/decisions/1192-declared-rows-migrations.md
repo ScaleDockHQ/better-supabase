@@ -1,11 +1,11 @@
-# 1221: Turn supabase/rows into hash-stamped data migrations
+# 1192: Turn supabase/rows into hash-stamped data migrations
 
 - Status: accepted
 - Date: 2026-11-22
 
 ## Context
 
-Declared defaults (ADR 1220) are rows, and a rows file must reach the database
+Declared defaults (ADR 1191) are rows, and a rows file must reach the database
 the same way on every machine. A schema diff never captures rows, a migration
 that was pushed must not change (hard rule), and a rows file has to be easy to
 review.

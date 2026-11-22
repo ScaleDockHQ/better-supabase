@@ -1,4 +1,4 @@
-# 1203: Infer state history actor columns and template child parents from the schema
+# 1189: Infer state history actor columns and template child parents from the schema
 
 - Status: accepted
 - Date: 2026-11-22
