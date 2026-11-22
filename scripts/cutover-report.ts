@@ -755,6 +755,19 @@ interface Options {
   strict: boolean;
 }
 
+/** Writes a render next to the app so a changed file can be diffed by hand. */
+function keepRender(
+  render: { files: ReadonlyMap<string, string> },
+  directory: string,
+): void {
+  for (const [file, text] of render.files) {
+    const target = join(directory, file);
+
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, text);
+  }
+}
+
 export function parseArgs(args: string[]): Options {
   const options: Options = {
     source: resolve(homedir(), "Documents/Code/CentraKit"),
@@ -950,13 +963,7 @@ function main(): number {
     const baselineSql = snapshotSql(app);
 
     if (options.keep) {
-      // The baseline render stays next to the app so a changed file can be diffed by hand.
-      for (const [file, text] of baselineSql.files) {
-        const target = join(work, "baseline", file);
-
-        mkdirSync(dirname(target), { recursive: true });
-        writeFileSync(target, text);
-      }
+      keepRender(baselineSql, join(work, "baseline"));
     }
 
     const codemods = [
@@ -977,6 +984,10 @@ function main(): number {
     console.log("Rendering with the current source");
     run("node", [cli(repo), "upgrade", ...CLI_FLAGS, "--no-cache"], app);
     const currentSql = snapshotSql(app);
+
+    if (options.keep) {
+      keepRender(currentSql, join(work, "current"));
+    }
 
     const sectionsBefore = configSections(before);
     const sectionsAfter = configSections(after);
