@@ -2,7 +2,6 @@
   "$schema": "../../packages/better-supabase/schemas/config-v1.json",
   "blocks": [
     "read-sets",
-    "seeds",
     "updated-at",
     "memberships",
     {
@@ -66,7 +65,8 @@
           "tenant": "organization_id"
         }
       }
-    }
+    },
+    "seeds"
   ],
   "database": {
     "source": {

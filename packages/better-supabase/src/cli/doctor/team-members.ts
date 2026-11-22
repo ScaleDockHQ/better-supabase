@@ -1,4 +1,4 @@
-import type { ColumnMapping } from "../../config/blocks.ts";
+import type { ColumnMapping } from "../../config/index.ts";
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
 import { catalogOf } from "./shared.ts";
