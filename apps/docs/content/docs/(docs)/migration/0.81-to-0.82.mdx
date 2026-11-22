@@ -263,8 +263,9 @@ invoices drops 823 of 4634 rendered lines.
 
 Doctor BS707 (info) lists `blocks.<name>.columns` entries that no enabled feature reads. The render records each
 `table.column` it reads, so an entry for a feature that is off is reported with the block, table and column. The
-report names the block and column, not the option that turns the feature on, because a column read carries no
-option name.
+report names the block, table, column and what gates it: `tables.<table>: null` when the config switched the table
+off, `options.<name>` when rendering again with that boolean option on makes the block read the column, or
+`no option found`.
 
 Doctor BS708 (info) lists the generated SQL of each installed block in kilobytes, largest first, and
 `doctor --json` carries it under that code. It replaces the idea of a `sql size` command.

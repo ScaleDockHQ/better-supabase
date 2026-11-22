@@ -19,6 +19,25 @@ describe("unusedDeclaredColumns", () => {
         table: "budgets",
         logical: "name",
         column: "title",
+        gating: "tables.budgets: null",
+      },
+    ]);
+  });
+
+  it("names the option that switches the feature on", () => {
+    expect(
+      unusedDeclaredColumns({
+        modules: {
+          notifications: { columns: { recipients: { address: "email" } } },
+        },
+      }),
+    ).toEqual([
+      {
+        block: "notifications",
+        table: "recipients",
+        logical: "address",
+        column: "email",
+        gating: "options.externalRecipients",
       },
     ]);
   });

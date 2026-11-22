@@ -400,7 +400,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
         ownTables: appTablesOf(context),
         ...appViewsOf(context),
       }).map((entry): FindingInput => ({
-        message: `blocks.${entry.block}.columns.${entry.table}.${entry.logical} maps to "${entry.column}", but no enabled feature of ${entry.block} reads it.`,
+        message: `blocks.${entry.block}.columns.${entry.table}.${entry.logical} maps to "${entry.column}", but no enabled feature of ${entry.block} reads it (gated by ${entry.gating}).`,
         target: `blocks.${entry.block}.columns.${entry.table}.${entry.logical}`,
       })),
   },

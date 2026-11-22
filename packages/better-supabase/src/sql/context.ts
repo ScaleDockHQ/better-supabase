@@ -723,6 +723,7 @@ export interface Contributor<K extends keyof BlockContributions> {
 }
 
 let columnSink: Set<string> | undefined;
+let offFlagSink: Set<string> | undefined;
 
 /**
  * Runs `run` and returns the `table.logical` columns the render read through
@@ -732,15 +733,21 @@ let columnSink: Set<string> | undefined;
 export function trackColumnReads<T>(run: () => T): {
   readonly value: T;
   readonly reads: ReadonlySet<string>;
+  /** The boolean options the render read as `false`: features that are off. */
+  readonly offFlags: ReadonlySet<string>;
 } {
   const previous = columnSink;
+  const previousFlags = offFlagSink;
   const reads = new Set<string>();
+  const offFlags = new Set<string>();
   columnSink = reads;
+  offFlagSink = offFlags;
 
   try {
-    return { value: run(), reads };
+    return { value: run(), reads, offFlags };
   } finally {
     columnSink = previous;
+    offFlagSink = previousFlags;
   }
 }
 
@@ -1056,6 +1063,10 @@ export function createModuleContext(
     const value = option(name);
 
     if (value === undefined) {
+      if (type === "boolean" && fallback === false) {
+        offFlagSink?.add(name);
+      }
+
       return fallback;
     }
 
@@ -1069,6 +1080,10 @@ export function createModuleContext(
 
     if (typeof value !== type) {
       throw new TypeError(`${where}.options.${name} must be a ${type}`);
+    }
+
+    if (value === false) {
+      offFlagSink?.add(name);
     }
 
     return value;

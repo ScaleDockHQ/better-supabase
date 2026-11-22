@@ -3066,7 +3066,9 @@ schema file that redefines a `better_supabase` function a block creates.
 maps a column, but the block's render never reads it, because the feature that uses it is off (an optional
 table mapped to `null`, or an option left at its default). The entry does nothing today. Remove it, or turn the
 feature on and the column starts to count. Doctor renders each block once with a read recorder to find the
-entries, so the finding costs one extra render per block that has `columns` entries.
+entries, so the finding costs one extra render per block that has `columns` entries. The message ends with what
+gates the column: `tables.<table>: null`, `options.<name>` (the boolean option that, set to `true`, makes the render
+read the column; found by rendering again with each option that was off) or `no option found`.
 
 ### BS708
 
