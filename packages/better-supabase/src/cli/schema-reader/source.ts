@@ -127,7 +127,7 @@ export class Source {
 }
 
 /** A word is an identifier or a keyword: unquoted names fold to lower case. */
-export function wordText(token: ScanToken): string {
+function wordText(token: ScanToken): string {
   if (token.kind === "IDENT" || token.keywordKind !== "none") {
     return token.text.startsWith('"')
       ? token.text.slice(1, -1).replaceAll('""', '"')

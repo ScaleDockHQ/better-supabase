@@ -1,7 +1,7 @@
 /** A parse tree node: one key that names the node type, its body as value. */
 export type Obj = Readonly<Record<string, unknown>>;
 
-export function isObj(value: unknown): value is Obj {
+function isObj(value: unknown): value is Obj {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

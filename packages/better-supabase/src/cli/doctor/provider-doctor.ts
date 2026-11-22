@@ -5,7 +5,7 @@ import type { FindingInput, Rule } from "./rules.ts";
 import { isRecord } from "../guards.ts";
 
 const SEVERITIES = new Set(["error", "warning", "info"]);
-export const DEFAULT_PROVIDER_DOCTOR_TIMEOUT_MS = 60_000;
+const DEFAULT_PROVIDER_DOCTOR_TIMEOUT_MS = 60_000;
 
 function run(
   command: readonly string[],

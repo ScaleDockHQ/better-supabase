@@ -62,7 +62,7 @@ export interface SupabaseConfig {
 }
 
 /** The file names the CLI looks for in `supabase/`, in its order of preference. */
-export const CONFIG_FILES: readonly {
+const CONFIG_FILES: readonly {
   readonly name: string;
   readonly format: ConfigFormat;
 }[] = [
@@ -264,7 +264,7 @@ export function parseToml(text: string): TomlTable {
  * `text` as a JSON document with comments and trailing commas; an empty table
  * when it does not parse.
  */
-export function parseJsonConfig(text: string): TomlTable {
+function parseJsonConfig(text: string): TomlTable {
   const value: unknown = parseJsonc(text, [], { allowTrailingComma: true });
 
   return typeof value === "object" && value !== null && !Array.isArray(value)

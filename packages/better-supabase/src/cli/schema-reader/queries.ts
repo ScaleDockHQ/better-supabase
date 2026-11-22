@@ -173,45 +173,6 @@ export function addedColumnTypes(
   return found;
 }
 
-/** Columns that are `not null`, by `schema.table`. */
-export function declaredNotNullColumns(
-  files: readonly FileFacts[],
-  schemas: readonly string[],
-): Map<string, Set<string>> {
-  const found = new Map<string, Set<string>>();
-
-  const mark = (table: string, column: string): void => {
-    if (inSchemas(table, schemas)) {
-      found.set(table, (found.get(table) ?? new Set()).add(column));
-    }
-  };
-
-  for (const facts of files) {
-    for (const table of facts.tables) {
-      for (const column of table.columns) {
-        if (column.notNull) {
-          mark(table.name, column.name);
-        }
-      }
-    }
-
-    for (const alter of facts.alters) {
-      for (const column of alter.setNotNull) {
-        mark(alter.table, column);
-      }
-    }
-  }
-
-  return found;
-}
-
-/** The names of the enums the files create. */
-export function declaredEnums(files: readonly FileFacts[]): Set<string> {
-  return new Set(
-    files.flatMap((facts) => facts.enums.map((each) => each.name)),
-  );
-}
-
 /** The tables in `schemas` the files leave with row level security on. */
 export function rlsTables(
   files: readonly FileFacts[],

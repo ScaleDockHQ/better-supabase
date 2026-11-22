@@ -150,7 +150,7 @@ function resolved(value: unknown, key?: string): unknown {
 }
 
 /** Whether two config values resolve to the same thing (ADR 1174). */
-export const same = (a: unknown, b: unknown): boolean =>
+const same = (a: unknown, b: unknown): boolean =>
   JSON.stringify(resolved(a)) === JSON.stringify(resolved(b));
 
 /**
