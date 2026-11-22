@@ -428,14 +428,15 @@ declare const provider: AuthorizationProvider<Key>;
 
 export default defineConfig({
   auth: { authorization: provider },
-  blocks: {
-    permissions: {
+  blocks: [
+    {
+      block: "permissions",
       roles: {
 ${roles.join("\n")}
       },
     },
-    tasks: { permissions: { read: ${key(1)} } },
-  },
+    { block: "tasks", permissions: { read: ${key(1)} } },
+  ],
   recordTypes: {
 ${subjects.join("\n")}
   },

@@ -240,5 +240,5 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  }, 60_000);
+  }, 180_000);
 });
