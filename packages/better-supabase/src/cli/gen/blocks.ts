@@ -481,13 +481,24 @@ function appFields(
       (logical) => ctx.tableName(logical),
     );
 
-    return target === undefined
-      ? {}
-      : Object.fromEntries(
-          ctx
-            .extraColumns(target.logical)
-            .map((column) => [column.name, column.type]),
+    // A block with no legacy `extraColumns` table (memberships, a block that
+    // owns several tables) takes the first of its tables the app extends.
+    const candidates = [
+      ...(target === undefined ? [] : [target.logical]),
+      ...Object.keys(SQL_MODULES[module]?.names?.tables ?? {}),
+    ].filter((logical) => ctx.hasTable(logical));
+
+    for (const logical of candidates) {
+      const extra = ctx.extraColumns(logical);
+
+      if (extra.length > 0) {
+        return Object.fromEntries(
+          extra.map((column) => [column.name, column.type]),
         );
+      }
+    }
+
+    return {};
   } catch {
     // The block can't render in this project.
     return {};
