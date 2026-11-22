@@ -323,6 +323,10 @@ catalogs:
     "@supabase/supabase-js": "^2.119.0"
     "@tanstack/query-core": "^5.107.1"
     better-result: ">=3.0.1 <4"
+    # A floor only: the CLI's symbol tier needs 7.1 and checks the installed
+    # version itself, so an app on an older TypeScript sees no peer warning
+    # (ADR 1182).
+    typescript: ">=5.0.0"
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"
     # A pre-release line (AGENTS.md "Pre-release pins"); <2 admits 1.0 stable.

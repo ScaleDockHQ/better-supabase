@@ -140,6 +140,7 @@ fails on an ADR the index does not link.
 | `@supabase/pg-parser`             | 0.1.7          | reads SQL; a 0.x CLI dependency (ADR 1171)                                    |
 | `oxc-parser`                      | 0.159.0        | reads TypeScript; a 0.x CLI dependency (ADR 1171)                             |
 | `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |
+| `typescript/sync` (`ts71`)        | 7.1.0-beta     | the CLI's optional symbol tier, tested in `tests/types/ts-7.1` (ADR 1182)     |
 
 Move each to its stable release when it ships, and update this list.
 

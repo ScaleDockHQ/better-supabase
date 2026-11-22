@@ -51,6 +51,7 @@ const INTEGRATIONS = [
   "resumable-stream",
   "jsonpath-rfc9535",
   "temporal-polyfill",
+  "typescript",
   "undici",
 ] as const;
 

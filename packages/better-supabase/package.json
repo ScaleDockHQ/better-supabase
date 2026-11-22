@@ -3041,6 +3041,7 @@
     "stripe": "catalog:peers",
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
+    "typescript": "catalog:peers",
     "undici": "catalog:peers",
     "unpdf": "catalog:peers",
     "valibot": "catalog:peers",
@@ -3231,6 +3232,9 @@
       "optional": true
     },
     "workflow": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     },
     "undici": {

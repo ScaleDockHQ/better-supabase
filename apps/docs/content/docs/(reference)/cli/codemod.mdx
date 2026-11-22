@@ -77,6 +77,14 @@ in a message or a comment stays as it is.
 - **SQL.** A renamed table, column or policy of an installed block gets one
   migration of `alter ... rename` statements, each behind an existence check.
 
+## Following a symbol across files
+
+With `typescript` 7.1 or newer installed, the CLI can ask TypeScript where a
+symbol is used and declared, so an edit reaches every file that uses it. The
+CLI starts it only for an edit that needs it, and works from the version in
+your own `node_modules`. With an older TypeScript, or none, each codemod works
+file by file and lists the places a symbol leaves its file as review lines.
+
 ## What it leaves for you
 
 Some renames depend on what a variable holds. The codemod doesn't guess: it
