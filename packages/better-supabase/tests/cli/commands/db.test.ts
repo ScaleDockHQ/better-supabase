@@ -185,6 +185,7 @@ describe("db diff", () => {
             issues: [],
             diagnostics: [],
             skipped: [],
+            blocking: [],
             ...plan,
           });
         },
@@ -223,7 +224,7 @@ describe("db diff", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Created a migration");
     expect(await readFile(join(root, "args"), "utf-8")).toBe(
-      "db schema declarative sync --no-apply -f add\n",
+      "db schema declarative sync --no-apply --strict-coverage -f add\n",
     );
   });
 
@@ -236,10 +237,38 @@ describe("db diff", () => {
     const result = await diff(["-f", "add"], harness, "pg-delta", remote);
 
     expect(harness.calls).toEqual([
-      ["db", "schema", "declarative", "sync", "--no-apply", "-f", "add"],
+      [
+        "db",
+        "schema",
+        "declarative",
+        "sync",
+        "--no-apply",
+        "--strict-coverage",
+        "-f",
+        "add",
+      ],
     ]);
     expect(harness.inStack).toHaveLength(0);
     expect(result.output).toBe("Created supabase/migrations/1_add.sql");
+  });
+
+  it("writes nothing while pg-delta cannot manage an object, and says how to relax it", async () => {
+    const harness = deps({ code: 1, stderr: SHADOW }, "", {
+      blocking: [
+        {
+          code: "unmodeled_kind",
+          severity: "warning",
+          message: "a cast pg-delta does not model",
+        },
+      ],
+    });
+
+    const result = await diff(["-f", "add"], harness, "migra");
+
+    expect(result.code).toBe(1);
+    expect(result.error).toContain("[unmodeled_kind]");
+    expect(result.error).toContain("--no-strict-coverage");
+    expect(harness.inStack[0]?.strictCoverage).toBe(true);
   });
 
   it("falls back to the running stack when the shadow database can't start", async () => {
