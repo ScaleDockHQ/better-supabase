@@ -1,5 +1,5 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { AnyCommand, CliOptions } from "../core/command.ts";
@@ -8,6 +8,7 @@ import type { CommandResult } from "../core/io.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { CliError } from "../core/errors.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { rowsDir } from "../rows/dir.ts";
 import { planRows } from "../rows/plan.ts";
 import { DeclaredRowsError } from "../rows/read.ts";
 import { migrationsDir } from "../sql-layout.ts";
@@ -25,11 +26,6 @@ const ARGS = {
 } as const;
 
 export type RowsFlags = CliOptions<typeof ARGS>;
-
-/** The folder of the app's declared rows, next to the migrations. */
-export function rowsDir(config: ResolvedConfig): string {
-  return join(dirname(migrationsDir(config)), "rows").replaceAll("\\", "/");
-}
 
 async function readSql(folder: string): Promise<ReadonlyMap<string, string>> {
   const names = (await readdir(folder).catch((): string[] => []))

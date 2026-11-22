@@ -33,6 +33,7 @@ pnpm better-supabase gen sql
 | [Table facts in comments](#table-facts-in-comments)                       | Run `codemod table-tags`                                                                  |
 | [Optional columns](#optional-columns)                                     | Declare `startPart`, `endPart` or `confidential` columns, or run `codemod config --prune` |
 | [Block names first](#block-names-first)                                   | Optional: run `codemod adopt-names --table <block>.<table>`, or tag the table             |
+| [Declared rows](#declared-rows)                                           | Optional: run `codemod declared-rows`, then `db rows`                                     |
 | [Schemas by module reference](#schemas-by-module-reference)               | None                                                                                      |
 | [Doctor](#doctor)                                                         | Run `codemod doctor-baseline`                                                             |
 
@@ -295,6 +296,28 @@ block, memberships included.
 your schema files that name the table and removes its `tables` and `columns` entries. It refuses a
 table outside the block's schema, and a `values` entry stays. See
 [ADR 1185](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1185-base-first-tables.md).
+
+## Declared rows
+
+Option set items, pipeline stages, approval floors and numbering formats can live as rows the app
+owns. Nothing breaks: the block functions read `better_supabase.declared_defaults` first and keep
+the config literal as the fallback, so a config without declared rows behaves as before. A field
+with neither declared nor literal items raises `OPTION_SET_DEFAULTS_MISSING`.
+
+| 0.82                                                          | 0.83                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `on: { project: { priority: { items: [...] } } }`             | `option_set_item` rows in `supabase/rows/option-sets.sql`               |
+| `on: { deal: { stages: [...] } }` or `taskStages(...)`        | `pipeline_stage` rows in `supabase/rows/pipelines.sql`                  |
+| `options.policies: { invoice: { send: { steps: [...] } } }`   | `approval_floor` rows in `supabase/rows/approvals.sql`                  |
+| a changed default needs a regenerated config and a new deploy | edit the rows file and run `better-supabase db rows` (a data migration) |
+| `approval_policy` was `immutable`                             | `stable`, because it reads the declared floors                          |
+
+`codemod declared-rows` writes the rows files from your resolved config and removes the moved keys.
+`db rows` then writes one data migration for each rows file, stamped with the hash of its
+statements, and `db rows --check` exits 1 in CI when a file has none. A row you remove from a file
+stays in the database and is reported, unless the file carries `-- bsb-rows: delete-removed`. See
+[ADR 1220](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1220-declared-defaults-table.md)
+and [ADR 1221](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/1221-declared-rows-migrations.md).
 
 ## Schemas by module reference
 

@@ -910,6 +910,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "declared-rows",
+        description:
+          "Move option set items, pipeline stages and approval floors out of the config into supabase/rows upserts",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "doctor-baseline",
         description:
           "Rewrite a { code: { reason, targets } } baseline file as the grouped list doctor reads",

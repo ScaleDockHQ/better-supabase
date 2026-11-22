@@ -150,6 +150,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod declared-rows",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("declared-rows"),
+      ),
+  ],
+  [
     "codemod doctor-baseline",
     () =>
       import("./commands/codemod.ts").then((m) =>
