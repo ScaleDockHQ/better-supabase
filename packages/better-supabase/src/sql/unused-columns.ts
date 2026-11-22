@@ -82,9 +82,16 @@ export function unusedDeclaredColumns(
       continue;
     }
 
-    const { reads, offFlags } = trackColumnReads(() =>
-      moduleBody(block, layout),
-    );
+    let tracked: ReturnType<typeof trackColumnReads<string | undefined>>;
+
+    try {
+      tracked = trackColumnReads(() => moduleBody(block, layout));
+    } catch {
+      // A block that does not render has its own findings; there are no reads to compare.
+      continue;
+    }
+
+    const { reads, offFlags } = tracked;
 
     for (const [table, entries] of Object.entries(columns)) {
       for (const [logical, entry] of Object.entries(entries ?? {})) {

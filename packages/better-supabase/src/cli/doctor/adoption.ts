@@ -396,6 +396,13 @@ export const ADOPTION_RULES: readonly Rule[] = [
       "`blocks.<name>.columns.<table>.<column>` names a column, but the block's render never reads it, because the feature that uses it is off (an optional table mapped to `null`, or an option left at its default). The entry does nothing today. Remove it, or turn the feature on, and the column starts to count.",
     check: (context) =>
       unusedDeclaredColumns({
+        ...moduleLayout(
+          context.config,
+          undefined,
+          [],
+          undefined,
+          adoptionContext(context).accessProvider,
+        ),
         modules: context.config.blocks,
         ownTables: appTablesOf(context),
         ...appViewsOf(context),
