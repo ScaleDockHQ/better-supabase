@@ -242,6 +242,84 @@ describe("inStackDiff", () => {
     expect(events).toContain("end target");
   });
 
+  it("reports _custom/ files that no migration delivers", async () => {
+    const custom = join(root, "supabase/schemas/_custom");
+
+    await mkdir(custom, { recursive: true });
+    await writeFile(join(custom, "bare.sql"), "create cast (a as b);");
+    await writeFile(join(custom, "none.sql"), "-- pgdelta-migration: none\n");
+    await writeFile(
+      join(custom, "gone.sql"),
+      "-- pgdelta-migration: ../../migrations/9_gone.sql\n",
+    );
+    await writeFile(
+      join(custom, "ok.sql"),
+      "-- pgdelta-migration: ../../migrations/20260101000000_init.sql\n",
+    );
+
+    const listed: string[] = [];
+
+    const result = await inStackDiff({
+      ...harness().base,
+      loadFrontends: () =>
+        Promise.resolve({
+          listCustomFiles: (base: string) => {
+            listed.push(base);
+
+            return [
+              {
+                path: "_custom/bare.sql",
+                sql: "",
+                migrations: [],
+                hasNone: false,
+                delivered: false,
+              },
+              {
+                path: "_custom/gone.sql",
+                sql: "",
+                migrations: ["../../migrations/9_gone.sql"],
+                hasNone: false,
+                delivered: true,
+              },
+              {
+                path: "_custom/none.sql",
+                sql: "",
+                migrations: [],
+                hasNone: true,
+                delivered: true,
+              },
+              {
+                path: "_custom/ok.sql",
+                sql: "",
+                migrations: ["../../migrations/20260101000000_init.sql"],
+                hasNone: false,
+                delivered: true,
+              },
+            ];
+          },
+        }),
+    });
+
+    expect(listed).toEqual([join(root, "supabase/schemas")]);
+    expect(result.custom).toEqual([
+      { path: "_custom/bare.sql", status: "undelivered" },
+      {
+        path: "_custom/gone.sql",
+        status: "dangling",
+        migration: "../../migrations/9_gone.sql",
+      },
+    ]);
+  });
+
+  it("does not load the frontends without a _custom/ folder", async () => {
+    const result = await inStackDiff({
+      ...harness().base,
+      loadFrontends: () => Promise.reject(new Error("must not load")),
+    });
+
+    expect(result.custom).toEqual([]);
+  });
+
   const unmodeled = {
     code: "unmodeled_kind",
     severity: "warning" as const,

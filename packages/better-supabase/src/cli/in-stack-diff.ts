@@ -1,9 +1,11 @@
 import type * as PgDeltaModule from "@supabase/pg-delta";
 import type { Diagnostic, PlanSchemaFilesOptions } from "@supabase/pg-delta";
+import type * as FrontendsModule from "@supabase/pg-delta/frontends";
 import type { Pool } from "pg";
 
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import type { Issue, PlanGate, RenameHint } from "../create/index.ts";
 import type { PgQueryable } from "./db.ts";
@@ -76,6 +78,24 @@ export function migrationVersion(now: Date): string {
 
 export type PgDelta = typeof PgDeltaModule;
 
+export type Frontends = Pick<typeof FrontendsModule, "listCustomFiles">;
+
+/**
+ * A `_custom/` file pg-delta loads into the shadow only. It never reaches your
+ * database unless a migration carries it.
+ */
+export interface CustomReport {
+  /** The path under the schemas folder, such as `_custom/casts.sql`. */
+  readonly path: string;
+  /**
+   * `undelivered` has no `-- pgdelta-migration:` line at all, `dangling` names
+   * a migration file that does not exist.
+   */
+  readonly status: "undelivered" | "dangling";
+  /** The missing migration, for `dangling`. */
+  readonly migration?: string;
+}
+
 /** The minimal `pg` surface the planner needs: pools it can end. */
 interface PoolModule {
   Pool: new (options: { connectionString: string }) => PoolHandle;
@@ -113,6 +133,8 @@ export interface InStackDiffOptions {
   readonly open?: typeof connect;
   /** Loads pg-delta; tests pass a fake. */
   readonly loadDelta?: () => Promise<PgDelta>;
+  /** Loads pg-delta's frontends, which read `_custom/`; tests pass a fake. */
+  readonly loadFrontends?: () => Promise<Frontends>;
   /** Opens a pool for pg-delta; tests pass a fake. */
   readonly openPool?: (url: string) => Promise<PoolHandle>;
   readonly log?: (line: string) => void;
@@ -135,6 +157,8 @@ export interface InStackDiffResult {
   readonly blocking: readonly Diagnostic[];
   /** The proof's verdict, `skipped` with the reason when no clone was made. */
   readonly proof?: ProofResult;
+  /** `_custom/` files whose delivery to the database is not accounted for. */
+  readonly custom: readonly CustomReport[];
 }
 
 /**
@@ -335,7 +359,10 @@ export async function inStackDiff(
         ? await proveOnClone(delta, result, scratch, options, openPool, log)
         : undefined;
 
+    const custom = await customDelivery(options, options.loadFrontends);
+
     return {
+      custom,
       sql: proof?.status === "failed" ? "" : sql,
       gate,
       issues: gate.issues,
@@ -348,6 +375,43 @@ export async function inStackDiff(
     await Promise.allSettled([target.end(), scratch.end()]);
     await shadow.cleanup();
   }
+}
+
+/**
+ * The `_custom/` files that never reach the database: pg-delta runs them in the
+ * shadow so re-exports keep them, and a migration has to deliver them.
+ * Frontends load on first use (invariant 12); a project without the folder
+ * never loads them.
+ */
+async function customDelivery(
+  options: Pick<InStackDiffOptions, "root" | "schemasDir">,
+  load: (() => Promise<Frontends>) | undefined,
+): Promise<readonly CustomReport[]> {
+  const base = join(options.root, options.schemasDir);
+
+  if (!existsSync(join(base, "_custom"))) {
+    return [];
+  }
+
+  const frontends = await (
+    load ?? (() => import("@supabase/pg-delta/frontends"))
+  )();
+
+  return frontends.listCustomFiles(base).flatMap((file): CustomReport[] => {
+    if (!file.delivered) {
+      return [{ path: file.path, status: "undelivered" }];
+    }
+
+    return file.migrations
+      .filter(
+        (migration) => !existsSync(join(base, dirname(file.path), migration)),
+      )
+      .map((migration) => ({
+        path: file.path,
+        status: "dangling" as const,
+        migration,
+      }));
+  });
 }
 
 const quoteIdent = (name: string): string => `"${name.replaceAll('"', '""')}"`;

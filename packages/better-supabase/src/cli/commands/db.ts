@@ -382,6 +382,7 @@ export async function runDbDiff(
     changes: sql !== "",
     issues: result.issues,
     blocking: result.blocking,
+    custom: result.custom,
     ...(result.proof === undefined ? {} : { proof: result.proof }),
   };
 
@@ -407,6 +408,14 @@ export async function runDbDiff(
         .join("\n")}`,
       data,
     };
+  }
+
+  for (const file of result.custom) {
+    deps.log(
+      file.status === "undelivered"
+        ? `${file.path} has no \`-- pgdelta-migration:\` line, so nothing says which migration delivers it to your database. Add the line, or \`-- pgdelta-migration: none\`.`
+        : `${file.path} names ${file.migration}, which does not exist.`,
+    );
   }
 
   if (result.proof?.status === "skipped") {

@@ -186,6 +186,7 @@ describe("db diff", () => {
             diagnostics: [],
             skipped: [],
             blocking: [],
+            custom: [],
             ...plan,
           });
         },
@@ -309,6 +310,32 @@ describe("db diff", () => {
     expect(harness.inStack[0]?.allowDataLoss).toBe(false);
     expect(result.output).toBe("create table a ();");
     expect(result.data).toMatchObject({ engine: "in-stack", fellBack: false });
+  });
+
+  it("tells you which _custom/ files no migration delivers", async () => {
+    const harness = deps({ code: 0 }, "create table a ();", {
+      custom: [
+        { path: "_custom/casts.sql", status: "undelivered" },
+        {
+          path: "_custom/ops.sql",
+          status: "dangling",
+          migration: "../../migrations/9_gone.sql",
+        },
+      ],
+    });
+
+    const result = await diff([], harness);
+
+    expect(result.output).toBe("create table a ();");
+    expect(harness.lines.join("\n")).toContain(
+      "_custom/casts.sql has no `-- pgdelta-migration:` line",
+    );
+    expect(harness.lines.join("\n")).toContain(
+      "_custom/ops.sql names ../../migrations/9_gone.sql, which does not exist",
+    );
+    expect(result.data).toMatchObject({
+      custom: [{ path: "_custom/casts.sql" }, { path: "_custom/ops.sql" }],
+    });
   });
 
   it("passes the renames recorded in the migrations to the plan", async () => {

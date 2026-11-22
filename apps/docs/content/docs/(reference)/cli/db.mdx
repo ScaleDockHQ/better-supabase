@@ -87,7 +87,7 @@ declarative sync` for the same reason.
 A migration from the library plan starts with a comment that asks you to
 review it: it compares two databases, so check the order of the statements
 before you apply it. The JSON envelope names the engine in `data.engine`, lists
-the plan's findings in `data.issues`, the objects strict coverage refused in `data.blocking`, the proof's verdict in `data.proof` and sets `data.fellBack` when the shadow
+the plan's findings in `data.issues`, the objects strict coverage refused in `data.blocking`, the proof's verdict in `data.proof`, the `_custom/` files that no migration delivers in `data.custom` and sets `data.fellBack` when the shadow
 database failed. `better-supabase dev stack prune` frees the segments that idle
 stacks hold.
 
@@ -425,3 +425,14 @@ on those files.
 | `--stack <name>` | Uses the database of `supabase/stacks/<name>/config.toml` (default `$BETTER_SUPABASE_STACK`). |
 
 Side effects: Reads the database, writes files with `--write-tests`.
+
+### `_custom/` files
+
+pg-delta loads every file under `supabase/schemas/_custom` into the shadow
+database and never into yours. The in-stack diff lists, in the log and in
+`data.custom`, each file that has no `-- pgdelta-migration:` line (`undelivered`)
+and each file whose directive names a migration that does not exist
+(`dangling`). Neither stops the diff: an object that exists only in `_custom/`
+and is missing from your database is the case strict coverage already refuses.
+Add the directive when a migration carries the file, or `-- pgdelta-migration:
+none` when none has to.

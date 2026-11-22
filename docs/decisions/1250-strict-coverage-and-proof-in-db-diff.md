@@ -21,6 +21,9 @@ returns with strict coverage, writes nothing and lists them in `data.blocking`.
 `create database ... template` (it disconnects the stack's services first),
 runs `provePlan` against the files' desired state and refuses a plan that fails.
 A stack that cannot be cloned skips the proof with the reason, never the diff.
+The in-stack diff also reads `_custom/` with pg-delta's `listCustomFiles` (from
+`@supabase/pg-delta/frontends`, loaded only when the folder exists) and reports
+the files with no delivery directive or a dangling one, without failing.
 
 ## Consequences
 
