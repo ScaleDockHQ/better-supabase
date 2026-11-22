@@ -68,12 +68,22 @@ export type TasksSqlOptions = {
    * permission), or give a `policy` (approvals policy without `run`). An
    * approval releases the task; a rejection cancels it, or with `onReject:
    * "keep"` leaves it on hold. ADR 1161.
+   *
+   * `kinds` limits the kinds a hold accepts (short lowercase words); any other
+   * kind raises `TASK_HOLD_INVALID`. `approval.kinds` limits which kinds open an
+   * approval and must be a subset of `kinds`. Releasing a hold, leaving the hold
+   * stage and closing the task cancel a pending approval request. ADR 1182.
    */
   readonly hold?: {
     readonly stage?: TaskStageRef;
+    readonly kinds?: readonly string[];
     readonly approval?:
       | boolean
-      | { readonly policy?: unknown; readonly onReject?: "cancel" | "keep" };
+      | {
+          readonly policy?: unknown;
+          readonly onReject?: "cancel" | "keep";
+          readonly kinds?: readonly string[];
+        };
   };
 };
 

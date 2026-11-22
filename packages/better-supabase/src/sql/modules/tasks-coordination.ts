@@ -15,6 +15,7 @@ import { liveSql, orderSql } from "./tasks-coordination-order.ts";
 import { actorPayload, load, taskRecord } from "./tasks-coordination-shared.ts";
 import {
   holdApprovalOf,
+  holdKindsOf,
   holdApprovalOn,
   settleHoldSql,
 } from "./tasks-hold-approvals.ts";
@@ -43,6 +44,8 @@ export interface Coordination {
   readonly holdStage: StageRef | null;
   /** Whether a hold opens an approval, and what a rejection does. */
   readonly holdApproval: HoldApproval | null;
+  /** The hold kinds a hold accepts, or null for any short lowercase word. */
+  readonly holdKinds: readonly string[] | null;
   /** The permission key a claim checks, as a SQL literal. */
   readonly claim: string;
 }
@@ -117,7 +120,7 @@ export function coordinationOf(
     "startStage",
     "expiredStage",
   ]);
-  only(hold, `${at}.hold`, ["stage", "approval"]);
+  only(hold, `${at}.hold`, ["stage", "kinds", "approval"]);
 
   const lease = claims["lease"] ?? DEFAULT_LEASE;
   const maxLease = claims["maxLease"] ?? Math.max(DEFAULT_LEASE, Number(lease));
@@ -140,6 +143,8 @@ export function coordinationOf(
   if (next !== "assigned" && next !== "any") {
     throw new TypeError(`${at}.claims.next must be "assigned" or "any"`);
   }
+
+  const holdKinds = holdKindsOf(hold["kinds"], `${at}.hold.kinds`);
 
   let resolved: Coordination["needs"] = null;
 
@@ -180,7 +185,8 @@ export function coordinationOf(
     startStage: stageKey(claims["startStage"], `${at}.claims.startStage`),
     expiredStage: stageKey(claims["expiredStage"], `${at}.claims.expiredStage`),
     holdStage: stageKey(hold["stage"], `${at}.hold.stage`),
-    holdApproval: holdApprovalOf(ctx, hold["approval"], manageKey),
+    holdApproval: holdApprovalOf(ctx, hold["approval"], manageKey, holdKinds),
+    holdKinds,
     claim,
   };
 }

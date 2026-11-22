@@ -34,7 +34,10 @@ import {
 import { backfillProjectDimensions } from "./tasks-data.ts";
 import { checklistTable, taskExtrasContract } from "./tasks-extras.ts";
 import { taskFunctions } from "./tasks-functions.ts";
-import { holdApprovalContribution } from "./tasks-hold-approvals.ts";
+import {
+  cancelHoldRequestSql,
+  holdApprovalContribution,
+} from "./tasks-hold-approvals.ts";
 import { taskLinesContract, taskLinesSql } from "./tasks-lines.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
@@ -551,7 +554,7 @@ function guard(ctx: BlockSqlContext, n: TaskNames): string {
 
   const closeNote = `coalesce(nullif(current_setting('bsb.close_note', true), ''), ${ctx.has("items", "closeNote") ? `new.${w("closeNote")}` : "null"})`;
 
-  const onClose = `${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := ${closeNote};\n` : ""}${ctx.has("items", "heldAt") ? `      new.${w("heldAt")} := null;\n${ctx.has("items", "holdKind") ? `      new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `      new.${w("holdReturnStage")} := null;\n` : ""}` : ""}${ctx.hasTable("claims") ? `      delete from ${t("claims")} c where c.${c("claims", "task")} = new.${w("id")};\n` : ""}`;
+  const onClose = `${ctx.has("items", "closeNote") ? `      new.${w("closeNote")} := ${closeNote};\n` : ""}${ctx.has("items", "heldAt") ? `      new.${w("heldAt")} := null;\n${ctx.has("items", "holdKind") ? `      new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `      new.${w("holdReturnStage")} := null;\n` : ""}${cancelHoldRequestSql(ctx, n, `new.${w("id")}`) === "" ? "" : `      ${cancelHoldRequestSql(ctx, n, `new.${w("id")}`)}\n`}` : ""}${ctx.hasTable("claims") ? `      delete from ${t("claims")} c where c.${c("claims", "task")} = new.${w("id")};\n` : ""}`;
 
   const started =
     ctx.has("items", "waitingOn") && n.co.needs?.refuse === "started"
@@ -572,7 +575,7 @@ function guard(ctx: BlockSqlContext, n: TaskNames): string {
     and new.${w("stage")} is distinct from old.${w("stage")}
     and old.${w("stage")} is not distinct from ${stageRef(ctx, `old.${w("pipeline")}`, n.co.holdStage)} then
     new.${w("heldAt")} := null;
-${ctx.has("items", "holdKind") ? `    new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `    new.${w("holdReturnStage")} := null;\n` : ""}    ${ctx.record({ type: "task.hold_released", row: "new", payload: payload(`, 'returnStageId', new.${w("stage")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
+${ctx.has("items", "holdKind") ? `    new.${w("holdKind")} := null;\n` : ""}${ctx.has("items", "holdReturnStage") ? `    new.${w("holdReturnStage")} := null;\n` : ""}    ${cancelHoldRequestSql(ctx, n, `new.${w("id")}`)}\n    ${ctx.record({ type: "task.hold_released", row: "new", payload: payload(`, 'returnStageId', new.${w("stage")}`), subject, tenant, audit: false, ...(templatesOn(ctx) ? { live: `new.${w("template")} is null` } : {}) })}
   end if;`
       : "";
 

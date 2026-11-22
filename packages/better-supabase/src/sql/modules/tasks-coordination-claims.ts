@@ -10,7 +10,7 @@ import {
   stageRefLabel,
   taskRecord,
 } from "./tasks-coordination-shared.ts";
-import { HOLD_SUBJECT } from "./tasks-hold-approvals.ts";
+import { cancelHoldRequestSql, HOLD_SUBJECT } from "./tasks-hold-approvals.ts";
 
 /** Claims: claim, claim next, renew, release, delegate and the expiry job. */
 export function claimsSql(
@@ -343,8 +343,8 @@ ${userGrant(`${fn("release_task_hold")}(uuid)`)}
     approval === null
       ? ""
       : `
-  v_request := ${ctx.of("approvals").fn("open_approval")}(v_row.${w("tenant")}, ${sqlString(HOLD_SUBJECT)}, v_row.${w("id")}::text, 'approve',
-    ${sqlString(approval.policy)}::jsonb, v_note, jsonb_build_object('kind', hold_task.kind), auth.uid());`;
+${approval.kinds === null ? "" : `  if hold_task.kind = any(array[${approval.kinds.map((kind) => sqlString(kind)).join(", ")}]) then\n  `}  v_request := ${ctx.of("approvals").fn("open_approval")}(v_row.${w("tenant")}, ${sqlString(HOLD_SUBJECT)}, v_row.${w("id")}::text, 'approve',
+    ${sqlString(approval.policy)}::jsonb, v_note, jsonb_build_object('kind', hold_task.kind), auth.uid());${approval.kinds === null ? "" : "\n  end if;"}`;
 
   const messaging = ctx.installed("messaging")
     ? (() => {
@@ -413,7 +413,14 @@ declare
 begin
   if hold_task.kind is null or hold_task.kind !~ '^[a-z][a-z_]{0,31}$' then
     ${fail("TASK_HOLD_INVALID", "kind must be a short lowercase word such as review or input", "22023")}
-  end if;
+  end if;${
+    co.holdKinds === null
+      ? ""
+      : `
+  if hold_task.kind <> all(array[${co.holdKinds.map((each) => sqlString(each)).join(", ")}]) then
+    ${fail("TASK_HOLD_INVALID", `kind must be one of ${co.holdKinds.join(", ")}`, "22023")}
+  end if;`
+  }
   ${load(ctx, n, "hold_task", n.write)}
   if v_row.${w("closedAt")} is not null then
     ${fail("TASK_CLOSED", "a closed task can't be held", "55000")}
@@ -437,7 +444,8 @@ $$;
 ${userGrant(`${fn("hold_task")}(uuid, text, text, uuid[])`)}
 
 -- Ends a hold. With the hold stage option the task returns to the stage it
--- left.
+-- left. A pending approval request of the hold is cancelled, and
+-- task.hold_released says so with approvalCancelled.
 create or replace function ${fn("release_task_hold")}(task uuid)
 returns jsonb
 language plpgsql
@@ -446,7 +454,7 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
-  v_kind text;
+  v_kind text;${approval === null ? "" : "\n  v_cancelled boolean := false;"}
 begin
   ${load(ctx, n, "release_task_hold", n.write)}${
     flag
@@ -457,8 +465,14 @@ begin
       : ""
   }
   v_kind := ${kind ? `v_row.${w("holdKind")}` : "null"};
-  update ${t("items")} x set ${clear.join(", ")} where x.${w("id")} = v_row.${w("id")} returning * into v_row;
-  ${taskRecord(ctx, n, "task.hold_released", "v_row", `, 'kind', v_kind, 'returnStageId', v_row.${w("stage")}`)}
+  update ${t("items")} x set ${clear.join(", ")} where x.${w("id")} = v_row.${w("id")} returning * into v_row;${
+    approval === null
+      ? ""
+      : `
+  ${cancelHoldRequestSql(ctx, n, `v_row.${w("id")}`)}
+  v_cancelled := found;`
+  }
+  ${taskRecord(ctx, n, "task.hold_released", "v_row", `, 'kind', v_kind, 'returnStageId', v_row.${w("stage")}${approval === null ? "" : ", 'approvalCancelled', v_cancelled"}`)}
   return (select ${h.row("x")} from ${t("items")} x where x.${w("id")} = v_row.${w("id")});
 end;
 $$;
