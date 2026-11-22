@@ -11,7 +11,7 @@ paths:
 Imports stay at the top of the module. The exceptions are optional
     peers loaded lazily, each with a comment and a fallback:
     `@supabase/config/io` through a variable specifier in
-    `src/cli/supabase-toml.ts` (smol-toml parses `config.toml`
+    `src/cli/supabase-config.ts` (smol-toml parses `config.toml` and jsonc-parser the JSON formats
     without it), `pg` in `src/cli/db.ts` and `@supabase/postgrest-typegen`
     in `src/cli/introspect/typegen.ts`, `@supabase/pg-delta` in
     `src/cli/in-stack-diff.ts` (a dependency of the package that loads on

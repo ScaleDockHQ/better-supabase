@@ -3152,3 +3152,35 @@ that plans differently. Remove the entries:
 ```bash
 pnpm remove @supabase/pg-delta @supabase/pg-topo
 ```
+
+### BS710
+
+**Warning: Supabase CLI older than 3.2.0.** The CLI the project runs
+(`$SUPABASE_BIN`, `node_modules/.bin/supabase`, then the `PATH`) is older than
+3.2.0, the release this version of better-supabase is built and tested on. It
+reads `config.json` and `config.jsonc`, runs `config validate` and `stack
+prune`, and expects the multi-file migrations 3.2.0 writes. Commands that need
+it fail with [`supabase_cli_too_old`](/docs/cli/errors#supabase_cli_too_old).
+Update it:
+
+```bash
+pnpm add -D supabase@3.2.0
+```
+
+### BS711
+
+**Error: Supabase config fails validation.** `supabase config validate` rejects
+`config.toml`, `config.json` or `config.jsonc`: a value of the wrong type, an
+unknown key, or a removed key. Each problem is one finding with the file and
+line the CLI reports, and a removed key names its replacement (for example
+`rename [inbucket] to [local_smtp]`). The check needs CLI 3.2.0; BS710 covers
+an older one. `db.major_version` is BS712.
+
+### BS712
+
+**Error or warning: Postgres major version the local stack refuses.**
+`db.major_version` is 13 (an error: Supabase CLI 3.2 refuses to start it) or 14
+(a warning: the next version to go). Upgrade the project to Postgres 17 and set
+`db.major_version = 17`. The
+[upgrade guide](https://supabase.com/docs/guides/platform/upgrading) lists the
+steps.

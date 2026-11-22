@@ -12,6 +12,7 @@ import type { AdvisorSource } from "./advisors.ts";
 import type { StackEnvCheck } from "./env.ts";
 import type { ExplainRequest, LiveDatabase } from "./live.ts";
 import type { LocalStackCheck } from "./stacks.ts";
+import type { SupabaseCliCheck } from "./supabase-cli.ts";
 import type { VercelEnvFile } from "./vercel-env.ts";
 
 import {
@@ -80,6 +81,7 @@ import {
 } from "./shared.ts";
 import { SHIPPED_SHIM_RULES } from "./shipped-shims.ts";
 import { STACK_RULES } from "./stacks.ts";
+import { SUPABASE_CLI_RULES } from "./supabase-cli.ts";
 import { TABLE_FACT_RULES } from "./table-facts.ts";
 import { VERCEL_ENV_RULES } from "./vercel-env.ts";
 import { WIRING_RULES } from "./wiring.ts";
@@ -192,6 +194,8 @@ export interface DoctorContext {
   readonly shellEnv?: Readonly<Record<string, string | undefined>>;
   /** The machine's shared memory segments and managed stacks (BS700, BS701). */
   readonly localStacks?: LocalStackCheck;
+  /** The installed Supabase CLI and its `config validate` result (BS710, BS711). */
+  readonly supabaseCli?: SupabaseCliCheck;
   /** The project's `next.config` file (BS608). */
   readonly nextConfig?: TextFile;
   /**
@@ -1180,6 +1184,7 @@ export const RULES: readonly Rule[] = [
   ...VERCEL_ENV_RULES,
   ...WIRING_RULES,
   ...STACK_RULES,
+  ...SUPABASE_CLI_RULES,
 ].toSorted((a, b) => byCodePoint(a.code, b.code));
 
 export const RULE_CODES: readonly string[] = RULES.map((rule) => rule.code);

@@ -54,6 +54,7 @@ import {
 import { DOCS_URL, RULE_CODES, RULES, runRules } from "../doctor/rules.ts";
 import { workflowOf } from "../doctor/shared.ts";
 import { loadLocalStackCheck } from "../doctor/stacks.ts";
+import { loadSupabaseCliCheck } from "../doctor/supabase-cli.ts";
 import {
   VERCEL_CODES,
   VERCEL_ENVIRONMENTS,
@@ -193,6 +194,11 @@ export interface DoctorOptions {
    * BS701).
    */
   readonly localStacks?: DoctorContext["localStacks"];
+  /**
+   * The installed Supabase CLI and its config validation (tests); otherwise
+   * read by running the CLI (BS710, BS711).
+   */
+  readonly supabaseCli?: DoctorContext["supabaseCli"];
   /** Opens `pg` connections (tests); defaults to `connect`. */
   readonly connect?: typeof connect;
   /** Colors the text report. */
@@ -447,6 +453,7 @@ export async function runDoctor(
     contentMapper,
     stackEnv,
     localStacks,
+    supabaseCli,
     nextConfig,
     install,
     ignoredEnvFiles,
@@ -494,6 +501,10 @@ export async function runDoctor(
     options.localStacks ??
       (rules.some((rule) => rule.code === "BS700" || rule.code === "BS701")
         ? loadLocalStackCheck(config.root, env)
+        : undefined),
+    options.supabaseCli ??
+      (rules.some((rule) => rule.code === "BS710" || rule.code === "BS711")
+        ? loadSupabaseCliCheck(config.root, env)
         : undefined),
     Promise.all(
       NEXT_CONFIG_FILES.map((path) => readText(config.root, path)),
@@ -552,6 +563,7 @@ export async function runDoctor(
     ...(stackEnv ? { stackEnv } : {}),
     shellEnv: env[PROCESS_ENV] ?? {},
     ...(localStacks ? { localStacks } : {}),
+    ...(supabaseCli ? { supabaseCli } : {}),
     ...(nextConfig ? { nextConfig } : {}),
     vercel,
     ...(listed ? { listedDependencies: [...listed] } : {}),

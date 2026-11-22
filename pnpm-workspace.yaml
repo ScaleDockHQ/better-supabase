@@ -223,7 +223,7 @@ catalog:
   # better-supabase and the Next.js examples share one next instance.
   supports-color: 11.0.0
   # CI runs this copy (`pnpm exec supabase`). 3.2.0 is the Supabase CLI floor
-  # (docs/decisions/1172).
+  # (docs/decisions/1177).
   supabase: 3.2.0
   svelte: 5.57.3
   tailwind-merge: 3.7.0

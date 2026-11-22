@@ -1,5 +1,5 @@
 import { channel } from "node:diagnostics_channel";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { env as processEnv, execPath } from "node:process";
@@ -7,7 +7,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { EXEC_CHANNEL } from "../../src/cli/core/trace.ts";
 import { parseEnv } from "../../src/cli/env.ts";
-import { runProcess, spawnInherited, supabaseCli } from "../../src/cli/exec.ts";
+import {
+  requireCli,
+  runProcess,
+  spawnInherited,
+  supabaseCli,
+  supabaseCliVersion,
+} from "../../src/cli/exec.ts";
 
 const MISSING = "bsb-no-such-command-4f1c";
 
@@ -124,5 +130,54 @@ describe("supabaseCli", () => {
     );
 
     expect(result.code).toBe(127);
+  });
+});
+
+describe("supabaseCliVersion and requireCli", () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "better-supabase-cli-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  async function fake(output: string): Promise<{ SUPABASE_BIN: string }> {
+    const bin = join(dir, "supabase");
+
+    await writeFile(bin, `#!/bin/sh\necho '${output}'\n`);
+    await chmod(bin, 0o755);
+
+    return { SUPABASE_BIN: bin };
+  }
+
+  it("reads the version the CLI prints", async () => {
+    expect(await supabaseCliVersion(dir, await fake("3.2.1"))).toBe("3.2.1");
+    expect(
+      await supabaseCliVersion(dir, await fake("garbage")),
+    ).toBeUndefined();
+  });
+
+  it("fails with supabase_cli_too_old below the minimum and names both versions", async () => {
+    const error = await requireCli(
+      "config validate",
+      dir,
+      await fake("3.1.0"),
+    ).catch((cause: unknown) => cause);
+
+    expect(error).toMatchObject({ code: "supabase_cli_too_old" });
+    expect(String(error)).toContain("3.2.0");
+    expect(String(error)).toContain("3.1.0");
+  });
+
+  it("passes at the minimum, and when the version is unreadable", async () => {
+    await expect(
+      requireCli("stack prune", dir, await fake("3.2.0")),
+    ).resolves.toBeUndefined();
+    await expect(
+      requireCli("stack prune", dir, await fake("garbage")),
+    ).resolves.toBeUndefined();
   });
 });
