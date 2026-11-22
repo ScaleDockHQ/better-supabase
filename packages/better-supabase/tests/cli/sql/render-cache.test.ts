@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { rememberConfigImports } from "../../../src/cli/cache/config-imports.ts";
 import {
   cacheOf,
   clearRenderMemory,
@@ -52,6 +53,19 @@ describe("renderBlocksCached", () => {
     await renderBlocksCached(config, NAMES, {});
     await renderBlocksCached(config, ["organizations"], {});
 
+    expect(renderStats.fresh).toBe(2);
+  });
+
+  it("renders again when a file the config imports changed", async () => {
+    const config = resolveConfig({ blocks: {} }, root);
+
+    rememberConfigImports(root, "first");
+    await renderBlocksCached(config, NAMES, {});
+    await renderBlocksCached(config, NAMES, {});
+    expect(renderStats).toMatchObject({ fresh: 1, memory: 1 });
+
+    rememberConfigImports(root, "second");
+    await renderBlocksCached(config, NAMES, {});
     expect(renderStats.fresh).toBe(2);
   });
 

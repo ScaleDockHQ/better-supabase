@@ -10,9 +10,11 @@ import type {
   GeneratorInput,
 } from "../../config/index.ts";
 
+import { configImportsKey } from "../cache/config-imports.ts";
 import { cacheEnabled } from "../cache/store.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
+import { generatorHash } from "../sql/generator-hash.ts";
 import { VERSION } from "../version.ts";
 
 const sha256 = (text: string): string =>
@@ -49,12 +51,14 @@ function isFiles(value: unknown): value is GeneratedFile[] {
 
 /**
  * The cache key of one generator: its name, version and options, the CLI
- * version and the input it reads. Everything the input holds is plain data, so
+ * version, `salt` (the hash of the generator's files and of the config's
+ * imports) and the input it reads. Everything the input holds is plain data, so
  * the hash covers every read; a closure in the config file would not be.
  */
 export function generatorKey(
   generator: Generator,
   input: GeneratorInput,
+  salt = "",
 ): string {
   return sha256(
     JSON.stringify([
@@ -62,6 +66,7 @@ export function generatorKey(
       generator.version,
       generator.options ?? null,
       VERSION,
+      salt,
       sha256(JSON.stringify(input)),
     ]),
   );
@@ -234,6 +239,10 @@ export async function runGenerators(
   const files: GeneratorFile[] = [];
   const cached: string[] = [];
 
+  const salt = cacheEnabled()
+    ? `${await generatorHash()}:${configImportsKey(options.root)}`
+    : "";
+
   const keys: string[] = [];
   const produced: (GeneratedFile[] | undefined)[] = [];
 
@@ -252,7 +261,7 @@ export async function runGenerators(
     }
 
     const useCache = generator.pure === true && cacheEnabled();
-    const key = useCache ? generatorKey(generator, input) : "";
+    const key = useCache ? generatorKey(generator, input, salt) : "";
     keys.push(key);
 
     const hit = useCache
