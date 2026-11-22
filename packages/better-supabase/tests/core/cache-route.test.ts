@@ -264,3 +264,51 @@ describe("cacheRoute", () => {
     expect(cache.invalidated).toHaveLength(1);
   });
 });
+
+describe("cacheRoute payload edges", () => {
+  it("skips webhooks and envelopes it can't read", async () => {
+    const { cache, route } = setup();
+
+    const response = await route(
+      withBearer([
+        "text",
+        { type: "INSERT", table: 5, schema: "public" },
+        { type: "INSERT", table: "missing", schema: "public", record: {} },
+        { table: 7 },
+      ]),
+    );
+
+    expect(await response.json()).toEqual({ invalidated: 0 });
+    expect(cache.invalidated).toEqual([]);
+  });
+
+  it("reads numeric ids and tenants, and a delete webhook without a tenant", async () => {
+    const { cache, route } = setup();
+
+    await route(
+      withBearer([
+        {
+          table: "notes",
+          op: "delete",
+          ids: [1, "n2", null],
+          tenants: [3, {}],
+        },
+        {
+          type: "DELETE",
+          table: "customer_tags",
+          schema: "public",
+          record: null,
+          old_record: { customer_id: "c1", tag_id: "t1", organization_id: 9 },
+        },
+      ]),
+    );
+
+    expect(
+      cache.invalidated.map((target) => [target.ids, target.tenant]),
+    ).toEqual([
+      [["1", "n2"], "3"],
+      [["1", "n2"], undefined],
+      [["c1,t1"], "9"],
+    ]);
+  });
+});

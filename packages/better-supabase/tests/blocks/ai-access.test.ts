@@ -243,3 +243,107 @@ describe("ai-evals with access", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("ai-evals with access refused", () => {
+  it("refuses every method before any call", async () => {
+    const { transport, calls } = fake({});
+
+    const evals = createAiEvals({
+      transport,
+      access: { organizationId: MINE, allowed: false },
+    });
+
+    const results = [
+      await evals.datasets.create({ organizationId: MINE, name: "set" }),
+      await evals.datasets.page({ organizationId: MINE }),
+      await evals.datasets.facets({ organizationId: MINE, facets: [] }),
+      await evals.datasets.count({ organizationId: MINE }),
+      await evals.datasets.getDataset("d1"),
+      await evals.datasets.get("d1"),
+      await evals.datasets.list({ organizationId: MINE }),
+      await evals.items.addFromFeedback({ datasetId: "d1" }),
+      await evals.items.list({ datasetId: "d1", pendingRun: "r1" }),
+      await evals.runs.create({
+        datasetId: "d1",
+        promptName: "p",
+        promptVersion: 1,
+        model: "m",
+      }),
+      await evals.runs.page({ organizationId: MINE }),
+      await evals.runs.facets({ organizationId: MINE, facets: [] }),
+      await evals.runs.count({ organizationId: MINE }),
+      await evals.runs.getRun("r1"),
+      await evals.runs.record({ runId: "r1", itemId: "i1", result: {} }),
+      await evals.runs.finish({ runId: "r1" }),
+      await evals.exportPromptfoo({
+        datasetId: "d1",
+        prompt: "p",
+        model: "m",
+        scorers: [],
+      }),
+    ];
+
+    for (const result of results) {
+      expect(result.error?.kind).toBe("forbidden");
+    }
+
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("ai-evals with access granted", () => {
+  it("runs every lookup-checked method for the caller's own data", async () => {
+    const { transport, calls } = fake({
+      get_eval_dataset: () => dataset(MINE),
+      get_eval_run: () => run(MINE),
+      add_eval_items_from_feedback: () => 2,
+      list_eval_items: () => [],
+      create_eval_run: () => run(MINE),
+      record_eval_result: () => ({
+        run_id: "r1",
+        item_id: "i1",
+        output: null,
+        scores: {},
+        passed: true,
+        error: null,
+        latency_ms: 1,
+        created_at: AT,
+      }),
+      finish_eval_run: () => run(MINE),
+    });
+
+    const evals = createAiEvals({ transport, access: allowed });
+
+    const results = [
+      await evals.datasets.getDataset("d1"),
+      await evals.datasets.get("d1"),
+      await evals.items.addFromFeedback({ datasetId: "d1" }),
+      await evals.items.list({ datasetId: "d1", pendingRun: "r1" }),
+      await evals.runs.create({
+        datasetId: "d1",
+        promptName: "p",
+        promptVersion: 1,
+        model: "m",
+      }),
+      await evals.runs.getRun("r1"),
+      await evals.runs.get("r1"),
+      await evals.runs.record({
+        runId: "r1",
+        itemId: "i1",
+        result: { output: "ok" },
+      }),
+      await evals.runs.finish({ runId: "r1" }),
+      await evals.exportPromptfoo({
+        datasetId: "d1",
+        prompt: "p",
+        model: "m",
+        scorers: [],
+      }),
+    ];
+
+    expect(results.map((result) => result.ok)).toEqual(results.map(() => true));
+    expect(calls.map((call) => call.fn)).toContain(
+      "add_eval_items_from_feedback",
+    );
+  });
+});

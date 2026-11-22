@@ -100,4 +100,35 @@ describe("maintenanceRoute", () => {
     expect(response.status).toBe(500);
     expect(onError).toHaveBeenCalledOnce();
   });
+
+  it("passes the schema and force on, and reports a lease that can't be taken", async () => {
+    const onError = vi.fn();
+    const schemas: string[] = [];
+    const calls: string[] = [];
+
+    const route = maintenanceRoute({
+      secret: "s",
+      schema: "ops",
+      force: true,
+      leaseSeconds: 60,
+      onError,
+      transport: {
+        call: (schema, fn) => {
+          schemas.push(schema);
+          calls.push(fn);
+
+          return fn === "acquire_lease"
+            ? Promise.reject(new Error("down"))
+            : Promise.resolve(null);
+        },
+      },
+    });
+
+    const response = await route(request());
+
+    expect(await response.json()).toEqual({ skipped: "overlap" });
+    expect(calls).toEqual(["acquire_lease"]);
+    expect(schemas).toEqual(["ops"]);
+    expect(onError).toHaveBeenCalledOnce();
+  });
 });

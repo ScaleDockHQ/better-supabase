@@ -165,4 +165,28 @@ describe("BS515", () => {
       ),
     ).toEqual([]);
   });
+
+  it("compares self-hosted URLs by origin and skips one that is not a URL", async () => {
+    const at = (url: string) => `SUPABASE_URL="${url}"`;
+
+    expect(
+      await rule("BS515").check(
+        context([
+          file("production", at("https://db.example.test/a")),
+          file("preview", at("https://db.example.test/b")),
+        ]),
+      ),
+    ).toHaveLength(1);
+    expect(
+      await rule("BS515").check(
+        context([
+          file("production", at("not a url")),
+          file("preview", at("not a url")),
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      await rule("BS515").check(context([file("preview", full(REF_A))])),
+    ).toEqual([]);
+  });
 });

@@ -155,3 +155,67 @@ describe("governedGatewayOptions", () => {
     });
   });
 });
+
+describe("gateway policy edges", () => {
+  it.each([
+    "eu",
+    ["x"],
+    { headquarters: [] },
+    { headquarters: "US" },
+    { headquarters: ["USA"] },
+    { allowedProviders: "openai" },
+  ])("rejects %j", (value) => {
+    expect(parseGatewayPolicy(value).ok).toBe(false);
+  });
+
+  it("upper-cases an excluded headquarters list", () => {
+    const parsed = parseGatewayPolicy({
+      headquarters: ["!us", "!cn"],
+      disallowPromptTraining: false,
+    });
+
+    expect(parsed).toEqual(
+      ok({ headquarters: ["!US", "!CN"], disallowPromptTraining: false }),
+    );
+  });
+
+  it("answers issues from the Standard Schema", () => {
+    expect(
+      gatewayPolicySchema["~standard"].validate({ region: "mars" }),
+    ).toEqual({ issues: [{ message: expect.stringContaining("region") }] });
+  });
+
+  it("takes one side's providers, region and headquarters when the other has none", () => {
+    expect(
+      mergeGatewayPolicies(
+        { region: "eu" },
+        { allowedProviders: ["openai"], headquarters: ["DE"], region: "us" },
+      ),
+    ).toEqual(
+      ok({ allowedProviders: ["openai"], region: "eu", headquarters: ["DE"] }),
+    );
+    expect(
+      mergeGatewayPolicies({ headquarters: ["!CN"] }, { region: "us" }),
+    ).toEqual(ok({ region: "us", headquarters: ["!CN"] }));
+    expect(mergeGatewayPolicies({}, {})).toEqual(ok({}));
+  });
+
+  it("replaces the request's headquarters and fills only from the policy", () => {
+    expect(
+      applyGatewayPolicy(
+        { headquarters: ["DE"], allowedProviders: ["openai"] },
+        { headquarters: ["US"] },
+      ),
+    ).toEqual(ok({ headquarters: ["DE"], only: ["openai"] }));
+  });
+
+  it("fails a governed call whose providers the policy refuses", () => {
+    const options = governedGatewayOptions(
+      { userId: "u1", organizationId: "o1" },
+      { allowedProviders: ["anthropic"] },
+      { only: ["google"] },
+    );
+
+    expect(options.ok).toBe(false);
+  });
+});

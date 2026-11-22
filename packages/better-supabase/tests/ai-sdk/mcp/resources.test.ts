@@ -112,3 +112,148 @@ describe("mcp prompts", () => {
     expect(result.ok).toBe(false);
   });
 });
+
+describe("mcp resource and prompt details", () => {
+  const rich = (): McpResourceClient =>
+    // SAFETY: a minimal fake of the four methods under test.
+    ({
+      listResources: async () => ({
+        resources: [
+          {
+            uri: "file:///c.md",
+            name: "c",
+            description: "Notes",
+            mimeType: "text/markdown",
+          },
+        ],
+      }),
+      readResource: async ({ uri }: { uri: string }) => ({
+        contents: [
+          { uri, mimeType: "text/markdown", text: "hi" },
+          { uri, mimeType: "image/png", blob: "AAAA" },
+          { uri },
+        ],
+      }),
+      listPrompts: async (options?: { params?: { cursor?: string } }) =>
+        options?.params?.cursor === undefined
+          ? {
+              prompts: [
+                {
+                  name: "summarize",
+                  description: "Summarize a file",
+                  arguments: [{ name: "file", description: "The path" }],
+                },
+              ],
+              nextCursor: "p2",
+            }
+          : { prompts: [{ name: "plain" }] },
+      getPrompt: async () => ({
+        messages: [
+          {
+            role: "user",
+            content: { type: "image", data: "AAAA", mimeType: "image/png" },
+          },
+          {
+            role: "assistant",
+            content: { type: "image", data: "AAAA", mimeType: "image/png" },
+          },
+          {
+            role: "user",
+            content: {
+              type: "resource",
+              resource: { uri: "file:///c.md", text: "body" },
+            },
+          },
+          {
+            role: "user",
+            content: {
+              type: "resource",
+              resource: { uri: "file:///d.bin", blob: "AAAA" },
+            },
+          },
+        ],
+      }),
+    }) as unknown as McpResourceClient;
+
+  it("keeps descriptions and media types, and reads what allow permits", async () => {
+    const allowedUris: string[] = [];
+
+    const tools = mcpResourceTools(rich(), {
+      allow: (uri) => {
+        allowedUris.push(uri);
+
+        return uri.startsWith("file:///");
+      },
+    });
+
+    expect(await call(tools, "list_resources", {})).toEqual({
+      resources: [
+        {
+          uri: "file:///c.md",
+          name: "c",
+          description: "Notes",
+          mimeType: "text/markdown",
+        },
+      ],
+    });
+    expect(await call(tools, "read_resource", { uri: "file:///z" })).toEqual({
+      contents: [
+        {
+          uri: "file:///z",
+          mimeType: "text/markdown",
+          text: "hi",
+          truncated: false,
+        },
+        { uri: "file:///z", mimeType: "image/png", binary: true, bytes: 3 },
+        { uri: "file:///z", binary: true, bytes: 0 },
+      ],
+    });
+    expect(
+      await call(tools, "read_resource", { uri: "https://x.test" }),
+    ).toEqual({ error: "This resource is not offered by the server." });
+    expect(allowedUris).toEqual(["file:///z", "https://x.test"]);
+  });
+
+  it("lists prompts across pages with descriptions", async () => {
+    const listed = await mcpPrompts(rich());
+
+    expect(listed.ok && listed.data).toEqual([
+      {
+        name: "summarize",
+        description: "Summarize a file",
+        arguments: [{ name: "file", description: "The path", required: false }],
+      },
+      { name: "plain", arguments: [] },
+    ]);
+  });
+
+  it("turns images and embedded resources into parts", async () => {
+    const messages = await mcpPromptMessages(rich(), "summarize");
+
+    expect(messages.ok && messages.data).toEqual([
+      {
+        role: "user",
+        content: [{ type: "image", image: "AAAA", mediaType: "image/png" }],
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "[image image/png]" }],
+      },
+      { role: "user", content: [{ type: "text", text: "body" }] },
+      {
+        role: "user",
+        content: [{ type: "text", text: "[binary resource file:///d.bin]" }],
+      },
+    ]);
+  });
+
+  it("returns an error result when listing prompts fails", async () => {
+    const result = await mcpPrompts({
+      listPrompts: async () => {
+        throw new Error("down");
+      },
+    });
+
+    expect(result.ok).toBe(false);
+  });
+});

@@ -271,3 +271,199 @@ describe("createCommissions", () => {
     expect(t.calls).toHaveLength(0);
   });
 });
+
+describe("commission plans, assignments and payroll", () => {
+  const PLAN = {
+    id: "p2",
+    organizationId: "org-1",
+    name: "Flat",
+    kind: "flat",
+    rateBps: 750,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-02T00:00:00Z",
+    archivedAt: "2026-02-01T00:00:00Z",
+  };
+
+  const ASSIGNMENT = {
+    id: "a1",
+    organizationId: "org-1",
+    planId: "p2",
+    sellerId: "u1",
+    startsOn: "2026-01-01",
+    endsOn: "2026-06-30",
+    subjectType: "customers",
+    subjectId: "cu-1",
+    createdAt: "2026-01-01T00:00:00Z",
+  };
+
+  it("assigns a plan to a subject and ends the assignment", async () => {
+    const t = fieldsTransport({
+      assign_commission_plan: () => ASSIGNMENT,
+      end_commission_assignment: () => ({
+        ...ASSIGNMENT,
+        endsOn: null,
+        subjectType: null,
+        subjectId: null,
+      }),
+    });
+
+    const commissions = createCommissions({ transport: t, tenant: "org-1" });
+    const { PlainDate } = temporal();
+
+    const assigned = await commissions
+      .assignPlan({
+        planId: "p2",
+        sellerId: "u1",
+        subject: { type: "customers", id: "cu-1" },
+        startsOn: PlainDate.from("2026-01-01"),
+        endsOn: PlainDate.from("2026-06-30"),
+      })
+      .orThrow();
+
+    await commissions.assignPlan({ planId: "p2", sellerId: "u1" }).orThrow();
+    const ended = await commissions.endAssignment("a1").orThrow();
+
+    expect(assigned).toMatchObject({
+      subjectType: "customers",
+      subjectId: "cu-1",
+    });
+    expect(assigned.endsOn?.toString()).toBe("2026-06-30");
+    expect(ended.endsOn).toBeUndefined();
+    expect(ended.subjectType).toBeUndefined();
+    expect(t.calls.map((call) => call[1])).toEqual([
+      {
+        tenant: "org-1",
+        plan_id: "p2",
+        seller_id: "u1",
+        subject_type: "customers",
+        subject_id: "cu-1",
+        starts_on: "2026-01-01",
+        ends_on: "2026-06-30",
+      },
+      { tenant: "org-1", plan_id: "p2", seller_id: "u1" },
+      { assignment_id: "a1" },
+    ]);
+  });
+
+  it("lists plans with and without assignments, and pages them", async () => {
+    const t = fieldsTransport({
+      list_commission_plans: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        return filters["paged"] === true
+          ? { items: [{ ...PLAN, assignments: [ASSIGNMENT] }], hasMore: false }
+          : [
+              { ...PLAN, assignments: [ASSIGNMENT] },
+              { ...PLAN, id: "p3" },
+            ];
+      },
+    });
+
+    const commissions = createCommissions({ transport: t, tenant: "org-1" });
+    const plans = await commissions.listPlans({ archived: true }).orThrow();
+    const page = await commissions.planPage({ limit: 5 }).orThrow();
+
+    expect(plans[0]).toMatchObject({ rateBps: 750, kind: "flat" });
+    expect(plans[0]?.archivedAt?.toString()).toBe("2026-02-01T00:00:00Z");
+    expect(plans[0]?.assignments).toHaveLength(1);
+    expect(plans[1]?.assignments).toEqual([]);
+    expect(page.items[0]?.assignments[0]?.sellerId).toBe("u1");
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { archived: true },
+    });
+  });
+
+  it("reads a statement with its entries and lists statements", async () => {
+    const t = fieldsTransport({
+      get_commission_statement: () => ({
+        ...STATEMENT,
+        status: "paid",
+        paidAt: "2026-04-02T00:00:00Z",
+        paidBy: "u9",
+        ledgerTransactionId: "lt-1",
+        entries: [
+          {
+            ...ENTRY,
+            statementId: "s1",
+            ledgerTransactionId: "lt-0",
+            reversedAt: "2026-04-03T00:00:00Z",
+          },
+        ],
+      }),
+      list_commission_statements: () => [STATEMENT],
+    });
+
+    const commissions = createCommissions({ transport: t, tenant: "org-1" });
+    const statement = await commissions.getStatement("s1").orThrow();
+
+    const listed = await commissions
+      .listStatements({ sellerId: "u1", status: "open", limit: 10 })
+      .orThrow();
+
+    expect(statement).toMatchObject({
+      paidBy: "u9",
+      ledgerTransactionId: "lt-1",
+    });
+    expect(statement.entries[0]).toMatchObject({
+      statementId: "s1",
+      ledgerTransactionId: "lt-0",
+    });
+    expect(listed).toHaveLength(1);
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "org-1",
+      filters: { seller: "u1", status: "open", limit: 10 },
+    });
+  });
+
+  it("reads a statement without entries", async () => {
+    const t = fieldsTransport({ get_commission_statement: () => STATEMENT });
+
+    const statement = await createCommissions({ transport: t, tenant: "org-1" })
+      .getStatement("s1")
+      .orThrow();
+
+    expect(statement.entries).toEqual([]);
+  });
+
+  it("sums payroll lines per seller", async () => {
+    const t = fieldsTransport({
+      commission_payroll_lines: () => [
+        { userId: "u1", amount: "8000", currency: "EUR", statementIds: ["s1"] },
+        { userId: "u2", amount: "10", currency: "EUR", statementIds: [1] },
+      ],
+    });
+
+    const { PlainDate } = temporal();
+
+    const lines = await createCommissions({ transport: t, tenant: "org-1" })
+      .payrollLines({
+        from: PlainDate.from("2026-03-01"),
+        to: PlainDate.from("2026-03-31"),
+      })
+      .orThrow();
+
+    expect(lines).toEqual([
+      { userId: "u1", amount: money(8000n, "EUR"), statementIds: ["s1"] },
+      { userId: "u2", amount: money(10n, "EUR"), statementIds: [] },
+    ]);
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "org-1",
+      from_date: "2026-03-01",
+      to_date: "2026-03-31",
+    });
+  });
+
+  it("refuses a row with a date that is not text", async () => {
+    const t = fieldsTransport({
+      end_commission_assignment: () => ({ ...ASSIGNMENT, startsOn: 5 }),
+    });
+
+    const result = await createCommissions({
+      transport: t,
+      tenant: "org-1",
+    }).endAssignment("a1");
+
+    expect(result.ok).toBe(false);
+  });
+});

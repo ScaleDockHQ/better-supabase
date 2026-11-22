@@ -181,4 +181,69 @@ describe("createPermissions", () => {
       ],
     ]);
   });
+
+  it("explains a member's verdict in the call's tenant", async () => {
+    const fake = fakeTransport({
+      permission: "tasks.write",
+      userId: "u-2",
+      organizationId: "org-1",
+      allowed: true,
+      reason: "granted_by_override",
+      roles: ["admin"],
+      matchedBy: ["tasks.*"],
+      override: true,
+    });
+
+    const access = createPermissions({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    await expect(
+      access.explain({ userId: "u-2", key: "tasks.write" }).orThrow(),
+    ).resolves.toEqual({
+      permission: "tasks.write",
+      userId: "u-2",
+      organizationId: "org-1",
+      allowed: true,
+      reason: "granted_by_override",
+      roles: ["admin"],
+      matchedBy: ["tasks.*"],
+      override: true,
+    });
+    expect(fake.calls).toEqual([
+      [
+        "better_supabase",
+        "explain_permission",
+        { tenant: "org-1", member: "u-2", permission: "tasks.write" },
+      ],
+    ]);
+  });
+
+  it("reads a missing override as null and refuses an unknown reason", async () => {
+    const row = {
+      permission: "tasks.write",
+      userId: "u-2",
+      organizationId: "org-1",
+      allowed: false,
+      reason: "role_lacks_key",
+      roles: [],
+      matchedBy: [],
+    };
+
+    const denied = await createPermissions({
+      transport: fakeTransport(row).transport,
+    })
+      .explain({ userId: "u-2", key: "tasks.write", tenant: "org-2" })
+      .orThrow();
+
+    expect(denied).toMatchObject({ allowed: false, override: null });
+
+    const unknown = await createPermissions({
+      transport: fakeTransport({ ...row, reason: "vibes" }).transport,
+      tenant: "org-1",
+    }).explain({ userId: "u-2", key: "tasks.write" });
+
+    expect(unknown.ok).toBe(false);
+  });
 });

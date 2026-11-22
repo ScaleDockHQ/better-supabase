@@ -162,6 +162,25 @@ describe("createOnRequestError", () => {
     expect(error.mock.calls.length).toBeGreaterThan(0);
   });
 
+  it("logs and returns when emitting the event throws", async () => {
+    const error = vi.fn();
+
+    const events = {
+      logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error },
+      emit: () => {
+        throw new Error("emit");
+      },
+    } as unknown as EventHub;
+
+    await expect(
+      createOnRequestError({ events })(new Error("boom"), request, context),
+    ).resolves.toBeUndefined();
+    expect(error).toHaveBeenCalledWith(
+      "request.failed bridge threw",
+      expect.anything(),
+    );
+  });
+
   it("lists its event type", () => {
     expect(requestEvents.types).toEqual(["request.failed"]);
   });
